@@ -87,6 +87,9 @@ export interface AuditFilterState {
   actorType: string;
   adminEmail: string;
   targetId: string;
+  targetType: string;
+  /** "Done to" — the target account's email. */
+  targetEmail: string;
   missingReason: boolean;
   range: "24h" | "7d" | "30d" | "90d" | "all" | "custom";
   from: string; // yyyy-mm-dd, custom range only
@@ -94,8 +97,47 @@ export interface AuditFilterState {
 }
 
 export const EMPTY_FILTERS: AuditFilterState = {
-  q: "", category: "", severity: "", actorType: "", adminEmail: "", targetId: "", missingReason: false, range: "30d", from: "", to: "",
+  q: "", category: "", severity: "", actorType: "", adminEmail: "", targetId: "", targetType: "", targetEmail: "", missingReason: false, range: "30d", from: "", to: "",
 };
+
+export const TARGET_TYPE_LABEL: Record<string, string> = {
+  user: "Accounts",
+  coupon: "Coupons",
+  plan: "Plans",
+  review: "Reviews",
+  affiliate: "Affiliates",
+  announcement: "Announcements",
+  project: "Projects",
+  asset: "Library assets",
+  purchase: "Purchases",
+  commission: "Commissions",
+  social_account: "Social accounts",
+  cron: "Scheduled jobs",
+  queue_job: "Queue jobs",
+  flag: "Feature flags",
+  tool: "Tools",
+  model: "AI models",
+};
+
+const RANGE_LABEL: Record<AuditFilterState["range"], string> = {
+  "24h": "the last 24 hours", "7d": "the last 7 days", "30d": "the last 30 days", "90d": "the last 90 days", all: "all time", custom: "the chosen dates",
+};
+
+/** The active filters in words — for the empty state ("no … matching …"). */
+export function describeFilters(f: AuditFilterState): string[] {
+  const out: string[] = [];
+  if (f.q) out.push(`search “${f.q}”`);
+  if (f.category) out.push(`category ${CATEGORY_LABEL[f.category as AuditCategory] ?? f.category}`);
+  if (f.severity) out.push(`severity ${SEVERITY_LABEL[f.severity as AuditSeverity] ?? f.severity}`);
+  if (f.targetType) out.push(`target ${TARGET_TYPE_LABEL[f.targetType] ?? f.targetType}`);
+  if (f.actorType) out.push(`${f.actorType} actions only`);
+  if (f.adminEmail) out.push(`done by “${f.adminEmail}”`);
+  if (f.targetEmail) out.push(`done to “${f.targetEmail}”`);
+  if (f.targetId) out.push("one target");
+  if (f.missingReason) out.push("missing a reason");
+  out.push(`in ${RANGE_LABEL[f.range]}`);
+  return out;
+}
 
 /** Filter state → API query params. Dates go as ISO instants in the admin's own timezone. */
 export function toParams(f: AuditFilterState): URLSearchParams {
@@ -106,6 +148,8 @@ export function toParams(f: AuditFilterState): URLSearchParams {
   if (f.actorType) p.set("actorType", f.actorType);
   if (f.adminEmail) p.set("adminEmail", f.adminEmail);
   if (f.targetId) p.set("targetId", f.targetId);
+  if (f.targetType) p.set("targetType", f.targetType);
+  if (f.targetEmail) p.set("targetEmail", f.targetEmail);
   if (f.missingReason) p.set("missingReason", "1");
   const hours = { "24h": 24, "7d": 168, "30d": 720, "90d": 2160 }[f.range as "24h"];
   if (hours) p.set("from", new Date(Date.now() - hours * 3600_000).toISOString());

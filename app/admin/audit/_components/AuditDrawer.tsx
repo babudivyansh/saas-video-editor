@@ -12,7 +12,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Modal } from "@/app/components/ui/Modal";
 import { StatusBadge } from "@/app/components/ui/StatusBadge";
 import { Button } from "@/app/components/ui/Button";
-import { describeDevice, diffSnapshots, fieldLabel, formatValue, relativeTime } from "./format";
+import { describeDevice, diffSnapshots, fieldLabel, formatValue, linkFor, relativeTime } from "./format";
 import { CATEGORY_LABEL, SEVERITY_LABEL, SEVERITY_TONE, type AuditEvent } from "./types";
 
 const exact = (iso: string) => ({
@@ -36,6 +36,13 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <dd className="text-sm text-fg break-words">{children}</dd>
     </div>
   );
+}
+
+/** A formatted value; an id of something openable ("userId") becomes a link to it. */
+function Value({ path, v }: { path: string; v: unknown }) {
+  const href = linkFor(path, v);
+  const text = formatValue(path, v);
+  return href ? <Link href={href} className="text-brand hover:underline font-mono">{text}</Link> : <>{text}</>;
 }
 
 const INTEGRITY = {
@@ -157,12 +164,12 @@ export function AuditDrawer({
                           <td className="px-3 py-2 text-fg-muted align-top whitespace-nowrap" title={c.path}>{fieldLabel(c.path)}</td>
                           {!oneSided || e.before != null ? (
                             <td className={`px-3 py-2 align-top break-words ${c.kind === "changed" || c.kind === "removed" ? "text-fg" : "text-fg-subtle"}`}>
-                              {c.kind === "changed" && !oneSided ? <span className="line-through decoration-error/60">{formatValue(c.path, c.before)}</span> : formatValue(c.path, c.before)}
+                              {c.kind === "changed" && !oneSided ? <span className="line-through decoration-error/60"><Value path={c.path} v={c.before} /></span> : <Value path={c.path} v={c.before} />}
                             </td>
                           ) : null}
                           {!oneSided || e.after != null ? (
                             <td className={`px-3 py-2 align-top break-words ${c.kind === "same" || c.kind === "unrecorded" ? "text-fg-subtle" : "text-fg font-semibold"}`}>
-                              {c.kind === "unrecorded" ? <span className="italic">not changed</span> : formatValue(c.path, c.after)}
+                              {c.kind === "unrecorded" ? <span className="italic">not changed</span> : <Value path={c.path} v={c.after} />}
                             </td>
                           ) : null}
                         </tr>

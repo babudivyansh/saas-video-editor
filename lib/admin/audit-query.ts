@@ -3,7 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { hashAuditRow } from "@/lib/admin/audit";
 import {
-  actionsExpectingReason, actionsInCategory, actionsWithSeverity, describeAction, patternPrefixesIn,
+  actionsExpectingReason, actionsInCategory, actionsWithSeverity, actionsWithTargetType, describeAction, patternPrefixesIn,
   type AuditCategory, type AuditSeverity, type AuditTargetType,
 } from "@/lib/admin/audit-catalog";
 import { resolveTargets, targetKey } from "@/lib/admin/audit-targets";
@@ -15,6 +15,10 @@ import { resolveTargets, targetKey } from "@/lib/admin/audit-targets";
 const blank = (v: unknown) => (v === "" ? undefined : v);
 const CATEGORIES = ["accounts", "billing", "security", "content", "operations", "config", "reviews", "affiliates", "social"] as const;
 const SEVERITIES = ["critical", "destructive", "money", "security", "change", "view"] as const;
+const TARGET_TYPES = [
+  "user", "coupon", "plan", "review", "affiliate", "announcement", "project", "asset", "purchase",
+  "commission", "social_account", "cron", "queue_job", "flag", "tool", "model",
+] as const;
 
 export const auditFiltersSchema = z.object({
   q: z.preprocess(blank, z.string().trim().max(200).optional()),
@@ -27,6 +31,7 @@ export const auditFiltersSchema = z.object({
   category: z.preprocess(blank, z.enum(CATEGORIES).optional()),
   severity: z.preprocess(blank, z.enum(SEVERITIES).optional()),
   actorType: z.preprocess(blank, z.enum(["admin", "user", "system"]).optional()),
+  targetType: z.preprocess(blank, z.enum(TARGET_TYPES).optional()),
   missingReason: z.preprocess((v) => v === "1" || v === "true", z.boolean()).optional(),
   // ISO instants from the browser (its own timezone). A bare YYYY-MM-DD still
   // works: `to` then means the whole of that (UTC) day.
@@ -65,6 +70,7 @@ export async function buildAuditWhere(f: AuditFilters, { withDates = true } = {}
   if (f.involving) and.push({ OR: [{ targetId: f.involving }, { adminId: f.involving }] });
   if (f.category) and.push(actionFilter(actionsInCategory(f.category), patternPrefixesIn({ category: f.category })));
   if (f.severity) and.push(actionFilter(actionsWithSeverity(f.severity), patternPrefixesIn({ severity: f.severity })));
+  if (f.targetType) and.push(actionFilter(actionsWithTargetType(f.targetType), patternPrefixesIn({ targetType: f.targetType })));
   if (f.missingReason) {
     and.push({ action: { in: actionsExpectingReason() } }, { reason: null }, { NOT: { after: { contains: '"reason"' } } });
   }

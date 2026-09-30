@@ -97,6 +97,20 @@ describe("GET /api/admin/audit", () => {
     expect(where).toContain('"reason":null');
   });
 
+  it("filters by target type and by the target account's email", async () => {
+    await get("?targetType=coupon");
+    const where = JSON.stringify(findManyArgs!.where);
+    expect(where).toContain("coupon.updated");
+    expect(where).not.toContain("user.deleted");
+
+    await get("?targetEmail=pat@example");
+    expect(JSON.stringify(findManyArgs!.where)).toContain('"targetId":{"in":["u1"]}');
+  });
+
+  it("rejects an unknown target type", async () => {
+    expect((await get("?targetType=spaceship")).status).toBe(400);
+  });
+
   it("returns nothing (without querying the log) for an admin email that matches no one", async () => {
     const body = await (await get("?adminEmail=nobody@none")).json();
     expect(body).toEqual({ events: [], total: 0, nextCursor: null });
@@ -108,6 +122,20 @@ describe("GET /api/admin/audit", () => {
     expect(JSON.stringify(findManyArgs!.where)).toContain("2026-09-30T18:29:59.999Z");
     await get("?to=2026-09-30");
     expect(JSON.stringify(findManyArgs!.where)).toContain("2026-09-30T23:59:59.999Z");
+  });
+
+  it("exports CSV with the readable fields, not just the raw JSON columns", async () => {
+    rows.push(legacyRow({ after: JSON.stringify({ suspendedAt: "2026-09-29T10:00:00Z", _meta: { reason: "spam, repeated", ip: "1.2.3.4" } }) }));
+    const res = await get("?export=csv");
+    expect(res.headers.get("content-type")).toContain("text/csv");
+    const [header, line] = (await res.text()).trim().split("\n");
+    expect(header).toBe(
+      "createdAt,actorType,actorEmail,actorId,action,summary,category,severity,target,targetId,reason,ip,userAgent,sessionId,integrity,before,after",
+    );
+    expect(line).toContain("admin,boss@clipiro.test,admin-1,user.suspended,Suspended account pat@example.com,accounts,destructive,pat@example.com,u1");
+    // A comma inside a value is quoted, not split into a new column.
+    expect(line).toContain('"spam, repeated",1.2.3.4');
+    expect(line).toContain(",legacy,");
   });
 
   it("paginates by cursor", async () => {
