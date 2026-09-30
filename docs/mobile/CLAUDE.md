@@ -1,11 +1,11 @@
 # Clipiro — Android app (Expo) · rules for Claude Code
 
 ## What we're building
-The native Android app for clipiro.com (AI short-form video: long video → TikTok / Reels / Shorts).
+The native Android app for clipiro.com (AI short-form video: long video → YouTube Shorts / Instagram Reels / Facebook). No TikTok (not available in India).
 The designs are final and live in `design/`:
-- `design/SCREENS.md` — all 52 screens, suggested routes, what data each needs. Use it as the checklist.
+- `design/SCREENS.md` — all 50 screens, suggested routes, what data each needs. Use it as the checklist.
 - `design/screens/*.html` — each screen as HTML at 412px wide. Read exact spacing, sizes and colours from here.
-- `design/png/*.png` — renders of each screen (fallback font; real font is Geist).
+- `design/png/*.png` — renders of each screen, generated from design/screens with Geist. `design/source/` is the original canvas export and is out of date (see SCREENS.md "Revisions").
 - `design/images/` — sample photos used in the designs (placeholders for real user content).
 
 ## Stack

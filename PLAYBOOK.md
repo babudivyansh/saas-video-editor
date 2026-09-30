@@ -20,7 +20,7 @@ uploads, credits, captions, AI tools and the social tracker are implemented, and
 Write docs/mobile/ARCHITECTURE.md covering:
 1. What exists today (with file paths) for each area in SCREENS.md.
 2. Which mobile screens can reuse existing backend logic and which need new backend work
-   (scheduling/composer, avatars, voice cloning, text/script/image-to-video, split screen are new).
+   (scheduling/composer, voice cloning, push and draft progress are new).
 3. The auth approach for mobile (Bearer tokens) based on what the web app uses today.
 4. Risks and open questions for me.
 Do not change any code in this phase.
@@ -66,7 +66,7 @@ Check: open the app in Expo Go or the Android emulator, compare /dev/components 
 
 ---
 
-## Phase 3 — Navigation shell for all 52 screens
+## Phase 3 — Navigation shell for all 50 screens
 
 ```
 Plan first. Using design/SCREENS.md, create every route with Expo Router:
@@ -176,8 +176,9 @@ Check: edit a clip, export, result matches preview. Commit.
 ## Phase 10 — Other Create tools
 
 ```
-Plan first. Wire Text to Video, Script to Video, AI Avatar, Image to Video, Split Screen and AI Media
-(image generator with model choice, voiceover, speech enhancer, vocal remover) to job endpoints.
+Plan first. Wire AI Media (image generator with model choice, voiceover, speech enhancer, vocal remover)
+and the Create hub AI-tool shortcuts to job endpoints. (Text/Script/Image-to-Video, AI Avatar and Split
+Screen were removed from the product on 2026-10-01 — do not build them.)
 Show the credit cost before generating; results land in Assets → AI Assets.
 Where the backend feature doesn't exist yet, add the endpoint as a stub returning 501 and show a
 "Coming soon" state in the app — list these for me.
@@ -202,7 +203,7 @@ Check: analytics match the website; approve SCHEDULING.md before it's built. Com
 ## Phase 12 — You: profile, credits, subscription, settings
 
 ```
-Plan first. Build You, My Voices, My Avatars, Brand Kit, Credits, Subscription, Notifications,
+Plan first. Build You, My Voices (incl. voice cloning), Brand Kit, Credits, Subscription, Notifications,
 Settings, Help & Support, Legal with live data.
 Payments: research Google Play's current billing policy for digital goods (credits and subscriptions)
 in my markets, including India's alternative billing, and write docs/mobile/BILLING.md with the options.

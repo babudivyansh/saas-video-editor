@@ -1,6 +1,6 @@
 # Clipiro Android — architecture (Phase 0)
 
-Written 2026-10-01 from a read-only survey of this repo (`main` @ f20c41a + handoff design).
+Written 2026-10-01 from a read-only survey of this repo (`main` @ f20c41a + handoff design). Updated the same day with the user's decisions and the design revision (§2, §4).
 Paths are repo-relative. "Web" = the existing Next.js app, which becomes `apps/web` in Phase 1.
 
 Legend for the screen table (§2):
@@ -202,59 +202,67 @@ Legend for the screen table (§2):
 
 ## 2. Screen by screen: reuse vs new work
 
+The numbers follow `design/SCREENS.md` after the 2026-10-01 revision (50 screens).
+
 | # | Screen | Kind | Backend it uses / what's missing |
 |---|---|---|---|
 | 1 | Splash | C | — |
 | 2–5 | Onboarding ×4 | C | Optionally `api/onboarding/complete` |
 | 6 | Login | R + W | `auth/login`, `2fa/verify-login`. **W:** Google ID-token exchange |
-| 7 | Sign up | R | `auth/register` (also send `confirmPassword`). The design has no confirm field; the client can send the same value twice |
-| 8 | OTP | R | `auth/register/verify`, `resend`. **The design shows 4 boxes; the backend sends 6 digits** |
-| 9 | Forgot password | R | `auth/forgot-password`. The reset link opens the website; an app deep link is optional |
-| 10 | Home | W | Aggregate of `auth/me` + `dashboard/summary` + quests (XP/rank) + top clips (`api/clips?sort=score`) into one call |
+| 7 | Sign up | R | `auth/register`. The design has no confirm field, so the client sends the password as `confirmPassword` too |
+| 8 | OTP | R | `auth/register/verify`, `resend`. 6 digits, matching the design |
+| 9 | Forgot password | R | `auth/forgot-password`. The reset link opens the website; an app deep link comes in Phase 15 |
+| 10 | Home | W | One aggregate call: `auth/me` + `dashboard/summary` + quests (XP/rank) + top clips (`api/clips?sort=score`) |
 | 11 | Recommended tools | C | Static list from `featureLinks.ts` + `tool-costs.ts` |
 | 12 | AI Assistant | **N** | New: server-side LLM with tools (Phase 13) |
-| 13 | Create hub | C | — |
-| 14 | AutoClip | R | projects → upload (multipart) / import-url → `generate/auto-clip` → poll clips. **The design's fixed "≤500 MB, 1 min–1 h 30 m" must come from `api/upload-policy` (limits vary by tier)** |
-| 15 | Text to Video | **N** | Never existed. The AI video generator was removed in PR #257 (it never saved its videos) |
-| 16 | Script to Video | **N** | Never existed |
-| 17 | AI Avatar | **N** | Never existed (no avatar provider) |
-| 18 | Image to Video | **N** | Never existed |
-| 19 | Split Screen | **N** | Existed; removed 2026-09-10 (`d216588`). Leftover references in `lib/reframe.ts` and `lib/caption-render-job.ts` |
-| 20 | AI Media | R + W | `tools/image-generator` (9 models), `voiceover`, `enhance-speech`, `vocal-remover`. **W:** DB-backed job status (see §4, R3) |
-| 21 | Editor timeline | R | `projects/[id]` `editorDoc` + `expectedVersion`, `TimelineDoc`. Most of the work is client-side |
-| 22 | Captions panel | R | `caption-templates`, `editor/captions` (speech-to-text) |
-| 23 | Audio panel | R | enhance-speech (8 cr), vocal-remover (1 cr), Jamendo music via `editor/stock`, voiceover. "Cut silences" exists as an AutoClip option; needs checking for the editor doc |
-| 24 | Text panel | R | Text track in `TimelineDoc`. Fonts: Geist/Bebas/Serif/Mono (Bebas Neue is already in globals.css) |
-| 25 | Effects panel | R / N | Effects and transitions render via filtergraph (#96). The design's set (Zoom punch, Glow, Shake, Blur in, B&W, Film grain) is to be mapped in Phase 9; any missing effects are **N** |
-| 26 | AI Tools panel | R / N | Face swap, subtitle remover, voice changer, dub (AutoClip clips only) and background remover exist. **Auto-reframe inside the editor** exists only inside AutoClip (`lib/reframe.ts`) |
-| 27 | Export | R / N | `editor/render` (1 credit). 720p/1080p/30fps render today; **4K and 60 fps need checking**. The "Post" destination depends on scheduling (row 41) |
-| 28 | Projects: All | R | `api/projects`. The design shows product types that don't exist (Image to Video, Script to Video, AI Avatar) |
-| 29 | Drafts | R / W | `api/projects?status=draft`. **The "60%" progress per draft has no backing field** |
-| 30 | Videos · Reels · Shorts | W | Clips filtered by aspect ratio: needs an `aspectRatio` filter on `api/clips` |
-| 31 | Project detail | R | `projects/[id]/clips`, star, download, download-all. Score spread is computed on the client |
-| 32 | Assets All/Videos/Images | R | `api/assets` + `?stats=true`, folders, bulk |
-| 33 | Assets Audio | R | `api/assets?kind=audio` |
-| 34 | AI Assets | W / N | Needs a `sourceFeature` filter on `api/assets`. The Avatars section is **N** |
-| 35 | Insights overview | R | `social/overview`, `series`. **TikTok share in the design has no data (no TikTok)** |
-| 36 | Content performance | R | `social/content`, `social/export` (CSV) |
-| 37 | Platform analytics | R | `social/analytics`, `social/audience` (age and country snapshots exist) |
-| 38 | Account analytics | R | `social/*`, `summary` (5 cr), health score. Audience, Competitors and Reports tabs exist on the backend but have **no mobile designs** |
-| 39 | Accounts | R + W | `social/accounts`. **W:** OAuth connect from the app (in-app browser plus a deep-link return). TikTok, X and LinkedIn are **N** |
-| 40 | Content calendar | **N** | Only `ClipPublish` (YouTube) exists. Needs SCHEDULING.md (Phase 11) |
-| 41 | Composer | **N** | Posting to TikTok, Reels or Shorts: only YouTube upload exists. Instagram and Facebook need publish scopes plus Meta app review; TikTok needs Content Posting API approval |
-| 42 | Scheduled posts | **N** | As above |
-| 43 | Profile | R | `auth/me`, quests. The UID shown is `user.id` |
-| 44 | My Voices | R + **N** | The stock voice list exists (`ELEVENLABS_VOICE_*`, `voice-preview`). **Cloning is N:** the `ClonedVoice` model and `lib/cloned-voices.ts` exist with no route, and the ElevenLabs account is on the free tier (3 voice slots; cloning needs a paid plan) |
-| 45 | My Avatars | **N** | No avatar provider |
-| 46 | Brand Kit | R + **N** | `brand-kits` covers caption style. **Logo, colour palette, fonts, watermark and intro/outro are new fields and new render support** |
-| 47 | Credits | R + W | Balances from `auth/me`. **W:** ledger list ("Recent activity"). Buying is blocked on billing (§4) |
-| 48 | Subscription | R + **decision** | `api/plans`, `billing/*`. The design shows Razorpay/UPI checkout, which conflicts with Play policy (§4) |
-| 49 | Notifications | R + **N** | The list and read-all exist. **Push is N** (device tokens + FCM hook in `notify()`). Tabs (Renders/Social/Account) map from `type`. Social types (posted, reconnect) don't exist yet |
-| 50 | Settings | R + C | `notification-preferences` (email only), `auth/sessions`, `change-password`, `api-keys`, deactivate or delete. Autoplay, haptics, Wi-Fi-only and default export are stored on the device. Push toggles are **N** |
-| 51 | Help & Support | W | Serve `app/help/articles.ts` as JSON, or bundle it. "Report a bug / send logs" has no backend. Note from earlier work: the web contact form is fake |
-| 52 | Legal | C | Open the web pages in an in-app browser. The design's `[DATE]` placeholder needs real dates |
+| 13 | Create hub | C | Editor, AI Media, and shortcuts to existing AI tools |
+| 14 | AutoClip | R | projects → upload (multipart) / import-url → `generate/auto-clip` → poll clips. The limits line comes from `api/upload-policy` (varies by plan) |
+| 15 | AI Media | R + W | `tools/image-generator`, `voiceover`, `enhance-speech`, `vocal-remover`. **W:** DB-backed job status (R3) |
+| 16 | Editor timeline | R | `projects/[id]` `editorDoc` + `expectedVersion`. Most of the work is client-side |
+| 17 | Media sheet (new) | R | Assets: `api/assets`. Upload: `api/upload*`. Stock: `api/editor/stock/*` (Pexels, Giphy) |
+| 18 | Captions | R | `caption-templates`, `editor/captions` (speech-to-text) |
+| 19 | Audio | R | enhance-speech, vocal-remover, Jamendo music via `editor/stock`, voiceover. "Cut silences" in the editor needs checking in Phase 9 |
+| 20 | Text | R | Text track in `TimelineDoc` |
+| 21 | Effects · Filters · Transitions | R / N | Rendered via filtergraph (#96). Map the design's effect set in Phase 9; any missing effects are **N** |
+| 22 | AI Tools | R / N | Face swap, subtitle remover, voice changer, dub and background remover exist. Auto-reframe exists only inside AutoClip (`lib/reframe.ts`) |
+| 23 | Export | R / N | `editor/render` (1 credit). **4K and 60 fps need checking.** "Post" goes to the Composer |
+| 24 | Projects: All | R | `api/projects` (AutoClip and Editor projects only) |
+| 25 | Drafts | R + **N** | `api/projects?status=draft` + **draft progress** (below) |
+| 26 | Videos · Reels · Shorts | W | Needs an `aspectRatio` filter on `api/clips` |
+| 27 | Project detail | R | `projects/[id]/clips`, star, download, download-all |
+| 28 | Assets All/Videos/Images | R | `api/assets` + `?stats=true`, folders, bulk |
+| 29 | Assets Audio | R | `api/assets?kind=audio` |
+| 30 | AI Assets | W | Needs a `sourceFeature` filter on `api/assets`. Sections: AI images, voiceovers, audio cleanup |
+| 31 | Insights overview | R | `social/overview`, `series` |
+| 32 | Content performance | R | `social/content`, `social/export` (CSV) |
+| 33 | Platform analytics | R | `social/analytics`, `social/audience` |
+| 34 | Account analytics · Overview | R | `social/*`, `summary` (5 cr), health score |
+| 35 | Account analytics · Audience (new) | R | `social/audience` (`SocialAudienceSnapshot`: gender, age, country, city, activeHour × activeDay) |
+| 36 | Account analytics · Competitors (new) | R | `social/competitors` (max 3, Instagram and YouTube), `competitors/compare` |
+| 37 | Account analytics · Reports (new) | R | `social/reports` (configs, runs, PDF/CSV/XLSX, schedules), `social/report-link` (share and revoke) |
+| 38 | Accounts | R + W | `social/accounts`. **W:** OAuth connect from the app (in-app browser plus a deep-link return). YouTube, Instagram and Facebook only |
+| 39 | Content calendar | **N** | SCHEDULING.md (Phase 11). YouTube publish exists (`ClipPublish`, `cron/clip-publish`) |
+| 40 | Composer | **N** | YouTube Shorts in v1; Instagram Reels and Facebook are "Soon" (need publish scopes and Meta app review) |
+| 41 | Scheduled posts | **N** | As above |
+| 42 | Profile | R | `auth/me`, quests |
+| 43 | My Voices | R + **N** | The stock voice list exists. **Cloning is v1** (decided): add a route over `ClonedVoice` / `lib/cloned-voices.ts`, with consent capture. Needs the paid ElevenLabs plan |
+| 44 | Brand Kit | R + **N** | `brand-kits` covers caption style. Logo, palette, fonts, watermark and intro/outro are new |
+| 45 | Credits | R + W | Balances from `auth/me`. **W:** ledger list ("Recent activity"). No purchase UI until Phase 12 |
+| 46 | Subscription | R | `api/plans`, current plan. Read-only until Phase 12; `billing/cancel` can stay |
+| 47 | Notifications | R + **N** | List and read-all exist. **Push is N.** Tabs map from `type`; social types (posted, reconnect) are new |
+| 48 | Settings | R + C | `notification-preferences`, `auth/sessions`, `change-password`, `api-keys`, deactivate or delete. Device-only toggles are stored locally |
+| 49 | Help & Support | W | Serve `app/help/articles.ts` as JSON. "Report a bug" has no backend |
+| 50 | Legal | W | Dates from `app/legal/documents.ts` (serve as JSON so they never drift). The pages open in an in-app browser |
 
-**Summary:** about 30 screens are R/C, 8 need thin wrappers, and 13 need new backend features. The new-feature screens are Assistant, Text/Script/Image-to-Video, Avatar, Split Screen, Calendar, Composer, Scheduled, voice cloning, avatars, the extended brand kit, and push.
+### Draft progress (new; build in Phase 8, then flag it here as done)
+- **Definition:** an editing checklist worth 20% each:
+  1. Media on the timeline
+  2. Trimmed or cut (any clip `in`/`out` ≠ source bounds, or a split)
+  3. Captions added
+  4. Audio set (music, voiceover or level change)
+  5. Text or title added
+- **Implementation:** a pure function `draftProgress(editorDoc)` in `lib/editor/`, computed server-side and returned by the projects list and detail endpoints. **No migration.** AutoClip drafts compute the same score from their `editorDoc`.
+- **Tests:** unit tests over sample `TimelineDoc`s.
 
 ---
 
@@ -275,58 +283,68 @@ Legend for the screen table (§2):
 
 ---
 
-## 4. Risks and open questions
+## 4. Decisions (2026-10-01) and remaining risks
 
+### Decided by the user
+| Topic | Decision |
+|---|---|
+| Removed products | Text, Script and Image-to-Video, AI Avatar, Split Screen and My Avatars are **removed from the mobile design** |
+| TikTok | **Removed everywhere** (not available in India). Platforms: YouTube, Instagram, Facebook |
+| Publishing | **YouTube Shorts in v1**; Instagram and Facebook later (shown as "Soon") |
+| Billing | **Phase 12.** No Razorpay checkout in the app; plans and packs are read-only until then |
+| OTP | 6 digits |
+| AutoClip limits | Plan-based, from `api/upload-policy` |
+| Draft progress | Build it (§2) |
+| Voice cloning | **In v1.** The ElevenLabs plan will be upgraded |
+| Render queue in prod | `RENDER_QUEUE_DRIVER=in-process` (confirmed from the Hostinger env) |
+| Hostinger | App settings: Framework Next.js, **Root directory `./`**, Build and output settings: Default, **Node 22.x**, branch `main`. Root directory is an editable setting |
+
+### Billing: recommendation for Phase 12
+Credits and plans are digital goods, so Google Play requires Play Billing.
+- **India:** User Choice Billing lets Razorpay appear **alongside** Play Billing (never instead of it). Google's fee is then 4 points lower on the Razorpay transactions.
+- **Linking out:** Google's external-link / alternative-billing programme reaches the rest of the world, including India, only by **30 Sep 2027**. Until then, linking users out to buy on the web isn't allowed.
+- **Recommended:**
+  1. **Launch:** read-only plans, packs and balances (done in the design). No buy buttons, no "buy on web" links. Zero fee, zero policy risk.
+  2. **Phase 12:** add Play Billing, with the server verifying each purchase (Play Developer API) before it grants credits or plans. Add Razorpay via User Choice Billing only if the 4-point saving is worth a second checkout.
+- **Sources:**
+  - [Play Console Help: India billing changes](https://support.google.com/googleplay/android-developer/answer/13306652?hl=en)
+  - [User choice billing](https://support.google.com/googleplay/android-developer/answer/13821247?hl=en)
+  - [Android Developers Blog, Mar 2026](https://android-developers.googleblog.com/2026/03/a-new-era-for-choice-and-openness.html)
+
+### Editor toolbar (decided with the design revision)
+- **Media** opens the new Media sheet (Assets / Upload / Stock).
+- **Filters** and **Transitions** open the Effects panel on that tab.
+- **Image** (merged into Media) became **AI Tools**, which had no toolbar button before.
+- The panel tab strip gained Media.
+
+### Remaining risks
 **R1. Phase 1 monorepo vs the Hostinger deploy.** This is the highest risk.
-- **Deploy scripts assume the repo root:**
-  - `scripts/postbuild.js` looks for a hardcoded `/home/u154310472/domains/clipiro.com/public_html` and `../public_html` relative to the working directory.
-  - `next.config.ts` sets `turbopack.root: __dirname`, uses `workerThreads` (the fix for the Turbopack spawn crash, #261), and has file-tracing includes for `./vendor/ffmpeg` and `node_modules`.
-  - The `postinstall` script installs the render ffmpeg binary.
-- **Package manager:** npm → pnpm changes how `node_modules` is laid out (symlinked), which the standalone file tracing and Prisma both depend on.
-- **CI** (`.github/workflows/ci.yml`) runs at the root; so do `tsconfig`'s `**/*.ts`, vitest's `**/*.test.ts` and eslint. Mobile files would otherwise get type-checked and linted as web code.
-- **Q:** Can Hostinger's app settings point at `apps/web` (root directory, build and start commands)? If not, Phase 1 needs a root-level build that runs inside `apps/web`.
-- **Q:** Should Phase 1 stay on npm workspaces instead of pnpm? That would be much lower risk for the deploy, but it differs from the playbook.
+- **Hostinger settings:** Root directory is editable (`./` today), and the build uses Hostinger's *default* commands. There are two options:
+  - (a) Set the root to `apps/web`.
+  - (b) Keep `./` and have the root `package.json` delegate `build` and `start` to the web workspace.
+  - Option (b) doesn't depend on how Hostinger resolves a lockfile outside its root, and it is easier to roll back. Phase 1 will pick one after a dry run.
+- **Things that assume the repo root:**
+  - `scripts/postbuild.js` hardcodes `/home/u154310472/domains/clipiro.com/public_html` and `../public_html`.
+  - `next.config.ts` uses `turbopack.root: __dirname` and `workerThreads` (#261).
+  - The standalone output path moves in a monorepo (`.next/standalone/apps/web/server.js`).
+- **Package manager:** npm → pnpm changes the `node_modules` layout, which Next's standalone tracing, Prisma and the ffmpeg `postinstall` all depend on. **Recommend npm workspaces** unless you want pnpm.
+- **Install time:** mobile (Expo) dependencies must not be installed by the web deploy. A deploy already takes about 13 minutes.
+- **Node versions:** Hostinger builds on **Node 22**, but CI uses Node 20. Align CI to 22 in Phase 1.
 
-**R2. Play Billing vs Razorpay.** Credits and subscriptions are digital goods, so Google Play requires Play Billing. India's user-choice billing may allow Razorpay as an alternative, with a reduced service fee. The Subscription and Credits screens show Razorpay/UPI.
-- **Q:** Decide in Phase 12 (BILLING.md). Until then, should the app show plans read-only and link out to the web?
+**R3. The tool job model.** Tool jobs are in-memory (`lib/job-routes.ts`), and prod also runs the **in-process render queue**. So every deploy or restart kills in-flight AutoClip renders and tool jobs. The watchdog refunds AutoClip; tool jobs are just lost.
+- A DB-backed job status (extend `Generation` or add a `Job` table) is required before the app relies on "POST job → poll → push" (Phase 5).
+- Completion push must also fire from the refund/failure path.
 
-**R3. The tool job model.** In-memory `jobId`s (`lib/job-routes.ts`) don't survive a restart or a second instance. The playbook's "POST job → poll /jobs/:id → push" needs a **DB-backed job** (extend `Generation` or add a `Job` table) before the phone relies on it (Phase 5).
+**R5. Provider limits.** Voice cloning needs the ElevenLabs upgrade to land before Phase 12. Submagic stays inactive without a key.
 
-**R4. Removed products are back in the design.** Text/Script/Image-to-Video, AI Avatar and Split Screen were removed from the web in September 2026, partly because of cost and persistence problems.
-- **Q:** Build them for real (Phase 10) or ship "Coming soon"? Each needs a provider choice and pricing.
+**R6. Social publishing.** YouTube upload exists. Instagram and Facebook publishing need `instagram_content_publish` / `pages_manage_posts` and Meta app review. SCHEDULING.md (Phase 11) comes first.
 
-**R5. Provider limits.** The ElevenLabs account is on the free tier (10k characters a month, 3 voice slots; Voice Library and Music are paid only), so voice cloning and heavy voiceover need a paid plan. Submagic is inactive without a key.
+**R8. Push.** Needs FCM (a Firebase project and `google-services.json`), a `DeviceToken` table, and a hook in `notify()`.
 
-**R6. Social publishing.**
-- TikTok: nothing exists. The Content Posting API needs an audit and approval.
-- Instagram/Facebook: need `instagram_content_publish` and Meta app review.
-- YouTube: upload exists.
-- Calendar, Composer and Scheduled need SCHEDULING.md (Phase 11). The design also lists X, LinkedIn and Facebook under "Connect more".
+**R10. AI Assistant.** There's no Anthropic key in env yet, and pricing (per message or per action) still needs deciding.
 
-**R7. Design vs backend mismatches** (to resolve, or accept the backend's version):
-- The OTP has 4 boxes but the backend sends 6 digits.
-- The AutoClip limits text is fixed; the real limits vary by tier.
-- The "60%" on drafts has no data behind it.
-- The editor toolbar shows Media, Filters, Transitions and Image, but there are only 5 panel designs (Captions, Audio, Text, Effects, AI Tools).
-- Account analytics has Audience, Competitors and Reports tabs with no designs.
-- The Legal screen shows `[DATE]`.
-- The Insights screens show TikTok data (no TikTok support).
-- The Composer shows TikTok, Reels and Shorts.
+**R11. Editor scope and performance.** A 60 fps native timeline, with the same `TimelineDoc` as the web.
 
-**R8. Push.** Push needs FCM (a Firebase project and `google-services.json`), a `DeviceToken` table, and a hook in `notify()`. Hostinger has no background worker other than cron-tick, which is fine because pushes go out inline from `notify()`.
-
-**R9. Queue driver in production.** `lib/job-queue.ts` says production runs the in-process driver, while `lib/render-queue.ts` defaults to BullMQ. Long AutoClip runs plus a backgrounded phone mean completion push matters more.
-- **Q:** Confirm the value of `RENDER_QUEUE_DRIVER` on Hostinger.
-
-**R10. AI Assistant.** There is no Anthropic key in env today. It also needs a decision on how it's charged: per message, or a credit cost per tool action.
-
-**R11. Editor scope and performance.** The web editor is complex (the #96 filtergraph, captions, versioned saves). A 60 fps native timeline is Phase 9's biggest piece of work. The editor document must stay the same `TimelineDoc` so web and mobile edit the same projects.
-
-**Open questions for you, in short:**
-1. Hostinger: can the app root be set to `apps/web`? And pnpm (as the playbook says) or npm workspaces (safer)?
-2. Removed products (rows 15–19, 45): build them, or show "Coming soon" for v1?
-3. Billing: read-only plans plus a link to the web until BILLING.md is decided. OK?
-4. Social publishing: is YouTube-only publishing in v1 acceptable, with TikTok and Instagram later?
-5. OTP: change the design to 6 boxes? (Recommended; don't weaken the backend.)
-6. `RENDER_QUEUE_DRIVER` in production: BullMQ or in-process?
-7. ElevenLabs: will you upgrade the plan for voice cloning, or hide cloning in v1?
+### Still open (not blocking Phase 1)
+1. pnpm (as the playbook says) or npm workspaces (recommended)? Phase 1 plan.
+2. AI Assistant pricing and the Anthropic key (Phase 13).
