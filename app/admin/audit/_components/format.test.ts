@@ -1,5 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { describeDevice, diffSnapshots, fieldLabel, formatValue } from "./format";
+import { describeDevice, diffSnapshots, fieldLabel, formatValue, linkFor } from "./format";
+
+describe("linkFor", () => {
+  it("links id-valued fields to what they point at, including nested paths", () => {
+    expect(linkFor("userId", "ef4e8b65-b8bb-44eb-88ac-f97cdd4c68f1")).toBe("/admin/users/ef4e8b65-b8bb-44eb-88ac-f97cdd4c68f1");
+    expect(linkFor("before.reviewId", "rev-12345678")).toBe("/admin/reviews/rev-12345678");
+    expect(linkFor("planId", "b6f9759a-2c91-492d-98a5-8d76969cfeba")).toBe("/admin/pricing");
+  });
+
+  it("leaves other fields and non-id values alone", () => {
+    expect(linkFor("name", "ef4e8b65-b8bb-44eb-88ac-f97cdd4c68f1")).toBeNull();
+    expect(linkFor("userId", "short")).toBeNull();
+    expect(linkFor("userId", "has spaces in it")).toBeNull();
+    expect(linkFor("userId", 42)).toBeNull();
+  });
+});
 
 describe("diffSnapshots", () => {
   it("lists changed fields first, with nested objects as dotted paths", () => {

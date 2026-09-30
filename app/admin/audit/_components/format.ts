@@ -86,6 +86,26 @@ export function formatValue(path: string, v: unknown): string {
   return String(v);
 }
 
+// Fields that hold the id of something the admin can open. Matched on the
+// LAST path segment, so "limits.userId" links too.
+const ID_LINKS: Array<[RegExp, (id: string) => string]> = [
+  [/^(userId|referredUserId|moderatedBy|ownerId|actorId)$/, (id) => `/admin/users/${id}`],
+  [/^reviewId$/, (id) => `/admin/reviews/${id}`],
+  [/^planId$/, () => "/admin/pricing"],
+  [/^couponId$/, () => "/admin/coupons"],
+  [/^(affiliateId|commissionId)$/, () => "/admin/affiliate"],
+  [/^(announcementId)$/, () => "/admin/announcements"],
+];
+const LOOKS_LIKE_ID = /^[A-Za-z0-9_-]{8,64}$/;
+
+/** An admin link for an id-valued field ("userId" → the account page), or null. */
+export function linkFor(path: string, value: unknown): string | null {
+  if (typeof value !== "string" || !LOOKS_LIKE_ID.test(value)) return null;
+  const field = path.split(".").pop() ?? path;
+  const hit = ID_LINKS.find(([re]) => re.test(field));
+  return hit ? hit[1](value) : null;
+}
+
 /** "Mozilla/5.0 (Windows NT 10.0; Win64; x64) … Chrome/120" → "Chrome on Windows". */
 export function describeDevice(ua: string | null): string | null {
   if (!ua) return null;

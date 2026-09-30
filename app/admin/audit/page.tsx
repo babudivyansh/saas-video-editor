@@ -13,13 +13,13 @@ import { Button } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
 import { AuditOverview } from "./_components/AuditOverview";
 import { AuditTimeline } from "./_components/AuditTimeline";
-import { CATEGORY_LABEL, EMPTY_FILTERS, SEVERITY_LABEL, toParams, type AuditFilterState } from "./_components/types";
+import { CATEGORY_LABEL, EMPTY_FILTERS, SEVERITY_LABEL, TARGET_TYPE_LABEL, describeFilters, toParams, type AuditFilterState } from "./_components/types";
 
 const RANGES: Array<[AuditFilterState["range"], string]> = [["24h", "24 h"], ["7d", "7 days"], ["30d", "30 days"], ["90d", "90 days"], ["all", "All time"], ["custom", "Custom"]];
 
 function readFilters(sp: URLSearchParams): AuditFilterState {
   const f = { ...EMPTY_FILTERS };
-  for (const k of ["q", "category", "severity", "actorType", "adminEmail", "targetId", "from", "to"] as const) f[k] = sp.get(k) ?? "";
+  for (const k of ["q", "category", "severity", "actorType", "adminEmail", "targetId", "targetType", "targetEmail", "from", "to"] as const) f[k] = sp.get(k) ?? "";
   f.missingReason = sp.get("missingReason") === "1";
   const r = sp.get("range");
   if (r && RANGES.some(([id]) => id === r)) f.range = r as AuditFilterState["range"];
@@ -142,6 +142,21 @@ function AuditLog() {
             placeholder="Done by (email)"
             className={`${inputCls} w-48`}
           />
+          <label className="sr-only" htmlFor="audit-target-email">Done to (account email)</label>
+          <input
+            id="audit-target-email"
+            defaultValue={filters.targetEmail}
+            key={`target-${filters.targetEmail}`}
+            onBlur={(e) => e.target.value.trim() !== filters.targetEmail && update({ targetEmail: e.target.value.trim() })}
+            onKeyDown={(e) => { if (e.key === "Enter") update({ targetEmail: (e.target as HTMLInputElement).value.trim() }); }}
+            placeholder="Done to (account email)"
+            className={`${inputCls} w-52`}
+          />
+          <label className="sr-only" htmlFor="audit-target-type">Target type</label>
+          <select id="audit-target-type" value={filters.targetType} onChange={(e) => update({ targetType: e.target.value })} className={inputCls}>
+            <option value="">Any target</option>
+            {Object.entries(TARGET_TYPE_LABEL).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+          </select>
           <label className="inline-flex items-center gap-2 text-xs text-fg-muted cursor-pointer">
             <input type="checkbox" checked={filters.missingReason} onChange={(e) => update({ missingReason: e.target.checked })} />
             Only actions missing a reason
@@ -169,7 +184,7 @@ function AuditLog() {
           headers={headers}
           params={params}
           onFilterTarget={(targetId) => update({ targetId, range: "all" })}
-          emptyText={active ? "No audit entries match these filters." : "No audit entries in this period."}
+          emptyText={`No audit entries for ${describeFilters(filters).join(" · ")}.${active ? " Try removing a filter." : ""}`}
         />
       )}
     </>

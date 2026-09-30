@@ -241,12 +241,40 @@ export function actionsWithSeverity(severity: AuditSeverity): string[] {
   return Object.entries(EXACT).filter(([, r]) => r[2] === severity).map(([a]) => a);
 }
 
-export function patternPrefixesIn(filter: { category?: AuditCategory; severity?: AuditSeverity }): string[] {
+/** Every exact action whose target is this kind of thing — for the target-type filter. */
+export function actionsWithTargetType(targetType: AuditTargetType): string[] {
+  return Object.entries(EXACT).filter(([, r]) => r[3] === targetType).map(([a]) => a);
+}
+
+export function patternPrefixesIn(filter: { category?: AuditCategory; severity?: AuditSeverity; targetType?: AuditTargetType }): string[] {
   return PATTERNS.filter((p) => {
     const sample = p.row("retry");
-    return (!filter.category || sample[1] === filter.category) && (!filter.severity || sample[2] === filter.severity);
+    return (
+      (!filter.category || sample[1] === filter.category) &&
+      (!filter.severity || sample[2] === filter.severity) &&
+      (!filter.targetType || sample[3] === filter.targetType)
+    );
   }).map((p) => p.prefix);
 }
+
+export const TARGET_TYPE_LABEL: Record<Exclude<AuditTargetType, "none">, string> = {
+  user: "Accounts",
+  coupon: "Coupons",
+  plan: "Plans",
+  review: "Reviews",
+  affiliate: "Affiliates",
+  announcement: "Announcements",
+  project: "Projects",
+  asset: "Library assets",
+  purchase: "Purchases",
+  commission: "Commissions",
+  social_account: "Social accounts",
+  cron: "Scheduled jobs",
+  queue_job: "Queue jobs",
+  flag: "Feature flags",
+  tool: "Tools",
+  model: "AI models",
+};
 
 export function actionsExpectingReason(): string[] {
   return Object.entries(EXACT).filter(([, r]) => r[5]).map(([a]) => a);
