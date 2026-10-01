@@ -18,6 +18,11 @@ const eslintConfig = defineConfig([
     ".ds-pkg/**",
     ".ds-sync/**",
     "ds-bundle/**",
+    // The Android app (Phase 2) brings its own Expo lint config.
+    "apps/**",
+    // Local agent worktrees: full repo copies (with their own .next builds)
+    // that turn a local `npm run lint` into 100k+ phantom problems.
+    ".claude/**",
   ]),
   {
     rules: {
