@@ -5,5 +5,6 @@ module.exports = {
   testPathIgnorePatterns: ["/node_modules/", "/dist-check/"],
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/src/$1",
+    "^@mocks/(.*)$": "<rootDir>/mocks/$1",
   },
 };

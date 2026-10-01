@@ -29,6 +29,10 @@ export const derived = {
   overlay: withAlpha(colors.bg, 0.82),
   /** Behind bottom sheets. */
   scrim: withAlpha(BLACK, 0.6),
+  /** Translucent pill over photos (onboarding Skip). */
+  glass: withAlpha(colors.bg, 0.55),
+  /** Raised-card drop shadow colour. */
+  shadow: withAlpha(BLACK, 0.45),
   /** Skeleton base. */
   skeleton: colors.surface3,
 } as const;

@@ -33,8 +33,8 @@ import {
 } from "@/components";
 import { colors, layout, text, type } from "@/theme";
 
-const maya = require("../../../assets/dev/creator-golden.jpg");
-const marco = require("../../../assets/dev/founder-portrait.jpg");
+const maya = require("../../../assets/images/creator-golden.jpg");
+const marco = require("../../../assets/images/founder-portrait.jpg");
 
 // Every shared component in every state, for side-by-side comparison with
 // design/png. Dev builds only.
