@@ -23,7 +23,9 @@ export function StatTile({
   const deltaColor = deltaTone === "positive" ? colors.emeraldBright : deltaTone === "negative" ? colors.error : colors.fgMuted;
   return (
     <View style={styles.tile} accessible accessibilityLabel={[label, value, delta, sub].filter(Boolean).join(", ")}>
-      <Text style={text.label} numberOfLines={1}>
+      {/* Short one-word labels in a narrow tile: shrink on one line at large
+          font scales instead of Android splitting the word. */}
+      <Text style={text.label} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
         {label}
       </Text>
       <View style={styles.valueRow}>

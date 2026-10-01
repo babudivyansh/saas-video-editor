@@ -35,7 +35,10 @@ export function Avatar({
       {source ? (
         <Image source={source} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="memory-disk" transition={120} />
       ) : (
-        <Text style={type(Math.round(size * 0.38), "semibold", { color: colors.fgMuted })}>{initials}</Text>
+        // Fixed-size circle: initials must not grow with the system font scale.
+        <Text style={type(Math.round(size * 0.38), "semibold", { color: colors.fgMuted })} allowFontScaling={false}>
+          {initials}
+        </Text>
       )}
     </View>
   );

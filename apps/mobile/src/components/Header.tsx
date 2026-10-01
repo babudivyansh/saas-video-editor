@@ -23,7 +23,11 @@ export function Header({
       <Text
         style={[type(large ? 26 : 20, "bold", { tracking: -0.03, lineHeight: 1.15 }), styles.title]}
         accessibilityRole="header"
+        // One line that shrinks (to 70%) at very large system font sizes rather
+        // than Android breaking a word across lines; titles are short.
         numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.7}
       >
         {title}
       </Text>

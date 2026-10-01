@@ -29,7 +29,7 @@ export function ListRow({
     <>
       {leading}
       <View style={styles.text}>
-        <Text style={type(15, "semibold", { color: destructive ? colors.error : colors.fg })} numberOfLines={1}>
+        <Text style={type(15, "semibold", { color: destructive ? colors.error : colors.fg })} numberOfLines={2}>
           {title}
         </Text>
         {subtitle ? (

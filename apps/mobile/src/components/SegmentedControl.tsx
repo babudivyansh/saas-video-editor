@@ -29,7 +29,7 @@ export function SegmentedControl<T extends string>({
             hitSlop={{ top: 2, bottom: 2 }}
             style={[styles.segment, selected && styles.selected]}
           >
-            <Text style={type(13, selected ? "semibold" : "medium", { color: selected ? colors.fg : colors.fgMuted })} numberOfLines={1}>
+            <Text style={[type(13, selected ? "semibold" : "medium", { color: selected ? colors.fg : colors.fgMuted }), { textAlign: "center" }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
               {o.label}
             </Text>
           </Pressable>
