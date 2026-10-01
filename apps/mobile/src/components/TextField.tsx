@@ -5,6 +5,8 @@ import { Icon, type IconName } from "./Icon";
 
 export type TextFieldProps = Omit<TextInputProps, "style"> & {
   label: string;
+  /** Visually hide the label (it is still the accessibility label), e.g. a search field. */
+  hideLabel?: boolean;
   leadingIcon?: IconName;
   /** Icon button inside the right edge (e.g. show/hide password). */
   trailingAction?: { icon: IconName; accessibilityLabel: string; onPress: () => void };
@@ -17,7 +19,7 @@ export type TextFieldProps = Omit<TextInputProps, "style"> & {
 // The error look is not drawn in the designs; it mirrors the focus ring in
 // the error colour.
 export const TextField = forwardRef<TextInput, TextFieldProps>(function TextField(
-  { label, leadingIcon, trailingAction, error, helper, onFocus, onBlur, editable = true, ...input },
+  { label, hideLabel = false, leadingIcon, trailingAction, error, helper, onFocus, onBlur, editable = true, ...input },
   ref,
 ) {
   const [focused, setFocused] = useState(false);
@@ -27,7 +29,7 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
 
   return (
     <View style={styles.wrap}>
-      <Text style={text.label}>{label}</Text>
+      {hideLabel ? null : <Text style={text.label}>{label}</Text>}
       <View style={[styles.ring, { borderColor: ring }]}>
         <View style={[styles.field, { borderColor }, !editable && styles.readOnly]}>
           {leadingIcon && (

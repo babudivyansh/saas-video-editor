@@ -25,3 +25,4 @@ export { ErrorBanner, GoogleButton, OrDivider } from "./AuthBits";
 export { BrandMark } from "./BrandMark";
 export { OtpInput } from "./OtpInput";
 export { PhotoMosaic } from "./PhotoMosaic";
+export { StatusBarScrim } from "./StatusBarScrim";
