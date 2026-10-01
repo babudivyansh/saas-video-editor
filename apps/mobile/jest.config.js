@@ -6,5 +6,7 @@ module.exports = {
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/src/$1",
     "^@mocks/(.*)$": "<rootDir>/mocks/$1",
+    // packages/shared's imports resolve to this app's copy (see metro.config.js).
+    "^zod$": require.resolve("zod", { paths: [__dirname] }),
   },
 };

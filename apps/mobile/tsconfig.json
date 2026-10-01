@@ -8,7 +8,10 @@
     "types": ["jest"],
     "paths": {
       "@/*": ["./src/*"],
-      "@mocks/*": ["./mocks/*"]
+      "@mocks/*": ["./mocks/*"],
+      // packages/shared is outside this app and has no install of its own in the
+      // mobile CI job: its imports resolve to this app's copy (as metro.config.js does).
+      "zod": ["./node_modules/zod"]
     }
   },
   "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
