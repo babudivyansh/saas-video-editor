@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   AUTOCLIP_LIMITS,
+  IMAGE_MODEL_CATALOG as MOBILE_MODELS,
   DEFAULT_IMAGE_MODEL_ID,
   audioToolCredits,
   autoClipMinutes,
@@ -8,15 +9,13 @@ import {
   voiceoverCredits,
   type PlanTier,
 } from "@clipiro/shared";
-import { IMAGE_MODELS as MOBILE_MODELS } from "../apps/mobile/mocks/create";
 import { voiceFxCredits, vocalRemoverCredits, voiceoverCredits as webVoiceoverCredits } from "./audio-pricing";
 import { billableSourceMinutes } from "./autoclip-pricing";
 import { DEFAULT_IMAGE_MODEL_ID as WEB_DEFAULT_MODEL, IMAGE_MODELS } from "./models/imageModels";
 import { MAX_UPLOAD_BYTES_BY_TIER, TIER_MAX_AUTOCLIP_SOURCE_SECONDS } from "./plans/tiers";
 import { isAllowedSourceUrl as webIsAllowedSourceUrl } from "./url-import";
 
-// The phone app copies these rules into @clipiro/shared (and its mock
-// catalogue) so it can check input and show prices offline. If the web
+// The phone app copies these rules into @clipiro/shared so it can check input and show prices offline. If the web
 // changes one, this fails until the copy is updated.
 
 const TIERS: PlanTier[] = ["free", "creator", "pro", "studio"];

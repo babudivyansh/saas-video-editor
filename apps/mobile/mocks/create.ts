@@ -1,4 +1,5 @@
 import {
+  IMAGE_MODEL_CATALOG,
   autoClipMinutes,
   autoClipStartRequest,
   imageGenerateRequest,
@@ -74,18 +75,7 @@ export async function getCaptionTemplates(): Promise<CaptionTemplate[]> {
   return CAPTION_TEMPLATES;
 }
 
-// lib/models/imageModels.ts — minPlan is the lowest of allowedTiers.
-export const IMAGE_MODELS: ImageModel[] = [
-  { id: "gemini-flash-2.0", name: "Gemini 2.5 Flash Image", credits: 2, minPlan: "free", ratios: ["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3", "21:9"] },
-  { id: "seedream-5.0", name: "Seedream 5.0", credits: 2, minPlan: "creator", ratios: ["1:1", "4:3", "3:4", "16:9", "9:16"] },
-  { id: "gpt-image-2", name: "GPT Image 2", credits: 6, minPlan: "pro", ratios: ["1:1", "4:3", "3:4", "16:9", "9:16"] },
-  { id: "flux-2", name: "Flux 2", credits: 3, minPlan: "creator", ratios: ["1:1", "4:3", "3:4", "16:9", "9:16"] },
-  { id: "nano-banana-2", name: "Nano Banana 2", credits: 5, minPlan: "pro", ratios: ["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3", "21:9"] },
-  { id: "ideogram-4", name: "Ideogram 4", credits: 3, minPlan: "creator", ratios: ["1:1", "4:3", "3:4", "16:9", "9:16"] },
-  { id: "krea-2", name: "Krea 2", credits: 2, minPlan: "creator", ratios: ["1:1", "4:3", "3:4", "16:9", "9:16"] },
-  { id: "nano-banana-pro", name: "Nano Banana Pro", credits: 10, minPlan: "studio", ratios: ["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3", "21:9"] },
-  { id: "qwen-image-2.0", name: "Qwen Image 2.0", credits: 2, minPlan: "free", ratios: ["1:1", "4:3", "3:4", "16:9", "9:16"] },
-];
+export const IMAGE_MODELS = IMAGE_MODEL_CATALOG;
 
 export async function getImageModels(): Promise<ImageModel[]> {
   await wait();
