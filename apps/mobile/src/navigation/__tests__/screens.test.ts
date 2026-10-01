@@ -18,8 +18,8 @@ describe("screen registry", () => {
       // The file must render this screen, not a copy-pasted neighbour.
       // Placeholders pass id="…"; built screens carry a `// screen: …` marker.
       const src = fs.readFileSync(file, "utf8");
-      expect({ id, renders: src.includes(`id="${id}"`) || src.includes(`// screen: ${id}
-`) }).toEqual({ id, renders: true });
+      const marker = new RegExp(`^// screen: ${id}\\r?$`, "m"); // whole line, so "E-Create" ≠ "E-CreateX"
+      expect({ id, renders: src.includes(`id="${id}"`) || marker.test(src) }).toEqual({ id, renders: true });
     }
   });
 
