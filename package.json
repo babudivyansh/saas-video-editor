@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "next dev",
     "dev:web": "next dev",
+    "dev:mobile": "npm --prefix apps/mobile start",
     "build": "prisma migrate deploy && npm run verify:render-runtime && next build",
     "build:no-db": "next build",
     "postbuild": "node scripts/postbuild.js",
@@ -24,7 +25,11 @@
     "postinstall": "prisma generate && node scripts/install-render-ffmpeg.mjs",
     "check:gpu": "node scripts/check-gpu-service.mjs",
     "verify:render-runtime": "tsx scripts/verify-render-runtime.ts",
-    "typecheck": "tsc --noEmit && npm run typecheck --workspaces --if-present"
+    "typecheck": "tsc --noEmit && npm run typecheck --workspaces --if-present",
+    "mobile:install": "npm --prefix apps/mobile ci",
+    "typecheck:mobile": "npm --prefix apps/mobile run typecheck",
+    "lint:mobile": "npm --prefix apps/mobile run lint",
+    "test:mobile": "npm --prefix apps/mobile test"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
