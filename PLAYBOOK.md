@@ -32,7 +32,7 @@ Check: you read ARCHITECTURE.md and answer its open questions before continuing.
 ## Phase 1 — Monorepo
 
 ```
-Plan first. Convert this repo into a pnpm workspace monorepo:
+Plan first. Convert this repo into an npm workspace monorepo (decided: web app stays at the repo root — see docs/mobile/ARCHITECTURE.md §4):
 - Move the current Next.js app to apps/web with zero behaviour changes (keep env files, scripts, config paths working).
 - Create packages/shared (TypeScript) and move packages/shared/tokens.ts into it with an index export.
 - Add root scripts: dev:web, dev:mobile, build, lint, typecheck, test.

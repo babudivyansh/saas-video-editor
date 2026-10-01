@@ -9,11 +9,11 @@ The designs are final and live in `design/`:
 - `design/images/` — sample photos used in the designs (placeholders for real user content).
 
 ## Stack
-- Monorepo (pnpm workspaces): `apps/web` (existing Next.js site + backend), `apps/mobile` (Expo), `packages/shared`.
+- Monorepo (npm workspaces): the Next.js site + backend stays at the repo root (decided in Phase 1: moving it would break cwd-relative binary paths in the standalone deploy), plus `apps/mobile` (Expo) and `packages/shared`.
 - Mobile: Expo + Expo Router, TypeScript strict, TanStack Query (server data), Zustand (editor state),
   react-native-svg, expo-image, expo-video, expo-secure-store, expo-notifications.
-- Shared: zod schemas, typed API client, `packages/shared/tokens.ts`.
-- Backend: reuse apps/web. Mobile endpoints under `/api/mobile/v1`, Bearer-token auth.
+- Shared: zod schemas, typed API client, `@clipiro/shared` (`packages/shared/src/tokens.ts`).
+- Backend: reuse the web app at the repo root. Mobile endpoints under `/api/mobile/v1`, Bearer-token auth.
   Heavy work (AutoClip, renders, AI generation) runs server-side as jobs: return `jobId`, poll `/jobs/:id`, push on completion.
 
 ## Design rules (non-negotiable)
@@ -21,7 +21,7 @@ The designs are final and live in `design/`:
 - Lime #c8ff55 (text #071006) is ONLY for the single primary action on a screen. Never for status, links or selection.
 - Emerald #20d68a for accents, selection, links, progress. Status colours: warning #f5b544, error #ff6b6b, info #4ea8ff.
 - Font Geist (Geist Mono for timecodes). Radii: fields 12, tiles 16, cards 24, buttons/pills fully round.
-- Always use tokens from `packages/shared/tokens.ts`; no hard-coded colours or sizes in screens.
+- Always use tokens from `@clipiro/shared` (`packages/shared/src/tokens.ts`); no hard-coded colours or sizes in screens.
 - Floating pill tab bar: Home · Projects · Create (centre, emerald) · Social · You.
 
 ## Accessibility & quality (non-negotiable)
@@ -35,5 +35,5 @@ The designs are final and live in `design/`:
 - Plan first; wait for approval before writing code.
 - One section per task. Build from shared components in `apps/mobile/components` — don't restyle per screen.
 - Never put API keys or AI provider calls in the mobile app. All AI goes through our backend.
-- Don't modify apps/web unless the task says so.
+- Don't modify the web app (repo root: app/, lib/, prisma/ …) unless the task says so.
 - When a screen is done, list anything in the design you could not match.

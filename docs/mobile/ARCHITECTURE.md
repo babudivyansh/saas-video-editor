@@ -318,18 +318,7 @@ Credits and plans are digital goods, so Google Play requires Play Billing.
 - The panel tab strip gained Media.
 
 ### Remaining risks
-**R1. Phase 1 monorepo vs the Hostinger deploy.** This is the highest risk.
-- **Hostinger settings:** Root directory is editable (`./` today), and the build uses Hostinger's *default* commands. There are two options:
-  - (a) Set the root to `apps/web`.
-  - (b) Keep `./` and have the root `package.json` delegate `build` and `start` to the web workspace.
-  - Option (b) doesn't depend on how Hostinger resolves a lockfile outside its root, and it is easier to roll back. Phase 1 will pick one after a dry run.
-- **Things that assume the repo root:**
-  - `scripts/postbuild.js` hardcodes `/home/u154310472/domains/clipiro.com/public_html` and `../public_html`.
-  - `next.config.ts` uses `turbopack.root: __dirname` and `workerThreads` (#261).
-  - The standalone output path moves in a monorepo (`.next/standalone/apps/web/server.js`).
-- **Package manager:** npm → pnpm changes the `node_modules` layout, which Next's standalone tracing, Prisma and the ffmpeg `postinstall` all depend on. **Recommend npm workspaces** unless you want pnpm.
-- **Install time:** mobile (Expo) dependencies must not be installed by the web deploy. A deploy already takes about 13 minutes.
-- **Node versions:** Hostinger builds on **Node 22**, but CI uses Node 20. Align CI to 22 in Phase 1.
+**R1. Phase 1 monorepo — RESOLVED (Phase 1, PR #287).** npm workspaces; the web app stays at the repo root, which is the workspace root (`packages/*`, later `apps/mobile`). Moving it to `apps/web` would have broken the cwd-relative `node_modules/youtube-dl-exec`, `node_modules/ffmpeg-static`, `vendor/ffmpeg` and `public/fonts` paths in the standalone deploy. Verified: the standalone file list is identical to `main`, and Hostinger needs no settings change. CI moved to Node 22. **Open for Phase 2:** keep Expo dependencies out of Hostinger’s default `npm install` once `apps/mobile` joins the workspaces.
 
 **R3. The tool job model.** Tool jobs are in-memory (`lib/job-routes.ts`), and prod also runs the **in-process render queue**. So every deploy or restart kills in-flight AutoClip renders and tool jobs. The watchdog refunds AutoClip; tool jobs are just lost.
 - A DB-backed job status (extend `Generation` or add a `Job` table) is required before the app relies on "POST job → poll → push" (Phase 5).
@@ -345,6 +334,5 @@ Credits and plans are digital goods, so Google Play requires Play Billing.
 
 **R11. Editor scope and performance.** A 60 fps native timeline, with the same `TimelineDoc` as the web.
 
-### Still open (not blocking Phase 1)
-1. pnpm (as the playbook says) or npm workspaces (recommended)? Phase 1 plan.
-2. AI Assistant pricing and the Anthropic key (Phase 13).
+### Still open
+1. AI Assistant pricing and the Anthropic key (Phase 13).
