@@ -1,5 +1,5 @@
 import { Placeholder } from "@/navigation/Placeholder";
 
 export default function Screen() {
-  return <Placeholder id="Main" />;
+  return <Placeholder id="E-Create" />;
 }
