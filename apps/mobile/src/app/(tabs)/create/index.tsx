@@ -1,5 +1,4 @@
-import { Placeholder } from "@/navigation/Placeholder";
+// screen: BN-CreateHub
+import { CreateHubScreen } from "@/features/create/CreateHubScreen";
 
-export default function Screen() {
-  return <Placeholder id="BN-CreateHub" />;
-}
+export default CreateHubScreen;

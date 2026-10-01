@@ -33,6 +33,8 @@ export const derived = {
   glass: withAlpha(colors.bg, 0.55),
   /** Raised-card drop shadow colour. */
   shadow: withAlpha(BLACK, 0.45),
+  /** Icon chip laid over a photo card. */
+  photoChip: withAlpha(colors.bg, 0.7),
   /** Behind the status bar over scrolled content. */
   statusBar: withAlpha(colors.bg, 0.92),
   /** Skeleton base. */

@@ -26,3 +26,6 @@ export { BrandMark } from "./BrandMark";
 export { OtpInput } from "./OtpInput";
 export { PhotoMosaic } from "./PhotoMosaic";
 export { StatusBarScrim } from "./StatusBarScrim";
+export { OptionList } from "./OptionList";
+export { Stepper } from "./Stepper";
+export { UnderlineTabs } from "./UnderlineTabs";

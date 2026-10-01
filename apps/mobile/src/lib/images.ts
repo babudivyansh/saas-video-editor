@@ -12,6 +12,7 @@ const ASSETS = {
   "dj-neon": require("../../assets/images/dj-neon.jpg"),
   "founder-portrait": require("../../assets/images/founder-portrait.jpg"),
   "gym-lift": require("../../assets/images/gym-lift.jpg"),
+  "keynote-stage": require("../../assets/images/keynote-stage.jpg"),
   "podcast-mic": require("../../assets/images/podcast-mic.jpg"),
   "studio-mic": require("../../assets/images/studio-mic.jpg"),
   "travel-summit": require("../../assets/images/travel-summit.jpg"),

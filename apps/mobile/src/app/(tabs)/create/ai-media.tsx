@@ -1,5 +1,4 @@
-import { Placeholder } from "@/navigation/Placeholder";
+// screen: BN-AIMedia
+import { AIMediaScreen } from "@/features/create/AIMediaScreen";
 
-export default function Screen() {
-  return <Placeholder id="BN-AIMedia" />;
-}
+export default AIMediaScreen;

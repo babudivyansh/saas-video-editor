@@ -1,5 +1,4 @@
-import { Placeholder } from "@/navigation/Placeholder";
+// screen: BN-Create
+import { AutoClipScreen } from "@/features/create/AutoClipScreen";
 
-export default function Screen() {
-  return <Placeholder id="BN-Create" />;
-}
+export default AutoClipScreen;

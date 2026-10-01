@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { KeyboardAvoidingView, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, derived, radius, type } from "@/theme";
 import { IconButton } from "./IconButton";
@@ -22,7 +22,8 @@ export function BottomSheet({
   const insets = useSafeAreaInsets();
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
-      <View style={styles.root}>
+      {/* Lifts the sheet above the keyboard when it holds a text field. */}
+      <KeyboardAvoidingView style={styles.root} behavior="padding">
         <Pressable style={styles.scrim} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close sheet" />
         <View style={[styles.sheet, { paddingBottom: 16 + insets.bottom }]} accessibilityViewIsModal>
           <View style={styles.handle} />
@@ -36,7 +37,7 @@ export function BottomSheet({
           ) : null}
           {children}
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
