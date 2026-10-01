@@ -1,0 +1,19 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    // TypeScript 6 no longer auto-includes every @types package. Only Jest's
+    // globals are needed (tests); Node's are deliberately left out of app code.
+    "types": ["jest"],
+    "paths": {
+      "@/*": ["./src/*"],
+      "@mocks/*": ["./mocks/*"],
+      // packages/shared is outside this app and has no install of its own in the
+      // mobile CI job: its imports resolve to this app's copy (as metro.config.js does).
+      "zod": ["./node_modules/zod"]
+    }
+  },
+  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
+  "exclude": ["node_modules", "dist-check"]
+}
