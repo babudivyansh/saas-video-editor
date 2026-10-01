@@ -2,8 +2,12 @@
   "name": "saas-video-editor",
   "version": "0.1.0",
   "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "dev": "next dev",
+    "dev:web": "next dev",
     "build": "prisma migrate deploy && npm run verify:render-runtime && next build",
     "build:no-db": "next build",
     "postbuild": "node scripts/postbuild.js",
@@ -15,11 +19,12 @@
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
-    "test": "vitest run",
+    "test": "vitest run && npm run test --workspaces --if-present",
     "test:ffmpeg": "tsx utils/test-ffmpeg.ts",
     "postinstall": "prisma generate && node scripts/install-render-ffmpeg.mjs",
     "check:gpu": "node scripts/check-gpu-service.mjs",
-    "verify:render-runtime": "tsx scripts/verify-render-runtime.ts"
+    "verify:render-runtime": "tsx scripts/verify-render-runtime.ts",
+    "typecheck": "tsc --noEmit && npm run typecheck --workspaces --if-present"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

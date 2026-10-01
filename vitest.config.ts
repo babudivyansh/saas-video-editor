@@ -8,7 +8,9 @@ export default defineConfig({
     // docblock (Vitest 4 dropped environmentMatchGlobs).
     environment: "node",
     include: ["**/*.test.ts", "**/*.component.test.tsx"],
-    exclude: ["node_modules/**", ".next/**"],
+    // apps/* (the Android app) runs its own tests. .claude/** holds local
+    // agent worktrees — full repo copies whose tests would run twice.
+    exclude: ["node_modules/**", ".next/**", "apps/**", ".claude/**"],
     setupFiles: ["./vitest.setup.ts"],
     coverage: {
       provider: "v8",
