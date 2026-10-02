@@ -45,10 +45,10 @@ back behaviour and design links work, screen UI not built yet.
 | 35 | Insights | Insights | BN-InsOverview | `/social/insights` | social tab | built |
 | 36 | Insights | Content performance | BN-InsContent | `/social/insights/content-performance` | social tab | built |
 | 37 | Insights | Platform analytics | BN-InsPlatform | `/social/insights/platform-analytics` | social tab | built |
-| 38 | Insights | Analytics | BN-Social | `/social/insights/account-analytics` | social tab | placeholder |
-| 39 | Insights | Audience | BN-SocialAudience | `/social/insights/account-analytics/audience` | social tab | placeholder |
-| 40 | Insights | Competitors | BN-SocialCompetitors | `/social/insights/account-analytics/competitors` | social tab | placeholder |
-| 41 | Insights | Reports | BN-SocialReports | `/social/insights/account-analytics/reports` | social tab | placeholder |
+| 38 | Insights | Analytics | BN-Social | `/social/insights/account-analytics` | social tab | built |
+| 39 | Insights | Audience | BN-SocialAudience | `/social/insights/account-analytics/audience` | social tab | built |
+| 40 | Insights | Competitors | BN-SocialCompetitors | `/social/insights/account-analytics/competitors` | social tab | built |
+| 41 | Insights | Reports | BN-SocialReports | `/social/insights/account-analytics/reports` | social tab | built |
 | 42 | You | You | BN-Profile | `/you` | you tab | placeholder |
 | 43 | You | My Voices | BN-Voices | `/you/my-voices` | you tab | placeholder |
 | 44 | You | Brand Kit | BN-BrandKit | `/you/brand-kit` | you tab | placeholder |

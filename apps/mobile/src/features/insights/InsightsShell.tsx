@@ -1,7 +1,7 @@
 import { RANGE_DAYS, rangeLabel, type Kpi } from "@clipiro/shared";
 import { router, type Href } from "expo-router";
 import { useState, type ReactNode } from "react";
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import { BottomSheet, EmptyState, Header, OptionList, SegmentedControl, SkeletonCard, StatusBarScrim } from "@/components";
 import { useScreenPadding } from "@/navigation/insets";
 import { colors, radius, text, type } from "@/theme";
@@ -113,9 +113,9 @@ export function KpiTile({ label, value, kpi, hint, unavailable }: { label: strin
   );
 }
 
-export function Panel({ title, note, children }: { title?: string; note?: string; children: ReactNode }) {
+export function Panel({ title, note, children, style }: { title?: string; note?: string; children: ReactNode; style?: StyleProp<ViewStyle> }) {
   return (
-    <View style={styles.panel}>
+    <View style={[styles.panel, style]}>
       {title ? (
         <View style={styles.panelHead}>
           <Text style={[type(15, "bold"), { flex: 1 }]} accessibilityRole="header">

@@ -114,3 +114,96 @@ export function compact(n: number): string {
   if (abs >= 1000) return `${+(n / 1000).toFixed(1)}k`;
   return `${Math.round(n)}`;
 }
+
+// ── Account analytics (Overview, Audience, Competitors, Reports) ──────────
+
+export const REPORT_SECTIONS = [
+  { id: "kpis", label: "KPIs" },
+  { id: "trends", label: "Trends" },
+  { id: "content", label: "Content" },
+  { id: "audience", label: "Audience" },
+  { id: "competitors", label: "Competitors" },
+  { id: "ai", label: "AI summary" },
+] as const;
+export type ReportSection = (typeof REPORT_SECTIONS)[number]["id"];
+export const REPORT_SCHEDULES = ["none", "weekly", "monthly"] as const;
+export type ReportSchedule = (typeof REPORT_SCHEDULES)[number];
+export type ReportFormat = (typeof REPORT_FORMATS)[number];
+/** Share links (app/api/social/report-link): default and maximum lifetime, days. */
+export const SHARE_LINK_DEFAULT_DAYS = 7;
+export const SHARE_LINK_MAX_DAYS = 90;
+
+export const reportRequest = z.object({
+  name: z.string().trim().min(1, "Name the report").max(120),
+  accountIds: z.array(z.string()).min(1, "Pick at least one account").max(10),
+  sections: z.array(z.enum(REPORT_SECTIONS.map((s) => s.id) as [ReportSection, ...ReportSection[]])).min(1, "Pick at least one section"),
+  format: z.enum(REPORT_FORMATS),
+  schedule: z.enum(REPORT_SCHEDULES),
+});
+export type ReportRequest = z.infer<typeof reportRequest>;
+
+export const savedReportSchema = reportRequest.extend({ id: z.string() });
+export type SavedReport = z.infer<typeof savedReportSchema>;
+export const reportFileSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  format: z.enum(REPORT_FORMATS),
+  status: z.enum(["running", "ready", "failed"]),
+  sizeBytes: z.number().int().nonnegative().nullable(),
+  createdAt: z.string(),
+});
+export type ReportFile = z.infer<typeof reportFileSchema>;
+export const shareLinkSchema = z.object({ id: z.string(), name: z.string(), views: z.number().int().nonnegative(), expiresAt: z.string() });
+export type ShareLink = z.infer<typeof shareLinkSchema>;
+
+export const competitorSchema = z.object({
+  id: z.string(),
+  provider: providerSchema,
+  name: z.string(),
+  handle: z.string(),
+  avatarUrl: z.string().nullable(),
+  followers: z.number().int().nonnegative(),
+  engagementRate: z.number().nonnegative(),
+  postsPerWeek: z.number().nonnegative(),
+  followerChange: z.number(),
+  lastSyncedAt: z.string(),
+});
+export type Competitor = z.infer<typeof competitorSchema>;
+/** Public handle as the web accepts it (lib/social/schemas.ts handle regex). */
+export const competitorHandleSchema = z
+  .string()
+  .trim()
+  .transform((h) => h.replace(/^@/, ""))
+  .pipe(z.string().regex(/^[\w.\-]{2,60}$/, "Enter a public @handle (letters, numbers, . _ -)"));
+
+export const audienceSchema = z.object({
+  provider: providerSchema,
+  followers: z.number().int().nonnegative(),
+  followersGainedThisMonth: z.number().int(),
+  gender: z.object({ women: z.number(), men: z.number(), other: z.number() }),
+  age: z.array(audienceBucketSchema),
+  /** 7 days (Mon first) × 6 four-hour blocks (12a, 4a, 8a, 12p, 4p, 8p), 0–100. */
+  online: z.array(z.array(z.number().min(0).max(100)).length(6)).length(7),
+  countries: z.array(audienceBucketSchema),
+  cities: z.array(audienceBucketSchema),
+});
+export type Audience = z.infer<typeof audienceSchema>;
+export const DAYS_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+export const BLOCK_LABELS = ["12 AM", "4 AM", "8 AM", "12 PM", "4 PM", "8 PM"] as const;
+/** The busiest day/block, e.g. "Mon 6 PM" is shown as the block start "Mon 4 PM". */
+export function bestOnline(online: number[][]): { day: number; block: number } {
+  let best = { day: 0, block: 0, v: -1 };
+  online.forEach((row, d) => row.forEach((v, b) => v > best.v && (best = { day: d, block: b, v })));
+  return { day: best.day, block: best.block };
+}
+
+export const analyticsOverviewSchema = z.object({
+  totalFollowers: kpiSchema.extend({ gained: z.number().int() }),
+  followerSeries: z.array(z.object({ date: z.string(), value: z.number() })),
+  views: kpiSchema,
+  engagementRate: kpiSchema,
+  interactions: kpiSchema,
+  topShare: z.object({ provider: providerSchema, percent: z.number() }),
+  healthScore: z.number().int().min(0).max(100).nullable(),
+});
+export type AnalyticsOverview = z.infer<typeof analyticsOverviewSchema>;
