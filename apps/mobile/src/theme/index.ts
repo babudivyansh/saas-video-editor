@@ -37,6 +37,8 @@ export const derived = {
   photoChip: withAlpha(colors.bg, 0.7),
   /** Behind the status bar over scrolled content. */
   statusBar: withAlpha(colors.bg, 0.92),
+  /** Empty chart/bar track. */
+  chartTrack: withAlpha(WHITE, 0.06),
   /** Skeleton base. */
   skeleton: colors.surface3,
 } as const;

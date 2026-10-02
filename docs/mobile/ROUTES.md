@@ -42,9 +42,9 @@ back behaviour and design links work, screen UI not built yet.
 | 32 | Social Studio | Content calendar | BN-Calendar | `/social/content-calendar` | social tab | placeholder |
 | 33 | Social Studio | Scheduled posts | BN-Scheduled | `/social/scheduled-posts` | social tab | placeholder |
 | 34 | Social Studio | New post | BN-Composer | `/composer` | full-screen modal | placeholder |
-| 35 | Insights | Insights | BN-InsOverview | `/social/insights` | social tab | placeholder |
-| 36 | Insights | Content performance | BN-InsContent | `/social/insights/content-performance` | social tab | placeholder |
-| 37 | Insights | Platform analytics | BN-InsPlatform | `/social/insights/platform-analytics` | social tab | placeholder |
+| 35 | Insights | Insights | BN-InsOverview | `/social/insights` | social tab | built |
+| 36 | Insights | Content performance | BN-InsContent | `/social/insights/content-performance` | social tab | built |
+| 37 | Insights | Platform analytics | BN-InsPlatform | `/social/insights/platform-analytics` | social tab | built |
 | 38 | Insights | Analytics | BN-Social | `/social/insights/account-analytics` | social tab | placeholder |
 | 39 | Insights | Audience | BN-SocialAudience | `/social/insights/account-analytics/audience` | social tab | placeholder |
 | 40 | Insights | Competitors | BN-SocialCompetitors | `/social/insights/account-analytics/competitors` | social tab | placeholder |

@@ -1,5 +1,4 @@
-import { Placeholder } from "@/navigation/Placeholder";
+// screen: BN-InsContent
+import { ContentScreen } from "@/features/insights/screens";
 
-export default function Screen() {
-  return <Placeholder id="BN-InsContent" />;
-}
+export default ContentScreen;
