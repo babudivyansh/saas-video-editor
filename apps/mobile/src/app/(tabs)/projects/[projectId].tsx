@@ -1,7 +1,4 @@
-import { useLocalSearchParams } from "expo-router";
-import { Placeholder } from "@/navigation/Placeholder";
+// screen: BN-Insights
+import { ProjectScreen } from "@/features/projects/ProjectScreen";
 
-export default function Screen() {
-  const { projectId } = useLocalSearchParams<{ projectId: string }>();
-  return <Placeholder id="BN-Insights" detail={`project ${projectId}`} />;
-}
+export default ProjectScreen;

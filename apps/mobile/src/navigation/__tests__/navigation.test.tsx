@@ -70,9 +70,10 @@ describe("navigation", () => {
 
   it("opens a project detail with its id", async () => {
     const r = renderRouter(APP, { initialUrl: "/projects" });
-    await press("Founders Pod · Ep. 42");
-    expect(r.getPathname()).toBe(`/projects/${SAMPLE_PROJECT_ID}`);
-    expect(screen.getByText(new RegExp(`project ${SAMPLE_PROJECT_ID}`))).toBeOnTheScreen();
+    // The real Projects screen loads its list first (mock data, Phase 4.5).
+    await act(async () => fireEvent.press(await screen.findByRole("button", { name: /^Founders Pod · Ep. 42. Ready/ })));
+    await waitFor(() => expect(r.getPathname()).toBe(`/projects/${SAMPLE_PROJECT_ID}`));
+    expect(await screen.findByText("10 ready · 1 rendering · 1 failed")).toBeOnTheScreen();
   });
 
   it("opens the editor over the tabs, a panel over the editor, and backs out step by step", async () => {

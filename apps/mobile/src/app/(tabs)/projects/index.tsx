@@ -1,5 +1,4 @@
-import { Placeholder } from "@/navigation/Placeholder";
+// screen: BN-Projects
+import { ProjectsScreen } from "@/features/projects/ProjectsScreen";
 
-export default function Screen() {
-  return <Placeholder id="BN-Projects" />;
-}
+export default ProjectsScreen;

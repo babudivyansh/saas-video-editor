@@ -31,10 +31,10 @@ back behaviour and design links work, screen UI not built yet.
 | 21 | Editor | Effects | BN-EdEffects | `/editor/effects` | editor panel (switches in place) | built |
 | 22 | Editor | AI Tools | BN-EdAI | `/editor/ai-tools` | editor panel (switches in place) | built |
 | 23 | Editor | Export | BN-EdExport | `/editor/export` | modal over editor | built |
-| 24 | Projects | Projects | BN-Projects | `/projects` | projects tab | placeholder |
-| 25 | Projects | Drafts | BN-Drafts | `/projects/drafts` | projects tab | placeholder |
-| 26 | Projects | Videos · Reels · Shorts | BN-Shorts | `/projects/videos-reels-shorts` | projects tab | placeholder |
-| 27 | Projects | Founders Pod · Ep. 42 | BN-Insights | `/projects/[projectId]` | projects tab | placeholder |
+| 24 | Projects | Projects | BN-Projects | `/projects` | projects tab | built |
+| 25 | Projects | Drafts | BN-Drafts | `/projects/drafts` | projects tab | built |
+| 26 | Projects | Videos · Reels · Shorts | BN-Shorts | `/projects/videos-reels-shorts` | projects tab | built |
+| 27 | Projects | Founders Pod · Ep. 42 | BN-Insights | `/projects/[projectId]` | projects tab | built |
 | 28 | Assets | Assets | BN-Assets | `/projects/assets` | projects tab | placeholder |
 | 29 | Assets | Audio | BN-AssetsAudio | `/projects/assets/audio` | projects tab | placeholder |
 | 30 | Assets | AI Assets | BN-AssetsAI | `/projects/assets/ai-assets` | projects tab | placeholder |
