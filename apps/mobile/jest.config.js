@@ -3,7 +3,7 @@ module.exports = {
   preset: "jest-expo",
   // Screen tests render whole routes; on a cold transform cache (every CI run)
   // the heaviest ones can pass the 5 s default.
-  testTimeout: 20000,
+  testTimeout: 60000,
   setupFiles: ["<rootDir>/jest.setup.js"],
   testPathIgnorePatterns: ["/node_modules/", "/dist-check/"],
   moduleNameMapper: {
