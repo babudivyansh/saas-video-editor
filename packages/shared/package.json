@@ -1,0 +1,18 @@
+{
+  "name": "@clipiro/shared",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Code shared by the Clipiro web app and the Android app: design tokens now; zod schemas and the typed API client from Phase 5.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p ."
+  }
+}
