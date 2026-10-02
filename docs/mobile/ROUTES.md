@@ -1,35 +1,36 @@
 # Clipiro Android — routes
 
-Generated from `apps/mobile/src/navigation/screens.ts` (Phase 3, 2026-10-01). Every route currently
-renders a placeholder naming its design file; Phase 4 replaces them section by section.
+Generated from `apps/mobile/src/navigation/screens.ts` and the route files. Phase 3 (2026-10-01) gave every
+route a placeholder naming its design file; Phase 4 replaces them section by section.
 
-**Status key:** `placeholder` = route, title, back behaviour and design links work; screen UI not built yet.
+**Status key:** `built` = the designed screen, on mock data until the API phases; `placeholder` = route, title,
+back behaviour and design links work, screen UI not built yet.
 
 | # | Section | Screen | Design file | Route | Presented as | Status |
 |---|---|---|---|---|---|---|
-| 1 | Launch | Splash | Main | `/` | root (signed out) | placeholder |
-| 2 | Launch | Welcome | E-Welcome | `/onboarding/welcome` | onboarding stack (signed out) | placeholder |
-| 3 | Launch | Generate | E-Generate | `/onboarding/generate` | onboarding stack (signed out) | placeholder |
-| 4 | Launch | Create | E-Create | `/onboarding/create` | onboarding stack (signed out) | placeholder |
-| 5 | Launch | Grow | E-Grow | `/onboarding/grow` | onboarding stack (signed out) | placeholder |
-| 6 | Authentication | Log in | E-Login | `/login` | auth stack (signed out) | placeholder |
-| 7 | Authentication | Sign up | E-Signup | `/sign-up` | auth stack (signed out) | placeholder |
-| 8 | Authentication | Verify your email | E-OTP | `/otp` | auth stack (signed out) | placeholder |
-| 9 | Authentication | Forgot password | E-Forgot | `/forgot-password` | auth stack (signed out) | placeholder |
-| 10 | Home | Home | BN-Home | `/home` | home tab | placeholder |
-| 11 | Home | Tools | BN-Tools | `/home/recommended-tools` | home tab | placeholder |
-| 12 | Home | Clipiro AI | BN-Assistant | `/assistant` | full-screen modal | placeholder |
-| 13 | Create | Create | BN-CreateHub | `/create` | create tab | placeholder |
-| 14 | Create | AutoClip | BN-Create | `/create/autoclip` | create tab | placeholder |
-| 15 | Create | AI Media | BN-AIMedia | `/create/ai-media` | create tab | placeholder |
-| 16 | Editor | Editor | BN-Editor | `/editor` | full-screen modal | placeholder |
-| 17 | Editor | Media | BN-EdMedia | `/editor/media` | bottom sheet over editor | placeholder |
-| 18 | Editor | Captions | BN-EdCaptions | `/editor/captions` | bottom sheet over editor | placeholder |
-| 19 | Editor | Audio | BN-EdAudio | `/editor/audio` | bottom sheet over editor | placeholder |
-| 20 | Editor | Text | BN-EdText | `/editor/text` | bottom sheet over editor | placeholder |
-| 21 | Editor | Effects | BN-EdEffects | `/editor/effects` | bottom sheet over editor | placeholder |
-| 22 | Editor | AI Tools | BN-EdAI | `/editor/ai-tools` | bottom sheet over editor | placeholder |
-| 23 | Editor | Export | BN-EdExport | `/editor/export` | modal over editor | placeholder |
+| 1 | Launch | Splash | Main | `/` | root (signed out) | built |
+| 2 | Launch | Welcome | E-Welcome | `/onboarding/welcome` | onboarding stack (signed out) | built |
+| 3 | Launch | Generate | E-Generate | `/onboarding/generate` | onboarding stack (signed out) | built |
+| 4 | Launch | Create | E-Create | `/onboarding/create` | onboarding stack (signed out) | built |
+| 5 | Launch | Grow | E-Grow | `/onboarding/grow` | onboarding stack (signed out) | built |
+| 6 | Authentication | Log in | E-Login | `/login` | auth stack (signed out) | built |
+| 7 | Authentication | Sign up | E-Signup | `/sign-up` | auth stack (signed out) | built |
+| 8 | Authentication | Verify your email | E-OTP | `/otp` | auth stack (signed out) | built |
+| 9 | Authentication | Forgot password | E-Forgot | `/forgot-password` | auth stack (signed out) | built |
+| 10 | Home | Home | BN-Home | `/home` | home tab | built |
+| 11 | Home | Tools | BN-Tools | `/home/recommended-tools` | home tab | built |
+| 12 | Home | Clipiro AI | BN-Assistant | `/assistant` | full-screen modal | built |
+| 13 | Create | Create | BN-CreateHub | `/create` | create tab | built |
+| 14 | Create | AutoClip | BN-Create | `/create/autoclip` | create tab | built |
+| 15 | Create | AI Media | BN-AIMedia | `/create/ai-media` | create tab | built |
+| 16 | Editor | Editor | BN-Editor | `/editor` | full-screen modal | built |
+| 17 | Editor | Media | BN-EdMedia | `/editor/media` | editor panel (switches in place) | built |
+| 18 | Editor | Captions | BN-EdCaptions | `/editor/captions` | editor panel (switches in place) | built |
+| 19 | Editor | Audio | BN-EdAudio | `/editor/audio` | editor panel (switches in place) | built |
+| 20 | Editor | Text | BN-EdText | `/editor/text` | editor panel (switches in place) | built |
+| 21 | Editor | Effects | BN-EdEffects | `/editor/effects` | editor panel (switches in place) | built |
+| 22 | Editor | AI Tools | BN-EdAI | `/editor/ai-tools` | editor panel (switches in place) | built |
+| 23 | Editor | Export | BN-EdExport | `/editor/export` | modal over editor | built |
 | 24 | Projects | Projects | BN-Projects | `/projects` | projects tab | placeholder |
 | 25 | Projects | Drafts | BN-Drafts | `/projects/drafts` | projects tab | placeholder |
 | 26 | Projects | Videos · Reels · Shorts | BN-Shorts | `/projects/videos-reels-shorts` | projects tab | placeholder |
@@ -66,5 +67,7 @@ renders a placeholder naming its design file; Phase 4 replaces them section by s
 - **Tabs:** each tab is its own stack and keeps its history. Re-pressing the active tab pops to its root.
   Android back on another tab's root returns to Home; back on Home leaves the app.
 - **Assets** lives in the Projects tab and **Insights** in the Social tab — the tabs the designs highlight on those screens.
-- **Editor panels** are native bottom sheets (60% / 95%) over the editor; switching panels replaces the sheet.
+- **Editor panels** are the editor in "panel mode" (compact preview + panel), as the designs draw them. Each panel
+  is its own route shown without a transition; its tab strip switches panels in place (`router.replace`), so
+  Android back always returns to the timeline. AI Media hides the tab bar (it has its own action bar).
 - Onboarding routes are under `/onboarding/` because its "Create" step would otherwise collide with the Create tab (`/create`).

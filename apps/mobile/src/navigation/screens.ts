@@ -73,7 +73,7 @@ export const SCREENS: Record<ScreenId, ScreenDef> = {
   "BN-Create": { title: "AutoClip", section: "Create", href: "/create/autoclip", file: "(tabs)/create/autoclip.tsx", back: "BN-CreateHub", links: [{ to: "BN-Credits", label: "1,000 min" }] },
   "BN-AIMedia": { title: "AI Media", section: "Create", href: "/create/ai-media", file: "(tabs)/create/ai-media.tsx", back: "BN-CreateHub", links: [{ to: "BN-AssetsAI", label: "Saved to Assets" }, { to: "BN-Credits", label: "1,000 min" }] },
 
-  // ── Editor (full-screen modal; panels are bottom sheets over it) ───────
+  // ── Editor (full-screen modal; panels are the editor in panel mode) ───
   "BN-Editor": { title: "Editor", section: "Editor", href: "/editor", file: "editor/index.tsx", back: "BN-Home", links: [{ to: "BN-EdMedia", label: "Media" }, { to: "BN-EdText", label: "Text" }, { to: "BN-EdCaptions", label: "Captions" }, { to: "BN-EdAudio", label: "Audio" }, { to: "BN-EdEffects", label: "Effects" }, { to: "BN-EdAI", label: "AI Tools" }, { to: "BN-EdExport", label: "Export" }] },
   "BN-EdMedia": { title: "Media", section: "Editor", href: "/editor/media", file: "editor/media.tsx", back: "BN-Editor", links: [{ to: "BN-EdExport", label: "Export" }] },
   "BN-EdCaptions": { title: "Captions", section: "Editor", href: "/editor/captions", file: "editor/captions.tsx", back: "BN-Editor", links: [{ to: "BN-EdExport", label: "Export" }] },

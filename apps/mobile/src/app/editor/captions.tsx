@@ -1,5 +1,4 @@
-import { Placeholder } from "@/navigation/Placeholder";
+// screen: BN-EdCaptions
+import { CaptionsPanel } from "@/features/editor/panels";
 
-export default function Screen() {
-  return <Placeholder id="BN-EdCaptions" variant="sheet" />;
-}
+export default CaptionsPanel;

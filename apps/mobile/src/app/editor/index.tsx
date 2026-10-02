@@ -1,5 +1,4 @@
-import { Placeholder } from "@/navigation/Placeholder";
+// screen: BN-Editor
+import { EditorScreen } from "@/features/editor/EditorScreen";
 
-export default function Screen() {
-  return <Placeholder id="BN-Editor" />;
-}
+export default EditorScreen;

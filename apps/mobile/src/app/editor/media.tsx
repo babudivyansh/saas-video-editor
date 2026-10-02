@@ -1,5 +1,4 @@
-import { Placeholder } from "@/navigation/Placeholder";
+// screen: BN-EdMedia
+import { MediaPanel } from "@/features/editor/panels";
 
-export default function Screen() {
-  return <Placeholder id="BN-EdMedia" variant="sheet" />;
-}
+export default MediaPanel;
