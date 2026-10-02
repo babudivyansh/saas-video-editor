@@ -35,9 +35,9 @@ back behaviour and design links work, screen UI not built yet.
 | 25 | Projects | Drafts | BN-Drafts | `/projects/drafts` | projects tab | built |
 | 26 | Projects | Videos · Reels · Shorts | BN-Shorts | `/projects/videos-reels-shorts` | projects tab | built |
 | 27 | Projects | Founders Pod · Ep. 42 | BN-Insights | `/projects/[projectId]` | projects tab | built |
-| 28 | Assets | Assets | BN-Assets | `/projects/assets` | projects tab | placeholder |
-| 29 | Assets | Audio | BN-AssetsAudio | `/projects/assets/audio` | projects tab | placeholder |
-| 30 | Assets | AI Assets | BN-AssetsAI | `/projects/assets/ai-assets` | projects tab | placeholder |
+| 28 | Assets | Assets | BN-Assets | `/projects/assets` | projects tab | built |
+| 29 | Assets | Audio | BN-AssetsAudio | `/projects/assets/audio` | projects tab | built |
+| 30 | Assets | AI Assets | BN-AssetsAI | `/projects/assets/ai-assets` | projects tab | built |
 | 31 | Social Studio | Social Studio | BN-Accounts | `/social` | social tab | placeholder |
 | 32 | Social Studio | Content calendar | BN-Calendar | `/social/content-calendar` | social tab | placeholder |
 | 33 | Social Studio | Scheduled posts | BN-Scheduled | `/social/scheduled-posts` | social tab | placeholder |

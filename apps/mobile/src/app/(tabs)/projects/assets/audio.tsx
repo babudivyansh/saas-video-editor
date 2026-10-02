@@ -1,5 +1,4 @@
-import { Placeholder } from "@/navigation/Placeholder";
+// screen: BN-AssetsAudio
+import { AudioScreen } from "@/features/assets/AudioScreen";
 
-export default function Screen() {
-  return <Placeholder id="BN-AssetsAudio" />;
-}
+export default AudioScreen;

@@ -1,5 +1,4 @@
-import { Placeholder } from "@/navigation/Placeholder";
+// screen: BN-AssetsAI
+import { AiAssetsScreen } from "@/features/assets/AiAssetsScreen";
 
-export default function Screen() {
-  return <Placeholder id="BN-AssetsAI" />;
-}
+export default AiAssetsScreen;
