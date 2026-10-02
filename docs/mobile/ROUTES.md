@@ -38,10 +38,10 @@ back behaviour and design links work, screen UI not built yet.
 | 28 | Assets | Assets | BN-Assets | `/projects/assets` | projects tab | built |
 | 29 | Assets | Audio | BN-AssetsAudio | `/projects/assets/audio` | projects tab | built |
 | 30 | Assets | AI Assets | BN-AssetsAI | `/projects/assets/ai-assets` | projects tab | built |
-| 31 | Social Studio | Social Studio | BN-Accounts | `/social` | social tab | placeholder |
-| 32 | Social Studio | Content calendar | BN-Calendar | `/social/content-calendar` | social tab | placeholder |
-| 33 | Social Studio | Scheduled posts | BN-Scheduled | `/social/scheduled-posts` | social tab | placeholder |
-| 34 | Social Studio | New post | BN-Composer | `/composer` | full-screen modal | placeholder |
+| 31 | Social Studio | Social Studio | BN-Accounts | `/social` | social tab | built |
+| 32 | Social Studio | Content calendar | BN-Calendar | `/social/content-calendar` | social tab | built |
+| 33 | Social Studio | Scheduled posts | BN-Scheduled | `/social/scheduled-posts` | social tab | built |
+| 34 | Social Studio | New post | BN-Composer | `/composer` | full-screen modal | built |
 | 35 | Insights | Insights | BN-InsOverview | `/social/insights` | social tab | built |
 | 36 | Insights | Content performance | BN-InsContent | `/social/insights/content-performance` | social tab | built |
 | 37 | Insights | Platform analytics | BN-InsPlatform | `/social/insights/platform-analytics` | social tab | built |

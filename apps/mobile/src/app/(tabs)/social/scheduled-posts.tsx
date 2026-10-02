@@ -1,5 +1,4 @@
-import { Placeholder } from "@/navigation/Placeholder";
+// screen: BN-Scheduled
+import { ScheduledScreen } from "@/features/social/StudioScreens";
 
-export default function Screen() {
-  return <Placeholder id="BN-Scheduled" />;
-}
+export default ScheduledScreen;

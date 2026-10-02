@@ -1,5 +1,4 @@
-import { Placeholder } from "@/navigation/Placeholder";
+// screen: BN-Composer
+import { ComposerScreen } from "@/features/social/ComposerScreen";
 
-export default function Screen() {
-  return <Placeholder id="BN-Composer" />;
-}
+export default ComposerScreen;
