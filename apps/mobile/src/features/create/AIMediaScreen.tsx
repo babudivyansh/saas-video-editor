@@ -64,7 +64,7 @@ const PRESETS = [
 // Vocal remover aren't drawn; they follow the same layout.
 export function AIMediaScreen() {
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ tab?: Tab }>();
+  const params = useLocalSearchParams<{ tab?: Tab; voice?: string }>();
   const [tab, setTab] = useState<Tab>(TABS.some((t) => t.value === params.tab) ? (params.tab as Tab) : "image");
   const ctx = useCreateContext();
 
@@ -78,7 +78,7 @@ export function AIMediaScreen() {
         />
         <UnderlineTabs accessibilityLabel="AI Media tools" tabs={TABS} value={tab} onChange={setTab} />
       </View>
-      {tab === "image" ? <ImageTab /> : tab === "voiceover" ? <VoiceoverTab /> : <AudioTab key={tab} tool={tab} />}
+      {tab === "image" ? <ImageTab /> : tab === "voiceover" ? <VoiceoverTab initialVoice={params.voice} /> : <AudioTab key={tab} tool={tab} />}
       <StatusBarScrim />
     </View>
   );
@@ -342,12 +342,13 @@ function ImageTab() {
 
 // ── Voiceover ─────────────────────────────────────────────────────────────
 
-function VoiceoverTab() {
+/** `initialVoice`: preselected from My Voices ("Use"). */
+function VoiceoverTab({ initialVoice }: { initialVoice?: string }) {
   const toast = useToast();
   const qc = useQueryClient();
   const voices = useVoices();
   const [script, setScript] = useState("");
-  const [voiceId, setVoiceId] = useState("brian");
+  const [voiceId, setVoiceId] = useState(initialVoice ?? "brian");
   const [picking, setPicking] = useState(false);
   const [busy, setBusy] = useState(false);
   const voice = voices.data?.find((v) => v.id === voiceId);

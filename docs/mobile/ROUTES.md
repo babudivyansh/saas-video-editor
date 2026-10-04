@@ -49,15 +49,15 @@ back behaviour and design links work, screen UI not built yet.
 | 39 | Insights | Audience | BN-SocialAudience | `/social/insights/account-analytics/audience` | social tab | built |
 | 40 | Insights | Competitors | BN-SocialCompetitors | `/social/insights/account-analytics/competitors` | social tab | built |
 | 41 | Insights | Reports | BN-SocialReports | `/social/insights/account-analytics/reports` | social tab | built |
-| 42 | You | You | BN-Profile | `/you` | you tab | placeholder |
-| 43 | You | My Voices | BN-Voices | `/you/my-voices` | you tab | placeholder |
-| 44 | You | Brand Kit | BN-BrandKit | `/you/brand-kit` | you tab | placeholder |
-| 45 | You | Credits | BN-Credits | `/you/credits` | you tab | placeholder |
-| 46 | You | Subscription | BN-Subscription | `/you/subscription` | you tab | placeholder |
-| 47 | You | Notifications | BN-Notifications | `/you/notifications` | you tab | placeholder |
-| 48 | You | Settings | BN-Settings | `/you/settings` | you tab | placeholder |
-| 49 | You | Help & Support | BN-Help | `/you/help-support` | you tab | placeholder |
-| 50 | You | Legal | BN-Legal | `/you/legal` | you tab | placeholder |
+| 42 | You | You | BN-Profile | `/you` | you tab | built |
+| 43 | You | My Voices | BN-Voices | `/you/my-voices` | you tab | built |
+| 44 | You | Brand Kit | BN-BrandKit | `/you/brand-kit` | you tab | built |
+| 45 | You | Credits | BN-Credits | `/you/credits` | you tab | built |
+| 46 | You | Subscription | BN-Subscription | `/you/subscription` | you tab | built |
+| 47 | You | Notifications | BN-Notifications | `/you/notifications` | you tab | built |
+| 48 | You | Settings | BN-Settings | `/you/settings` | you tab | built |
+| 49 | You | Help & Support | BN-Help | `/you/help-support` | you tab | built |
+| 50 | You | Legal | BN-Legal | `/you/legal` | you tab | built |
 
 ## Navigation rules
 - **Signed out:** Splash, onboarding (`/onboarding/*`) and auth are reachable; the tabs and modals are not.

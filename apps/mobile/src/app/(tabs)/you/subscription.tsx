@@ -1,5 +1,4 @@
-import { Placeholder } from "@/navigation/Placeholder";
+// screen: BN-Subscription
+import { SubscriptionScreen } from "@/features/you/BillingScreens";
 
-export default function Screen() {
-  return <Placeholder id="BN-Subscription" />;
-}
+export default SubscriptionScreen;

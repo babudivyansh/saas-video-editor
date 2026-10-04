@@ -1,5 +1,4 @@
-import { Placeholder } from "@/navigation/Placeholder";
+// screen: BN-Credits
+import { CreditsScreen } from "@/features/you/BillingScreens";
 
-export default function Screen() {
-  return <Placeholder id="BN-Credits" />;
-}
+export default CreditsScreen;
