@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { z } from "zod";
-import { convertToMobileSession, verifyToken, type MobileTokens } from "@/lib/auth";
+import { convertToMobileSession, getAuthUser, verifyToken, type MobileTokens, type TokenPayload } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 // Shared plumbing for /api/mobile/v1. Routes validate with @clipiro/shared's
@@ -36,12 +36,12 @@ type WebHandler = (req: NextRequest) => Promise<Response>;
  * The caller's user agent and forwarding headers carry over, so rate limits
  * and the session's device/IP are the same as a direct call.
  */
-export async function callWeb(handler: WebHandler, req: NextRequest, body: unknown): Promise<{ status: number; json: Record<string, unknown> }> {
+export async function callWeb(handler: WebHandler, req: NextRequest, body: unknown, method = "POST"): Promise<{ status: number; json: Record<string, unknown> }> {
   const headers = new Headers(req.headers);
   headers.delete("content-length");
   headers.delete("cookie");
   headers.set("content-type", "application/json");
-  const inner = new NextRequest(req.url, { method: "POST", headers, body: JSON.stringify(body) });
+  const inner = new NextRequest(req.url, { method, headers, body: JSON.stringify(body) });
   const res = await handler(inner);
   const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   return { status: res.status, json };
@@ -78,4 +78,19 @@ export async function mobileSessionResponse(tokens: MobileTokens, status = 200):
   const user = await sessionUser(verifyToken(tokens.accessToken).userId);
   if (!user) return mobileError(401, "Account not found");
   return mobileJson({ ...tokens, user }, status);
+}
+
+/** A signed-in route: 401 without a valid Bearer session. */
+export function withMobileAuth<Args extends unknown[]>(handler: (req: NextRequest, auth: TokenPayload, ...args: Args) => Promise<Response>) {
+  return async (req: NextRequest, ...args: Args): Promise<Response> => {
+    const auth = await getAuthUser(req);
+    if (!auth) return mobileError(401, "Your session has expired. Please sign in again.", { code: "unauthorized" });
+    return handler(req, auth, ...args);
+  };
+}
+
+/** A web route's error answer, as a mobile error. */
+export function webError(result: { status: number; json: Record<string, unknown> }) {
+  const msg = typeof result.json.error === "string" ? result.json.error : "Something went wrong";
+  return mobileError(result.status, msg);
 }

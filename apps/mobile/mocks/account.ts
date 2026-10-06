@@ -30,7 +30,7 @@ const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
 const daysAgo = (d: number) => ago(d * 24 * 60);
 
 const STUDIO: Account = {
-  user: { id: "b1c673dc-4e2a-49f1-9d0c-7a51e3f0b2aa", name: "Maya Okafor", email: "maya@creatorlab.co", avatarUrl: "asset:creator-golden" },
+  user: { id: "b1c673dc-4e2a-49f1-9d0c-7a51e3f0b2aa", name: "Maya Okafor", email: "maya@creatorlab.co", avatarUrl: "asset:creator-golden", hasPassword: true },
   plan: { tier: "studio", term: "yearly", renewsAt: "2027-03-14T00:00:00.000Z", cancelAtPeriodEnd: false },
   creator: { level: "Pro Creator", xp: 1450, nextLevelXp: 2600 },
   clipMinutes: { remaining: 1000, allowance: 1000 },

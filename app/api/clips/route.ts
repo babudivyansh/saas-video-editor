@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { withRateLimit } from "@/lib/with-rate-limit";
-import { parseS3Url } from "@/lib/s3-url";
-import { getAssetReadUrl } from "@/utils/s3-upload";
+import { resignMediaUrl } from "@/lib/signed-media";
 
 // GET /api/clips — every clip the caller owns, across all their projects.
 //
@@ -27,12 +26,7 @@ function orderFor(sort: string) {
   return [{ createdAt: "desc" as const }, { id: "asc" as const }];
 }
 
-async function resign(url: string | null): Promise<string | null> {
-  if (!url) return null;
-  const loc = parseS3Url(url);
-  if (!loc) return url;
-  return getAssetReadUrl(loc.key).catch(() => url);
-}
+const resign = resignMediaUrl;
 
 async function handleGET(req: NextRequest) {
   const auth = await getAuthUser(req);

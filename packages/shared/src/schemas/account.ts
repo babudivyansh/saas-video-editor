@@ -74,7 +74,14 @@ export function perMonthCents(plan: (typeof PLANS)[number], term: "monthly" | "y
 
 // ── Profile and balances ───────────────────────────────────────────────────
 export const accountSchema = z.object({
-  user: z.object({ id: z.string(), name: z.string(), email: z.string(), avatarUrl: z.string().nullable() }),
+  user: z.object({
+    id: z.string(),
+    name: z.string(),
+    email: z.string(),
+    avatarUrl: z.string().nullable(),
+    /** Google-created accounts have none: sensitive steps confirm with an emailed code. */
+    hasPassword: z.boolean(),
+  }),
   plan: z.object({ tier: planTierSchema, term: z.enum(["monthly", "yearly"]).nullable(), renewsAt: z.string().nullable(), cancelAtPeriodEnd: z.boolean() }),
   creator: z.object({ level: z.string(), xp: z.number().int().min(0), nextLevelXp: z.number().int().positive() }),
   clipMinutes: z.object({ remaining: z.number().int().min(0), allowance: z.number().int().min(0) }),
@@ -183,3 +190,54 @@ export type Settings = z.infer<typeof settingsSchema>;
 /** Deleting an account deactivates it; it is purged after this many days
  *  unless the user logs back in (app/api/account/deactivate). */
 export const ACCOUNT_PURGE_DAYS = 30;
+
+// ── Mobile API (/api/mobile/v1/me, /plans) ─────────────────────────────────
+
+/** GET /me/activity?cursor= → newest first. */
+export const activityPageSchema = z.object({ items: z.array(activitySchema), nextCursor: z.string().nullable() });
+export type ActivityPage = z.infer<typeof activityPageSchema>;
+
+/** PATCH /me */
+export const updateProfileRequest = z.object({ name: z.string() });
+/** POST /me/deactivate: the password, or (no password) the code from POST /me/step-up-code. */
+export const deactivateRequest = z
+  .object({ password: z.string().min(1).optional(), otp: z.string().trim().min(1).optional() })
+  .refine((b) => !!b.password || !!b.otp, { message: "Enter your password", path: ["password"] });
+
+/**
+ * The settings the server keeps: language and two email switches (the web's
+ * NotificationPreference). Defaults, playback, uploads and push stay on the
+ * phone (`settingsSchema` above).
+ */
+export const accountSettingsSchema = z.object({
+  language: z.enum(languageCodes),
+  email: z.object({ weeklySummary: z.boolean(), productUpdates: z.boolean() }),
+});
+export type AccountSettings = z.infer<typeof accountSettingsSchema>;
+export const accountSettingsPatch = z.object({
+  language: z.enum(languageCodes, { error: "Choose a language from the list" }).optional(),
+  email: z.object({ weeklySummary: z.boolean().optional(), productUpdates: z.boolean().optional() }).optional(),
+});
+
+const priceSchema = z.object({ usdCents: z.number().int().nonnegative(), inrPaise: z.number().int().nonnegative() });
+/** GET /plans: live prices (admins can change them on the web). Read-only until Phase 12. */
+export const plansResponseSchema = z.object({
+  plans: z.array(
+    z.object({
+      tier: planTierSchema,
+      name: z.string(),
+      tagline: z.string(),
+      monthly: priceSchema,
+      yearly: priceSchema,
+      minutes: z.number().int().nonnegative(),
+      credits: z.number().int().nonnegative(),
+      storageGb: z.number(),
+      uploadHours: z.number(),
+      perks: z.array(z.string()),
+    }),
+  ),
+  creditPacks: z.array(z.object({ id: z.string(), name: z.string(), credits: z.number().int().positive(), price: priceSchema, bestValue: z.boolean() })),
+  minutePacks: z.array(z.object({ id: z.string(), minutes: z.number().int().positive(), price: priceSchema })),
+  yearlyDiscountPct: z.number().int().min(0).max(100),
+});
+export type PlansResponse = z.infer<typeof plansResponseSchema>;
