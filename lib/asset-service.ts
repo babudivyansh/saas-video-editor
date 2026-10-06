@@ -54,7 +54,12 @@ export type SourceFeature =
   | "editor"
   | "video-generator"
   | "avatar"
-  | "stock";
+  | "stock"
+  // AI tool results (lib/tool-results.ts), named after the tool.
+  | "image-generator"
+  | "voiceover"
+  | "enhance-speech"
+  | "vocal-remover";
 
 export interface AdoptResult {
   asset: Asset & { url: string };

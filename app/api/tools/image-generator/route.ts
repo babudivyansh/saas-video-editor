@@ -10,6 +10,7 @@ import { getImageModel, resolveImageAspectRatio, providerAspectRatio } from "@/l
 import { falSubmit, falPollUntilDone, extractResultUrl } from "@/lib/fal";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress, checkModelAccess } from "@/lib/credits";
 import { createJobStatusHandler, createJobCancelHandler, type CancellableJob } from "@/lib/job-routes";
+import { saveToolResult } from "@/lib/tool-results";
 
 export const maxDuration = 120;
 
@@ -217,6 +218,17 @@ async function handlePOST(req: NextRequest) {
 
       if ((job.status as string) === "cancelled") return;
 
+      // Kept on the Generation and in the user's Assets (lib/tool-results.ts).
+      await saveToolResult({
+        userId: auth.userId,
+        generationId: job.generationId,
+        toolSlug: "image-generator",
+        source: { s3Url: imageUrl },
+        mimeType: "image/png",
+        name: `${prompt.slice(0, 60).replace(/[^\w\s-]/g, "").trim() || "generated image"}.png`,
+        meta: { model: modelEntry.id },
+      });
+
       job.progress = 100;
       job.status = "done";
       job.meta = { imageUrl };
@@ -240,7 +252,8 @@ async function handlePOST(req: NextRequest) {
     }
   })();
 
-  return NextResponse.json({ jobId }, { status: 202 });
+  // generationId: the durable record a client can read after a restart.
+  return NextResponse.json({ jobId, generationId: charge.generationId }, { status: 202 });
 }
 
 export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy: "user", name: "tools:image-generator" });

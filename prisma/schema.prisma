@@ -1040,6 +1040,7 @@ model Asset {
   // Back-relations for the two places an Asset is pointed AT as a source.
   projectsUsingAsSource Project[] @relation("ProjectSourceAsset")
   clipsUsingAsSource    Clip[]    @relation("ClipSourceAsset")
+  generationResults     Generation[] @relation("GenerationResult")
 
   @@unique([userId, checksum])
   @@index([userId, createdAt])
@@ -1505,6 +1506,13 @@ model Generation {
   idempotencyKey   String?   @unique
   createdAt        DateTime  @default(now())
   completedAt      DateTime?
+  // What the job made (2026-10, mobile Phase 5.5): the output's permanent
+  // URL and details ({ url, mimeType, durationMs?, ... }), and the Asset it was
+  // saved as. Lets a client read a finished job from the database, not from
+  // the route's in-memory Map that a restart wipes.
+  result           Json?
+  resultAssetId    String?
+  resultAsset      Asset?    @relation("GenerationResult", fields: [resultAssetId], references: [id], onDelete: SetNull)
 
   @@index([userId, createdAt])
   @@index([modelId])
