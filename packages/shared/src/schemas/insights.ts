@@ -207,3 +207,38 @@ export const analyticsOverviewSchema = z.object({
   healthScore: z.number().int().min(0).max(100).nullable(),
 });
 export type AnalyticsOverview = z.infer<typeof analyticsOverviewSchema>;
+
+// ── Mobile API (/api/mobile/v1/social) ─────────────────────────────────────
+// Social Tracker is a subscriber feature, as on the web: without an active
+// plan every route answers 402 { code: "subscription_required" }.
+
+/** GET /social/accounts */
+export const socialAccountsResponse = z.object({ accounts: z.array(socialAccountSchema) });
+
+/** GET /social/competitors */
+export const competitorsResponse = z.object({
+  competitors: z.array(competitorSchema),
+  /** False when competitor tracking isn't set up on the server. */
+  enabled: z.boolean(),
+  max: z.number().int(),
+});
+/** POST /social/competitors */
+export const addCompetitorRequest = z.object({ provider: z.enum(["instagram", "youtube"]), handle: competitorHandleSchema });
+
+export const SUMMARY_PERIODS = ["weekly", "monthly"] as const;
+/** The AI executive summary for one account (GET reads the latest; POST makes one, WEEKLY_SUMMARY_CREDITS). */
+export const weeklySummarySchema = z.object({
+  id: z.string(),
+  accountId: z.string(),
+  period: z.enum(SUMMARY_PERIODS),
+  periodStart: z.string(),
+  periodEnd: z.string(),
+  createdAt: z.string(),
+  summary: z.string(),
+  wins: z.array(z.string()),
+  concerns: z.array(z.string()),
+  recommendations: z.array(z.object({ title: z.string(), why: z.string() })),
+});
+export type WeeklySummary = z.infer<typeof weeklySummarySchema>;
+export const summaryResponse = z.object({ summary: weeklySummarySchema.nullable() });
+export const summaryRequest = z.object({ accountId: z.string().min(1), period: z.enum(SUMMARY_PERIODS).default("weekly") });

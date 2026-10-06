@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { z } from "zod";
-import { convertToMobileSession, getAuthUser, verifyToken, type MobileTokens, type TokenPayload } from "@/lib/auth";
+import { convertToMobileSession, getAuthUser, requireSubscriber, verifyToken, type MobileTokens, type TokenPayload } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 // Shared plumbing for /api/mobile/v1. Routes validate with @clipiro/shared's
@@ -104,7 +104,19 @@ export function withMobileAuth<Args extends unknown[]>(handler: (req: NextReques
 /** A web route's error answer, as a mobile error. */
 export function webError(result: { status: number; json: Record<string, unknown> }) {
   const msg = typeof result.json.error === "string" ? result.json.error : "Something went wrong";
-  return mobileError(result.status, msg);
+  // The web's machine-readable code (subscription_required, rate_limited…) lets the app react, not just show text.
+  return mobileError(result.status, msg, typeof result.json.code === "string" ? { code: result.json.code } : {});
+}
+
+/**
+ * A subscriber-only route (Social Tracker, as on the web): 402 with code
+ * "subscription_required" for a signed-in user without an active plan.
+ */
+export function withMobileSubscriber<Args extends unknown[]>(handler: (req: NextRequest, auth: TokenPayload, ...args: Args) => Promise<Response>) {
+  return withMobileAuth<Args>(async (req, auth, ...args) => {
+    if (!(await requireSubscriber(req))) return mobileError(402, "Social Tracker is available on paid plans.", { code: "subscription_required" });
+    return handler(req, auth, ...args);
+  });
 }
 
 /** callWeb for a web route that takes a multipart upload (the audio tools). */
