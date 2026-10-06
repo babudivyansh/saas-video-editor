@@ -45,6 +45,7 @@ import { enqueueAssetModeration } from "@/lib/asset-moderation";
 import { auditAssetAction } from "@/lib/asset-audit";
 import { trackOnboardingEvent } from "@/lib/onboarding-analytics";
 import { logger } from "@/lib/logger";
+import { toByteCount } from "@/lib/asset-serialize";
 
 // Kept in sync with prisma/schema.prisma's Asset.sourceFeature doc comment.
 export type SourceFeature =
@@ -138,7 +139,7 @@ export async function assertUnderStorageQuota(userId: string, tier: TierId, inco
     where: { userId, archivedAt: null },
     _sum: { size: true },
   });
-  const usedBytes = usage._sum.size ?? 0;
+  const usedBytes = toByteCount(usage._sum.size);
   if (usedBytes + incomingBytes > limitBytes) {
     trackOnboardingEvent(userId, "asset_upload_limit_reached", { kind: "storage_quota", limitBytes, usedBytes });
     throw new AssetLimitError("storage_quota", limitBytes, usedBytes, storageQuotaMessage(limitBytes));
@@ -278,7 +279,7 @@ export async function adoptUploadedBytes(
   }
 
   await prisma.pendingUpload.delete({ where: { id: pending.id } }).catch(() => {});
-  await auditAssetAction(userId, "upload", asset.id, { name: asset.name, size: asset.size, kind, sourceFeature });
+  await auditAssetAction(userId, "upload", asset.id, { name: asset.name, size: toByteCount(asset.size), kind, sourceFeature });
   enqueueAssetModeration({ assetId: asset.id, userId, s3Key: key, mimeType, kind });
   trackOnboardingEvent(userId, "asset_uploaded", { sourceFeature, kind });
 
@@ -341,7 +342,7 @@ export async function adoptExistingS3Object(
     throw new Error("Failed to save asset");
   }
 
-  await auditAssetAction(userId, "upload", asset.id, { name: asset.name, size: asset.size, kind, sourceFeature });
+  await auditAssetAction(userId, "upload", asset.id, { name: asset.name, size: toByteCount(asset.size), kind, sourceFeature });
   if (!skipModeration) {
     enqueueAssetModeration({ assetId: asset.id, userId, s3Key, mimeType, kind });
   }

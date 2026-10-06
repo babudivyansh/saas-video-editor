@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAdmin } from "@/lib/admin/api";
+import { toByteCount } from "@/lib/asset-serialize";
 
 // Real Assets-library storage visibility for admins — the audit's ops
 // "storage report" was Postgres table size only (row count, not bytes
@@ -34,16 +35,16 @@ export const GET = withAdmin(async () => {
   const userById = new Map(users.map((u) => [u.id, u]));
 
   return NextResponse.json({
-    totalBytes: totals._sum.size ?? 0,
+    totalBytes: toByteCount(totals._sum.size),
     totalAssets: totals._count,
-    archivedBytes: archived._sum.size ?? 0,
+    archivedBytes: toByteCount(archived._sum.size),
     archivedCount: archived._count,
     orphanedPendingUploads: pendingUploads,
     topUsers: byUser.map((u) => ({
       userId: u.userId,
       email: userById.get(u.userId)?.email ?? "unknown",
       name: userById.get(u.userId)?.name ?? null,
-      bytes: u._sum.size ?? 0,
+      bytes: toByteCount(u._sum.size),
       count: u._count,
     })),
     flaggedAssets: flagged.map((f) => ({

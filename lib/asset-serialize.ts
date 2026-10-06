@@ -62,6 +62,17 @@ function toIso(value: Date | string): string {
   return typeof value === "string" ? value : value.toISOString();
 }
 
+/**
+ * Asset.size is a Postgres int8 (Pro/Studio uploads exceed int4's ~2 GiB), so
+ * Prisma hands back a bigint — which JSON.stringify throws on and which can't
+ * be mixed with number arithmetic. Byte counts stay far below 2^53, so a
+ * plain number is exact. Convert at every boundary where a size (or a _sum of
+ * sizes) leaves Prisma.
+ */
+export function toByteCount(value: bigint | number | string | null | undefined): number {
+  return value == null ? 0 : Number(value);
+}
+
 /** A Prisma Asset row, optionally with folder/tags joined in. */
 export type AssetRow = Asset & {
   folder?: SerializedFolder | null;
@@ -100,7 +111,7 @@ export function serializeAsset(
     thumbnailUrl: urls.thumbnailUrl,
     mimeType: asset.mimeType,
     kind: asset.kind,
-    size: asset.size,
+    size: toByteCount(asset.size),
     duration: asset.duration,
     width: asset.width,
     height: asset.height,

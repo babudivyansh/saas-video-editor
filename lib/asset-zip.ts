@@ -14,6 +14,7 @@ import { createRenderQueue } from "@/lib/render-queue";
 import { downloadS3ObjectToFile, uploadFileToS3, getAssetReadUrl } from "@/utils/s3-upload";
 import { ZipWriter } from "@/lib/zip-writer";
 import { logger } from "@/lib/logger";
+import { toByteCount } from "@/lib/asset-serialize";
 
 const ZIP_URL_TTL_SEC = 24 * 3600;
 const MAX_ZIP_ASSETS = 200;
@@ -51,7 +52,7 @@ export async function assetZipJob(payload: AssetZipPayload): Promise<void> {
       select: { id: true, name: true, s3Key: true, size: true },
     });
 
-    const totalBytes = assets.reduce((s, a) => s + a.size, 0);
+    const totalBytes = assets.reduce((s, a) => s + toByteCount(a.size), 0);
     if (totalBytes > MAX_ZIP_TOTAL_BYTES) {
       await redis.set(statusKey(jobId), JSON.stringify({
         status: "failed",

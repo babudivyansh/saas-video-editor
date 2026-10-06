@@ -951,7 +951,7 @@ export async function acquisitionSection(rangeDays: number) {
     // the real total rather than from zero.
     prisma.asset.aggregate({ _sum: { size: true }, where: { createdAt: { lt: rangeStart } } }),
     prisma.$queryRaw<Array<{ d: Date; bytes: bigint }>>`
-      SELECT date_trunc('day', "createdAt") AS d, COALESCE(SUM(size), 0) AS bytes
+      SELECT date_trunc('day', "createdAt") AS d, COALESCE(SUM(size), 0)::bigint AS bytes
       FROM "Asset" WHERE "createdAt" >= ${rangeStart}
       GROUP BY 1 ORDER BY 1`,
   ]);

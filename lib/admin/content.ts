@@ -3,6 +3,7 @@ import { logger } from "@/lib/logger";
 import { deleteS3Object } from "@/utils/s3-upload";
 import { collectProjectMediaKeys, deleteUnreferencedKeys } from "@/lib/storage-cleanup";
 import { invalidateDashboardSummary } from "@/lib/dashboard-summary-cache";
+import { toByteCount } from "@/lib/asset-serialize";
 
 // Admin content browser + delete — projects (with their clips) and library
 // assets, across every account or filtered to one. Deletes remove the S3
@@ -87,7 +88,7 @@ export async function listContent(q: ContentQuery): Promise<{ rows: ContentRow[]
       title: a.name,
       detail: `${a.kind} · ${a.mimeType}`,
       status: a.moderationStatus === "flagged" ? "flagged" : a.archivedAt ? "archived" : "active",
-      sizeBytes: a.size,
+      sizeBytes: toByteCount(a.size),
       createdAt: a.createdAt.toISOString(),
       owner: a.user,
     }));

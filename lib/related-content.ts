@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { parseS3Url } from "@/lib/s3-url";
 import { getAssetReadUrl } from "@/utils/s3-upload";
+import { toByteCount } from "@/lib/asset-serialize";
 
 // Resolvers for the "Related" panels in Assets and Clips.
 //
@@ -175,7 +176,7 @@ async function toAssetRef(a: {
   id: string;
   name: string;
   kind: string;
-  size: number;
+  size: bigint;
   duration: number | null;
   thumbnailS3Key: string | null;
   createdAt: Date;
@@ -184,7 +185,7 @@ async function toAssetRef(a: {
     id: a.id,
     name: a.name,
     kind: a.kind,
-    size: a.size,
+    size: toByteCount(a.size),
     duration: a.duration,
     thumbnailUrl: a.thumbnailS3Key ? await getAssetReadUrl(a.thumbnailS3Key).catch(() => null) : null,
     createdAt: a.createdAt.toISOString(),
