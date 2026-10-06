@@ -44,6 +44,11 @@ const PUBLIC_API_PREFIXES = [
   // unauthenticated" comment that was silently overruled here: with them
   // missing, enabling 2FA locked the account out entirely.
   "/api/auth/2fa/verify-login",
+  // The Android app's sign-in steps (login, signup, OTP, 2FA, Google,
+  // refresh, forgot password, reactivate) — the same pre-session steps as the
+  // web routes above, which they wrap. logout authenticates itself (refresh
+  // token or Bearer) and always answers ok.
+  "/api/mobile/v1/auth/",
   "/api/account/reactivate",
   "/api/webhooks/razorpay",
   // Resend's bounce/complaint feedback. Authenticated by its Svix signature,

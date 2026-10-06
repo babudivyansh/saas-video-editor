@@ -8,3 +8,5 @@ export * from "./schemas/assets";
 export * from "./schemas/insights";
 export * from "./schemas/social";
 export * from "./schemas/account";
+export * from "./api/client";
+export * from "./api/auth";

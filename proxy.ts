@@ -49,8 +49,12 @@ const SIGNED_OUT_ONLY_PATHS = ["/", "/login", "/register"];
  * is a safety net, not a replacement for requireAdmin/requireSubscriber's
  * (or getAuthUser's) authoritative per-route DB checks.
  */
-function getOptimisticAuth(request: NextRequest): { userId: string } | null {
-  const session = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+function getOptimisticAuth(request: NextRequest, { bearer = false }: { bearer?: boolean } = {}): { userId: string } | null {
+  const header = request.headers.get("authorization");
+  // API routes also take `Authorization: Bearer <jwt>`: the Android app
+  // (/api/mobile/v1) has no cookie jar. Same check as the cookie; pages
+  // still read only the cookie, which is all a browser navigation carries.
+  const session = request.cookies.get(SESSION_COOKIE_NAME)?.value ?? (bearer && header?.startsWith("Bearer ") ? header.slice(7) : undefined);
   if (!session) return null;
   try {
     return { userId: verifyToken(session).userId };
@@ -108,7 +112,7 @@ export async function proxy(request: NextRequest) {
       }
     }
 
-    const auth = getOptimisticAuth(request);
+    const auth = getOptimisticAuth(request, { bearer: true });
     if (!auth) {
       return withCsp(NextResponse.json({ error: "Unauthorized" }, { status: 401 }), csp);
     }
