@@ -44,12 +44,16 @@ export async function callWeb(
   method = "POST",
   /** Route params for a dynamic web route ([id] segments). */
   params?: Record<string, string>,
+  /** Query string for the web route (replaces the mobile request's own). */
+  search?: Record<string, string>,
 ): Promise<{ status: number; json: Record<string, unknown> }> {
   const headers = new Headers(req.headers);
   headers.delete("content-length");
   headers.delete("cookie");
   headers.set("content-type", "application/json");
-  const inner = new NextRequest(req.url, { method, headers, body: method === "GET" || method === "DELETE" ? undefined : JSON.stringify(body) });
+  const url = new URL(req.url);
+  if (search) url.search = new URLSearchParams(search).toString();
+  const inner = new NextRequest(url, { method, headers, body: method === "GET" || method === "DELETE" ? undefined : JSON.stringify(body) });
   const res = await handler(inner, params ? { params: Promise.resolve(params) } : undefined);
   const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   return { status: res.status, json };
