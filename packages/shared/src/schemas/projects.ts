@@ -102,3 +102,46 @@ export function scoreSpread(clips: Pick<Clip, "score">[]): number[] {
   }
   return counts;
 }
+
+// ── Mobile API (/api/mobile/v1/projects, /clips) ───────────────────────────
+
+/** GET /projects?cursor= — started AutoClip runs and editor projects, newest first. */
+export const projectsPageSchema = z.object({ projects: z.array(projectSummarySchema), nextCursor: z.string().nullable() });
+/** GET /clips?aspect=&favorites=1&cursor= */
+export const clipsPageSchema = z.object({ clips: z.array(clipSchema), nextCursor: z.string().nullable() });
+
+/** What a clip's virality score is made of (lib/virality-score.ts), each 0–99 like the score. */
+export const scoreBreakdownSchema = z.object({
+  hook: z.number(),
+  pacing: z.number(),
+  payoff: z.number(),
+  engagement: z.number(),
+  audio: z.number(),
+  speechRate: z.number(),
+  silence: z.number(),
+});
+export type ScoreBreakdown = z.infer<typeof scoreBreakdownSchema>;
+
+/** GET /clips/:id */
+export const clipDetailSchema = clipSchema.extend({
+  projectTitle: z.string(),
+  startSec: z.number().nonnegative(),
+  endSec: z.number().nonnegative(),
+  /** Signed, short-lived; null until the clip is ready. */
+  videoUrl: z.string().nullable(),
+  breakdown: scoreBreakdownSchema.nullable(),
+  /** The AI's reason for picking this moment, and what makes its opening work. */
+  reasoning: z.string().nullable(),
+  hookExplanation: z.string().nullable(),
+});
+export type ClipDetail = z.infer<typeof clipDetailSchema>;
+
+export const renameRequest = z.object({ title: z.string().trim().min(1, "Give it a name").max(200, "Keep it under 200 characters") });
+/** PATCH /clips/:id */
+export const clipPatchRequest = z
+  .object({ title: z.string().trim().min(1).max(200).optional(), favorite: z.boolean().optional() })
+  .refine((v) => v.title !== undefined || v.favorite !== undefined, { message: "Nothing to change" });
+
+/** GET /clips/:id/download — a signed link to save the MP4. */
+export const downloadLinkSchema = z.object({ url: z.string(), fileName: z.string(), expiresAt: z.string() });
+export type DownloadLink = z.infer<typeof downloadLinkSchema>;

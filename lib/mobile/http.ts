@@ -28,7 +28,8 @@ export async function parseBody<S extends z.ZodType>(req: NextRequest, schema: S
   return { ok: false, res: mobileError(400, parsed.error.issues[0]?.message ?? "Check the form", { code: "invalid_request", fields }) };
 }
 
-type WebHandler = (req: NextRequest) => Promise<Response>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- web handlers each type their own params
+type WebHandler = (req: NextRequest, ctx?: any) => Promise<Response>;
 
 /**
  * Runs an existing web route with a JSON body, so the mobile route reuses its
@@ -36,13 +37,20 @@ type WebHandler = (req: NextRequest) => Promise<Response>;
  * The caller's user agent and forwarding headers carry over, so rate limits
  * and the session's device/IP are the same as a direct call.
  */
-export async function callWeb(handler: WebHandler, req: NextRequest, body: unknown, method = "POST"): Promise<{ status: number; json: Record<string, unknown> }> {
+export async function callWeb(
+  handler: WebHandler,
+  req: NextRequest,
+  body: unknown,
+  method = "POST",
+  /** Route params for a dynamic web route ([id] segments). */
+  params?: Record<string, string>,
+): Promise<{ status: number; json: Record<string, unknown> }> {
   const headers = new Headers(req.headers);
   headers.delete("content-length");
   headers.delete("cookie");
   headers.set("content-type", "application/json");
-  const inner = new NextRequest(req.url, { method, headers, body: JSON.stringify(body) });
-  const res = await handler(inner);
+  const inner = new NextRequest(req.url, { method, headers, body: method === "GET" || method === "DELETE" ? undefined : JSON.stringify(body) });
+  const res = await handler(inner, params ? { params: Promise.resolve(params) } : undefined);
   const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   return { status: res.status, json };
 }

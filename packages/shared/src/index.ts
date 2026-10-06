@@ -11,3 +11,4 @@ export * from "./schemas/account";
 export * from "./api/client";
 export * from "./api/auth";
 export * from "./api/me";
+export * from "./api/projects";
