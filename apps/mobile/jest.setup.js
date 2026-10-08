@@ -13,3 +13,27 @@ jest.mock("@expo-google-fonts/geist-mono", () => ({
   GeistMono_500Medium: 1,
   GeistMono_600SemiBold: 1,
 }));
+
+// The Android Keystore, as an in-memory map (src/lib/api.ts keeps the tokens there).
+jest.mock("expo-secure-store", () => {
+  const store = new Map();
+  return {
+    __store: store,
+    getItemAsync: jest.fn(async (k) => (store.has(k) ? store.get(k) : null)),
+    setItemAsync: jest.fn(async (k, v) => void store.set(k, v)),
+    deleteItemAsync: jest.fn(async (k) => void store.delete(k)),
+  };
+});
+
+// Native Google sign-in (a Nitro module: not in Jest). Tests set what the picker returns.
+jest.mock("react-native-nitro-google-signin", () => ({
+  GoogleOneTapSignIn: {
+    configure: jest.fn(),
+    checkPlayServices: jest.fn(async () => {}),
+    signIn: jest.fn(async () => ({ type: "noSavedCredentialFound", data: null })),
+    createAccount: jest.fn(async () => ({ type: "cancelled", data: null })),
+    signOut: jest.fn(async () => {}),
+  },
+  statusCodes: { SIGN_IN_CANCELLED: "SIGN_IN_CANCELLED", PLAY_SERVICES_NOT_AVAILABLE: "PLAY_SERVICES_NOT_AVAILABLE", DEVELOPER_ERROR: "DEVELOPER_ERROR" },
+  isErrorWithCode: (e) => !!e && typeof e === "object" && "code" in e,
+}));

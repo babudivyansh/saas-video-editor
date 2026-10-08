@@ -12,7 +12,9 @@ import { SCREENS, TAB_ROOTS, type Link, type ScreenId } from "./screens";
 
 export function go(link: Link) {
   if (link.session) {
-    useSession.getState()[link.session]();
+    // Stand-in screens flip the flag only; real sign-in goes through the API.
+    if (link.session === "signOut") void useSession.getState().signOut();
+    else useSession.setState({ signedIn: true });
     return;
   }
   const href = SCREENS[link.to].href as Href;

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { Button, ErrorBanner, Icon, TextField, type IconName } from "@/components";
 import { colors, radius, type } from "@/theme";
-import { forgotPassword } from "@mocks/auth";
+import { auth } from "@/lib/api";
 import { AuthScaffold, FooterLink } from "./AuthScaffold";
 import { useSubmit } from "./useSubmit";
 
@@ -22,7 +22,7 @@ export function ForgotScreen() {
     if (!parsed.success) return setError(fieldErrors(parsed.error).email);
     setError(undefined);
     run(async () => {
-      await forgotPassword(parsed.data);
+      await auth.forgotPassword(parsed.data);
       setSentTo(parsed.data.email);
     });
   };

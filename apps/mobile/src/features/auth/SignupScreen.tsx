@@ -1,11 +1,12 @@
-import { fieldErrors, signupRequest } from "@clipiro/shared";
+import { fieldErrors, signupRequest, type ApiError } from "@clipiro/shared";
 import { router } from "expo-router";
 import { useState } from "react";
 import { Linking, StyleSheet, Text, View } from "react-native";
-import { Button, Checkbox, ErrorBanner, GoogleButton, OrDivider, TextField, useToast } from "@/components";
+import { Button, Checkbox, ErrorBanner, GoogleButton, OrDivider, TextField } from "@/components";
+import { auth } from "@/lib/api";
 import { colors, type } from "@/theme";
-import { signup } from "@mocks/auth";
 import { AuthScaffold, FooterLink } from "./AuthScaffold";
+import { continueWithGoogle } from "./finish";
 import { useSubmit } from "./useSubmit";
 
 const SITE = "https://clipiro.com";
@@ -13,14 +14,16 @@ const SITE = "https://clipiro.com";
 // design/screens/E-Signup.html. The design has no "confirm password" field;
 // the API wants one, so the password is sent as its own confirmation.
 export function SignupScreen() {
-  const toast = useToast();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [agree, setAgree] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const { pending, banner, serverField, run } = useSubmit();
+  // The server answers 409 for a taken email without naming the field.
+  const { pending, banner, serverField, run } = useSubmit(emailTaken);
+  const google = useSubmit();
+  const shown = banner ?? google.banner;
 
   const submit = () => {
     const parsed = signupRequest.safeParse({ name, email, password, confirmPassword: password });
@@ -29,7 +32,7 @@ export function SignupScreen() {
     setErrors(errs);
     if (!parsed.success || !agree) return;
     run(async () => {
-      const res = await signup(parsed.data);
+      const res = await auth.signup(parsed.data);
       router.push({ pathname: "/otp", params: { email: res.email, signupToken: res.signupToken, mode: "signup" } });
     });
   };
@@ -43,8 +46,8 @@ export function SignupScreen() {
       <Text style={type(26, "bold", { tracking: -0.03, lineHeight: 1.12 })} accessibilityRole="header">
         Create your account
       </Text>
-      {banner ? <ErrorBanner message={banner.message} onRetry={banner.retry ? submit : undefined} /> : null}
-      <TextField label="Full name" leadingIcon="person" value={name} onChangeText={setName} placeholder="Your name" autoComplete="name" textContentType="name" error={errors.name} />
+      {shown ? <ErrorBanner message={shown.message} onRetry={shown.retry ? (banner ? submit : () => google.run(continueWithGoogle)) : undefined} /> : null}
+      <TextField label="Full name" leadingIcon="person" value={name} onChangeText={setName} placeholder="Your name" autoComplete="name" textContentType="name" error={errors.name ?? serverField.name} />
       <TextField
         label="Email"
         leadingIcon="mail"
@@ -67,7 +70,7 @@ export function SignupScreen() {
         autoComplete="new-password"
         textContentType="newPassword"
         helper="At least 8 characters."
-        error={errors.password}
+        error={errors.password ?? serverField.password}
         trailingAction={{ icon: showPw ? "eyeOff" : "eye", accessibilityLabel: showPw ? "Hide password" : "Show password", onPress: () => setShowPw((v) => !v) }}
       />
       <View>
@@ -93,7 +96,7 @@ export function SignupScreen() {
       </View>
       <Button label="Create account" icon="arrowRight" fullWidth loading={pending} onPress={submit} />
       <OrDivider />
-      <GoogleButton onPress={() => toast("Google sign-in is coming soon", "info")} />
+      <GoogleButton onPress={() => google.run(continueWithGoogle)} loading={google.pending} />
     </AuthScaffold>
   );
 }
@@ -102,3 +105,5 @@ const styles = StyleSheet.create({
   terms: { flex: 1 },
   link: { color: colors.emeraldBright, fontFamily: type(14, "semibold").fontFamily },
 });
+
+const emailTaken = (e: ApiError) => (e.status === 409 ? "email" : undefined);

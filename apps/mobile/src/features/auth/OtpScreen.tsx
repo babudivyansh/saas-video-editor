@@ -1,28 +1,30 @@
-import { OTP_LENGTH, otpSchema } from "@clipiro/shared";
+import { OTP_LENGTH, otpSchema, type ApiError } from "@clipiro/shared";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Button, ErrorBanner, Icon, OtpInput, useToast } from "@/components";
-import { useSession } from "@/state/session";
+import { auth } from "@/lib/api";
 import { colors, radius, type } from "@/theme";
-import { resendCode, verifySignup } from "@mocks/auth";
 import { AuthScaffold, FooterLink } from "./AuthScaffold";
+import { finishSignIn } from "./finish";
 import { useSubmit } from "./useSubmit";
 
 export const RESEND_SECONDS = 60;
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
-// design/screens/E-OTP.html. Reached after Sign up (with a signupToken) or
-// when a login needs the email verified first.
+// design/screens/E-OTP.html. Reached after Sign up (mode "signup", with the
+// signupToken) or when a login needs the email verified first (mode "login",
+// with the password proof the login answer carried).
 export function OtpScreen() {
   const toast = useToast();
-  const signIn = useSession((s) => s.signIn);
-  const params = useLocalSearchParams<{ email?: string; signupToken?: string }>();
-  const email = params.email ?? "your email";
+  const params = useLocalSearchParams<{ email?: string; signupToken?: string; mode?: "signup" | "login"; proof?: string }>();
+  const email = params.email ?? "";
+  const login = params.mode === "login";
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | undefined>();
   const [left, setLeft] = useState(RESEND_SECONDS);
-  const { pending, banner, serverField, run } = useSubmit();
+  // A wrong code (401) goes under the boxes; an expired signup is a banner.
+  const { pending, banner, serverField, run } = useSubmit(wrongCode);
 
   useEffect(() => {
     if (left <= 0) return;
@@ -35,14 +37,14 @@ export function OtpScreen() {
     if (!parsed.success) return setError(parsed.error.issues[0]?.message);
     setError(undefined);
     run(async () => {
-      await verifySignup({ email, otp: parsed.data, signupToken: params.signupToken ?? "login" });
-      signIn();
+      if (login) await finishSignIn(await auth.verifyEmail({ email, otp: parsed.data, passwordProof: params.proof }));
+      else await finishSignIn(await auth.verifySignup({ email, otp: parsed.data, signupToken: params.signupToken ?? "" }));
     });
   };
 
   const resend = () =>
     run(async () => {
-      await resendCode(email);
+      await (login ? auth.resendLoginCode({ email }) : auth.resendSignupCode({ email }));
       setLeft(RESEND_SECONDS);
       setCode("");
       toast(`New code sent to ${email}`, "success");
@@ -62,7 +64,7 @@ export function OtpScreen() {
           Verify your email
         </Text>
         <Text style={[type(14, "regular", { color: colors.fgMuted, lineHeight: 1.55 }), styles.center]}>
-          We sent a code to <Text style={{ color: colors.fg }}>{email}</Text>
+          We sent a code to <Text style={{ color: colors.fg }}>{email || "your email"}</Text>
         </Text>
       </View>
       {banner ? <ErrorBanner message={banner.message} onRetry={banner.retry ? () => verify() : undefined} /> : null}
@@ -114,3 +116,5 @@ const styles = StyleSheet.create({
   resend: { flexDirection: "row", justifyContent: "center", alignItems: "center", flexWrap: "wrap", minHeight: 44 },
   resendBtn: { minHeight: 44, justifyContent: "center" },
 });
+
+const wrongCode = (e: ApiError) => (e.status === 401 || (e.status === 400 && !e.body.expired) ? "otp" : undefined);

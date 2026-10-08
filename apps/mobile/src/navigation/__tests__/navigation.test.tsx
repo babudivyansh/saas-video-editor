@@ -3,7 +3,8 @@
 import path from "node:path";
 import { act, fireEvent, renderRouter, screen, testRouter, waitFor } from "expo-router/testing-library";
 import { useSession } from "@/state/session";
-import { setMockDelay } from "@mocks/auth";
+import { installFakeAuthServer } from "@/test/fakeAuthServer";
+import { setMockDelay } from "@mocks/core";
 import { SAMPLE_PROJECT_ID } from "../screens";
 
 // Renders the real src/app tree, so these exercise the actual layouts:
@@ -18,7 +19,7 @@ const rootHistory = (r: ReturnType<typeof renderRouter>) =>
   ((r.getRouterState() as NavState | undefined)?.routes[0]?.state?.routes ?? []).map((x) => x.name);
 
 // Tests that start inside the app need a signed-in session (protected routes).
-const signedIn = (v: boolean) => useSession.setState({ signedIn: v });
+const signedIn = (v: boolean) => useSession.setState({ ready: true, signedIn: v });
 
 describe("navigation", () => {
   beforeEach(() => signedIn(true));
@@ -26,6 +27,7 @@ describe("navigation", () => {
   it("runs splash → onboarding → login → OTP → Home, and Home has no way back to auth", async () => {
     signedIn(false);
     setMockDelay(0);
+    const server = installFakeAuthServer();
     const r = renderRouter(APP, { initialUrl: "/" });
     await fireEvent.press(screen.getByRole("button", { name: "Clipiro. Continue" }));
     expect(r.getPathname()).toBe("/onboarding/welcome");
@@ -40,6 +42,7 @@ describe("navigation", () => {
     await waitFor(() => expect(r.getPathname()).toBe("/home"));
     // OTP → Home reset the history: nothing behind the tabs for back to reach.
     expect(rootHistory(r)).toEqual(["(tabs)"]);
+    server.restore();
     // Walks every launch screen into the real Home and loads the whole route tree (all 50
     // screens); on a cold transform cache (CI) that is slow.
   }, 240000);

@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import { colors, radius, statusTint, type } from "@/theme";
 import { Icon } from "./Icon";
@@ -15,20 +15,26 @@ export function OrDivider() {
 }
 
 /** Secondary pill with Google's four-colour G — the brand mark, so its own colours. */
-export function GoogleButton({ onPress, label = "Continue with Google" }: { onPress: () => void; label?: string }) {
+export function GoogleButton({ onPress, label = "Continue with Google", loading = false }: { onPress: () => void; label?: string; loading?: boolean }) {
   return (
     <Pressable
       onPress={onPress}
+      disabled={loading}
       accessibilityRole="button"
       accessibilityLabel={label}
-      style={({ pressed }) => [styles.google, pressed && { backgroundColor: colors.surface3 }]}
+      accessibilityState={{ busy: loading, disabled: loading }}
+      style={({ pressed }) => [styles.google, (pressed || loading) && { backgroundColor: colors.surface3 }]}
     >
+      {loading ? (
+        <ActivityIndicator size="small" color={colors.fg} />
+      ) : (
       <Svg width={18} height={18} viewBox="0 0 24 24">
         <Path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5a5.6 5.6 0 0 1-2.4 3.6v3h3.9c2.2-2.1 3.5-5.1 3.5-8.8z" />
         <Path fill="#34A853" d="M12 24c3.2 0 6-1.1 8-2.9l-3.9-3a7.2 7.2 0 0 1-10.8-3.8h-4v3.1A12 12 0 0 0 12 24z" />
         <Path fill="#FBBC05" d="M5.3 14.3a7.2 7.2 0 0 1 0-4.6V6.6h-4a12 12 0 0 0 0 10.8l4-3.1z" />
         <Path fill="#EA4335" d="M12 4.8c1.8 0 3.3.6 4.6 1.8l3.4-3.4A12 12 0 0 0 1.3 6.6l4 3.1A7.2 7.2 0 0 1 12 4.8z" />
       </Svg>
+      )}
       <Text style={type(15, "semibold")}>{label}</Text>
     </Pressable>
   );
