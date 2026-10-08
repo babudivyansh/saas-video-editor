@@ -175,6 +175,10 @@ export function notificationCategory(type: string): NotificationCategory {
 }
 
 // ── Settings ───────────────────────────────────────────────────────────────
+/** Which pushes this phone wants. The server checks them before sending. */
+export const pushPrefsSchema = z.object({ renderFinished: z.boolean(), postPublished: z.boolean() });
+export type PushPrefs = z.infer<typeof pushPrefsSchema>;
+
 export const settingsSchema = z.object({
   language: z.enum(languageCodes),
   aspectRatio: z.enum(["9:16", "16:9", "1:1"]),
@@ -183,8 +187,8 @@ export const settingsSchema = z.object({
   autoplay: z.boolean(),
   haptics: z.boolean(),
   wifiOnlyUploads: z.boolean(),
-  /** Push notifications: stored on the phone until push arrives. */
-  push: z.object({ renderFinished: z.boolean(), postPublished: z.boolean() }),
+  /** Push switches: kept on the phone and sent with its token (POST /devices). */
+  push: pushPrefsSchema,
   /** The web's NotificationPreference email switches. */
   email: z.object({ weeklySummary: z.boolean(), productUpdates: z.boolean() }),
 });
@@ -250,14 +254,17 @@ export const notificationsPageSchema = z.object({ items: z.array(notificationSch
 export const unreadCountSchema = z.object({ unreadCount: z.number().int().nonnegative() });
 
 /**
- * POST /devices — register this phone for push notifications (sending starts
- * in Phase 7). An Expo push token ("ExponentPushToken[…]") or a raw FCM token.
+/**
+ * POST /devices — register this phone for push notifications, with its push
+ * switches (send again when they change). An Expo push token
+ * ("ExponentPushToken[…]") or a raw FCM token.
  */
 export const registerDeviceRequest = z.object({
   token: z.string().trim().min(10).max(4096),
   provider: z.enum(["expo", "fcm"]),
   deviceName: z.string().trim().max(100).optional(),
   appVersion: z.string().trim().max(32).optional(),
+  prefs: pushPrefsSchema.optional(),
 });
 /** DELETE /devices — stop pushes to this phone (e.g. notifications turned off). */
 export const unregisterDeviceRequest = z.object({ token: z.string().trim().min(10).max(4096) });

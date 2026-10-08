@@ -48,6 +48,7 @@ export async function notify(input: NotifyInput): Promise<void> {
         metadata: input.metadata as Prisma.InputJsonValue | undefined,
       },
     });
+    pushInBackground([input]);
   } catch (e) {
     logger.warn("notify", `notification write failed for ${input.type} -> ${input.userId}`, {
       reason: (e as Error).message,
@@ -68,6 +69,7 @@ export async function notifyMany(inputs: NotifyInput[]): Promise<void> {
         metadata: i.metadata as Prisma.InputJsonValue | undefined,
       })),
     });
+    pushInBackground(inputs);
   } catch (e) {
     logger.warn("notify", `bulk notification write failed (${inputs.length} rows)`, { reason: (e as Error).message });
   }
@@ -82,4 +84,28 @@ export async function notifyAdmins(
 ): Promise<void> {
   const admins = await prisma.user.findMany({ where: { role: "ADMIN" }, select: { id: true } });
   await notifyMany(admins.map((a) => ({ userId: a.id, type, title, body, href, metadata })));
+}
+
+/**
+ * The types lib/push.ts sends to phones. Kept here so every other
+ * notification skips the push path entirely (no import, no query).
+ */
+export const PUSH_TYPES: ReadonlySet<NotificationType> = new Set<NotificationType>([
+  "autoclip_render_complete",
+  "autoclip_render_failed",
+  "billing_payment_failed",
+  "billing_subscription_halted",
+]);
+
+/**
+ * The phone push beside an in-app notification. Fire-and-forget, loaded on
+ * first use: a push must not slow or fail the caller. Off under the test
+ * runner, where it would outlive the test (lib/push.test.ts covers it).
+ */
+function pushInBackground(inputs: NotifyInput[]) {
+  const pushable = inputs.filter((i) => PUSH_TYPES.has(i.type));
+  if (pushable.length === 0 || process.env.NODE_ENV === "test") return;
+  void import("@/lib/push")
+    .then((m) => m.sendPushes(pushable))
+    .catch(() => {});
 }

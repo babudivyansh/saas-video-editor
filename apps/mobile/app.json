@@ -26,6 +26,14 @@
     "plugins": [
       "expo-router",
       [
+        "expo-notifications",
+        {
+          "icon": "./assets/android-icon-monochrome.png",
+          "color": "#00a968",
+          "defaultChannel": "clips"
+        }
+      ],
+      [
         "expo-image-picker",
         {
           "cameraPermission": false,

@@ -15,6 +15,7 @@ import {
   Toggle,
   useToast,
 } from "@/components";
+import { openPushSettings, usePush } from "@/lib/push";
 import { useSession } from "@/state/session";
 import { colors, type } from "@/theme";
 import { deactivateAccount } from "@mocks/account";
@@ -41,6 +42,7 @@ export function SettingsScreen() {
   const qc = useQueryClient();
   const settings = useSettings();
   const account = useAccount();
+  const push = usePush();
   const templates = useCaptionTemplates();
   const save = useSaveSettings((e) => toast(errorMessage(e), "error"));
   const [picker, setPicker] = useState<Picker>(null);
@@ -149,15 +151,15 @@ export function SettingsScreen() {
           <ListGroup>
             {toggle(
               "Render finished",
-              s.push.renderFinished,
-              (v) => set({ push: { ...s.push, renderFinished: v } }),
+              push.prefs.renderFinished,
+              (v) => void push.setPrefs({ renderFinished: v }),
               "Push · when clips are ready",
               true
             )}
             {toggle(
               "Post published",
-              s.push.postPublished,
-              (v) => set({ push: { ...s.push, postPublished: v } }),
+              push.prefs.postPublished,
+              (v) => void push.setPrefs({ postPublished: v }),
               "Push"
             )}
             {toggle(
@@ -173,11 +175,18 @@ export function SettingsScreen() {
               "Email"
             )}
           </ListGroup>
-          <Text
-            style={[type(12, "regular", { color: colors.fgSubtle, lineHeight: 1.45 }), styles.note]}
-          >
-            Push notifications start working in a later update; your choices are kept until then.
-          </Text>
+          {push.permission === "denied" ? (
+            <Text style={[type(12, "regular", { color: colors.fgSubtle, lineHeight: 1.45 }), styles.note]}>
+              Notifications are off for Clipiro in Android settings.{" "}
+              <Text style={{ color: colors.emeraldBright }} onPress={openPushSettings} accessibilityRole="link">
+                Turn them on
+              </Text>
+            </Text>
+          ) : push.permission === "unavailable" ? (
+            <Text style={[type(12, "regular", { color: colors.fgSubtle, lineHeight: 1.45 }), styles.note]}>
+              Push notifications aren’t available in this build of the app.
+            </Text>
+          ) : null}
         </>
       )}
 

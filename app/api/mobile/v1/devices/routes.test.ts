@@ -29,6 +29,15 @@ describe("devices", () => {
     expect(call.create).toMatchObject({ token: TOKEN, userId: "u1", sessionId: "s1" });
   });
 
+  it("keeps the phone's push switches when it sends them", async () => {
+    await POST(req("POST", { token: TOKEN, provider: "expo", prefs: { renderFinished: false, postPublished: true } }));
+    expect(upsert.mock.calls[0]![0].update).toMatchObject({ pushPrefs: { renderFinished: false, postPublished: true } });
+    upsert.mockClear();
+    // Without prefs, the stored switches are left alone.
+    await POST(req("POST", { token: TOKEN, provider: "expo" }));
+    expect(upsert.mock.calls[0]![0].update).not.toHaveProperty("pushPrefs");
+  });
+
   it("refuses a bad token or provider, and anyone signed out", async () => {
     expect((await POST(req("POST", { token: "short", provider: "expo" }))).status).toBe(400);
     expect((await POST(req("POST", { token: TOKEN, provider: "apns" }))).status).toBe(400);

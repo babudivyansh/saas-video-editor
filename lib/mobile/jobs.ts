@@ -43,6 +43,7 @@ export async function readJob(userId: string, jobId: string): Promise<Job | null
       type,
       status: done ? "done" : failed ? "failed" : g.progress > 5 ? "running" : "queued",
       progress: done ? 100 : clamp(g.progress),
+      stage: null,
       error: failed ? (g.status === "cancelled" ? "Cancelled." : (g.errorMessage ?? "This didn't work. Your credits were refunded.")) : null,
       createdAt: g.createdAt.toISOString(),
       result: done ? { assetId: g.resultAssetId, url: await resignMediaUrl(result?.url ?? null), projectId: null, clipCount: null } : null,
@@ -63,6 +64,7 @@ export async function readJob(userId: string, jobId: string): Promise<Job | null
     type: ref.kind === "run" ? "autoclip" : "export",
     status: done ? "done" : failed ? "failed" : running ? "running" : "queued",
     progress: done ? 100 : clamp(p.progress),
+    stage: running ? (p.status as "analyzing" | "rendering") : null,
     error: failed ? (p.failureReason ?? "This didn't work. Anything you were charged has been refunded.") : null,
     createdAt: (ref.kind === "run" ? p.createdAt : p.updatedAt).toISOString(),
     result: done

@@ -45,6 +45,8 @@ export const jobSchema = z.object({
   status: jobStatusSchema,
   /** 0–100. */
   progress: z.number().int().min(0).max(100),
+  /** AutoClip: finding the moments, then rendering the clips. Null otherwise. */
+  stage: z.enum(["analyzing", "rendering"]).nullable().default(null),
   /** Why it failed, in words a user can act on; null otherwise. */
   error: z.string().nullable(),
   createdAt: z.string(),
