@@ -47,6 +47,10 @@ jest.mock("expo-file-system", () => {
       this.exists = false;
       this.size = 0;
     }
+    delete() {}
+    static async downloadFileAsync(url, dest) {
+      return { uri: dest.uri, exists: true };
+    }
   }
   return { File, Paths: { document: { uri: "file:///doc" }, cache: { uri: "file:///cache" } } };
 });
@@ -65,3 +69,18 @@ jest.mock("expo-notifications", () => ({
   clearLastNotificationResponse: jest.fn(),
   addNotificationResponseReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
 }));
+
+// expo-video, expo-media-library, expo-sharing (native).
+jest.mock("expo-video", () => {
+  const { View } = require("react-native");
+  return { useVideoPlayer: jest.fn(() => ({ play: jest.fn(), pause: jest.fn() })), VideoView: (props) => require("react").createElement(View, { testID: "video-view", ...props }) };
+});
+jest.mock("expo-media-library", () => {
+  const album = { add: jest.fn(async () => {}) };
+  return {
+    requestPermissionsAsync: jest.fn(async () => ({ status: "granted" })),
+    Asset: { create: jest.fn(async (uri) => ({ id: `content://media/${uri}` })) },
+    Album: { get: jest.fn(async () => null), create: jest.fn(async () => album) },
+  };
+});
+jest.mock("expo-sharing", () => ({ shareAsync: jest.fn(async () => {}) }));

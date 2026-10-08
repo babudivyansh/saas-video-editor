@@ -1,4 +1,4 @@
-import { assetsApi, authApi, authTokensSchema, createApiClient, jobsApi, meApi, userSchema, type AuthTokens, type TokenStore, type User } from "@clipiro/shared";
+import { assetsApi, authApi, authTokensSchema, createApiClient, jobsApi, meApi, projectsApi, userSchema, type AuthTokens, type TokenStore, type User } from "@clipiro/shared";
 import * as Device from "expo-device";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
@@ -63,3 +63,4 @@ export const auth = authApi(api);
 export const me = meApi(api);
 export const assets = assetsApi(api);
 export const jobs = jobsApi(api);
+export const projects = projectsApi(api);

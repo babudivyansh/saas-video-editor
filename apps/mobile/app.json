@@ -26,6 +26,13 @@
     "plugins": [
       "expo-router",
       [
+        "expo-media-library",
+        {
+          "granularPermissions": ["video"],
+          "isAccessMediaLocationEnabled": false
+        }
+      ],
+      [
         "expo-notifications",
         {
           "icon": "./assets/android-icon-monochrome.png",

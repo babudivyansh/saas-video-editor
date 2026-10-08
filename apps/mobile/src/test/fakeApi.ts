@@ -10,6 +10,14 @@ export type Call = { method: string; path: string; body: Record<string, unknown>
 
 export function installFakeApi(routes: Record<string, Handler>) {
   const calls: Call[] = [];
+  // "GET /projects/:id" matches any id; the handler reads it from the URL.
+  const patterns = Object.keys(routes)
+    .filter((k) => k.includes(":"))
+    .map((k) => ({ k, re: new RegExp(`^${k.replace(/:\w+/g, "[^/]+")}$`) }));
+  const match = (method: string, path: string) => {
+    const hit = patterns.find((p) => p.re.test(`${method} ${path}`));
+    return hit ? routes[hit.k] : undefined;
+  };
   const original = globalThis.fetch;
   globalThis.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input));
@@ -17,7 +25,7 @@ export function installFakeApi(routes: Record<string, Handler>) {
     const method = init?.method ?? "GET";
     const body = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : {};
     calls.push({ method, path, body });
-    const handler = routes[`${method} ${path}`];
+    const handler = routes[`${method} ${path}`] ?? match(method, path);
     const [status, json] = handler ? await handler(body, url) : [404, { error: "Not found" }];
     return { ok: status >= 200 && status < 300, status, json: async () => json };
   }) as unknown as typeof fetch;
