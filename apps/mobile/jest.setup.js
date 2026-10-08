@@ -37,3 +37,18 @@ jest.mock("react-native-nitro-google-signin", () => ({
   statusCodes: { SIGN_IN_CANCELLED: "SIGN_IN_CANCELLED", PLAY_SERVICES_NOT_AVAILABLE: "PLAY_SERVICES_NOT_AVAILABLE", DEVELOPER_ERROR: "DEVELOPER_ERROR" },
   isErrorWithCode: (e) => !!e && typeof e === "object" && "code" in e,
 }));
+
+// expo-file-system (native). Upload tests swap the whole file layer
+// (setUploadIO); this only lets modules that import it load.
+jest.mock("expo-file-system", () => {
+  class File {
+    constructor(...parts) {
+      this.uri = parts.map((p) => (typeof p === "string" ? p : p.uri)).join("/");
+      this.exists = false;
+      this.size = 0;
+    }
+  }
+  return { File, Paths: { document: { uri: "file:///doc" }, cache: { uri: "file:///cache" } } };
+});
+
+jest.mock("expo-image-picker", () => ({ launchImageLibraryAsync: jest.fn(async () => ({ canceled: true, assets: null })) }));

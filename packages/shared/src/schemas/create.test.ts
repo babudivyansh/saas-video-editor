@@ -46,6 +46,8 @@ describe("create schemas", () => {
   it("checks a picked file against the plan", () => {
     expect(uploadProblem({ sizeBytes: 300 * 1024 ** 2, mimeType: "video/mp4" }, "free")).toMatch(/Free plan's 250 MB/);
     expect(uploadProblem({ sizeBytes: 300 * 1024 ** 2, mimeType: "video/mp4" }, "creator")).toBeNull();
+    expect(uploadProblem({ sizeBytes: 1024, mimeType: "video/mp4", durationSec: 31 * 60 }, "free")).toMatch(/Free plan.s 30 min limit/);
+    expect(uploadProblem({ sizeBytes: 1024, mimeType: "video/mp4", durationSec: 31 * 60 }, "creator")).toBeNull();
     expect(uploadProblem({ sizeBytes: 6 * GB, mimeType: "video/quicktime" }, "studio")).toMatch(/5 GB/);
     expect(uploadProblem({ sizeBytes: 1000, mimeType: "video/x-matroska" }, "studio")).toMatch(/MP4, MOV or WebM/);
   });

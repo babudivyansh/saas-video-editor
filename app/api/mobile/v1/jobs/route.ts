@@ -34,6 +34,29 @@ function toolJob(r: WebResult): Result {
     : { ok: false, res: mobileError(500, "The job started but can't be tracked. Try again.") };
 }
 
+const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
+
+/**
+ * The web refuses an unaffordable run with the code as its `error` and the
+ * numbers beside it ({ error: "insufficient_minutes", required, balance,
+ * overflowCredits }). The app gets a sentence it can show, the code, and the
+ * numbers, so it can offer to cover the gap in credits.
+ */
+function autoClipRefusal(r: WebResult): Response {
+  const code = r.json.error;
+  if (r.status === 402 && (code === "insufficient_minutes" || code === "insufficient_credits")) {
+    const required = num(r.json.required);
+    const balance = num(r.json.balance);
+    const unit = code === "insufficient_minutes" ? "Clip Minutes" : "AI credits";
+    const message =
+      required != null && balance != null
+        ? `This video needs ${required} ${unit} and you have ${balance}.`
+        : `You don't have enough ${unit} for this video.`;
+    return mobileError(402, message, { code, required, balance, overflowCredits: num(r.json.overflowCredits) });
+  }
+  return webError(r);
+}
+
 /** The web's three AutoClip steps: create the project, attach the source, start the run. */
 async function startAutoClip(req: NextRequest, auth: TokenPayload, b: Input<"autoclip">): Promise<Result> {
   let asset: { name: string; url: string } | null = null;
@@ -79,7 +102,7 @@ async function startAutoClip(req: NextRequest, auth: TokenPayload, b: Input<"aut
   if (started.status >= 400) {
     // No project left behind for a run that never started (an imported video stays in Assets).
     await callWeb(webProjectDelete, req, undefined, "DELETE", { id: projectId }).catch(() => undefined);
-    return fail(started);
+    return { ok: false, res: autoClipRefusal(started) };
   }
   return { ok: true, jobId: jobIdFor.run(projectId) };
 }

@@ -102,6 +102,10 @@ export const apiErrorSchema = z.object({
   // Flags some auth errors carry (the web routes' own).
   expired: z.boolean().optional(),
   deactivated: z.boolean().optional(),
+  // A refused AutoClip run (402 insufficient_minutes / insufficient_credits).
+  required: z.number().optional(),
+  balance: z.number().optional(),
+  overflowCredits: z.number().optional(),
 });
 export type ApiErrorBody = z.infer<typeof apiErrorSchema>;
 
