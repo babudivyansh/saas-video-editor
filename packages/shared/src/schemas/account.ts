@@ -156,7 +156,10 @@ export const notificationSchema = z.object({
   type: z.string(),
   title: z.string(),
   body: z.string().nullable(),
+  /** The app screen to open ("/projects/…"), or null when it only exists on the web. */
   href: z.string().nullable(),
+  /** The same link on clipiro.com, for anything the app can't open itself. */
+  webUrl: z.string().nullable().optional(),
   thumbnailUrl: z.string().nullable(),
   readAt: z.string().nullable(),
   createdAt: z.string(),
@@ -241,3 +244,20 @@ export const plansResponseSchema = z.object({
   yearlyDiscountPct: z.number().int().min(0).max(100),
 });
 export type PlansResponse = z.infer<typeof plansResponseSchema>;
+
+/** GET /notifications?cursor= — newest first, plus the unread count. */
+export const notificationsPageSchema = z.object({ items: z.array(notificationSchema), nextCursor: z.string().nullable(), unreadCount: z.number().int().nonnegative() });
+export const unreadCountSchema = z.object({ unreadCount: z.number().int().nonnegative() });
+
+/**
+ * POST /devices — register this phone for push notifications (sending starts
+ * in Phase 7). An Expo push token ("ExponentPushToken[…]") or a raw FCM token.
+ */
+export const registerDeviceRequest = z.object({
+  token: z.string().trim().min(10).max(4096),
+  provider: z.enum(["expo", "fcm"]),
+  deviceName: z.string().trim().max(100).optional(),
+  appVersion: z.string().trim().max(32).optional(),
+});
+/** DELETE /devices — stop pushes to this phone (e.g. notifications turned off). */
+export const unregisterDeviceRequest = z.object({ token: z.string().trim().min(10).max(4096) });

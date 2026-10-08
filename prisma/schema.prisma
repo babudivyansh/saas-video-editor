@@ -207,6 +207,7 @@ model User {
   reviewHelpfulVotes  ReviewHelpfulVote[]
   reviewReports       ReviewReport[]
   notifications       Notification[]
+  deviceTokens          DeviceToken[]
   subscriptionEvents  SubscriptionEvent[]
   reviewPromptState   ReviewPromptState?
   reviewPromptEvents  ReviewPromptEvent[]
@@ -1996,4 +1997,25 @@ model EmailSuppression {
   createdAt DateTime @default(now())
 
   @@index([reason])
+}
+
+// A phone the Android app registered for push notifications (2026-10, mobile
+// Phase 5.7; sending is Phase 7). Tied to the session that registered it, so
+// logging out of that session removes it and a signed-out phone gets nothing.
+// One row per token: a token re-registered by another account moves to it.
+model DeviceToken {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token      String   @unique
+  provider   String // "expo" (Expo push token) | "fcm"
+  platform   String   @default("android")
+  sessionId  String?
+  deviceName String?
+  appVersion String?
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([userId, sessionId])
 }

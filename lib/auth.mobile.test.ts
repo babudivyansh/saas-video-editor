@@ -94,10 +94,10 @@ describe("mobile sessions", () => {
   it("logs out with the refresh token, leaving other sessions alone", async () => {
     const a = await mobileLogin();
     const b = await mobileLogin();
-    expect(await revokeMobileSession(a.tokens.refreshToken)).toBe(true);
+    expect(await revokeMobileSession(a.tokens.refreshToken)).toMatchObject({ userId: "u1" });
     expect(await getAuthUser(req(a.tokens.accessToken))).toBeNull();
     expect(await getAuthUser(req(b.tokens.accessToken))).toMatchObject({ userId: "u1" });
-    expect(await revokeMobileSession(a.tokens.refreshToken)).toBe(false);
+    expect(await revokeMobileSession(a.tokens.refreshToken)).toBeNull();
   });
 
   it("keeps a web session's 7-day key TTL when there's no mobile session", async () => {

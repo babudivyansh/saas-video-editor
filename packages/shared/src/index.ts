@@ -16,3 +16,4 @@ export * from "./api/assets";
 export * from "./schemas/jobs";
 export * from "./api/jobs";
 export * from "./api/social";
+export * from "./api/notifications";
