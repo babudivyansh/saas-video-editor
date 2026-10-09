@@ -3,14 +3,30 @@ import { clipDetailSchema, clipsPageSchema, projectDetailSchema, projectsPageSch
 
 const projectFindMany = vi.fn();
 const projectFindFirst = vi.fn();
+const projectCount = vi.fn(async () => 31);
+const projectDeleteMany = vi.fn();
 const clipFindMany = vi.fn();
 const clipFindFirst = vi.fn();
+const clipCount = vi.fn(async () => 2);
+const clipDeleteMany = vi.fn();
+const captionJobs = vi.fn(async () => [] as { clipId: string }[]);
+const dubs = vi.fn(async () => [] as { clipId: string }[]);
 vi.mock("@/lib/prisma", () => ({
-  prisma: { project: { findMany: projectFindMany, findFirst: projectFindFirst }, clip: { findMany: clipFindMany, findFirst: clipFindFirst } },
+  prisma: {
+    project: { findMany: projectFindMany, findFirst: projectFindFirst, count: projectCount, deleteMany: projectDeleteMany },
+    clip: { findMany: clipFindMany, findFirst: clipFindFirst, count: clipCount, deleteMany: clipDeleteMany },
+    captionRenderJob: { findMany: captionJobs },
+    clipDub: { findMany: dubs },
+  },
 }));
+const collectProjectMediaKeys = vi.fn(async () => ["uploads/u1/src.mp4"]);
+const deleteUnreferencedKeys = vi.fn(async () => 0);
+vi.mock("@/lib/storage-cleanup", () => ({ collectProjectMediaKeys, deleteUnreferencedKeys }));
+const invalidateDashboardSummary = vi.fn(async () => {});
+vi.mock("@/lib/dashboard-summary-cache", () => ({ invalidateDashboardSummary }));
 vi.mock("@/lib/signed-media", () => ({ resignMediaUrl: vi.fn(async (u: string | null) => (u ? `${u}?signed` : null)) }));
 
-const { clipStatus, draftStepsOf, getClipDetail, getDownloadLink, getProjectDetail, listClips, listProjects, projectStatus } = await import("./projects");
+const { clipStatus, deleteClips, deleteProjects, draftStepsOf, getClipDetail, getDownloadLink, getProjectDetail, listClips, listProjects, projectStatus } = await import("./projects");
 
 const run = (over: Record<string, unknown> = {}) => ({
   id: "p42",
@@ -70,7 +86,7 @@ describe("status and draft progress", () => {
 describe("projects", () => {
   it("lists only real work, in the app's shape, and pages by id", async () => {
     projectFindMany.mockResolvedValue([run(), ...Array.from({ length: 30 }, (_, i) => run({ id: `p${i}` }))]);
-    const page = projectsPageSchema.parse(await listProjects("u1", null));
+    const page = projectsPageSchema.parse(await listProjects("u1"));
     const where = projectFindMany.mock.calls[0]![0].where;
     expect(where).toMatchObject({ userId: "u1", productType: { in: ["auto-clip", "editor"] } });
     expect(where.OR.length).toBeGreaterThan(0); // the "started" signals
@@ -80,6 +96,20 @@ describe("projects", () => {
       thumbnailUrl: "https://b.s3.amazonaws.com/t.jpg?signed", clipCount: 12, durationSec: 2532, updatedAt: "2026-10-05T10:00:00.000Z",
     });
     expect(page.nextCursor).toBe("p28");
+    expect(page.total).toBe(31);
+  });
+
+  it("searches titles, filters to drafts and sorts on the server", async () => {
+    projectFindMany.mockResolvedValue([]);
+    await listProjects("u1", { q: "  summit ", drafts: true, sort: "clips", cursor: "p9" });
+    const call = projectFindMany.mock.calls[0]![0];
+    expect(call.where).toMatchObject({ userId: "u1", productType: "editor", status: "draft", title: { contains: "summit", mode: "insensitive" } });
+    expect(call.orderBy[0]).toEqual({ clips: { _count: "desc" } });
+    expect(call).toMatchObject({ cursor: { id: "p9" }, skip: 1 });
+    // The total counts the same matches.
+    expect(projectCount.mock.calls[0]![0].where).toBe(call.where);
+    await listProjects("u1", { sort: "name" });
+    expect(projectFindMany.mock.calls[1]![0].orderBy[0]).toEqual({ title: "asc" });
   });
 
   it("gives an editor draft its doc's aspect, length and checklist", async () => {
@@ -101,8 +131,9 @@ describe("projects", () => {
 describe("clips", () => {
   it("filters by shape and favourites, owned through the project", async () => {
     clipFindMany.mockResolvedValue([clipRow(), clipRow({ id: "c2", index: 3, title: null, score: 140, status: "failed", failureReason: null, isFavorite: false })]);
-    const page = clipsPageSchema.parse(await listClips("u1", { aspect: "9:16", favorites: true, cursor: null }));
-    expect(clipFindMany.mock.calls[0]![0].where).toEqual({ project: { userId: "u1" }, aspectRatio: "9:16", isFavorite: true });
+    const page = clipsPageSchema.parse(await listClips("u1", { aspect: "9:16", favorites: true, q: "hook", cursor: null }));
+    expect(clipFindMany.mock.calls[0]![0].where).toEqual({ project: { userId: "u1" }, aspectRatio: "9:16", isFavorite: true, title: { contains: "hook", mode: "insensitive" } });
+    expect(page.total).toBe(2);
     expect(page.clips[0]).toMatchObject({ rank: 1, score: 92, durationSec: 41.4, favorite: true, failureReason: null });
     expect(page.clips[1]).toMatchObject({ rank: 4, title: "Clip 4", score: 99, status: "failed", failureReason: "This clip couldn't be rendered." });
   });
@@ -129,5 +160,40 @@ describe("clips", () => {
     expect(await getDownloadLink("u1", "c1")).toBe("not-ready");
     clipFindFirst.mockResolvedValue(null);
     expect(await getDownloadLink("u1", "c1")).toBe("not-found");
+  });
+});
+
+describe("bulk delete", () => {
+  it("deletes only the caller's projects in one statement, then cleans up", async () => {
+    projectFindMany.mockResolvedValue([{ id: "p1" }, { id: "p2" }]);
+    projectDeleteMany.mockResolvedValue({ count: 2 });
+    expect(await deleteProjects("u1", ["p1", "p2", "theirs"])).toEqual({ deleted: 2, skipped: 0 });
+    expect(projectFindMany.mock.calls[0]![0].where).toEqual({ id: { in: ["p1", "p2", "theirs"] }, userId: "u1" });
+    expect(collectProjectMediaKeys).toHaveBeenCalledWith({ id: { in: ["p1", "p2"] } });
+    expect(projectDeleteMany).toHaveBeenCalledWith({ where: { id: { in: ["p1", "p2"] }, userId: "u1" } });
+    expect(deleteUnreferencedKeys).toHaveBeenCalledWith(["uploads/u1/src.mp4"], expect.any(String));
+    expect(invalidateDashboardSummary).toHaveBeenCalledWith("u1");
+  });
+
+  it("does nothing for ids that aren't the caller's", async () => {
+    projectFindMany.mockResolvedValue([]);
+    expect(await deleteProjects("u1", ["theirs"])).toEqual({ deleted: 0, skipped: 0 });
+    expect(projectDeleteMany).not.toHaveBeenCalled();
+  });
+
+  it("skips clips still rendering, queued, captioning or dubbing, like the web's delete", async () => {
+    clipFindMany.mockResolvedValue([
+      { id: "c1", status: "ready", videoUrl: "https://b.s3.ap-south-1.amazonaws.com/uploads/c1.mp4", thumbnailUrl: null },
+      { id: "c2", status: "rendering", videoUrl: null, thumbnailUrl: null },
+      { id: "c3", status: "queued", videoUrl: null, thumbnailUrl: null },
+      { id: "c4", status: "ready", videoUrl: null, thumbnailUrl: null },
+      { id: "c5", status: "failed", videoUrl: null, thumbnailUrl: null },
+    ]);
+    captionJobs.mockResolvedValueOnce([{ clipId: "c4" }]);
+    clipDeleteMany.mockResolvedValue({ count: 2 });
+    expect(await deleteClips("u1", ["c1", "c2", "c3", "c4", "c5"])).toEqual({ deleted: 2, skipped: 3 });
+    expect(clipFindMany.mock.calls[0]![0].where).toEqual({ id: { in: ["c1", "c2", "c3", "c4", "c5"] }, project: { userId: "u1" } });
+    expect(clipDeleteMany).toHaveBeenCalledWith({ where: { id: { in: ["c1", "c5"] }, project: { userId: "u1" } } });
+    expect(deleteUnreferencedKeys).toHaveBeenCalledWith(["uploads/c1.mp4"], expect.any(String));
   });
 });

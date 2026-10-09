@@ -26,8 +26,8 @@ function keysFrom(urls: Array<string | null | undefined>): string[] {
   return [...keys];
 }
 
-/** Every S3 key a set of projects' own rows point at (source, final render, clip renders, thumbnails). */
-export async function collectProjectMediaKeys(where: { id: string } | { userId: string }): Promise<string[]> {
+/** Every S3 key one project (or several, or all of a user's) own rows point at (source, final render, clip renders, thumbnails). */
+export async function collectProjectMediaKeys(where: { id: string | { in: string[] } } | { userId: string }): Promise<string[]> {
   const projects = await prisma.project.findMany({
     where,
     select: {

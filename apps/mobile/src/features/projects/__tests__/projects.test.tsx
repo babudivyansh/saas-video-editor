@@ -1,4 +1,5 @@
 import type { ProjectDetail } from "@clipiro/shared";
+import { renderHook } from "@testing-library/react-native";
 import { act, fireEvent, renderRouter, screen, waitFor } from "expo-router/testing-library";
 import * as MediaLibrary from "expo-media-library";
 import * as Sharing from "expo-sharing";
@@ -10,6 +11,7 @@ import { ClipsScreen } from "../ClipsScreen";
 import { DraftsScreen } from "../DraftsScreen";
 import { ProjectScreen } from "../ProjectScreen";
 import { ProjectsScreen } from "../ProjectsScreen";
+import { useProjectList } from "../queries";
 
 const routes = {
   "projects/index": ProjectsScreen,
@@ -23,6 +25,22 @@ const routes = {
 };
 const open = (url: string) => renderRouter(routes, { initialUrl: url, wrapper: makeWrapper() });
 const press = (name: string | RegExp) => fireEvent.press(screen.getByRole("button", { name }));
+
+/**
+ * FlashList keeps a cell per item and moves it when the order changes, so the
+ * tree order isn't the order on screen: sort by each cell's position.
+ */
+type Node = ReturnType<typeof screen.getAllByRole>[number];
+function onScreenOrder(nodes: Node[]): Node[] {
+  const pos = (n: Node) => {
+    for (let p: Node | null = n; p; p = p.parent as Node | null) {
+      const s = [p.props.style].flat(Infinity).reduce((a: Record<string, unknown>, x) => ({ ...a, ...(x ?? {}) }), {});
+      if (typeof s.top === "number") return [s.top as number, (s.left as number) ?? 0];
+    }
+    return [0, 0];
+  };
+  return [...nodes].sort((a, b) => pos(a)[0]! - pos(b)[0]! || pos(a)[1]! - pos(b)[1]!);
+}
 
 beforeEach(() => {
   setMockDelay(0);
@@ -41,10 +59,11 @@ describe("All projects", () => {
     open("/projects");
     await screen.findByText("All projects · 14");
     press("Search projects");
+    // Searched on the server, once typing pauses.
     fireEvent.changeText(screen.getByLabelText("Search projects"), "summit");
-    expect(screen.getByText("Results · 1")).toBeOnTheScreen();
+    expect(await screen.findByText("Results · 1")).toBeOnTheScreen();
     fireEvent.changeText(screen.getByLabelText("Search projects"), "zzz");
-    expect(screen.getByText("No projects match “zzz”")).toBeOnTheScreen();
+    expect(await screen.findByText("No projects match “zzz”")).toBeOnTheScreen();
   });
 
   it("sorts by name", async () => {
@@ -52,8 +71,11 @@ describe("All projects", () => {
     await screen.findByText("All projects · 14");
     press("Sort: Recent");
     fireEvent.press(screen.getByRole("radio", { name: "Name" }));
-    const cards = screen.getAllByRole("button", { name: /\. (Ready|Draft|Rendering|Processing|Failed)\. / });
-    expect(cards[0]).toHaveProp("accessibilityLabel", expect.stringMatching(/^Behind the scenes/));
+    // Sorted on the server.
+    await waitFor(() => {
+      const cards = onScreenOrder(screen.getAllByRole("button", { name: /\. (Ready|Draft|Rendering|Processing|Failed)\. / }));
+      expect(cards[0]).toHaveProp("accessibilityLabel", expect.stringMatching(/^Behind the scenes/));
+    });
   });
 
   it("drafts resume in the editor; finished projects open their clips", async () => {
@@ -123,6 +145,52 @@ describe("Clip views", () => {
     press("Delete 2 clips");
     press("Delete");
     expect(await screen.findByText("No square clips yet")).toBeOnTheScreen();
+  });
+
+  it("saves the picked ready clips to the gallery", async () => {
+    open("/projects/videos-reels-shorts?shape=wide");
+    await screen.findByText("Videos · 16:9 · 2 clips");
+    press("Select all");
+    press("Download 2 clips");
+    expect(await screen.findByText(/^Saved \d clips? to your gallery\.$/)).toBeOnTheScreen();
+    expect(MediaLibrary.Asset.create).toHaveBeenCalled();
+  });
+
+  it("deletes in one request and says which clips were still rendering", async () => {
+    const server = installFakeApi({
+      "GET /clips": () => [200, { clips: [clipFixture("c1", "ready"), clipFixture("c2", "rendering")], nextCursor: null, total: 2 }],
+      "POST /clips/delete": () => [200, { deleted: 1, skipped: 1 }],
+    });
+    open("/projects/videos-reels-shorts?shape=vertical");
+    await screen.findByText("Shorts & Reels · 9:16 · 2 clips");
+    press("Select all");
+    press("Delete 2 clips");
+    await act(async () => press("Delete"));
+    expect(await screen.findByText("1 clip deleted. 1 still rendering — try again when they’re done.")).toBeOnTheScreen();
+    expect(server.to("POST", "/clips/delete")).toHaveLength(1);
+    expect(server.to("POST", "/clips/delete")[0]!.body).toEqual({ ids: ["c1", "c2"] });
+    server.restore();
+  });
+});
+
+describe("Paging", () => {
+  it("loads the next page from the cursor and keeps the total", async () => {
+    jest.useRealTimers();
+    const p = (n: number) => ({ id: `p${n}`, title: `Project ${n}`, kind: "autoclip", status: "completed", aspect: "9:16", thumbnailUrl: "", clipCount: 1, durationSec: 60, updatedAt: "2026-10-09T09:00:00.000Z" });
+    const server = installFakeApi({
+      "GET /projects": (_b, url) =>
+        url.searchParams.get("cursor") === "p29"
+          ? [200, { projects: [p(30), p(31)], nextCursor: null, total: 32 }]
+          : [200, { projects: Array.from({ length: 30 }, (_, i) => p(i)), nextCursor: "p29", total: 32 }],
+    });
+    const { result } = renderHook(() => useProjectList({ sort: "name" }), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.items).toHaveLength(30));
+    expect(result.current.total).toBe(32);
+    await act(async () => void (await result.current.fetchNextPage()));
+    expect(result.current.items).toHaveLength(32);
+    expect(result.current.hasNextPage).toBe(false);
+    expect(server.calls.map((c) => c.path + new URL(`http://x${c.path}`).search)).toHaveLength(2);
+    server.restore();
   });
 });
 
@@ -230,3 +298,7 @@ describe("Project detail", () => {
     expect(await screen.findByText("Project not found")).toBeOnTheScreen();
   });
 });
+
+function clipFixture(id: string, status: "ready" | "rendering") {
+  return { id, projectId: "p1", rank: 1, title: `Clip ${id}`, score: 80, durationSec: 30, aspect: "9:16", status, thumbnailUrl: "", favorite: false, failureReason: null };
+}

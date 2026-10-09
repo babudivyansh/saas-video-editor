@@ -84,3 +84,12 @@ jest.mock("expo-media-library", () => {
   };
 });
 jest.mock("expo-sharing", () => ({ shareAsync: jest.fn(async () => {}) }));
+
+// FlashList measures native views; in Jest every list is 400x900 and each
+// item 100x100 (from its own jestSetup, which in 2.0.2 also swaps FlashList
+// for an export that no longer exists — so only the measuring is mocked).
+jest.mock("@shopify/flash-list/dist/recyclerview/utils/measureLayout", () => {
+  const actual = jest.requireActual("@shopify/flash-list/dist/recyclerview/utils/measureLayout");
+  const size = (w, h) => () => ({ x: 0, y: 0, width: w, height: h });
+  return { ...actual, measureParentSize: jest.fn(size(400, 900)), measureFirstChildLayout: jest.fn(size(400, 900)), measureItemLayout: jest.fn(size(100, 100)) };
+});
