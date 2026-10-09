@@ -164,3 +164,67 @@ export function addText(doc: TimelineDoc, t: number, text: Omit<TextClip, "id" |
 export function updateClip<T extends AnyClip>(doc: TimelineDoc, track: TrackKind, id: string, patch: Partial<T>): TimelineDoc {
   return { ...doc, tracks: { ...doc.tracks, [track]: (doc.tracks[track] as AnyClip[]).map((c) => (c.id === id ? { ...c, ...patch } : c)) } };
 }
+
+/**
+ * Puts a file from Assets on the timeline at time t: a video goes into the
+ * video track at the nearest cut (after the clip under t), the rest moving
+ * along; an image goes on the overlay track, full frame, for its length.
+ */
+export function insertMedia(doc: TimelineDoc, asset: { id: string; kind: "video" | "image" | "audio"; durationSec: number | null }, t: number): { doc: TimelineDoc; selected: Selection } {
+  const id = newId();
+  if (asset.kind === "video") {
+    const length = asset.durationSec && asset.durationSec > 0 ? asset.durationSec : 5;
+    const under = doc.tracks.video.find((c) => t > c.timelineStart && t < c.timelineStart + c.duration);
+    const at = under ? under.timelineStart + under.duration : t;
+    // Order by place: the new clip sits at `at`, everything from there moves after it.
+    const before = doc.tracks.video.filter((c) => c.timelineStart < at - 0.001);
+    const after = doc.tracks.video.filter((c) => c.timelineStart >= at - 0.001);
+    const clip: VideoClip = { id, type: "video", assetId: asset.id, timelineStart: at, duration: round(length), srcIn: 0, volume: 1, muted: false };
+    return { doc: withVideo(doc, [...before, clip, ...after].map((c, i) => ({ ...c, timelineStart: i }))), selected: { track: "video", id } };
+  }
+  if (asset.kind === "audio") {
+    const length = asset.durationSec && asset.durationSec > 0 ? asset.durationSec : 5;
+    const audio = [...doc.tracks.audio, { id, type: "audio" as const, assetId: asset.id, timelineStart: round(t), duration: round(length), srcIn: 0, volume: 1 }];
+    return { doc: { ...doc, tracks: { ...doc.tracks, audio } }, selected: { track: "audio", id } };
+  }
+  const end = docDuration(doc);
+  const image = [...doc.tracks.image, { id, type: "image" as const, assetId: asset.id, timelineStart: round(t), duration: round(Math.max(1, Math.min(5, end > t ? end - t : 5))), x: 0.5, y: 0.5, scalePct: 1, opacity: 1 }];
+  return { doc: { ...doc, tracks: { ...doc.tracks, image } }, selected: { track: "image", id } };
+}
+
+/** Several files one after another from time t (one undo step): each starts where the last one ends. */
+export function insertAssets(doc: TimelineDoc, list: { id: string; kind: "video" | "image" | "audio"; durationSec: number | null }[], t: number): { doc: TimelineDoc; selected: Selection | null } {
+  let d = doc;
+  let at = t;
+  let selected: Selection | null = null;
+  for (const a of list) {
+    const r = insertMedia(d, a, at);
+    d = r.doc;
+    selected = r.selected;
+    const clip = findClip(d, r.selected)!;
+    at = clip.timelineStart + clip.duration;
+  }
+  return { doc: d, selected };
+}
+
+/** Replaces every caption with new cues (generated captions), kept in time order. */
+export function replaceCaptions(doc: TimelineDoc, cues: CaptionClip[]): TimelineDoc {
+  return { ...doc, tracks: { ...doc.tracks, caption: [...cues].sort((a, b) => a.timelineStart - b.timelineStart) } };
+}
+
+/**
+ * New text for captions or text clips (AI tools, translate). A caption whose
+ * words changed loses its word timings, so it can't highlight word by word.
+ */
+export function setTexts(doc: TimelineDoc, track: "caption" | "text", changes: { id: string; text: string }[]): TimelineDoc {
+  const by = new Map(changes.map((c) => [c.id, c.text]));
+  if (track === "caption") {
+    const caption = doc.tracks.caption.map((c) => {
+      const text = by.get(c.id);
+      return text == null || text === c.text ? c : { ...c, text, words: undefined, highlightMode: "none" as CaptionHighlightMode };
+    });
+    return { ...doc, tracks: { ...doc.tracks, caption } };
+  }
+  const text = doc.tracks.text.map((c) => (by.has(c.id) ? { ...c, text: by.get(c.id)!, richText: undefined } : c));
+  return { ...doc, tracks: { ...doc.tracks, text } };
+}

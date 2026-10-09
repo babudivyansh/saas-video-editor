@@ -4,6 +4,9 @@ import { resetMockScenarios, setMockDelay, setMockScenario } from "@mocks/core";
 import { EDIT_ID, bumpEditElsewhere, resetEditMock } from "@mocks/editor";
 import { installMockServer, MOCK_ROUTES } from "@/test/mockServer";
 import { makeWrapper } from "@/test/providers";
+import * as DocumentPicker from "expo-document-picker";
+import { setQueueIO } from "../../assets/uploadQueue";
+import { addText } from "../docOps";
 import { EditorScreen } from "../EditorScreen";
 import { ExportScreen } from "../ExportScreen";
 import { AiToolsPanel, AudioPanel, CaptionsPanel, EffectsPanel, MediaPanel, TextPanel } from "../panels";
@@ -15,6 +18,7 @@ import { durationOf, useEditor } from "../store";
 // check, and the panels writing into the doc.
 
 jest.mock("expo-document-picker", () => ({ getDocumentAsync: jest.fn() }));
+const pickDocument = DocumentPicker.getDocumentAsync as jest.Mock;
 
 const routes = {
   "editor/index": EditorScreen,
@@ -203,28 +207,103 @@ describe("Panels", () => {
     expect(validateDoc(doc())).toBeNull();
   });
 
-  it("media: selects items and adds them at the playhead", async () => {
+  it("captions: made from the speech, laid over the clips cut from it", async () => {
+    useEditor.getState().edit((d) => ({ ...d, tracks: { ...d.tracks, caption: [] } }));
+    open("/editor/captions");
+    press("Generate captions");
+    // 1 Clip Minute per started minute of each file: the podcast (58:12) and the b-roll (0:41).
+    expect(await screen.findByText(/^Uses 60 Clip Minutes/)).toBeOnTheScreen();
+    fireEvent.press(screen.getByRole("radio", { name: "English" }));
+    fireEvent.press(screen.getAllByRole("button", { name: "Generate captions" }).at(-1)!);
+    await waitFor(() => expect(doc().tracks.caption.length).toBeGreaterThan(0));
+    const words = doc().tracks.caption.flatMap((c) => c.text.split(" "));
+    // Clip 1 hears 812–827 s, clip 2 840–847 s; the b-roll is silent.
+    expect(words.join(" ")).toBe("nobody tells you this part about building in public you ship and then you wait");
+    expect(doc().tracks.caption.every((c) => c.timelineStart < 22)).toBe(true);
+    expect(validateDoc(doc())).toBeNull();
+  });
+
+  it("captions: translating rewrites every cue and stops word highlights", async () => {
+    open("/editor/captions");
+    press("Translate");
+    fireEvent.press(await screen.findByRole("radio", { name: "Spanish" }));
+    expect(await screen.findByText("Translated every caption to Spanish.")).toBeOnTheScreen();
+    expect(doc().tracks.caption.map((c) => [c.text, c.highlightMode, c.words])).toEqual([
+      ["[Spanish] nobody tells you this part", "none", undefined],
+      ["[Spanish] and it costs you", "none", undefined],
+    ]);
+  });
+
+  it("media: files from Assets go in one after another from the playhead", async () => {
     open("/editor/media");
-    fireEvent.press(await screen.findByRole("checkbox", { name: /^Summit b-roll/ }));
-    fireEvent.press(screen.getByRole("checkbox", { name: /^Leg day/ }));
+    fireEvent.press(await screen.findByRole("checkbox", { name: /^Leg day\.mov/ }));
+    fireEvent.press(screen.getByRole("checkbox", { name: /^Summit\.jpg/ }));
     expect(screen.getByText("2 selected · adds at 0:00")).toBeOnTheScreen();
+    expect(screen.queryByRole("checkbox", { name: /^Upbeat drive/ })).toBeNull(); // audio lives in the Audio panel
     press("Add to timeline");
     expect(await screen.findByText("2 items added at 0:00.")).toBeOnTheScreen();
+    expect(doc().tracks.video.map((c) => [c.assetId, c.timelineStart, c.duration])[0]).toEqual(["a3", 0, 134]);
+    expect(doc().tracks.image[0]).toMatchObject({ assetId: "a4", timelineStart: 134 });
+    expect(useEditor.getState().media.a3?.name).toBe("Leg day.mov");
+    expect(validateDoc(doc())).toBeNull();
   });
 
   it("media: offers a retry when the library fails", async () => {
-    setMockScenario("media", "error");
+    setMockScenario("assets", "error");
     open("/editor/media");
     expect(await screen.findByText("Couldn’t load media")).toBeOnTheScreen();
   });
 
-  it("AI tools run the real operations; clip tools say 'coming soon'", async () => {
+  it("media: a stock video is saved to Assets and added", async () => {
+    open("/editor/media");
+    fireEvent.press(screen.getByRole("tab", { name: "Stock" }));
+    expect(screen.getByText("Search stock")).toBeOnTheScreen();
+    fireEvent.changeText(screen.getByLabelText("Search stock"), "sun");
+    fireEvent.press(await screen.findByRole("checkbox", { name: /^Mountain sunrise/ }));
+    press("Add to timeline");
+    expect(await screen.findByText("1 item added at 0:00.")).toBeOnTheScreen();
+    expect(doc().tracks.video[0]).toMatchObject({ assetId: "stock_pv1", duration: 15 });
+  });
+
+  it("media: an upload lands in Assets, then on the timeline with its real length", async () => {
+    setQueueIO({ readPart: async () => "file:///cache/part", putPart: async (_p, _u, onBytes) => (onBytes(1), { status: 200, etag: '"e1"' }), fileExists: () => true, load: async () => null, save: async () => {} });
+    pickDocument.mockResolvedValue({ canceled: false, assets: [{ name: "walk.mp4", size: 1024, mimeType: "video/mp4", uri: "file:///walk.mp4" }] });
+    act(() => useEditor.getState().seek(30));
+    open("/editor/media");
+    fireEvent.press(screen.getByRole("tab", { name: "Upload" }));
+    press("Choose videos, images or audio from this phone");
+    await waitFor(() => expect(doc().tracks.video.some((c) => c.assetId.startsWith("up"))).toBe(true));
+    // After the clip under the playhead (b-roll, 22–41 s), 12 s long as the phone measured it.
+    expect(doc().tracks.video.map((c) => [c.timelineStart, c.duration]).at(-1)).toEqual([41, 12]);
+    expect(await screen.findByText("Added")).toBeOnTheScreen();
+  });
+
+  it("AI tools work on every caption, or on the selected text", async () => {
     open("/editor/ai-tools");
-    const runs = screen.getAllByRole("button", { name: "Run" });
-    fireEvent.press(runs[3]!); // Shorten
-    expect(await screen.findByText("Captions shortened.")).toBeOnTheScreen();
+    fireEvent.press(screen.getByRole("button", { name: "Shorten every caption" }));
+    expect(await screen.findByText("Shorten: done for every caption.")).toBeOnTheScreen();
+    expect(doc().tracks.caption.map((c) => c.text)).toEqual(["nobody tells you this part (shorten)", "and it costs you (shorten)"]);
+    act(() => {
+      const r = addText(useEditor.getState().doc, 0, { text: "um, watch this", fontFamily: "Poppins", fontSizePct: 0.05, color: "#ffffff", bold: false, bgColor: null, x: 0.5, y: 0.5, align: "center" });
+      useEditor.getState().edit(() => r.doc, r.selected);
+    });
+    fireEvent.press(screen.getByRole("button", { name: "Remove filler words the selected text" }));
+    await waitFor(() => expect(doc().tracks.text[0]!.text).toBe("watch this"));
     fireEvent.press(screen.getAllByRole("button", { name: "Soon" })[0]!);
     expect(await screen.findByText(/Coming to the app soon/)).toBeOnTheScreen();
+  });
+
+  it("audio: a voiceover is read, saved to Assets and laid at the playhead", async () => {
+    act(() => useEditor.getState().seek(4));
+    open("/editor/audio");
+    press("Voiceover");
+    fireEvent.press(await screen.findByRole("radio", { name: /^Aria/ }));
+    fireEvent.changeText(screen.getByLabelText("Voiceover script"), "x".repeat(501));
+    expect(screen.getByText(/^2 AI credits · 1 credit per 500 characters/)).toBeOnTheScreen();
+    press("Add voiceover");
+    expect(await screen.findByText("Voiceover added at 0:04.")).toBeOnTheScreen();
+    expect(doc().tracks.audio[0]).toMatchObject({ assetId: "vo_1", timelineStart: 4, duration: 6 });
+    expect(useEditor.getState().media.vo_1?.name).toBe("Voiceover · Aria");
   });
 });
 

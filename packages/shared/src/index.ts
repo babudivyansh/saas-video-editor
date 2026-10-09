@@ -20,3 +20,4 @@ export * from "./api/notifications";
 export * from "./editor/timeline";
 export * from "./editor/timeline-utils";
 export * from "./api/editor";
+export * from "./editor/captions";

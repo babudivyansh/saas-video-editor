@@ -1,5 +1,5 @@
 import { validateDoc, type TimelineDoc, type VideoClip } from "@clipiro/shared";
-import { addText, captionPosition, closeVideoGaps, duplicate, moveVideo, remove, setLook, setOriginalVolume, split, styleCaptions, trimVideo } from "../docOps";
+import { addText, captionPosition, closeVideoGaps, duplicate, insertAssets, insertMedia, moveVideo, remove, replaceCaptions, setLook, setOriginalVolume, setTexts, split, styleCaptions, trimVideo } from "../docOps";
 
 // Every edit must leave a doc the server's renderer accepts (validateDoc), and
 // the video track must stay one continuous run.
@@ -108,5 +108,39 @@ describe("panel edits", () => {
     const r = addText(doc(), 14, { text: "Hook", fontFamily: "Poppins", fontSizePct: 0.06, color: "#ffffff", bold: true, align: "center", x: 0.5, y: 0.2, bgColor: null });
     ok(r.doc);
     expect(r.doc.tracks.text[0]).toMatchObject({ text: "Hook", timelineStart: 14, duration: 3 });
+  });
+});
+
+describe("adding media and captions", () => {
+  it("puts a video in at the next cut, moving the rest along", () => {
+    const r = insertMedia(doc(), { id: "a9", kind: "video", durationSec: 4 }, 3);
+    ok(r.doc);
+    expect(starts(r.doc).map(([, s, d]) => [s, d])).toEqual([[0, 10], [10, 4], [14, 5]]);
+    expect(r.doc.tracks.video[1]!.assetId).toBe("a9");
+  });
+
+  it("lays an image over the video, and audio under it", () => {
+    let r = insertMedia(doc(), { id: "img", kind: "image", durationSec: null }, 12);
+    ok(r.doc);
+    expect(r.doc.tracks.image[0]).toMatchObject({ assetId: "img", timelineStart: 12, duration: 3, scalePct: 1 });
+    r = insertMedia(doc(), { id: "mus", kind: "audio", durationSec: 30 }, 0);
+    expect(r.doc.tracks.audio[0]).toMatchObject({ assetId: "mus", duration: 30 });
+  });
+
+  it("puts several files in one after another", () => {
+    const r = insertAssets(doc(), [{ id: "a8", kind: "video", durationSec: 2 }, { id: "a9", kind: "video", durationSec: 3 }, { id: "img", kind: "image", durationSec: null }], 3);
+    ok(r.doc);
+    expect(r.doc.tracks.video.map((c) => [c.assetId, c.timelineStart, c.duration])).toEqual([["a1", 0, 10], ["a8", 10, 2], ["a9", 12, 3], ["a1", 15, 5]]);
+    expect(r.doc.tracks.image[0]).toMatchObject({ assetId: "img", timelineStart: 15 });
+    expect(r.selected).toEqual({ track: "image", id: r.doc.tracks.image[0]!.id });
+  });
+
+  it("replaces captions and rewrites them, dropping stale word timings", () => {
+    let d = replaceCaptions(doc(), [doc().tracks.caption[1]!, doc().tracks.caption[0]!]);
+    expect(d.tracks.caption.map((c) => c.id)).toEqual(["c1", "c2"]);
+    d = setTexts(d, "caption", [{ id: "c1", text: "nadie te cuenta" }]);
+    ok(d);
+    expect(d.tracks.caption[0]).toMatchObject({ text: "nadie te cuenta", words: undefined, highlightMode: "none" });
+    expect(d.tracks.caption[1]!.text).toBe("typed by hand");
   });
 });

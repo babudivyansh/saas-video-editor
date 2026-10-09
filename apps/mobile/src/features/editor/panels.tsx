@@ -1,5 +1,7 @@
 import {
   AI_TEXT_OPERATIONS,
+  assetUploadProblem,
+  type AiTextOperationId,
   ASPECT_DIMENSIONS,
   CAPTION_TEMPLATE_CATALOG,
   videoClipAt,
@@ -24,23 +26,26 @@ import { Image } from "expo-image";
 import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { BottomSheet, Button, EmptyState, FilterPills, Icon, OptionList, Skeleton, Slider, TextField, useToast, type IconName } from "@/components";
+import { BottomSheet, Button, EmptyState, FilterPills, Icon, OptionList, ProgressBar, Skeleton, Slider, TextField, useToast, type IconName } from "@/components";
 import { imageSource, sample, type SampleImage } from "@/lib/images";
-import { assets as assetsApi } from "@/lib/api";
+import { assets as assetsApi, editorTools } from "@/lib/api";
+import { apiErrorMessage } from "@/lib/errors";
+import { useDebounced } from "@/lib/useDebounced";
 import { colors, radius, text, type } from "@/theme";
-import { errorMessage } from "@mocks/core";
-import { getMediaLibrary, runAiText, searchStock, type MediaItem } from "@mocks/editor";
 import { COMING_SOON } from "../home/tools";
 import { caps, highlightColor } from "../create/AutoClipSheets";
+import { assetKeys, useAssetStorage, usePlanTier } from "../assets/queries";
+import { useUploadQueue } from "../assets/uploadQueue";
 import { BoxTabs, Badge, ChipChoice, Field } from "./bits";
 import { PanelShell } from "./PanelShell";
-import { addText, captionPosition, newId, setClipVolume, setLook, setOriginalVolume, styleCaptions, updateClip, type CaptionStyle } from "./docOps";
+import { GenerateCaptionsSheet, TranslateCaptionsSheet, textTarget } from "./captionSheets";
+import { addText, captionPosition, insertAssets, newId, setClipVolume, setLook, setOriginalVolume, setTexts, styleCaptions, updateClip, type CaptionStyle } from "./docOps";
 import { clock, durationOf, useEditor } from "./store";
+import { probeDuration, withDurations } from "./probe";
+import { placeWhenUploaded } from "./uploads";
+import { VoiceoverSheet } from "./voiceoverSheet";
 
 const mmss = (s: number) => clock(s, false);
-
-/** Features that land in the next stage of Phase 9 (server-backed captions, AI text, voiceover). */
-const NEXT_UPDATE = "Arrives in the next update of the app.";
 
 // Colours written into the video itself (the doc stores #rrggbb), not UI colours.
 const HIGHLIGHT_HEX: Record<string, string> = { emerald: "#20d68a", warning: "#f5a524", info: "#3b9eff", error: "#ef4444" };
@@ -57,29 +62,70 @@ const KINDS = [
   { value: "all", label: "All" },
   { value: "video", label: "Videos" },
   { value: "image", label: "Images" },
-  { value: "gif", label: "GIFs" },
 ] as const;
+const STOCK_KINDS = [
+  { value: "video", label: "Videos" },
+  { value: "image", label: "Photos" },
+] as const;
+
+/** One tile in the grid: a file in Assets or a stock search result. */
+type Tile = { id: string; title: string; kind: "video" | "image"; thumb: string | null; durationSec: number | null };
 
 export function MediaPanel() {
   const toast = useToast();
   const playhead = useEditor((s) => s.playhead);
   const [tab, setTab] = useState<(typeof MEDIA_TABS)[number]["id"]>("assets");
-  const [kind, setKind] = useState<(typeof KINDS)[number]["value"]>("video");
+  const [kind, setKind] = useState<(typeof KINDS)[number]["value"]>("all");
+  const [stockKind, setStockKind] = useState<(typeof STOCK_KINDS)[number]["value"]>("video");
   const [query, setQuery] = useState("");
+  const q = useDebounced(query.trim(), 400);
   const [picked, setPicked] = useState<string[]>([]);
-  const library = useQuery({ queryKey: ["editor", "media"], queryFn: getMediaLibrary, enabled: tab === "assets" });
-  const stock = useQuery({ queryKey: ["editor", "stock", query], queryFn: () => searchStock(query), enabled: tab === "stock" });
+  const [adding, setAdding] = useState(false);
+
+  const listOpts = { kind: kind === "all" ? null : kind } as const;
+  const library = useQuery({ queryKey: assetKeys.list(listOpts), queryFn: () => assetsApi.list(listOpts), enabled: tab === "assets" });
+  const stock = useQuery({ queryKey: ["editor", "stock", stockKind, q], queryFn: () => editorTools.stock(stockKind, q), enabled: tab === "stock" && q.length > 0 });
   const source = tab === "assets" ? library : stock;
-  const items = (source.data ?? []).filter((i) => kind === "all" || i.kind === kind);
+
+  const libraryAssets = (library.data?.assets ?? []).filter((a): a is Asset & { kind: "video" | "image" } => a.kind !== "audio" && a.status === "ready");
+  const tiles: Tile[] =
+    tab === "assets"
+      ? libraryAssets.map((a) => ({ id: a.id, title: a.name, kind: a.kind, thumb: a.thumbnailUrl ?? (a.kind === "image" ? (a.url ?? null) : null), durationSec: a.durationSec }))
+      : (stock.data?.items ?? []).map((i) => ({ id: i.id, title: i.name, kind: stockKind, thumb: i.thumbUrl, durationSec: i.durationSec ?? null }));
 
   const toggle = (id: string) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
-  const add = () => {
-    toast(`${picked.length} item${picked.length === 1 ? "" : "s"} added at ${mmss(playhead)}.`, "success");
+  const switchTab = (t: (typeof MEDIA_TABS)[number]["id"]) => {
+    setTab(t);
     setPicked([]);
   };
-  const upload = async () => {
-    const res = await DocumentPicker.getDocumentAsync({ type: ["video/*", "image/*", "audio/*"], copyToCacheDirectory: false, multiple: true });
-    if (!res.canceled) toast(`${res.assets.length} file${res.assets.length === 1 ? "" : "s"} will upload to Assets.`, "success");
+
+  // Picked files go in one after another from the playhead, in the order they were picked.
+  const add = async () => {
+    setAdding(true);
+    try {
+      let list: Asset[];
+      if (tab === "assets") {
+        list = picked.map((id) => libraryAssets.find((a) => a.id === id)).filter((a): a is Asset & { kind: "video" | "image" } => !!a);
+      } else {
+        // Stock results are copied into Assets first (the renderer reads files from there).
+        list = [];
+        for (const id of picked) {
+          const item = stock.data?.items.find((i) => i.id === id);
+          if (item) list.push(await editorTools.importStock({ type: stockKind, item }));
+        }
+      }
+      list = await withDurations(list);
+      const at = useEditor.getState().playhead;
+      const r = insertAssets(useEditor.getState().doc, list, at);
+      useEditor.getState().addMedia(list);
+      useEditor.getState().edit(() => r.doc, r.selected);
+      toast(`${list.length} item${list.length === 1 ? "" : "s"} added at ${mmss(at)}.`, "success");
+      setPicked([]);
+    } catch (e) {
+      toast(apiErrorMessage(e), "error");
+    } finally {
+      setAdding(false);
+    }
   };
 
   return (
@@ -89,29 +135,29 @@ export function MediaPanel() {
         tab !== "upload" ? (
           <>
             <Text style={[type(12, "regular", { color: colors.fgMuted }), { flex: 1 }]}>
-              {picked.length ? `${picked.length} selected · adds at ${mmss(playhead)}` : "Tap to select"}
+              {adding ? (tab === "stock" ? "Saving to Assets…" : "Adding…") : picked.length ? `${picked.length} selected · adds at ${mmss(playhead)}` : "Tap to select"}
             </Text>
-            <EmeraldButton label="Add to timeline" icon="plus" disabled={!picked.length} onPress={add} />
+            <EmeraldButton label="Add to timeline" icon="plus" disabled={!picked.length || adding} onPress={() => void add()} />
           </>
         ) : undefined
       }
     >
-      <BoxTabs label="Media source" tabs={MEDIA_TABS} value={tab} onChange={(t) => (setTab(t), setPicked([]))} />
+      <BoxTabs label="Media source" tabs={MEDIA_TABS} value={tab} onChange={switchTab} />
       {tab === "upload" ? (
-        <Pressable onPress={upload} accessibilityRole="button" accessibilityLabel="Choose videos, images or audio from this phone" style={styles.drop}>
-          <View style={styles.dropIcon}>
-            <Icon name="cloudUpload" size={22} color={colors.emeraldBright} />
-          </View>
-          <Text style={type(15, "bold")}>Choose files</Text>
-          <Text style={[text.caption, { textAlign: "center" }]}>Videos, images or audio. They’re saved to Assets too.</Text>
-        </Pressable>
+        <UploadTab />
       ) : (
         <>
           {tab === "stock" ? (
-            <TextField label="Search stock" hideLabel leadingIcon="search" value={query} onChangeText={setQuery} placeholder="Search Pexels and Giphy" returnKeyType="search" autoCorrect={false} />
-          ) : null}
-          <FilterPills accessibilityLabel="Media type" options={KINDS} value={kind} onChange={setKind} />
-          {source.isPending ? (
+            <>
+              <TextField label="Search stock" hideLabel leadingIcon="search" value={query} onChangeText={setQuery} placeholder="Search free stock videos and photos" returnKeyType="search" autoCorrect={false} />
+              <FilterPills accessibilityLabel="Stock type" options={STOCK_KINDS} value={stockKind} onChange={(k) => (setStockKind(k), setPicked([]))} />
+            </>
+          ) : (
+            <FilterPills accessibilityLabel="Media type" options={KINDS} value={kind} onChange={(k) => (setKind(k), setPicked([]))} />
+          )}
+          {tab === "stock" && !q ? (
+            <EmptyState icon="search" title="Search stock" body="Free videos and photos you can use in your edit." />
+          ) : source.isPending ? (
             <View style={styles.grid}>
               {[0, 1, 2].map((i) => (
                 <View key={i} style={styles.cell}>
@@ -120,24 +166,79 @@ export function MediaPanel() {
               ))}
             </View>
           ) : source.isError ? (
-            <EmptyState tone="error" title="Couldn’t load media" body={errorMessage(source.error)} action={{ label: "Try again", onPress: () => source.refetch() }} />
-          ) : items.length === 0 ? (
+            <EmptyState tone="error" title="Couldn’t load media" body={apiErrorMessage(source.error)} action={{ label: "Try again", onPress: () => void source.refetch() }} />
+          ) : tiles.length === 0 ? (
             <EmptyState icon={tab === "stock" ? "search" : "folder"} title={tab === "stock" ? "Nothing found" : "Nothing here yet"} body={tab === "stock" ? "Try another search." : "Upload videos or images to use them here."} />
           ) : (
             <View style={styles.grid}>
-              {items.map((i) => (
-                <MediaTile key={i.id} item={i} on={picked.includes(i.id)} onPress={() => toggle(i.id)} />
+              {tiles.map((i) => (
+                <MediaTile key={i.id} item={i} on={picked.includes(i.id)} order={picked.indexOf(i.id) + 1} onPress={() => toggle(i.id)} />
               ))}
             </View>
           )}
-          {tab === "stock" ? <Text style={text.caption}>Stock from Pexels and Giphy.</Text> : null}
+          {tab === "stock" ? <Text style={text.caption}>Stock from Pexels. Added files are saved to your Assets.</Text> : null}
         </>
       )}
     </PanelShell>
   );
 }
 
-function MediaTile({ item, on, onPress }: { item: MediaItem; on: boolean; onPress: () => void }) {
+/** Upload from the phone: into Assets (the Assets upload queue), then onto the timeline as each file lands. */
+function UploadTab() {
+  const toast = useToast();
+  const queue = useUploadQueue();
+  const storage = useAssetStorage();
+  const plan = usePlanTier().data ?? "free";
+
+  const pick = async () => {
+    const res = await DocumentPicker.getDocumentAsync({ type: ["video/*", "image/*", "audio/*"], copyToCacheDirectory: true, multiple: true });
+    if (res.canceled) return;
+    let room = (storage.data?.usedBytes ?? 0) + queue.items.filter((x) => x.status !== "done" && x.status !== "failed").reduce((t, x) => t + x.sizeBytes, 0);
+    const ok = [];
+    for (const f of res.assets) {
+      const problem = assetUploadProblem(f.size ?? 0, room, plan);
+      if (problem) {
+        toast(`${f.name}: ${problem}`, "error");
+        continue;
+      }
+      const mimeType = f.mimeType ?? "application/octet-stream";
+      // Its length goes up with it, so the clip (and the Asset) has the right one.
+      ok.push({ uri: f.uri, name: f.name, mimeType, sizeBytes: f.size ?? 0, durationSec: mimeType.startsWith("video/") || mimeType.startsWith("audio/") ? await probeDuration(f.uri) : null });
+      room += f.size ?? 0;
+    }
+    const { projectId, playhead } = useEditor.getState();
+    if (ok.length && projectId) placeWhenUploaded(queue.add(ok), projectId, playhead);
+  };
+
+  return (
+    <>
+      <Pressable onPress={() => void pick()} accessibilityRole="button" accessibilityLabel="Choose videos, images or audio from this phone" style={styles.drop}>
+        <View style={styles.dropIcon}>
+          <Icon name="cloudUpload" size={22} color={colors.emeraldBright} />
+        </View>
+        <Text style={type(15, "bold")}>Choose files</Text>
+        <Text style={[text.caption, { textAlign: "center" }]}>Videos, images or audio. They’re saved to Assets and added at the playhead as each one finishes.</Text>
+      </Pressable>
+      {queue.items.map((x) => (
+        <View key={x.id} style={{ gap: 6 }}>
+          <View style={styles.fieldRow}>
+            <Text style={[type(13, "semibold"), { flex: 1 }]} numberOfLines={1}>
+              {x.name}
+            </Text>
+            <Text style={type(11, "regular", { mono: true, color: x.status === "failed" ? colors.error : colors.fgMuted })}>
+              {x.status === "done" ? "Added" : x.status === "failed" ? "Failed" : x.status === "paused" ? "Paused" : x.status === "queued" ? "Waiting" : `${Math.round(x.progress * 100)}%`}
+            </Text>
+          </View>
+          {x.status === "uploading" || x.status === "paused" ? <ProgressBar value={Math.round(x.progress * 100)} height={4} label={`${x.name} ${Math.round(x.progress * 100)}%`} /> : null}
+          {x.error ? <Text style={text.caption}>{x.error}</Text> : null}
+        </View>
+      ))}
+      {queue.items.some((x) => x.status === "paused" || x.status === "failed") ? <Button label="Retry" icon="refresh" iconPosition="start" variant="secondary" size="md" onPress={queue.retry} /> : null}
+    </>
+  );
+}
+
+function MediaTile({ item, on, order, onPress }: { item: Tile; on: boolean; order: number; onPress: () => void }) {
   return (
     <Pressable
       onPress={onPress}
@@ -146,12 +247,17 @@ function MediaTile({ item, on, onPress }: { item: MediaItem; on: boolean; onPres
       accessibilityLabel={`${item.title}, ${item.kind}${item.durationSec ? `, ${mmss(item.durationSec)}` : ""}`}
       style={[styles.cell, styles.tile, on && styles.tileOn]}
     >
-      <Image source={imageSource(item.thumbnailUrl)} style={StyleSheet.absoluteFill} contentFit="cover" />
+      {item.thumb ? (
+        <Image source={imageSource(item.thumb)} style={StyleSheet.absoluteFill} contentFit="cover" />
+      ) : (
+        <View style={[StyleSheet.absoluteFill, { alignItems: "center", justifyContent: "center" }]}>
+          <Icon name={item.kind === "video" ? "film" : "image"} size={22} color={colors.fgSubtle} />
+        </View>
+      )}
       {item.durationSec ? <Text style={styles.duration}>{mmss(item.durationSec)}</Text> : null}
-      {item.kind === "gif" ? <Text style={styles.duration}>GIF</Text> : null}
       {on ? (
         <View style={styles.check}>
-          <Icon name="check" size={14} color={colors.bg} strokeWidth={2.6} />
+          <Text style={type(11, "bold", { color: colors.bg })}>{order}</Text>
         </View>
       ) : null}
     </Pressable>
@@ -180,19 +286,21 @@ function EmeraldButton({ label, icon, onPress, disabled }: { label: string; icon
 const pxFor = (pct: number, aspect: keyof typeof ASPECT_DIMENSIONS) => Math.round(pct * ASPECT_DIMENSIONS[aspect].h);
 
 export function CaptionsPanel() {
-  const toast = useToast();
   const doc = useEditor((s) => s.doc);
   const edit = useEditor((s) => s.edit);
   const cues = doc.tracks.caption;
   const first = cues[0];
   const [words, setWords] = useState(false);
+  const [gen, setGen] = useState(false);
+  const [translating, setTranslating] = useState(false);
 
   const style = (s: CaptionStyle) => edit((d) => styleCaptions(d, s));
 
   if (!first) {
     return (
       <PanelShell panel="captions">
-        <EmptyState icon="captions" title="No captions yet" body="Generate them from the speech in your video, word by word." action={{ label: "Generate captions", onPress: () => toast(NEXT_UPDATE, "info") }} />
+        <EmptyState icon="captions" title="No captions yet" body="Generate them from the speech in your video, word by word." action={{ label: "Generate captions", onPress: () => setGen(true) }} />
+        <GenerateCaptionsSheet visible={gen} onClose={() => setGen(false)} />
       </PanelShell>
     );
   }
@@ -248,9 +356,13 @@ export function CaptionsPanel() {
         />
       </Field>
       <View style={styles.row}>
-        <Button label="Translate" icon="globe" iconPosition="start" variant="secondary" size="md" onPress={() => toast(NEXT_UPDATE, "info")} style={{ flex: 1 }} />
+        <Button label="Translate" icon="globe" iconPosition="start" variant="secondary" size="md" onPress={() => setTranslating(true)} style={{ flex: 1 }} />
         <Button label="Edit words" icon="text" iconPosition="start" variant="secondary" size="md" onPress={() => setWords(true)} style={{ flex: 1 }} />
       </View>
+
+      <Button label="Make captions again" icon="refresh" iconPosition="start" variant="ghost" size="md" onPress={() => setGen(true)} />
+      <GenerateCaptionsSheet visible={gen} onClose={() => setGen(false)} />
+      <TranslateCaptionsSheet visible={translating} onClose={() => setTranslating(false)} />
 
       <BottomSheet visible={words} onClose={() => setWords(false)} title="Edit words">
         <ScrollView style={{ maxHeight: 420 }} contentContainerStyle={{ gap: 8 }} keyboardShouldPersistTaps="handled">
@@ -288,6 +400,7 @@ export function AudioPanel() {
   const media = useEditor((s) => s.media);
   const edit = useEditor((s) => s.edit);
   const [sheet, setSheet] = useState(false);
+  const [voiceover, setVoiceover] = useState(false);
   const library = useQuery({ queryKey: ["editor", "audio-assets"], queryFn: () => assetsApi.list({ kind: "audio" }), enabled: sheet });
   const original = Math.round((doc.tracks.video[0]?.volume ?? 1) * 100);
 
@@ -321,8 +434,9 @@ export function AudioPanel() {
       </View>
       <View style={styles.row}>
         <Button label="Add music" icon="plus" iconPosition="start" variant="secondary" size="md" onPress={() => setSheet(true)} style={{ flex: 1 }} />
-        <Button label="Voiceover" icon="mic" iconPosition="start" variant="secondary" size="md" onPress={() => toast(NEXT_UPDATE, "info")} style={{ flex: 1 }} />
+        <Button label="Voiceover" icon="mic" iconPosition="start" variant="secondary" size="md" onPress={() => setVoiceover(true)} style={{ flex: 1 }} />
       </View>
+      <VoiceoverSheet visible={voiceover} onClose={() => setVoiceover(false)} />
 
       <BottomSheet visible={sheet} onClose={() => setSheet(false)} title="Add audio from Assets">
         {library.isPending ? (
@@ -550,13 +664,24 @@ const CLIP_TOOLS: { title: string; detail: string; icon: IconName; pro: boolean 
 
 export function AiToolsPanel() {
   const toast = useToast();
+  const doc = useEditor((s) => s.doc);
+  const selected = useEditor((s) => s.selected);
   const [running, setRunning] = useState<string | null>(null);
+  const [translating, setTranslating] = useState(false);
+  const target = textTarget(doc, selected);
+  const empty = target.clips.length === 0;
+
   const run = async (id: string, label: string) => {
+    if (id === "translate") return setTranslating(true);
+    const t = textTarget(useEditor.getState().doc, useEditor.getState().selected);
     setRunning(id);
     try {
-      toast(await runAiText(id), "success");
+      const { texts } = await editorTools.aiText({ operation: id as AiTextOperationId, texts: t.clips.map((c) => c.text) });
+      const changes = t.clips.map((c, i) => ({ id: c.id, text: texts[i] ?? c.text })).filter((c, i) => c.text !== t.clips[i]!.text);
+      if (changes.length) useEditor.getState().edit((d) => setTexts(d, t.track, changes));
+      toast(changes.length ? `${label}: done for ${t.label}.` : `${label}: nothing to change.`, changes.length ? "success" : "info");
     } catch (e) {
-      toast(`${label}: ${errorMessage(e)}`, "error");
+      toast(`${label}: ${apiErrorMessage(e)}`, "error");
     } finally {
       setRunning(null);
     }
@@ -564,12 +689,23 @@ export function AiToolsPanel() {
   return (
     <PanelShell panel="ai-tools">
       <Text style={text.label}>Captions & text</Text>
-      <Text style={text.caption}>Works on every caption at once. Free, within a daily limit.</Text>
+      <Text style={text.caption}>
+        {empty ? "Add captions, or select a text, to use these." : `Works on ${target.label}${target.clips.length > 1 ? ` (${target.clips.length})` : ""}. Free, within a daily limit.`}
+      </Text>
       {AI_TEXT_OPERATIONS.map((o) => (
         <Row key={o.id} icon={OP_ICONS[o.id] ?? "sparkle"} title={o.label} detail={o.instant ? "Instant" : "AI"}>
-          <Button label={running === o.id ? "Running" : "Run"} variant="secondary" size="md" loading={running === o.id} disabled={!!running && running !== o.id} onPress={() => run(o.id, o.label)} />
+          <Button
+            label={running === o.id ? "Running" : "Run"}
+            variant="secondary"
+            size="md"
+            loading={running === o.id}
+            disabled={empty || (!!running && running !== o.id)}
+            accessibilityLabel={`${o.label} ${target.label}`}
+            onPress={() => void run(o.id, o.label)}
+          />
         </Row>
       ))}
+      <TranslateCaptionsSheet visible={translating} onClose={() => setTranslating(false)} target={target} />
       <View style={{ height: 8 }} />
       <Text style={text.label}>Clip tools</Text>
       {CLIP_TOOLS.map((t) => (

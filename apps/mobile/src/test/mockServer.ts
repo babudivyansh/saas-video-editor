@@ -1,8 +1,8 @@
 import { ApiError, NetworkError } from "@mocks/core";
-import { AI_SOURCES, maxFileBytes, sortAssets, sortProjects, storageLimitBytes, type Asset, type AssetSort, type Clip, type ClipAspect, type ProjectSort, type TimelineDoc } from "@clipiro/shared";
+import { AI_SOURCES, maxFileBytes, sortAssets, sortProjects, storageLimitBytes, type AiTextOperationId, type Asset, type AssetSort, type Clip, type ClipAspect, type ProjectSort, type StockItem, type TimelineDoc } from "@clipiro/shared";
 import { getAccount } from "@mocks/account";
 import { addUpload, createFolder, deleteAsset, getAssets, getFolders, updateAsset } from "@mocks/assets";
-import { EDIT_ID, getEdit, saveEdit } from "@mocks/editor";
+import { EDIT_ID, getEdit, getVoices, runAiText, saveEdit, searchStock, stockAsset, transcribe, voiceoverAsset } from "@mocks/editor";
 import { getHomeSummary, getTools } from "@mocks/home";
 import { deleteClips, deleteProjects, getClips, getProject, getProjects, renameProject, retryClip, setClipFavorite } from "@mocks/projects";
 
@@ -26,6 +26,7 @@ function page<T extends { id: string }>(list: T[], url: URL, key: string, size =
   return { [key]: items, nextCursor: from + size < list.length ? (items.at(-1)?.id ?? null) : null, total: list.length };
 }
 const PAGE = 30;
+let lastVoice = "brian";
 const idOf = (url: URL) => url.pathname.split("/")[5]!; // /api/mobile/v1/<area>/<id>
 const clipDetail = (c: Clip) => ({ ...c, projectTitle: "", startSec: 0, endSec: c.durationSec, videoUrl: null, breakdown: null, reasoning: null, hookExplanation: null });
 /** The API signs every file link; the fixtures have none. */
@@ -100,7 +101,7 @@ export const MOCK_ROUTES: Record<string, Route> = {
   "POST /uploads": async (_url, body) => ok({ key: `uploads/${String(body.name)}`, uploadId: "mock-upload", partSizeBytes: 10 * 1024 * 1024, parts: [{ partNumber: 1, url: "https://s3.test/part?partNumber=1" }] }),
   "POST /uploads/part-urls": async (_url, body) => ok({ parts: (body.partNumbers as number[]).map((n) => ({ partNumber: n, url: `https://s3.test/part?partNumber=${n}` })) }),
   "POST /uploads/complete": async (_url, body) => {
-    await addUpload({ name: String(body.name), size: 1, mimeType: String(body.mimeType) });
+    await addUpload({ name: String(body.name), size: 1, mimeType: String(body.mimeType), durationSec: typeof body.durationSec === "number" ? body.durationSec : null });
     return ok(signed((await getAssets())[0]!));
   },
   "POST /uploads/abort": async () => ok({ ok: true }),
@@ -115,6 +116,31 @@ export const MOCK_ROUTES: Record<string, Route> = {
   "GET /projects/:id/editor": async (url) => ok(await getEdit(idOf(url))),
   "PUT /projects/:id/editor": async (url, body) => ok(await saveEdit(idOf(url), body.doc as TimelineDoc, Number(body.expectedVersion))),
   "POST /editor/projects": async () => [201, { projectId: EDIT_ID }],
+  "POST /editor/captions": async (_url, body) => {
+    const words = await transcribe(String(body.assetId));
+    return ok({ words, minutesCharged: 58, minutesRemaining: 200 });
+  },
+  "POST /editor/ai-text": async (_url, body) => ok({ texts: await runAiText(body.operation as AiTextOperationId, body.texts as string[], body.targetLang as string | undefined) }),
+  "GET /editor/stock": async (url) => ok({ items: await searchStock(url.searchParams.get("type") ?? "video", url.searchParams.get("q") ?? "") }),
+  "POST /editor/stock/import": async (_url, body) => [201, stockAsset(String(body.type), body.item as StockItem)],
+  "GET /voices": async () => ok(await getVoices()),
+  // AI tool jobs finish at once; a voiceover is saved into Assets.
+  "POST /jobs": async (_url, body) => {
+    if (body.type === "voiceover") lastVoice = String(body.voiceId);
+    return [201, { jobId: `job_${String(body.type)}` }];
+  },
+  "GET /jobs/:id": async (url) => {
+    const type = idOf(url).replace(/^job_/, "");
+    const asset = type === "voiceover" ? voiceoverAsset(lastVoice) : null;
+    return ok({ id: idOf(url), type, status: "done", progress: 100, stage: null, error: null, createdAt: "2026-10-10T09:00:00.000Z", result: { assetId: asset?.id ?? null, url: asset?.url ?? null, projectId: null, clipCount: null } });
+  },
+  "GET /assets/:id": async (url) => {
+    const id = idOf(url);
+    if (id === "vo_1") return ok(voiceoverAsset(lastVoice));
+    const a = (await getAssets()).find((x) => x.id === id);
+    if (!a) throw new ApiError("Asset not found", 404);
+    return ok(signed(a));
+  },
   "GET /projects/:id": async (url) => ok(await getProject(idOf(url))),
   "PATCH /projects/:id": async (url, body) => {
     await renameProject(idOf(url), String(body.title ?? ""));

@@ -9,7 +9,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./timeline": "./src/editor/timeline.ts",
-    "./timeline-utils": "./src/editor/timeline-utils.ts"
+    "./timeline-utils": "./src/editor/timeline-utils.ts",
+    "./captions": "./src/editor/captions.ts"
   },
   "dependencies": {
     "zod": "^4.4.3"

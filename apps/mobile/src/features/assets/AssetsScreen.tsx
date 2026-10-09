@@ -41,7 +41,7 @@ import { mmss } from "../projects/format";
 import { AssetChips } from "./AssetChips";
 import { AssetSheet } from "./AssetSheet";
 import { assetKeys, useAssetList, useAssetStorage, useFolders, usePlanTier } from "./queries";
-import { setQueueListener, useUploadQueue, type QueueItem } from "./uploadQueue";
+import { onQueueUploaded, useUploadQueue, type QueueItem } from "./uploadQueue";
 
 const KIND_ICON: Record<Asset["kind"], IconName> = { video: "projects", audio: "music", image: "image" };
 
@@ -80,7 +80,7 @@ export function AssetsScreen() {
 
   // Each finished upload shows up in the lists and the meter.
   useEffect(() => {
-    setQueueListener(() => void qc.invalidateQueries({ queryKey: assetKeys.all }));
+    return onQueueUploaded(() => void qc.invalidateQueries({ queryKey: assetKeys.all }));
   }, [qc]);
 
   const used = storage.data?.usedBytes ?? 0;
