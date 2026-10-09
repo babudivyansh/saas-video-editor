@@ -18,7 +18,7 @@ import {
 import { sample } from "@/lib/images";
 import { useScreenPadding } from "@/navigation/insets";
 import { colors, radius, statusTint, text, type } from "@/theme";
-import { errorMessage } from "@mocks/core";
+import { apiErrorMessage } from "@/lib/errors";
 import { useTools } from "./queries";
 import { COMING_SOON, TOOL_ICONS, TOOL_PHOTOS, costLabel, filterTools, hasScreen, openTool, type ToolFilter } from "./tools";
 
@@ -81,7 +81,7 @@ export function ToolsScreen() {
         {tools.isPending ? (
           <ToolsSkeleton />
         ) : tools.isError ? (
-          <EmptyState tone="error" title="Couldn’t load tools" body={errorMessage(tools.error)} action={{ label: "Try again", onPress: () => tools.refetch() }} />
+          <EmptyState tone="error" title="Couldn’t load tools" body={apiErrorMessage(tools.error)} action={{ label: "Try again", onPress: () => tools.refetch() }} />
         ) : (
           <>
             {browsing && recommended.length ? (

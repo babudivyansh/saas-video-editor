@@ -24,7 +24,7 @@ import {
 import { imageSource, sample } from "@/lib/images";
 import { useScreenPadding } from "@/navigation/insets";
 import { colors, radius, text, type } from "@/theme";
-import { errorMessage } from "@mocks/core";
+import { apiErrorMessage } from "@/lib/errors";
 import { useHomeSummary, useTools } from "./queries";
 import { COMING_SOON, HOME_TOOL_IDS, TOOL_ICONS, openTool } from "./tools";
 
@@ -61,7 +61,7 @@ export function HomeScreen() {
           <EmptyState
             tone="error"
             title="Couldn’t load your dashboard"
-            body={errorMessage(summary.error)}
+            body={apiErrorMessage(summary.error)}
             action={{ label: "Try again", onPress: () => summary.refetch() }}
           />
         </Card>
