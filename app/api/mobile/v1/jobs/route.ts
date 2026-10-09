@@ -57,6 +57,22 @@ function autoClipRefusal(r: WebResult): Response {
   return webError(r);
 }
 
+/**
+ * An export the web refused, in words and codes the app acts on: a credit
+ * shortfall (code + numbers), or a render already running for this edit
+ * (code "already_rendering": the app follows that render instead).
+ */
+function exportRefusal(r: WebResult): Response {
+  if (r.status === 402 && r.json.error === "insufficient_credits") {
+    const required = num(r.json.required);
+    const balance = num(r.json.balance);
+    const message = required != null && balance != null ? `Exporting needs ${required} AI credit${required === 1 ? "" : "s"} and you have ${balance}.` : "You don't have enough AI credits to export.";
+    return mobileError(402, message, { code: "insufficient_credits", required, balance });
+  }
+  if (r.status === 409) return mobileError(409, "This video is already exporting.", { code: "already_rendering" });
+  return webError(r);
+}
+
 /** The web's three AutoClip steps: create the project, attach the source, start the run. */
 async function startAutoClip(req: NextRequest, auth: TokenPayload, b: Input<"autoclip">): Promise<Result> {
   let asset: { name: string; url: string } | null = null;
@@ -138,7 +154,7 @@ export const POST = withMobileAuth(async (req: NextRequest, auth) => {
       break;
     case "export": {
       const r = await callWeb(webEditorRender, req, { projectId: b.projectId });
-      result = r.status >= 400 ? fail(r) : { ok: true, jobId: jobIdFor.export(b.projectId) };
+      result = r.status >= 400 ? { ok: false, res: exportRefusal(r) } : { ok: true, jobId: jobIdFor.export(b.projectId) };
       break;
     }
     case "ai-image":

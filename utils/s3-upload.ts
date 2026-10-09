@@ -8,6 +8,7 @@ import {
   UploadPartCommand,
   CompleteMultipartUploadCommand,
   AbortMultipartUploadCommand,
+  CopyObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import fs from "fs";
@@ -193,4 +194,14 @@ export async function abortMultipartUpload(key: string, uploadId: string): Promi
 export async function getS3ObjectSize(key: string): Promise<number> {
   const res = await s3.send(new HeadObjectCommand({ Bucket: BUCKET, Key: key }));
   return res.ContentLength ?? 0;
+}
+
+/**
+ * Copies an object inside the bucket (S3 CopyObject: single request, up to
+ * 5 GB). Used to keep a snapshot of a file whose own key gets overwritten,
+ * e.g. an editor render saved into Assets while renders/<projectId>.mp4 is
+ * replaced by the next export.
+ */
+export async function copyS3Object(fromKey: string, toKey: string): Promise<void> {
+  await s3.send(new CopyObjectCommand({ Bucket: BUCKET, Key: toKey, CopySource: `${BUCKET}/${fromKey.split("/").map(encodeURIComponent).join("/")}` }));
 }

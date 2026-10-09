@@ -32,6 +32,7 @@ export function appHref(href: string | null): string | null {
   const p = url.pathname.replace(/\/$/, "");
   const q = url.searchParams;
   if (p === "/dashboard/create/auto-clip") return q.get("project") ? `/projects/${encodeURIComponent(q.get("project")!)}` : "/create/autoclip";
+  if (p === "/dashboard/editor" && q.get("projectId")) return `/editor/export?projectId=${encodeURIComponent(q.get("projectId")!)}`;
   if (p.startsWith("/dashboard/social-tracker")) return "/social/insights";
   if (p === "/dashboard" && q.get("billing")) return q.get("tab") === "topup" ? "/you/credits" : "/you/subscription";
   if (p === "/dashboard/tools/voiceover") return "/create/ai-media?tab=voiceover";

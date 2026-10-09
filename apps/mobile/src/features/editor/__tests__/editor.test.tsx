@@ -1,14 +1,16 @@
 import { act, fireEvent, renderRouter, screen, waitFor } from "expo-router/testing-library";
 import { validateDoc } from "@clipiro/shared";
-import { resetMockScenarios, setMockDelay, setMockScenario } from "@mocks/core";
-import { EDIT_ID, bumpEditElsewhere, resetEditMock } from "@mocks/editor";
+import { ApiError, NetworkError, resetMockScenarios, setMockDelay, setMockScenario } from "@mocks/core";
+import { EDIT_ID, bumpEditElsewhere, renderJob, resetEditMock, resetExportMock, startRender } from "@mocks/editor";
+import * as MediaLibrary from "expo-media-library";
+import * as Sharing from "expo-sharing";
 import { installMockServer, MOCK_ROUTES } from "@/test/mockServer";
 import { makeWrapper } from "@/test/providers";
 import * as DocumentPicker from "expo-document-picker";
 import { setQueueIO } from "../../assets/uploadQueue";
 import { addText } from "../docOps";
 import { EditorScreen } from "../EditorScreen";
-import { ExportScreen } from "../ExportScreen";
+import { ExportScreen, exportPoll } from "../ExportScreen";
 import { AiToolsPanel, AudioPanel, CaptionsPanel, EffectsPanel, MediaPanel, TextPanel } from "../panels";
 import { durationOf, useEditor } from "../store";
 
@@ -309,6 +311,13 @@ describe("Panels", () => {
 
 
 describe("Export", () => {
+  beforeEach(async () => {
+    jest.useRealTimers();
+    exportPoll.ms = 5;
+    resetExportMock();
+    await useEditor.getState().open(EDIT_ID);
+  });
+
   it("shows the real output for the plan", async () => {
     open("/editor/export");
     expect(await screen.findByText("No watermark on your plan")).toBeOnTheScreen();
@@ -323,19 +332,75 @@ describe("Export", () => {
     expect(screen.getByText("720×1280")).toBeOnTheScreen();
   });
 
-  it("renders, then hands off to the composer when posting", async () => {
-    jest.useFakeTimers();
+  it("saves the latest edit first, renders on the server, then saves to the gallery", async () => {
+    useEditor.getState().edit((d) => ({ ...d, aspect: "1:1" }));
+    open("/editor/export");
+    await screen.findByText("No watermark on your plan");
+    press("Export video");
+    expect(await screen.findByText("Your video is ready")).toBeOnTheScreen();
+    // The render used what was saved: the aspect change went up first.
+    expect(useEditor.getState()).toMatchObject({ save: "saved", version: 4 });
+    press("Save to gallery");
+    expect(await screen.findByText("Saved to your gallery.")).toBeOnTheScreen();
+    expect(MediaLibrary.Asset.create).toHaveBeenCalledWith(`file:///cache/export-${EDIT_ID}.mp4`);
+    press("Share");
+    await waitFor(() => expect(Sharing.shareAsync).toHaveBeenCalledWith("file:///cache/Nobody tells you this part.mp4", { mimeType: "video/mp4", dialogTitle: "Nobody tells you this part" }));
+  });
+
+  it("saves a copy to Assets, or hands off to the composer to post", async () => {
+    const r = open("/editor/export");
+    await screen.findByText("No watermark on your plan");
+    fireEvent.press(screen.getByRole("radio", { name: "Assets" }));
+    press("Export video");
+    await screen.findByText("Your video is ready");
+    press("Save to Assets");
+    expect(await screen.findByText("Saved to Assets.")).toBeOnTheScreen();
+    fireEvent.press(screen.getByRole("radio", { name: "Post to YouTube Shorts" }));
+    press("Continue to post");
+    await waitFor(() => expect(r.getPathname()).toBe("/composer"));
+  });
+
+  it("a failed render says why and offers to try again", async () => {
+    setMockScenario("export", "error");
+    open("/editor/export");
+    await screen.findByText("No watermark on your plan");
+    press("Export video");
+    expect(await screen.findByText("The export didn’t finish")).toBeOnTheScreen();
+    expect(screen.getByText(/Your credit was refunded/)).toBeOnTheScreen();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeOnTheScreen();
+  });
+
+  it("says when there aren't enough credits", async () => {
+    const restore = installMockServer({ ...MOCK_ROUTES, "POST /jobs": async () => { throw Object.assign(new ApiError("Exporting needs 1 AI credit and you have 0.", 402), { code: "insufficient_credits" }); } });
     try {
-      const r = open("/editor/export");
+      open("/editor/export");
       await screen.findByText("No watermark on your plan");
-      fireEvent.press(screen.getByRole("radio", { name: "Post to YouTube Shorts" }));
       press("Export video");
-      for (let i = 0; i < 14; i++) await act(() => jest.advanceTimersByTime(400));
-      expect(screen.getByText("Your video is ready")).toBeOnTheScreen();
-      press("Continue to post");
-      await waitFor(() => expect(r.getPathname()).toBe("/composer"));
+      expect(await screen.findAllByText("Exporting needs 1 AI credit and you have 0.")).not.toHaveLength(0);
     } finally {
-      jest.useRealTimers();
+      restore();
     }
+  });
+
+  it("won't export while the latest changes can't be saved", async () => {
+    const restore = installMockServer({ ...MOCK_ROUTES, "PUT /projects/:id/editor": async () => { throw new NetworkError(); } });
+    try {
+      useEditor.getState().edit((d) => ({ ...d, aspect: "1:1" }));
+      open("/editor/export");
+      await screen.findByText("No watermark on your plan");
+      press("Export video");
+      expect(await screen.findByText(/You’re offline/)).toBeOnTheScreen();
+    } finally {
+      restore();
+    }
+  });
+
+  it("opened from the 'ready' notification, it loads the edit and shows the result", async () => {
+    useEditor.getState().reset();
+    await startRender(EDIT_ID);
+    await renderJob(`exp_${EDIT_ID}`); // the render finished while the app was closed
+    open(`/editor/export?projectId=${EDIT_ID}`);
+    expect(await screen.findByText("Your video is ready")).toBeOnTheScreen();
+    expect(screen.getByRole("button", { name: "Save to gallery" })).toBeOnTheScreen();
   });
 });

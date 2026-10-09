@@ -120,4 +120,13 @@ describe("tools and export", () => {
     web.render.mockResolvedValue(json({ jobId: "p9-x" }));
     expect(await (await POST(req({ type: "export", projectId: "p9" }))).json()).toEqual({ jobId: "exp_p9" });
   });
+
+  it("says an export's credit shortfall in words, and flags one already rendering", async () => {
+    web.render.mockResolvedValue(json({ error: "insufficient_credits", required: 1, balance: 0 }, 402));
+    let res = await POST(req({ type: "export", projectId: "p9" }));
+    expect([res.status, await res.json()]).toEqual([402, { error: "Exporting needs 1 AI credit and you have 0.", code: "insufficient_credits", required: 1, balance: 0 }]);
+    web.render.mockResolvedValue(json({ error: "Project is already rendering" }, 409));
+    res = await POST(req({ type: "export", projectId: "p9" }));
+    expect([res.status, await res.json()]).toEqual([409, { error: "This video is already exporting.", code: "already_rendering" }]);
+  });
 });

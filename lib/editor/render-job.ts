@@ -14,6 +14,7 @@ import { uploadFileToS3 } from "@/utils/s3-upload";
 import { downloadFile } from "@/utils/download";
 import { logger } from "@/lib/logger";
 import { markQuestComplete } from "@/lib/quests";
+import { notify } from "@/lib/notify";
 import type { TimelineDoc } from "./types";
 import { normalizeDoc } from "./types";
 import { buildFilterGraph, maybeUseFilterScript, writeTextFiles, type ClipInput } from "./filtergraph";
@@ -51,6 +52,25 @@ export function hasAudioStream(filePath: string): Promise<boolean> {
     proc.on("close", () => finish(/Stream #\d+:\d+.*Audio/.test(stderr)));
     proc.on("error", () => finish(false));
   });
+}
+
+/**
+ * Tells the owner how the export went (bell + phone push). The phone leaves
+ * the Export screen while the server renders, so the result must find them.
+ */
+async function notifyExport(projectId: string, outcome: "completed" | "failed", reason?: string) {
+  try {
+    const proj = await prisma.project.findUnique({ where: { id: projectId }, select: { userId: true, title: true } });
+    if (!proj) return;
+    const href = `/dashboard/editor?projectId=${projectId}`;
+    await notify(
+      outcome === "completed"
+        ? { userId: proj.userId, type: "editor_export_complete", title: "Your video is ready 🎬", body: `“${proj.title}” finished exporting.`, href }
+        : { userId: proj.userId, type: "editor_export_failed", title: "Your export didn’t finish", body: reason ?? "Your credit was refunded.", href },
+    );
+  } catch (e) {
+    logger.error("editor-render", `notify failed for ${projectId}`, e);
+  }
 }
 
 async function refundCredit(projectId: string) {
@@ -150,6 +170,7 @@ export async function editorRenderJob(payload: EditorRenderPayload): Promise<voi
     });
     void markQuestComplete(project.userId, "first-export");
     await setRenderProgress(projectId, "completed", 100);
+    await notifyExport(projectId, "completed");
   } catch (err) {
     // classification never throws and never echoes the raw error text back to
     // the project owner — the full message/stack (which can include ffmpeg
@@ -162,6 +183,7 @@ export async function editorRenderJob(payload: EditorRenderPayload): Promise<voi
       .catch(() => {});
     await setRenderProgress(projectId, "failed");
     await refundCredit(projectId);
+    await notifyExport(projectId, "failed", `${userMessage} Your credit was refunded.`);
   } finally {
     for (const f of tempFiles) {
       try {
