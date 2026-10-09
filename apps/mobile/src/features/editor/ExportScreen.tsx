@@ -9,6 +9,7 @@ import { Button, Header, Icon, ProgressBar, useToast, type IconName } from "@/co
 import { editor, jobs } from "@/lib/api";
 import { apiErrorMessage } from "@/lib/errors";
 import { imageSource } from "@/lib/images";
+import { pollMs } from "@/lib/poll";
 import { colors, radius, text, type } from "@/theme";
 import { assetKeys } from "../assets/queries";
 import { useCreateContext } from "../create/queries";
@@ -27,8 +28,6 @@ const estimateMB = (sec: number, free: boolean) => Math.max(1, Math.round((sec *
 
 /** An export's job id: the server tracks it by its project (lib/mobile/jobs.ts). */
 const exportJobId = (projectId: string) => `exp_${projectId}`;
-/** How often the render is polled (tests shorten it). */
-export const exportPoll = { ms: 2500 };
 
 type Run = { stage: "saving" } | { stage: "rendering"; progress: number } | { stage: "done"; url: string } | { stage: "failed"; message: string };
 
@@ -73,7 +72,7 @@ export function ExportScreen() {
     const ac = new AbortController();
     abort.current = ac;
     try {
-      const job = await jobs.waitFor(exportJobId(id), { intervalMs: exportPoll.ms, signal: ac.signal, onProgress: (j) => j.status !== "done" && j.status !== "failed" && setRun({ stage: "rendering", progress: j.progress }) });
+      const job = await jobs.waitFor(exportJobId(id), { intervalMs: pollMs.export, signal: ac.signal, onProgress: (j) => j.status !== "done" && j.status !== "failed" && setRun({ stage: "rendering", progress: j.progress }) });
       setRun(outcome(job));
     } catch (e) {
       if (ac.signal.aborted) return; // the screen closed; the render carries on

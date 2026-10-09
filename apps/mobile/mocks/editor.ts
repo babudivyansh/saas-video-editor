@@ -69,19 +69,13 @@ export async function transcribe(assetId: string): Promise<{ word: string; start
 
 const VOICES: EditorVoice[] = [
   { id: "brian", name: "Brian", description: "Deep, steady narrator", gender: "male", accent: "American", previewUrl: null, creditMultiplier: 1 },
-  { id: "aria", name: "Aria", description: "Warm and upbeat", gender: "female", accent: "British", previewUrl: null, creditMultiplier: 1 },
+  { id: "aria", name: "Aria", description: "Warm and upbeat", gender: "female", accent: "British", previewUrl: "https://cdn.test/voices/aria.mp3", creditMultiplier: 1 },
 ];
 
 /** GET /voices */
 export async function getVoices(): Promise<{ configured: boolean; voices: EditorVoice[] }> {
   const s = await respond("voices");
   return { configured: s !== "empty", voices: s === "empty" ? [] : VOICES };
-}
-
-/** A finished voiceover, as the job saves it into Assets. */
-export function voiceoverAsset(voiceId: string): Asset {
-  const v = VOICES.find((x) => x.id === voiceId) ?? VOICES[0]!;
-  return { ...stockAsset("video", STOCK.video[0]!), id: "vo_1", name: `Voiceover · ${v.name}`, kind: "audio", durationSec: 6, thumbnailUrl: null, source: "voiceover", madeWith: v.name, url: "https://cdn.test/vo_1.mp3" };
 }
 
 // ── The edit the editor opens (GET /projects/:id/editor) ─────────────────

@@ -1,4 +1,5 @@
 import {
+  ApiError,
   AUDIO_TOOLS,
   DEFAULT_IMAGE_MODEL_ID,
   MAX_PROMPT_CHARS,
@@ -9,9 +10,10 @@ import {
   planAtLeast,
   voiceoverCredits,
   voiceoverRequest,
+  type Asset,
   type AudioToolId,
-  type GeneratedMedia,
   type ImageModel,
+  type Job,
   type ImageRatio,
 } from "@clipiro/shared";
 import { useQueryClient } from "@tanstack/react-query";
@@ -29,16 +31,22 @@ import {
   Header,
   Icon,
   OptionList,
+  ProgressBar,
   SectionHeader,
   Skeleton,
   StatusBarScrim,
   UnderlineTabs,
   useToast,
 } from "@/components";
+import { assets, createTools, jobs } from "@/lib/api";
+import { apiErrorMessage } from "@/lib/errors";
 import { imageSource } from "@/lib/images";
+import { pollMs } from "@/lib/poll";
 import { colors, derived, radius, text, type } from "@/theme";
 import { errorMessage } from "@mocks/core";
-import { enhancePrompt, generateImage, generateVoiceover, runAudioTool, setFavorite } from "@mocks/create";
+import { runAudioTool } from "@mocks/create";
+import { usePlayer } from "../assets/AudioRow";
+import { mmss } from "../projects/format";
 import { createKeys, useCreateContext, useImageModels, useRecentResults, useVoices } from "./queries";
 
 type Tab = "image" | "voiceover" | "enhance" | "vocal";
@@ -99,16 +107,87 @@ function ActionBar({ cost, label, onPress, loading, disabled }: { cost: string; 
   );
 }
 
-function Results({ kind, title }: { kind: GeneratedMedia["kind"]; title: string }) {
+/** Not enough AI credits for a tool: what it costs, what's left, and where to get more. */
+type Shortfall = { cost: number; balance: number | null };
+
+/**
+ * Runs one AI tool job (POST /jobs, then polls it) the way every tab does:
+ * progress while it works, the result saved in Assets → AI Assets, a refusal
+ * for credits turned into the shortfall sheet. Resolves with the finished job,
+ * or null when it didn't finish (already explained to the person).
+ */
+function useToolJob(cost: number) {
+  const toast = useToast();
+  const qc = useQueryClient();
+  const ctx = useCreateContext();
+  const [progress, setProgress] = useState<number | null>(null);
+  const [shortfall, setShortfall] = useState<Shortfall | null>(null);
+
+  const run = async (start: () => Promise<{ jobId: string }>): Promise<Job | null> => {
+    if (ctx.data && ctx.data.aiCredits < cost) {
+      setShortfall({ cost, balance: ctx.data.aiCredits });
+      return null;
+    }
+    setProgress(0);
+    try {
+      const { jobId } = await start();
+      const job = await jobs.waitFor(jobId, { intervalMs: pollMs.tool, onProgress: (j) => setProgress(j.progress) });
+      if (job.status === "failed") {
+        toast(job.error ?? "That didn’t work. Your credits were refunded.", "error");
+        return null;
+      }
+      return job;
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 402) setShortfall({ cost, balance: ctx.data?.aiCredits ?? null });
+      else toast(apiErrorMessage(e), "error");
+      return null;
+    } finally {
+      setProgress(null);
+      // Balances moved (charged, or refunded), and AI Assets has something new.
+      void qc.invalidateQueries({ queryKey: createKeys.context });
+      void qc.invalidateQueries({ queryKey: ["assets"] });
+    }
+  };
+  const sheet = <ShortfallSheet shortfall={shortfall} onClose={() => setShortfall(null)} />;
+  return { run, progress, busy: progress != null, sheet };
+}
+
+function ShortfallSheet({ shortfall, onClose }: { shortfall: Shortfall | null; onClose: () => void }) {
+  return (
+    <BottomSheet visible={!!shortfall} onClose={onClose} title="Not enough AI credits">
+      {shortfall ? (
+        <Text style={text.body}>
+          This needs {shortfall.cost} AI credit{shortfall.cost === 1 ? "" : "s"}
+          {shortfall.balance != null ? ` and you have ${shortfall.balance}` : ""}. Top up, or upgrade for more each month.
+        </Text>
+      ) : null}
+      <Button label="Get AI credits" fullWidth onPress={() => (onClose(), router.push("/you/credits"))} />
+      <Button label="Not now" variant="ghost" fullWidth onPress={onClose} />
+    </BottomSheet>
+  );
+}
+
+function Working({ progress, label }: { progress: number; label: string }) {
+  return (
+    <View style={styles.working} accessibilityLiveRegion="polite">
+      <Text style={type(14, "semibold")}>{label}</Text>
+      <ProgressBar value={progress} label={`${label} progress`} />
+      <Text style={text.caption}>It’s saved to Assets when it’s done, so you can leave this screen.</Text>
+    </View>
+  );
+}
+
+function Results({ kind, title }: { kind: "image" | "audio"; title: string }) {
   const results = useRecentResults(kind);
   const qc = useQueryClient();
-  const toggle = async (m: GeneratedMedia) => {
+  const playing = usePlayer((s) => s.playing);
+  const toggle = async (m: Asset) => {
     const key = createKeys.results(kind);
-    qc.setQueryData<GeneratedMedia[]>(key, (list) => list?.map((x) => (x.id === m.id ? { ...x, favorite: !m.favorite } : x)));
+    qc.setQueryData<Asset[]>(key, (list) => list?.map((x) => (x.id === m.id ? { ...x, favorite: !m.favorite } : x)));
     try {
-      await setFavorite(m.id, !m.favorite);
+      await assets.update(m.id, { favorite: !m.favorite });
     } catch {
-      qc.invalidateQueries({ queryKey: key });
+      void qc.invalidateQueries({ queryKey: key });
     }
   };
   return (
@@ -137,9 +216,9 @@ function Results({ kind, title }: { kind: GeneratedMedia["kind"]; title: string 
       ) : kind === "image" ? (
         <View style={styles.wrapGrid}>
           {results.data.slice(0, 6).map((m) => (
-            <View key={m.id} style={styles.imageCard} accessible accessibilityLabel={`Generated image: ${m.title}`}>
-              <Image source={imageSource(m.url)} style={StyleSheet.absoluteFill} contentFit="cover" />
-              <Star on={m.favorite} onPress={() => toggle(m)} />
+            <View key={m.id} style={styles.imageCard} accessible accessibilityLabel={`Generated image: ${m.name}`}>
+              {m.thumbnailUrl ?? m.url ? <Image source={imageSource((m.thumbnailUrl ?? m.url)!)} style={StyleSheet.absoluteFill} contentFit="cover" /> : null}
+              <Star on={m.favorite} onPress={() => void toggle(m)} />
             </View>
           ))}
         </View>
@@ -147,13 +226,23 @@ function Results({ kind, title }: { kind: GeneratedMedia["kind"]; title: string 
         <View style={{ gap: 8 }}>
           {results.data.slice(0, 5).map((m) => (
             <View key={m.id} style={styles.audioRow}>
-              <View style={styles.audioIcon}>
-                <Icon name="waveform" size={18} color={colors.emeraldBright} />
+              <Pressable
+                onPress={() => usePlayer.getState().toggle(m)}
+                accessibilityRole="button"
+                accessibilityLabel={`${playing === m.id ? "Pause" : "Play"} ${m.name}`}
+                style={styles.audioIcon}
+              >
+                <Icon name={playing === m.id ? "pause" : "play"} size={18} color={colors.emeraldBright} />
+              </Pressable>
+              <View style={{ flex: 1 }}>
+                <Text style={type(14, "medium")} numberOfLines={1}>
+                  {m.name}
+                </Text>
+                {m.madeWith || m.durationSec ? (
+                  <Text style={type(12, "regular", { color: colors.fgMuted })}>{[m.madeWith, m.durationSec ? mmss(m.durationSec) : null].filter(Boolean).join(" · ")}</Text>
+                ) : null}
               </View>
-              <Text style={[type(14, "medium"), { flex: 1 }]} numberOfLines={1}>
-                {m.title}
-              </Text>
-              <Star on={m.favorite} onPress={() => toggle(m)} inline />
+              <Star on={m.favorite} onPress={() => void toggle(m)} inline />
             </View>
           ))}
         </View>
@@ -221,7 +310,6 @@ function PillButton({ icon, label, onPress, loading }: { icon: "sparkle" | "pres
 
 function ImageTab() {
   const toast = useToast();
-  const qc = useQueryClient();
   const ctx = useCreateContext();
   const models = useImageModels();
   const [prompt, setPrompt] = useState("");
@@ -229,13 +317,13 @@ function ImageTab() {
   const [ratio, setRatio] = useState<ImageRatio>("9:16");
   const [enhancing, setEnhancing] = useState(false);
   const [presets, setPresets] = useState(false);
-  const [busy, setBusy] = useState(false);
 
   const plan = ctx.data?.plan ?? "free";
   const model = models.data?.find((m) => m.id === modelId);
   const ratios = model?.ratios ?? [];
   // Keep the size valid when switching to a model without it (the web snaps too).
   const shownRatio = ratios.includes(ratio) ? ratio : (ratios.includes("9:16") ? "9:16" : ratios[0]) ?? "1:1";
+  const job = useToolJob(model?.credits ?? 0);
 
   const pickModel = (m: ImageModel) => {
     if (!planAtLeast(plan, m.minPlan)) return toast(`${m.name} needs the ${PLAN_LABEL[m.minPlan]} plan.`, "info");
@@ -246,9 +334,9 @@ function ImageTab() {
     if (prompt.trim().length < 3) return toast("Write a few words first, then improve them.", "info");
     setEnhancing(true);
     try {
-      setPrompt((await enhancePrompt(prompt)).slice(0, MAX_PROMPT_CHARS));
+      setPrompt((await createTools.enhancePrompt(prompt.slice(0, MAX_PROMPT_CHARS))).prompt.slice(0, MAX_PROMPT_CHARS));
     } catch (e) {
-      toast(errorMessage(e), "error");
+      toast(apiErrorMessage(e), "error");
     } finally {
       setEnhancing(false);
     }
@@ -257,17 +345,9 @@ function ImageTab() {
   const generate = async () => {
     const parsed = imageGenerateRequest.safeParse({ prompt, modelId, ratio: shownRatio });
     if (!parsed.success) return toast(parsed.error.issues[0]?.message ?? "Check the prompt", "info");
-    if (!ctx.data) return;
-    setBusy(true);
-    try {
-      await generateImage(parsed.data, ctx.data);
-      await qc.invalidateQueries({ queryKey: createKeys.results("image") });
-      toast("Image ready. Saved to Assets.", "success");
-    } catch (e) {
-      toast(errorMessage(e), "error");
-    } finally {
-      setBusy(false);
-    }
+    if (model && !planAtLeast(plan, model.minPlan)) return toast(`${model.name} needs the ${PLAN_LABEL[model.minPlan]} plan.`, "info");
+    const done = await job.run(() => jobs.start({ type: "ai-image", ...parsed.data, idempotencyKey: newKey() }));
+    if (done) toast("Image ready. Saved to Assets.", "success");
   };
 
   return (
@@ -319,9 +399,11 @@ function ImageTab() {
           </View>
         ) : null}
 
+        {job.progress != null ? <Working progress={job.progress} label={`Generating with ${model?.name ?? "the model"}…`} /> : null}
         <Results kind="image" title="Latest results" />
       </ScrollView>
-      <ActionBar cost={model ? `${model.credits} credits` : "—"} label="Generate image" onPress={generate} loading={busy} disabled={!model} />
+      <ActionBar cost={model ? `${model.credits} credits` : "—"} label="Generate image" onPress={() => void generate()} loading={job.busy} disabled={!model} />
+      {job.sheet}
 
       <BottomSheet visible={presets} onClose={() => setPresets(false)} title="Presets">
         <Text style={text.caption}>Adds style words to your prompt.</Text>
@@ -345,28 +427,29 @@ function ImageTab() {
 /** `initialVoice`: preselected from My Voices ("Use"). */
 function VoiceoverTab({ initialVoice }: { initialVoice?: string }) {
   const toast = useToast();
-  const qc = useQueryClient();
   const voices = useVoices();
+  const playing = usePlayer((s) => s.playing);
   const [script, setScript] = useState("");
-  const [voiceId, setVoiceId] = useState(initialVoice ?? "brian");
+  const [voiceId, setVoiceId] = useState(initialVoice ?? null);
   const [picking, setPicking] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const voice = voices.data?.find((v) => v.id === voiceId);
+  const list = voices.data?.voices ?? [];
+  const voice = list.find((v) => v.id === voiceId) ?? list[0];
+  // 1 credit per 500 characters, the same for every voice (what the server charges).
+  const cost = voiceoverCredits(Math.max(1, script.trim().length));
+  const job = useToolJob(cost);
+  const unavailable = voices.isError || (voices.data && (!voices.data.configured || list.length === 0));
 
   const generate = async () => {
-    const parsed = voiceoverRequest.safeParse({ text: script, voiceId });
-    if (!parsed.success) return toast(parsed.error.issues[0]?.message ?? "Check the script", "info");
-    setBusy(true);
-    try {
-      await generateVoiceover(parsed.data);
-      await qc.invalidateQueries({ queryKey: createKeys.results("audio") });
+    const parsed = voiceoverRequest.safeParse({ text: script, voiceId: voice?.id ?? "" });
+    if (!parsed.success || !voice) return toast(parsed.success ? "Choose a voice" : (parsed.error.issues[0]?.message ?? "Check the script"), "info");
+    const done = await job.run(() => jobs.start({ type: "voiceover", text: parsed.data.text, voiceId: voice.id, title: `Voiceover · ${voice.name}`, idempotencyKey: newKey() }));
+    if (done) {
       toast("Voiceover ready. Saved to Assets.", "success");
-    } catch (e) {
-      toast(errorMessage(e), "error");
-    } finally {
-      setBusy(false);
+      setScript("");
     }
   };
+
+  const preview = (v: { id: string; previewUrl: string | null }) => v.previewUrl && usePlayer.getState().toggle({ id: `voice:${v.id}`, url: v.previewUrl });
 
   return (
     <>
@@ -374,37 +457,45 @@ function VoiceoverTab({ initialVoice }: { initialVoice?: string }) {
         <TextArea label="Script" value={script} onChange={setScript} max={VOICEOVER_MAX_CHARS} placeholder="Type what the voice should say…" height={140} />
         <View style={{ gap: 10 }}>
           <Text style={text.label}>Voice</Text>
-          <Pressable
-            onPress={() => setPicking(true)}
-            disabled={!voices.data}
-            accessibilityRole="button"
-            accessibilityLabel={voice ? `Voice: ${voice.name}, ${voice.description}. Change` : "Choose a voice"}
-            style={({ pressed }) => [styles.voiceRow, pressed && { backgroundColor: colors.surface3 }]}
-          >
-            <View style={styles.audioIcon}>
-              <Icon name="mic" size={18} color={colors.emeraldBright} />
+          {unavailable ? (
+            <Text style={text.caption}>Voiceover isn’t available right now. Try again later.</Text>
+          ) : (
+            <View style={styles.voiceRow}>
+              <Pressable
+                onPress={() => voice && preview(voice)}
+                disabled={!voice?.previewUrl}
+                accessibilityRole="button"
+                accessibilityLabel={voice ? `${playing === `voice:${voice.id}` ? "Stop" : "Play"} a sample of ${voice.name}` : "Loading voices"}
+                style={styles.audioIcon}
+              >
+                <Icon name={voice && playing === `voice:${voice.id}` ? "pause" : voice?.previewUrl ? "play" : "mic"} size={18} color={colors.emeraldBright} />
+              </Pressable>
+              <Pressable
+                onPress={() => setPicking(true)}
+                disabled={!list.length}
+                accessibilityRole="button"
+                accessibilityLabel={voice ? `Voice: ${voice.name}${voice.description ? `, ${voice.description}` : ""}. Change` : "Choose a voice"}
+                style={styles.voicePick}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={type(15, "semibold")}>{voice?.name ?? "Loading voices…"}</Text>
+                  {voice ? <Text style={type(12, "regular", { color: colors.fgMuted })}>{[voice.description, voice.accent].filter(Boolean).join(" · ")}</Text> : null}
+                </View>
+                <Icon name="chevronRight" size={18} color={colors.fgMuted} />
+              </Pressable>
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={type(15, "semibold")}>{voice?.name ?? "Loading voices…"}</Text>
-              {voice ? <Text style={type(12, "regular", { color: colors.fgMuted })}>{voice.description}</Text> : null}
-            </View>
-            <Icon name="chevronRight" size={18} color={colors.fgMuted} />
-          </Pressable>
+          )}
         </View>
+        {job.progress != null ? <Working progress={job.progress} label={`Recording with ${voice?.name ?? "the voice"}…`} /> : null}
         <Results kind="audio" title="Latest audio" />
       </ScrollView>
-      <ActionBar
-        cost={`${voiceoverCredits(Math.max(1, script.trim().length))} credit${voiceoverCredits(Math.max(1, script.trim().length)) === 1 ? "" : "s"}`}
-        label="Generate voiceover"
-        onPress={generate}
-        loading={busy}
-      />
+      <ActionBar cost={`${cost} credit${cost === 1 ? "" : "s"}`} label="Generate voiceover" onPress={() => void generate()} loading={job.busy} disabled={!!unavailable || !voice} />
       <BottomSheet visible={picking} onClose={() => setPicking(false)} title="Voice">
         <ScrollView style={{ maxHeight: 420 }}>
           <OptionList
             accessibilityLabel="Voice"
-            value={voiceId}
-            options={(voices.data ?? []).map((v) => ({ value: v.id, label: v.name, detail: v.description }))}
+            value={voice?.id ?? null}
+            options={list.map((v) => ({ value: v.id, label: v.name, detail: [v.description, v.accent].filter(Boolean).join(" · ") || undefined }))}
             onChange={(v) => {
               setVoiceId(v);
               setPicking(false);
@@ -412,9 +503,13 @@ function VoiceoverTab({ initialVoice }: { initialVoice?: string }) {
           />
         </ScrollView>
       </BottomSheet>
+      {job.sheet}
     </>
   );
 }
+
+/** One per press: the server won't charge twice for a retried request. */
+const newKey = () => `m-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
 // ── Enhance speech / Vocal remover ────────────────────────────────────────
 
@@ -563,6 +658,8 @@ const styles = StyleSheet.create({
   starInline: { position: "relative", right: 0, bottom: 0, backgroundColor: "transparent" },
   audioRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingLeft: 12, minHeight: 56, borderRadius: radius.tile, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.line },
   audioIcon: { width: 36, height: 36, borderRadius: 10, backgroundColor: colors.tint, alignItems: "center", justifyContent: "center" },
+  voicePick: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8, minHeight: 44 },
+  working: { gap: 10, padding: 14, borderRadius: radius.tile, backgroundColor: colors.tint, borderWidth: 1, borderColor: colors.tintBorder },
   voiceRow: { flexDirection: "row", alignItems: "center", gap: 12, padding: 12, minHeight: 60, borderRadius: radius.tile, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.line },
   drop: {
     alignItems: "center",

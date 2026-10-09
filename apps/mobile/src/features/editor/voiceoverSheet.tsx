@@ -5,6 +5,7 @@ import { StyleSheet, Text, TextInput, View } from "react-native";
 import { BottomSheet, Button, OptionList, ProgressBar, Skeleton, useToast } from "@/components";
 import { assets, editorTools, jobs } from "@/lib/api";
 import { apiErrorMessage } from "@/lib/errors";
+import { pollMs } from "@/lib/poll";
 import { colors, radius, text, type } from "@/theme";
 import { insertMedia } from "./docOps";
 import { clock, useEditor } from "./store";
@@ -30,7 +31,7 @@ export function VoiceoverSheet({ visible, onClose }: { visible: boolean; onClose
     setProgress(0);
     try {
       const { jobId } = await jobs.start({ type: "voiceover", text: script.trim(), voiceId: voice.id, title: `Voiceover · ${voice.name}` });
-      const job = await jobs.waitFor(jobId, { intervalMs: 2000, onProgress: (j) => setProgress(j.progress) });
+      const job = await jobs.waitFor(jobId, { intervalMs: pollMs.tool, onProgress: (j) => setProgress(j.progress) });
       if (job.status === "failed" || !job.result?.assetId) throw new Error(job.error ?? "The voiceover didn’t finish. Your credits were refunded.");
       const asset = await assets.get(job.result.assetId);
       const at = useEditor.getState().playhead;

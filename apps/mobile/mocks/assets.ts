@@ -95,3 +95,10 @@ export async function addUpload(file: { name: string; size: number; mimeType: st
   const kind = file.mimeType.startsWith("video") ? "video" : file.mimeType.startsWith("audio") ? "audio" : "image";
   ASSETS = [a({ id: `up${++seq}`, name: file.name, kind, sizeBytes: file.size, durationSec: file.durationSec ?? null, status: "processing", createdAt: new Date().toISOString() }), ...ASSETS];
 }
+
+/** Something an AI tool made, saved into Assets (AI Assets). */
+export function addAiAsset(p: Partial<Asset> & Pick<Asset, "id" | "name" | "kind" | "source">): Asset {
+  const asset = a({ sizeBytes: 1.2 * MB, createdAt: new Date().toISOString(), ...p });
+  ASSETS = [asset, ...ASSETS.filter((x) => x.id !== asset.id)];
+  return asset;
+}
