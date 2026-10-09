@@ -14,6 +14,15 @@
 // renders every clip for free.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+// Stub the queue factory: modules loaded here (e.g. lib/asset-moderation.ts
+// via autoclip-pipeline) call createRenderQueue at import time, which would
+// otherwise start a live BullMQ worker against REDIS_URL that logs after this
+// file finishes and fails the run ("Closing rpc while onUserConsoleLog was pending").
+vi.mock("@/lib/render-queue", async () => ({
+  createRenderQueue: () => ({ enqueue: async () => {}, driver: "in-process" }),
+  NonRetryableError: (await import("@/lib/job-queue")).NonRetryableError,
+}));
+
 vi.mock("@/lib/env", () => ({
   env: { AWS_REGION: "us-east-1", AWS_ACCESS_KEY_ID: "t", AWS_SECRET_ACCESS_KEY: "t", AWS_S3_BUCKET: "b", GEMINI_API_KEY: "k" },
 }));

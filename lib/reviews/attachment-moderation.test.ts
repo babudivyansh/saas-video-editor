@@ -27,6 +27,15 @@ vi.mock("@/lib/notify", () => ({ notifyAdmins: (...args: unknown[]) => notifyAdm
 
 vi.mock("@/utils/s3-upload", () => ({ extensionForMime: () => "mp4" }));
 
+// The module builds its queue at import time. Unmocked, that is a live BullMQ
+// Queue + Worker (and lib/redis client) against REDIS_URL, whose connect/
+// version-warning/worker-error logs land after this file finishes and fail
+// the whole run with "Closing rpc while onUserConsoleLog was pending" — and
+// the Worker can even pick up real jobs. These tests call the job directly.
+vi.mock("@/lib/render-queue", () => ({
+  createRenderQueue: () => ({ enqueue: vi.fn(), driver: "in-process" }),
+}));
+
 const { reviewAttachmentModerationJob } = await import("./attachment-moderation");
 
 const basePayload = {
