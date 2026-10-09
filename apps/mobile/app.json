@@ -26,6 +26,13 @@
     "plugins": [
       "expo-router",
       [
+        "expo-audio",
+        {
+          "microphonePermission": false,
+          "enableBackgroundPlayback": false
+        }
+      ],
+      [
         "expo-media-library",
         {
           "granularPermissions": ["video"],

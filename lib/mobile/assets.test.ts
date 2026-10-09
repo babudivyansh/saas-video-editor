@@ -4,8 +4,10 @@ import { assetsPageSchema, foldersResponseSchema } from "@clipiro/shared";
 const assetFindMany = vi.fn();
 const folderFindMany = vi.fn();
 const generationFindMany = vi.fn(async () => [{ id: "g1", modelId: "seedream-5.0" }]);
+const assetCount = vi.fn(async () => 57);
+const assetGroupBy = vi.fn(async () => [{ kind: "video", _count: { _all: 4 } }, { kind: "image", _count: { _all: 2 } }]);
 vi.mock("@/lib/prisma", () => ({
-  prisma: { asset: { findMany: assetFindMany, findFirst: vi.fn() }, assetFolder: { findMany: folderFindMany }, generation: { findMany: generationFindMany } },
+  prisma: { asset: { findMany: assetFindMany, findFirst: vi.fn(), count: assetCount, groupBy: assetGroupBy }, assetFolder: { findMany: folderFindMany }, generation: { findMany: generationFindMany } },
 }));
 vi.mock("@/lib/asset-serialize", () => ({
   serializeAssets: vi.fn(async (rows: Record<string, unknown>[]) =>
@@ -13,7 +15,7 @@ vi.mock("@/lib/asset-serialize", () => ({
   ),
 }));
 
-const { assetSource, listAssets, listFolders } = await import("./assets");
+const { assetCounts, assetSource, listAssets, listFolders } = await import("./assets");
 
 const row = (over: Record<string, unknown> = {}) => ({
   id: "a1",
@@ -71,5 +73,23 @@ describe("assets", () => {
 
   it.each([["upload", "upload"], ["autoclip", "autoclip"], ["voiceover", "voiceover"], ["video-generator", "upload"], ["avatar", "upload"]])("source %s → %s", (web, app) => {
     expect(assetSource(web)).toBe(app);
+  });
+});
+
+describe("sort, total and counts", () => {
+  it("sorts on the server, leaves AI-made files out of the main view, and counts every match", async () => {
+    assetFindMany.mockResolvedValue([]);
+    const page = await listAssets("u1", { kind: null, folderId: null, favorites: false, archived: false, ai: false, noAi: true, q: "", sort: "duration", cursor: null });
+    const call = assetFindMany.mock.calls[0]![0];
+    expect(call.orderBy[0]).toEqual({ duration: { sort: "desc", nulls: "last" } });
+    expect(call.where.sourceFeature).toEqual({ notIn: ["image-generator", "voiceover", "enhance-speech", "vocal-remover"] });
+    expect(assetCount.mock.calls[0]![0].where).toBe(call.where);
+    expect(page.total).toBe(57);
+  });
+
+  it("counts live files by kind (AI-made left out) and the archive", async () => {
+    assetCount.mockResolvedValueOnce(3);
+    expect(await assetCounts("u1")).toEqual({ video: 4, audio: 0, image: 2, archived: 3 });
+    expect(assetGroupBy.mock.calls[0]![0].where).toMatchObject({ userId: "u1", archivedAt: null, sourceFeature: { notIn: expect.any(Array) } });
   });
 });

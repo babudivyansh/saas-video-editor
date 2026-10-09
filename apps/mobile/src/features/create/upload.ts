@@ -25,7 +25,8 @@ export type PendingRun = { settings: AutoClipSettings; allowCreditOverflow?: boo
 /** What's kept on disk while an upload is under way. */
 export type SavedUpload = {
   file: UploadFile;
-  run: PendingRun;
+  /** The AutoClip run to start once it lands (null for a plain Assets upload). */
+  run: PendingRun | null;
   key: string;
   uploadId: string;
   partSizeBytes: number;
@@ -51,7 +52,7 @@ export class UploadRefused extends Error {}
 export const partCount = (s: Pick<SavedUpload, "file" | "partSizeBytes">) => Math.max(1, Math.ceil(s.file.sizeBytes / s.partSizeBytes));
 
 /** Starts a multipart upload and saves it, so it can resume. */
-export async function beginUpload(io: UploadIO, file: UploadFile, run: PendingRun): Promise<{ saved: SavedUpload; urls: Map<number, string> }> {
+export async function beginUpload(io: UploadIO, file: UploadFile, run: PendingRun | null = null): Promise<{ saved: SavedUpload; urls: Map<number, string> }> {
   const start: UploadStart = await assets.startUpload({ name: file.name, mimeType: file.mimeType, sizeBytes: file.sizeBytes });
   const saved: SavedUpload = { file, run, key: start.key, uploadId: start.uploadId, partSizeBytes: start.partSizeBytes, etags: {} };
   await io.save(saved);

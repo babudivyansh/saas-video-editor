@@ -62,7 +62,7 @@ describe("AutoClip", () => {
   const serve = (account = accountFixture()) => {
     server = installFakeApi({
       "GET /me": () => [200, account],
-      "GET /assets": () => [200, { assets: [videoAssetFixture()], nextCursor: null }],
+      "GET /assets": () => [200, { assets: [videoAssetFixture()], nextCursor: null, total: 1 }],
       "POST /jobs": (b) => jobAnswer(b),
       "POST /uploads": () => [200, { key: "k", uploadId: "u", partSizeBytes: 10 * MB, parts: [{ partNumber: 1, url: "https://s3.test/up?partNumber=1" }] }],
       "POST /uploads/complete": () => [200, videoAssetFixture({ id: "ast_up", name: "talk.mov", durationSec: null })],

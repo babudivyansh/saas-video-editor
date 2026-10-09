@@ -1,4 +1,4 @@
-import { ApiError, NetworkError, type Asset } from "@clipiro/shared";
+import { ApiError, DEFAULT_AUTOCLIP_SETTINGS, NetworkError, type Asset } from "@clipiro/shared";
 import { AppState } from "react-native";
 import { create } from "zustand";
 import { jobs } from "@/lib/api";
@@ -130,7 +130,7 @@ export const useAutoClipUpload = create<UploadState>((set, get) => {
     resume: async () => {
       const saved = get().saved;
       if (!saved || get().status === "uploading") return;
-      await run(async (signal) => ({ asset: await sendParts(io, saved, new Map(), { signal, onProgress }), run: saved.run }));
+      await run(async (signal) => ({ asset: await sendParts(io, saved, new Map(), { signal, onProgress }), run: saved.run ?? { settings: DEFAULT_AUTOCLIP_SETTINGS } }));
     },
 
     cancel: async () => {

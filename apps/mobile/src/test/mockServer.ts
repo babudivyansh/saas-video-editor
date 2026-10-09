@@ -1,5 +1,7 @@
 import { ApiError, NetworkError } from "@mocks/core";
-import { sortProjects, type Clip, type ClipAspect, type ProjectSort } from "@clipiro/shared";
+import { AI_SOURCES, maxFileBytes, sortAssets, sortProjects, storageLimitBytes, type Asset, type AssetSort, type Clip, type ClipAspect, type ProjectSort } from "@clipiro/shared";
+import { getAccount } from "@mocks/account";
+import { addUpload, createFolder, deleteAsset, getAssets, getFolders, updateAsset } from "@mocks/assets";
 import { getHomeSummary, getTools } from "@mocks/home";
 import { deleteClips, deleteProjects, getClips, getProject, getProjects, renameProject, retryClip, setClipFavorite } from "@mocks/projects";
 
@@ -16,15 +18,17 @@ type Route = (url: URL, body: Record<string, unknown>) => Promise<Answer>;
 const ok = (v: unknown): Answer => [200, v];
 
 /** One page of `list` from the cursor (an item id), 30 at a time, as the API pages. */
-function page<T extends { id: string }>(list: T[], url: URL, key: string) {
+function page<T extends { id: string }>(list: T[], url: URL, key: string, size = PAGE) {
   const cursor = url.searchParams.get("cursor");
   const from = cursor ? list.findIndex((x) => x.id === cursor) + 1 : 0;
-  const items = list.slice(from, from + PAGE);
-  return { [key]: items, nextCursor: from + PAGE < list.length ? (items.at(-1)?.id ?? null) : null, total: list.length };
+  const items = list.slice(from, from + size);
+  return { [key]: items, nextCursor: from + size < list.length ? (items.at(-1)?.id ?? null) : null, total: list.length };
 }
 const PAGE = 30;
 const idOf = (url: URL) => url.pathname.split("/")[5]!; // /api/mobile/v1/<area>/<id>
 const clipDetail = (c: Clip) => ({ ...c, projectTitle: "", startSec: 0, endSec: c.durationSec, videoUrl: null, breakdown: null, reasoning: null, hookExplanation: null });
+/** The API signs every file link; the fixtures have none. */
+const signed = (x: Asset): Asset => ({ ...x, url: x.url ?? `https://cdn.test/${x.id}` });
 async function findClip(id: string) {
   const c = (await getClips()).find((x) => x.id === id);
   if (!c) throw new ApiError("Clip not found", 404);
@@ -34,6 +38,71 @@ async function findClip(id: string) {
 export const MOCK_ROUTES: Record<string, Route> = {
   "GET /home": async () => ok(await getHomeSummary()),
   "GET /tools": async () => ok({ tools: await getTools() }),
+  "GET /me": async () => ok(await getAccount()),
+
+  "GET /assets": async (url) => {
+    const p = url.searchParams;
+    const q = p.get("q")?.toLowerCase() ?? "";
+    const folderId = p.get("folderId");
+    const list = sortAssets(
+      (await getAssets()).filter(
+        (x) =>
+          (p.get("archived") === "1" ? !!x.archivedAt : !x.archivedAt) &&
+          (!p.get("kind") || x.kind === p.get("kind")) &&
+          (!q || x.name.toLowerCase().includes(q)) &&
+          (p.get("favorites") !== "1" || x.favorite) &&
+          (!folderId || (folderId === "none" ? !x.folderId : x.folderId === folderId)) &&
+          (p.get("ai") !== "1" || AI_SOURCES.includes(x.source)) &&
+          (p.get("noAi") !== "1" || !AI_SOURCES.includes(x.source)),
+      ),
+      (p.get("sort") ?? "date") as AssetSort,
+    ).map(signed);
+    return ok(page(list, url, "assets", 50));
+  },
+  "GET /assets/storage": async () => {
+    const plan = (await getAccount()).plan.tier;
+    const live = (await getAssets()).filter((x) => !x.archivedAt);
+    const human = live.filter((x) => !AI_SOURCES.includes(x.source));
+    const n = (k: string) => human.filter((x) => x.kind === k).length;
+    return ok({
+      usedBytes: live.reduce((t, x) => t + x.sizeBytes, 0),
+      limitBytes: storageLimitBytes(plan),
+      maxUploadBytes: maxFileBytes(plan),
+      count: live.length,
+      counts: { video: n("video"), audio: n("audio"), image: n("image"), archived: (await getAssets()).filter((x) => x.archivedAt).length },
+    });
+  },
+  "GET /assets/folders": async () => ok({ folders: await getFolders() }),
+  "POST /assets/folders": async (_url, body) => {
+    await createFolder(String(body.name ?? ""));
+    return ok({ folders: await getFolders() });
+  },
+  "PATCH /assets/:id": async (url, body) => {
+    const id = idOf(url);
+    await updateAsset(id, {
+      ...(body.name !== undefined ? { name: String(body.name) } : {}),
+      ...(body.favorite !== undefined ? { favorite: !!body.favorite } : {}),
+      ...(body.folderId !== undefined ? { folderId: body.folderId as string | null } : {}),
+      ...(body.restore ? { archivedAt: null } : {}),
+    });
+    return ok(signed((await getAssets()).find((x) => x.id === id)!));
+  },
+  "POST /assets/:id/archive": async (url) => {
+    await updateAsset(idOf(url), { archivedAt: new Date().toISOString() });
+    return ok(signed((await getAssets()).find((x) => x.id === idOf(url))!));
+  },
+  "DELETE /assets/:id": async (url) => {
+    await deleteAsset(idOf(url));
+    return ok({ ok: true });
+  },
+  // Direct uploads: one part per file; completing adds it as processing.
+  "POST /uploads": async (_url, body) => ok({ key: `uploads/${String(body.name)}`, uploadId: "mock-upload", partSizeBytes: 10 * 1024 * 1024, parts: [{ partNumber: 1, url: "https://s3.test/part?partNumber=1" }] }),
+  "POST /uploads/part-urls": async (_url, body) => ok({ parts: (body.partNumbers as number[]).map((n) => ({ partNumber: n, url: `https://s3.test/part?partNumber=${n}` })) }),
+  "POST /uploads/complete": async (_url, body) => {
+    await addUpload({ name: String(body.name), size: 1, mimeType: String(body.mimeType) });
+    return ok(signed((await getAssets())[0]!));
+  },
+  "POST /uploads/abort": async () => ok({ ok: true }),
 
   "GET /projects": async (url) => {
     const q = url.searchParams.get("q")?.toLowerCase() ?? "";

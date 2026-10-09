@@ -1,5 +1,5 @@
 import type { Prisma } from "@prisma/client";
-import { AI_SOURCES, type Asset, type AssetKind, type AssetSource } from "@clipiro/shared";
+import { AI_SOURCES, type Asset, type AssetKind, type AssetSort, type AssetSource } from "@clipiro/shared";
 import { serializeAssets, type SerializedAsset } from "@/lib/asset-serialize";
 import { IMAGE_MODELS } from "@/lib/models/imageModels";
 import { prisma } from "@/lib/prisma";
@@ -63,29 +63,54 @@ export interface AssetQuery {
   favorites: boolean;
   archived: boolean;
   ai: boolean;
+  /** Leave out what the AI tools made (the main library view; they have their own tab). */
+  noAi?: boolean;
   q: string;
+  sort?: AssetSort;
   cursor: string | null;
 }
 
-/** Same filters as the web's GET /api/assets, plus `ai` (the AI Assets tab). Newest first. */
+const ASSET_ORDER: Record<AssetSort, Prisma.AssetOrderByWithRelationInput[]> = {
+  date: [{ createdAt: "desc" }, { id: "asc" }],
+  name: [{ name: "asc" }, { id: "asc" }],
+  size: [{ size: "desc" }, { id: "asc" }],
+  duration: [{ duration: { sort: "desc", nulls: "last" } }, { id: "asc" }],
+};
+
+/** Same filters as the web's GET /api/assets, plus `ai` / `noAi` (the AI Assets tab) and `sort`. */
 export async function listAssets(userId: string, o: AssetQuery) {
-  const rows = await prisma.asset.findMany({
-    where: {
-      userId,
-      archivedAt: o.archived ? { not: null } : null,
-      ...(o.kind ? { kind: o.kind } : {}),
-      ...(o.q ? { name: { contains: o.q, mode: "insensitive" as const } } : {}),
-      ...(o.favorites ? { isFavorite: true } : {}),
-      ...(o.folderId === "none" ? { folderId: null } : o.folderId ? { folderId: o.folderId } : {}),
-      ...(o.ai ? { sourceFeature: { in: [...AI_SOURCES] } } : {}),
-    },
-    include,
-    orderBy: [{ createdAt: "desc" }, { id: "asc" }],
-    take: PAGE + 1,
-    ...(o.cursor ? { cursor: { id: o.cursor }, skip: 1 } : {}),
-  });
+  const where: Prisma.AssetWhereInput = {
+    userId,
+    archivedAt: o.archived ? { not: null } : null,
+    ...(o.kind ? { kind: o.kind } : {}),
+    ...(o.q ? { name: { contains: o.q, mode: "insensitive" as const } } : {}),
+    ...(o.favorites ? { isFavorite: true } : {}),
+    ...(o.folderId === "none" ? { folderId: null } : o.folderId ? { folderId: o.folderId } : {}),
+    ...(o.ai ? { sourceFeature: { in: [...AI_SOURCES] } } : o.noAi ? { sourceFeature: { notIn: [...AI_SOURCES] } } : {}),
+  };
+  const [rows, total] = await Promise.all([
+    prisma.asset.findMany({
+      where,
+      include,
+      orderBy: ASSET_ORDER[o.sort ?? "date"],
+      take: PAGE + 1,
+      ...(o.cursor ? { cursor: { id: o.cursor }, skip: 1 } : {}),
+    }),
+    prisma.asset.count({ where }),
+  ]);
   const page = rows.slice(0, PAGE);
-  return { assets: await serialize(page), nextCursor: rows.length > PAGE ? page[page.length - 1]!.id : null };
+  return { assets: await serialize(page), nextCursor: rows.length > PAGE ? page[page.length - 1]!.id : null, total };
+}
+
+/** The library's counts: live files of each kind (AI-made left out, as the main view does) and the archive. */
+export async function assetCounts(userId: string) {
+  const notAi: Prisma.AssetWhereInput = { sourceFeature: { notIn: [...AI_SOURCES] } };
+  const [byKind, archived] = await Promise.all([
+    prisma.asset.groupBy({ by: ["kind"], where: { userId, archivedAt: null, ...notAi }, _count: { _all: true } }),
+    prisma.asset.count({ where: { userId, archivedAt: { not: null } } }),
+  ]);
+  const n = (k: string) => byKind.find((r) => r.kind === k)?._count._all ?? 0;
+  return { video: n("video"), audio: n("audio"), image: n("image"), archived };
 }
 
 export async function getAsset(userId: string, id: string): Promise<Asset | null> {

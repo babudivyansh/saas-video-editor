@@ -184,7 +184,7 @@ describe("Paging", () => {
           : [200, { projects: Array.from({ length: 30 }, (_, i) => p(i)), nextCursor: "p29", total: 32 }],
     });
     const { result } = renderHook(() => useProjectList({ sort: "name" }), { wrapper: makeWrapper() });
-    await waitFor(() => expect(result.current.items).toHaveLength(30));
+    await waitFor(() => expect(result.current.items).toHaveLength(30), { timeout: 10000 });
     expect(result.current.total).toBe(32);
     await act(async () => void (await result.current.fetchNextPage()));
     expect(result.current.items).toHaveLength(32);

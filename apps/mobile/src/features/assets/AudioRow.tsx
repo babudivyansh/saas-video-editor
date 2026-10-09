@@ -1,17 +1,47 @@
 import type { Asset } from "@clipiro/shared";
 import { formatBytes } from "@clipiro/shared";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { AppState, Pressable, StyleSheet, Text, View } from "react-native";
+import { createAudioPlayer, type AudioPlayer } from "expo-audio";
 import { create } from "zustand";
 import { Avatar, Icon } from "@/components";
 import { colors, derived, radius, type } from "@/theme";
 import { mmss } from "../projects/format";
 
-// Only one track plays at a time. Real playback (expo-audio) comes with
-// Phase 7; until then this just toggles the row's state.
-export const usePlayer = create<{ playing: string | null; toggle: (id: string) => void }>((set) => ({
+// One track plays at a time, through one shared player (expo-audio): pressing
+// another row switches tracks, pressing the playing row pauses it, and the
+// row resets when the track ends. Plays the file's signed link from the API;
+// stops when the app leaves the foreground (no background playback).
+type Playable = Pick<Asset, "id" | "url">;
+let player: AudioPlayer | null = null;
+
+export const usePlayer = create<{ playing: string | null; toggle: (a: Playable) => void; stop: () => void }>((set, get) => ({
   playing: null,
-  toggle: (id) => set((s) => ({ playing: s.playing === id ? null : id })),
+  toggle: (a) => {
+    if (!a.url) return; // not ready, or the list hasn't been signed
+    if (!player) {
+      player = createAudioPlayer(null);
+      player.addListener("playbackStatusUpdate", (s) => {
+        if (s.didJustFinish) set({ playing: null });
+      });
+    }
+    if (get().playing === a.id) {
+      player.pause();
+      set({ playing: null });
+      return;
+    }
+    player.replace({ uri: a.url });
+    player.play();
+    set({ playing: a.id });
+  },
+  stop: () => {
+    player?.pause();
+    set({ playing: null });
+  },
 }));
+
+AppState.addEventListener("change", (s) => {
+  if (s !== "active" && usePlayer.getState().playing) usePlayer.getState().stop();
+});
 
 const SOURCE_LABEL: Record<Asset["source"], string> = {
   upload: "Audio",
@@ -32,7 +62,7 @@ export function AudioRow({ asset, onMore, variant = "full" }: { asset: Asset; on
   const toggle = usePlayer((s) => s.toggle);
   const label = `${SOURCE_LABEL[asset.source]}${asset.madeWith ? ` · ${asset.madeWith}` : ""}`;
   const playBtn = (
-    <Pressable onPress={() => toggle(asset.id)} accessibilityRole="button" accessibilityLabel={`${playing ? "Pause" : "Play"} ${asset.name}`} style={styles.play}>
+    <Pressable onPress={() => toggle(asset)} disabled={!asset.url} accessibilityRole="button" accessibilityLabel={`${playing ? "Pause" : "Play"} ${asset.name}`} style={styles.play}>
       <Icon name={playing ? "pause" : "play"} size={18} color={colors.bg} filled />
     </Pressable>
   );
