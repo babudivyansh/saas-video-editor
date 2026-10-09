@@ -1,7 +1,8 @@
 import { ApiError, NetworkError } from "@mocks/core";
-import { AI_SOURCES, maxFileBytes, sortAssets, sortProjects, storageLimitBytes, type Asset, type AssetSort, type Clip, type ClipAspect, type ProjectSort } from "@clipiro/shared";
+import { AI_SOURCES, maxFileBytes, sortAssets, sortProjects, storageLimitBytes, type Asset, type AssetSort, type Clip, type ClipAspect, type ProjectSort, type TimelineDoc } from "@clipiro/shared";
 import { getAccount } from "@mocks/account";
 import { addUpload, createFolder, deleteAsset, getAssets, getFolders, updateAsset } from "@mocks/assets";
+import { EDIT_ID, getEdit, saveEdit } from "@mocks/editor";
 import { getHomeSummary, getTools } from "@mocks/home";
 import { deleteClips, deleteProjects, getClips, getProject, getProjects, renameProject, retryClip, setClipFavorite } from "@mocks/projects";
 
@@ -111,6 +112,9 @@ export const MOCK_ROUTES: Record<string, Route> = {
     const list = sortProjects((await getProjects()).filter((p) => (!drafts || p.status === "draft") && (!q || p.title.toLowerCase().includes(q))), sort);
     return ok(page(list, url, "projects"));
   },
+  "GET /projects/:id/editor": async (url) => ok(await getEdit(idOf(url))),
+  "PUT /projects/:id/editor": async (url, body) => ok(await saveEdit(idOf(url), body.doc as TimelineDoc, Number(body.expectedVersion))),
+  "POST /editor/projects": async () => [201, { projectId: EDIT_ID }],
   "GET /projects/:id": async (url) => ok(await getProject(idOf(url))),
   "PATCH /projects/:id": async (url, body) => {
     await renameProject(idOf(url), String(body.title ?? ""));
@@ -171,7 +175,7 @@ export function installMockServer(routes: Record<string, Route> = MOCK_ROUTES) {
       answer = route ? await route(url, body) : [404, { error: "Not found" }];
     } catch (e) {
       if (e instanceof NetworkError) throw new TypeError("Network request failed");
-      if (e instanceof ApiError) answer = [e.status, { error: e.message, ...(e.field ? { fields: { [e.field]: e.message } } : {}) }];
+      if (e instanceof ApiError) answer = [e.status, { error: e.message, ...("code" in e ? { code: (e as { code: string }).code } : {}), ...(e.field ? { fields: { [e.field]: e.message } } : {}) }];
       else throw e;
     }
     const [status, json] = answer;

@@ -11,6 +11,7 @@ import { apiErrorMessage } from "@/lib/errors";
 import { imageSource } from "@/lib/images";
 import { useScreenPadding } from "@/navigation/insets";
 import { colors, radius, statusTint, text, type } from "@/theme";
+import { openEdit, startEdit } from "../editor/open";
 import { whenEdited } from "./format";
 import { ProjectChips } from "./ProjectChips";
 import { deleteInBatches, projectKeys, useProjectList } from "./queries";
@@ -67,7 +68,7 @@ export function DraftsScreen() {
       ) : drafts.isError && !drafts.data ? (
         <EmptyState tone="error" title="Couldn’t load your drafts" body={apiErrorMessage(drafts.error)} action={{ label: "Try again", onPress: () => drafts.refetch() }} />
       ) : drafts.total === 0 ? (
-        <EmptyState icon="editor" title="No drafts" body="Anything you start in the editor is saved here until you export it." action={{ label: "Open the editor", onPress: () => router.push("/editor") }} />
+        <EmptyState icon="editor" title="No drafts" body="Anything you start in the editor is saved here until you export it." action={{ label: "Start a blank edit", onPress: () => void startEdit({ from: "blank" }).then((err) => err && toast(err, "error")) }} />
       ) : (
         <View style={styles.head}>
           <Text style={text.label} accessibilityRole="header">
@@ -93,7 +94,7 @@ export function DraftsScreen() {
     const on = picked.includes(d.id);
     return (
       <Pressable
-        onPress={() => (selecting ? toggle(d.id) : router.push("/editor"))}
+        onPress={() => (selecting ? toggle(d.id) : openEdit(d.id))}
         accessibilityRole={selecting ? "checkbox" : "button"}
         aria-checked={selecting ? on : undefined}
         accessibilityLabel={`${d.title}, ${pct}% done, edited ${whenEdited(d.updatedAt)}`}
@@ -119,7 +120,7 @@ export function DraftsScreen() {
         {selecting ? (
           <View style={[styles.checkbox, on && styles.checkboxOn]}>{on ? <Icon name="check" size={14} color={colors.bg} strokeWidth={2.6} /> : null}</View>
         ) : (
-          <Button label="Resume" variant="secondary" size="md" onPress={() => router.push("/editor")} />
+          <Button label="Resume" variant="secondary" size="md" onPress={() => openEdit(d.id)} />
         )}
       </Pressable>
     );

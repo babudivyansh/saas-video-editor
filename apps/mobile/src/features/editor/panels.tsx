@@ -1,5 +1,13 @@
 import {
   AI_TEXT_OPERATIONS,
+  ASPECT_DIMENSIONS,
+  CAPTION_TEMPLATE_CATALOG,
+  videoClipAt,
+  type Asset,
+  type AudioClip,
+  type CaptionClip,
+  type TextClip,
+  type TextEntrancePreset,
   CAPTION_HIGHLIGHTS,
   CAPTION_POSITIONS,
   EDITOR_EFFECTS,
@@ -8,7 +16,6 @@ import {
   EDITOR_TRANSITIONS,
   TEXT_ANIMATIONS,
   TEXT_PRESETS,
-  TEXT_STYLES,
   type EditorFont,
 } from "@clipiro/shared";
 import { useQuery } from "@tanstack/react-query";
@@ -16,21 +23,28 @@ import * as DocumentPicker from "expo-document-picker";
 import { Image } from "expo-image";
 import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { BottomSheet, Button, EmptyState, FilterPills, Icon, OptionList, Skeleton, Slider, TextField, useToast, type IconName } from "@/components";
 import { imageSource, sample, type SampleImage } from "@/lib/images";
+import { assets as assetsApi } from "@/lib/api";
 import { colors, radius, text, type } from "@/theme";
 import { errorMessage } from "@mocks/core";
-import { CAPTION_TEMPLATES } from "@mocks/create";
-import { CAPTION_LINES, getMediaLibrary, getStockMusic, runAiText, searchStock, type MediaItem } from "@mocks/editor";
+import { getMediaLibrary, runAiText, searchStock, type MediaItem } from "@mocks/editor";
 import { COMING_SOON } from "../home/tools";
 import { caps, highlightColor } from "../create/AutoClipSheets";
-import { useVoices } from "../create/queries";
 import { BoxTabs, Badge, ChipChoice, Field } from "./bits";
 import { PanelShell } from "./PanelShell";
-import { clock, useEditor } from "./store";
+import { addText, captionPosition, newId, setClipVolume, setLook, setOriginalVolume, styleCaptions, updateClip, type CaptionStyle } from "./docOps";
+import { clock, durationOf, useEditor } from "./store";
 
 const mmss = (s: number) => clock(s, false);
+
+/** Features that land in the next stage of Phase 9 (server-backed captions, AI text, voiceover). */
+const NEXT_UPDATE = "Arrives in the next update of the app.";
+
+// Colours written into the video itself (the doc stores #rrggbb), not UI colours.
+const HIGHLIGHT_HEX: Record<string, string> = { emerald: "#20d68a", warning: "#f5a524", info: "#3b9eff", error: "#ef4444" };
+const highlightHex = (name: string) => HIGHLIGHT_HEX[name] ?? "#20d68a";
 
 // ── Media ─────────────────────────────────────────────────────────────────
 
@@ -162,27 +176,49 @@ function EmeraldButton({ label, icon, onPress, disabled }: { label: string; icon
 
 // ── Captions ──────────────────────────────────────────────────────────────
 
-const LANGUAGES = ["English", "Spanish", "Hindi", "Portuguese", "French", "German", "Arabic", "Japanese"];
+/** Caption size in the export's pixels (the frame's height). */
+const pxFor = (pct: number, aspect: keyof typeof ASPECT_DIMENSIONS) => Math.round(pct * ASPECT_DIMENSIONS[aspect].h);
 
 export function CaptionsPanel() {
   const toast = useToast();
-  const captions = useEditor((s) => s.doc.captions);
+  const doc = useEditor((s) => s.doc);
   const edit = useEditor((s) => s.edit);
-  const set = (patch: Partial<typeof captions>) => edit((d) => ({ ...d, captions: { ...d.captions, ...patch } }));
-  const [sheet, setSheet] = useState<"language" | "words" | null>(null);
-  const [lines, setLines] = useState(CAPTION_LINES);
+  const cues = doc.tracks.caption;
+  const first = cues[0];
+  const [words, setWords] = useState(false);
 
+  const style = (s: CaptionStyle) => edit((d) => styleCaptions(d, s));
+
+  if (!first) {
+    return (
+      <PanelShell panel="captions">
+        <EmptyState icon="captions" title="No captions yet" body="Generate them from the speech in your video, word by word." action={{ label: "Generate captions", onPress: () => toast(NEXT_UPDATE, "info") }} />
+      </PanelShell>
+    );
+  }
+
+  const px = pxFor(first.fontSizePct, doc.aspect);
   return (
     <PanelShell panel="captions">
       <View style={styles.styleStrip}>
-        {CAPTION_TEMPLATES.slice(0, 6).map((t, i) => {
-          const on = t.id === captions.templateId;
+        {CAPTION_TEMPLATE_CATALOG.slice(0, 6).map((t, i) => {
+          const color = t.look.highlight ? highlightHex(t.look.highlight) : null;
+          const on = (first.textTransform === "uppercase") === t.look.uppercase && (color ? first.highlightColor === color : first.highlightMode === "none");
           const photo: SampleImage = (["creator-smile", "founder-portrait", "creator-hat", "dj-neon", "creator-violet", "gym-lift"] as const)[i] ?? "creator-smile";
           return (
-            <Pressable key={t.id} onPress={() => set({ templateId: t.id })} accessibilityRole="radio" aria-checked={on} accessibilityLabel={`${t.name} caption style`} style={styles.styleItem}>
+            <Pressable
+              key={t.id}
+              onPress={() => style({ textTransform: t.look.uppercase ? "uppercase" : "none", bold: true, ...(color ? { highlightColor: color, highlightMode: "word" } : { highlightMode: "none" }) })}
+              accessibilityRole="radio"
+              aria-checked={on}
+              accessibilityLabel={`${t.name} caption style`}
+              style={styles.styleItem}
+            >
               <View style={[styles.styleThumb, on && styles.tileOn]}>
                 <Image source={sample(photo)} style={[StyleSheet.absoluteFill, { opacity: 0.6 }]} contentFit="cover" />
-                <Text style={type(10, "heavy")} maxFontSizeMultiplier={1}>{caps("Watch", t.look.uppercase)}</Text>
+                <Text style={type(10, "heavy")} maxFontSizeMultiplier={1}>
+                  {caps("Watch", t.look.uppercase)}
+                </Text>
                 <Text maxFontSizeMultiplier={1} style={[type(10, "heavy"), t.look.highlight ? { backgroundColor: highlightColor(t.look.highlight), color: colors.bg, paddingHorizontal: 3, borderRadius: 3 } : null]}>
                   {caps("this", t.look.uppercase)}
                 </Text>
@@ -195,53 +231,52 @@ export function CaptionsPanel() {
         })}
       </View>
       <Field label="Highlight">
-        <ChipChoice label="Highlight" options={CAPTION_HIGHLIGHTS} value={captions.highlight} onChange={(highlight) => set({ highlight })} />
+        <ChipChoice label="Highlight" options={CAPTION_HIGHLIGHTS} value={first.highlightMode} onChange={(highlightMode) => style({ highlightMode })} />
       </Field>
       <Field label="Position">
-        <BoxTabs label="Caption position" tabs={CAPTION_POSITIONS} value={captions.position} onChange={(position) => set({ position })} />
+        <BoxTabs label="Caption position" tabs={CAPTION_POSITIONS} value={first.positionPreset === "top" || first.positionPreset === "center" ? first.positionPreset : "bottom"} onChange={(p) => style(captionPosition(p))} />
       </Field>
-      <Field label="Size" right={<Text style={type(13, "semibold", { mono: true })}>{captions.sizePx} px</Text>}>
-        <Slider label="Caption size" value={captions.sizePx} min={24} max={96} step={2} onChange={(sizePx) => set({ sizePx })} formatValue={(v) => `${v} pixels`} />
+      <Field label="Size" right={<Text style={type(13, "semibold", { mono: true })}>{px} px</Text>}>
+        <Slider
+          label="Caption size"
+          value={px}
+          min={24}
+          max={160}
+          step={2}
+          onChange={(v) => style({ fontSizePct: v / ASPECT_DIMENSIONS[doc.aspect].h })}
+          formatValue={(v) => `${v} pixels`}
+        />
       </Field>
       <View style={styles.row}>
-        <Button label={captions.language} icon="globe" iconPosition="start" variant="secondary" size="md" onPress={() => setSheet("language")} style={{ flex: 1 }} />
-        <Button label="Edit words" icon="text" iconPosition="start" variant="secondary" size="md" onPress={() => setSheet("words")} style={{ flex: 1 }} />
+        <Button label="Translate" icon="globe" iconPosition="start" variant="secondary" size="md" onPress={() => toast(NEXT_UPDATE, "info")} style={{ flex: 1 }} />
+        <Button label="Edit words" icon="text" iconPosition="start" variant="secondary" size="md" onPress={() => setWords(true)} style={{ flex: 1 }} />
       </View>
 
-      <BottomSheet visible={sheet === "language"} onClose={() => setSheet(null)} title="Caption language">
-        <Text style={text.caption}>Translates every caption. Free, within a daily limit.</Text>
-        <View style={{ maxHeight: 380 }}>
-          <OptionList
-            accessibilityLabel="Caption language"
-            value={captions.language}
-            options={LANGUAGES.map((l) => ({ value: l, label: l }))}
-            onChange={async (language) => {
-              setSheet(null);
-              if (language === captions.language) return;
-              try {
-                toast(await runAiText("translate", language), "success");
-                set({ language });
-              } catch (e) {
-                toast(errorMessage(e), "error");
-              }
-            }}
-          />
-        </View>
-      </BottomSheet>
-      <BottomSheet visible={sheet === "words"} onClose={() => setSheet(null)} title="Edit words">
-        {lines.map((l, i) => (
-          <TextInput
-            key={i}
-            value={l}
-            onChangeText={(v) => setLines((ls) => ls.map((x, j) => (j === i ? v : x)))}
-            accessibilityLabel={`Caption line ${i + 1}`}
-            selectionColor={colors.emeraldBright}
-            style={styles.line}
-          />
-        ))}
-        <Button label="Done" variant="secondary" size="sm" fullWidth onPress={() => setSheet(null)} />
+      <BottomSheet visible={words} onClose={() => setWords(false)} title="Edit words">
+        <ScrollView style={{ maxHeight: 420 }} contentContainerStyle={{ gap: 8 }} keyboardShouldPersistTaps="handled">
+          {cues.map((c) => (
+            <CueEditor key={c.id} cue={c} />
+          ))}
+        </ScrollView>
+        <Button label="Done" variant="secondary" size="sm" fullWidth onPress={() => setWords(false)} />
       </BottomSheet>
     </PanelShell>
+  );
+}
+
+/** One caption line. Saved when you leave the field; changing it drops its word timings. */
+function CueEditor({ cue }: { cue: CaptionClip }) {
+  const [value, setValue] = useState(cue.text);
+  const commit = () => {
+    const text = value.trim();
+    if (text === cue.text) return;
+    useEditor.getState().edit((d) => updateClip<CaptionClip>(d, "caption", cue.id, { text, words: undefined, highlightMode: "none" }));
+  };
+  return (
+    <View style={{ gap: 4 }}>
+      <Text style={type(11, "regular", { mono: true, color: colors.fgSubtle })}>{clock(cue.timelineStart, false)}</Text>
+      <TextInput value={value} onChangeText={setValue} onEndEditing={commit} accessibilityLabel={`Caption at ${clock(cue.timelineStart, false)}`} selectionColor={colors.emeraldBright} style={styles.line} />
+    </View>
   );
 }
 
@@ -249,84 +284,72 @@ export function CaptionsPanel() {
 
 export function AudioPanel() {
   const toast = useToast();
-  const audio = useEditor((s) => s.doc.audio);
+  const doc = useEditor((s) => s.doc);
+  const media = useEditor((s) => s.media);
   const edit = useEditor((s) => s.edit);
-  const voices = useVoices();
-  const [sheet, setSheet] = useState<"music" | "voice" | null>(null);
-  const music = useQuery({ queryKey: ["editor", "music"], queryFn: getStockMusic, enabled: sheet === "music" });
-  const [script, setScript] = useState("");
+  const [sheet, setSheet] = useState(false);
+  const library = useQuery({ queryKey: ["editor", "audio-assets"], queryFn: () => assetsApi.list({ kind: "audio" }), enabled: sheet });
+  const original = Math.round((doc.tracks.video[0]?.volume ?? 1) * 100);
 
-  const setAudio = (patch: Partial<typeof audio>) => edit((d) => ({ ...d, audio: { ...d.audio, ...patch } }));
+  // A track from Assets goes under the whole edit from the playhead (or its own length).
+  const addTrack = (a: Asset) => {
+    const t = useEditor.getState().playhead;
+    const length = Math.max(1, Math.min(a.durationSec ?? durationOf(doc), Math.max(durationOf(doc) - t, 1)));
+    const clip: AudioClip = { id: newId(), type: "audio", assetId: a.id, timelineStart: t, duration: length, srcIn: 0, volume: 0.3 };
+    useEditor.getState().addMedia([a]);
+    edit((d) => ({ ...d, tracks: { ...d.tracks, audio: [...d.tracks.audio, clip] } }), { track: "audio", id: clip.id });
+    setSheet(false);
+    toast(`${a.name} added at ${mmss(t)}.`, "success");
+  };
 
   return (
     <PanelShell panel="audio">
-      <Track icon="mic" title="Original voice" value={audio.original} onChange={(original) => setAudio({ original })} />
-      {audio.music ? (
-        <Track icon="music" title={`Music · ${audio.music.title}`} value={audio.music.volume} onChange={(volume) => setAudio({ music: audio.music && { ...audio.music, volume } })} />
-      ) : null}
-      {audio.voiceover ? (
-        <Track icon="volume" title={`Voiceover · ${audio.voiceover.voice}`} value={audio.voiceover.volume} onChange={(volume) => setAudio({ voiceover: audio.voiceover && { ...audio.voiceover, volume } })} />
-      ) : null}
+      {doc.tracks.video.length ? <Track icon="mic" title="Original sound" value={original} onChange={(v) => edit((d) => setOriginalVolume(d, v / 100))} /> : null}
+      {doc.tracks.audio.map((c) => (
+        <Track
+          key={c.id}
+          icon="music"
+          title={media[c.assetId]?.name ?? "Audio"}
+          value={Math.round(c.volume * 100)}
+          onChange={(v) => edit((d) => setClipVolume(d, "audio", c.id, v / 100))}
+          onRemove={() => edit((d) => ({ ...d, tracks: { ...d.tracks, audio: d.tracks.audio.filter((x) => x.id !== c.id) } }))}
+        />
+      ))}
       <View style={styles.row}>
         <ToolTile icon="waveform" title="Enhance speech" detail="8 credits / min" onPress={() => toast(COMING_SOON, "info")} />
         <ToolTile icon="music" title="Remove vocals" detail="1 credit / 30 s" onPress={() => toast(COMING_SOON, "info")} />
       </View>
       <View style={styles.row}>
-        <Button label="Add music" icon="plus" iconPosition="start" variant="secondary" size="md" onPress={() => setSheet("music")} style={{ flex: 1 }} />
-        <Button label="Voiceover" icon="mic" iconPosition="start" variant="secondary" size="md" onPress={() => setSheet("voice")} style={{ flex: 1 }} />
+        <Button label="Add music" icon="plus" iconPosition="start" variant="secondary" size="md" onPress={() => setSheet(true)} style={{ flex: 1 }} />
+        <Button label="Voiceover" icon="mic" iconPosition="start" variant="secondary" size="md" onPress={() => toast(NEXT_UPDATE, "info")} style={{ flex: 1 }} />
       </View>
 
-      <BottomSheet visible={sheet === "music"} onClose={() => setSheet(null)} title="Add music">
-        <Text style={text.caption}>Royalty-free tracks from Jamendo.</Text>
-        {music.isPending ? (
+      <BottomSheet visible={sheet} onClose={() => setSheet(false)} title="Add audio from Assets">
+        {library.isPending ? (
           <Skeleton height={56} rounded={16} />
-        ) : music.isError ? (
-          <Button label="Couldn’t load music. Try again" variant="ghost" size="md" icon="refresh" iconPosition="start" onPress={() => music.refetch()} />
+        ) : library.isError ? (
+          <Button label="Couldn’t load your audio. Try again" variant="ghost" size="md" icon="refresh" iconPosition="start" onPress={() => library.refetch()} />
+        ) : library.data.assets.length === 0 ? (
+          <Text style={text.caption}>No audio in your Assets yet. Upload music or a voice track there first.</Text>
         ) : (
-          <OptionList
-            accessibilityLabel="Music"
-            value={null}
-            options={music.data.map((m) => ({ value: m.id, label: m.title, detail: `${m.artist} · ${m.mood} · ${mmss(m.durationSec)}` }))}
-            onChange={(id) => {
-              const track = music.data.find((m) => m.id === id);
-              if (track) setAudio({ music: { title: track.title, volume: 30 } });
-              setSheet(null);
-            }}
-          />
+          <View style={{ maxHeight: 380 }}>
+            <OptionList
+              accessibilityLabel="Audio"
+              value={null}
+              options={library.data.assets.map((a) => ({ value: a.id, label: a.name, detail: a.durationSec ? mmss(a.durationSec) : undefined }))}
+              onChange={(id) => {
+                const a = library.data.assets.find((x) => x.id === id);
+                if (a) addTrack(a);
+              }}
+            />
+          </View>
         )}
-      </BottomSheet>
-      <BottomSheet visible={sheet === "voice"} onClose={() => setSheet(null)} title="Voiceover">
-        <TextInput
-          value={script}
-          onChangeText={setScript}
-          placeholder="What should the voice say?"
-          placeholderTextColor={colors.fgSubtle}
-          accessibilityLabel="Voiceover script"
-          multiline
-          maxLength={2000}
-          selectionColor={colors.emeraldBright}
-          style={[styles.line, { minHeight: 96, textAlignVertical: "top" }]}
-        />
-        <Text style={text.caption}>Voice: {voices.data?.[0]?.name ?? "Brian"} · 1 credit per 500 characters</Text>
-        <Button
-          label="Add voiceover"
-          variant="secondary"
-          size="sm"
-          fullWidth
-          disabled={!script.trim()}
-          onPress={() => {
-            setAudio({ voiceover: { voice: voices.data?.[0]?.name ?? "Brian", volume: 85 } });
-            setScript("");
-            setSheet(null);
-            toast("Voiceover added to the timeline.", "success");
-          }}
-        />
       </BottomSheet>
     </PanelShell>
   );
 }
 
-function Track({ icon, title, value, onChange }: { icon: IconName; title: string; value: number; onChange: (v: number) => void }) {
+function Track({ icon, title, value, onChange, onRemove }: { icon: IconName; title: string; value: number; onChange: (v: number) => void; onRemove?: () => void }) {
   return (
     <View style={styles.track}>
       <View style={styles.trackIcon}>
@@ -338,6 +361,11 @@ function Track({ icon, title, value, onChange }: { icon: IconName; title: string
             {title}
           </Text>
           <Text style={type(11, "regular", { mono: true, color: colors.fgMuted })}>{value}%</Text>
+          {onRemove ? (
+            <Pressable onPress={onRemove} accessibilityRole="button" accessibilityLabel={`Remove ${title}`} hitSlop={10}>
+              <Icon name="close" size={14} color={colors.fgMuted} />
+            </Pressable>
+          ) : null}
         </View>
         <Slider label={`${title} volume`} value={value} onChange={onChange} step={5} formatValue={(v) => `${v} percent`} />
       </View>
@@ -358,47 +386,67 @@ function ToolTile({ icon, title, detail, onPress }: { icon: IconName; title: str
 // ── Text ──────────────────────────────────────────────────────────────────
 
 const SWATCHES = [
-  { color: colors.fg, name: "White" },
-  { color: colors.emeraldBright, name: "Emerald" },
-  { color: colors.primary, name: "Lime" },
-  { color: colors.warning, name: "Amber" },
-  { color: colors.info, name: "Blue" },
-  { color: colors.error, name: "Red" },
-];
+  { color: "#ffffff", name: "White" },
+  { color: "#20d68a", name: "Emerald" },
+  { color: "#c6f432", name: "Lime" },
+  { color: "#f5a524", name: "Amber" },
+  { color: "#3b9eff", name: "Blue" },
+  { color: "#ef4444", name: "Red" },
+] as const;
+
+/** Preset sizes, as a share of the frame's height (the web's text presets). */
+const PRESET_SIZE: Record<string, number> = { Heading: 0.08, Subheading: 0.055, "Body Text": 0.04, "Animated Text": 0.06, "Lower Third": 0.04, Caption: 0.035, Quote: 0.05 };
 
 export function TextPanel() {
+  const doc = useEditor((s) => s.doc);
+  const selected = useEditor((s) => s.selected);
   const edit = useEditor((s) => s.edit);
-  const [font, setFont] = useState<EditorFont>("Poppins");
-  const [color, setColor] = useState<string>(colors.fg);
-  const [animation, setAnimation] = useState("pop");
-  const [style, setStyle] = useState<string>(TEXT_STYLES[0]);
+  const current = selected?.track === "text" ? doc.tracks.text.find((t) => t.id === selected.id) ?? null : null;
+  const [font, setFont] = useState<EditorFont>(current?.fontFamily ?? "Poppins");
+  const [color, setColor] = useState<string>(current?.color ?? "#ffffff");
+  const [animation, setAnimation] = useState(current?.entrance?.type ?? "pop");
 
-  const add = (preset: (typeof TEXT_PRESETS)[number]) =>
-    edit((d) => ({ ...d, texts: [...d.texts, { id: `t${d.texts.length + 1}`, preset: preset.label, text: preset.sample, font, color, animation }].slice(-3) }));
+  const patch = (p: Partial<TextClip>) => current && edit((d) => updateClip<TextClip>(d, "text", current.id, p));
+  const add = (preset: (typeof TEXT_PRESETS)[number]) => {
+    const r = addText(doc, useEditor.getState().playhead, {
+      text: preset.sample,
+      fontFamily: preset.font,
+      fontSizePct: PRESET_SIZE[preset.label] ?? 0.05,
+      color,
+      bold: preset.label === "Heading" || preset.label === "Subheading" || preset.label === "Animated Text",
+      align: "center",
+      x: 0.5,
+      y: 0.2,
+      bgColor: null,
+      entrance: animation === "none" ? null : { type: animation as TextEntrancePreset, duration: 0.4, delay: 0 },
+    });
+    edit(() => r.doc, r.selected);
+  };
 
   return (
     <PanelShell panel="text">
-      <View style={styles.presetGrid}>
-        {TEXT_PRESETS.map((p) => (
-          <Pressable key={p.label} onPress={() => add(p)} accessibilityRole="button" accessibilityLabel={`Add ${p.label}`} style={({ pressed }) => [styles.preset, pressed && { backgroundColor: colors.surface3 }]}>
-            <Text style={type(14, p.label === "Body Text" || p.label === "Caption" ? "medium" : "bold")} numberOfLines={1} adjustsFontSizeToFit>
-              {p.label}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-      <Field label="Style">
-        <ChipChoice label="Text style" options={TEXT_STYLES.map((s) => ({ id: s, label: s }))} value={style} onChange={setStyle} />
-      </Field>
+      {current ? (
+        <TextField label="Text on screen" value={current.text} onChangeText={(t) => patch({ text: t, richText: undefined })} maxLength={500} />
+      ) : (
+        <View style={styles.presetGrid}>
+          {TEXT_PRESETS.map((p) => (
+            <Pressable key={p.label} onPress={() => add(p)} accessibilityRole="button" accessibilityLabel={`Add ${p.label}`} style={({ pressed }) => [styles.preset, pressed && { backgroundColor: colors.surface3 }]}>
+              <Text style={type(14, p.label === "Body Text" || p.label === "Caption" ? "medium" : "bold")} numberOfLines={1} adjustsFontSizeToFit>
+                {p.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
       <Field label="Font">
-        <ChipChoice label="Font" options={EDITOR_FONTS.map((f) => ({ id: f, label: f }))} value={font} onChange={setFont} />
+        <ChipChoice label="Font" options={EDITOR_FONTS.map((f) => ({ id: f, label: f }))} value={current?.fontFamily ?? font} onChange={(f) => (setFont(f), patch({ fontFamily: f }))} />
       </Field>
       <Field label="Color">
         <View style={styles.swatches} accessibilityRole="radiogroup" accessibilityLabel="Text colour">
           {SWATCHES.map((s) => {
-            const on = s.color === color;
+            const on = s.color === (current?.color ?? color);
             return (
-              <Pressable key={s.name} onPress={() => setColor(s.color)} accessibilityRole="radio" aria-checked={on} accessibilityLabel={s.name} style={[styles.swatchRing, on && { borderColor: colors.fg }]}>
+              <Pressable key={s.name} onPress={() => (setColor(s.color), patch({ color: s.color }))} accessibilityRole="radio" aria-checked={on} accessibilityLabel={s.name} style={[styles.swatchRing, on && { borderColor: colors.fg }]}>
                 <View style={[styles.swatch, { backgroundColor: s.color }]} />
               </Pressable>
             );
@@ -406,8 +454,14 @@ export function TextPanel() {
         </View>
       </Field>
       <Field label="Animation">
-        <ChipChoice label="Animation" options={TEXT_ANIMATIONS} value={animation} onChange={setAnimation} />
+        <ChipChoice
+          label="Animation"
+          options={TEXT_ANIMATIONS}
+          value={current?.entrance?.type ?? animation}
+          onChange={(a) => (setAnimation(a as TextEntrancePreset), patch({ entrance: a === "none" ? null : { type: a as TextEntrancePreset, duration: 0.4, delay: 0 } }))}
+        />
       </Field>
+      {current ? <Button label="Done" variant="secondary" size="sm" fullWidth onPress={() => useEditor.getState().select(null)} /> : null}
     </PanelShell>
   );
 }
@@ -420,29 +474,36 @@ const LOOK_TABS = [
   { id: "transitions", label: "Transitions" },
 ] as const;
 const LOOK_PHOTOS: SampleImage[] = ["creator-smile", "dj-neon", "gym-lift", "travel-summit", "founder-portrait", "creator-golden", "clapper", "creator-violet", "studio-mic", "keynote-stage"];
+const LOOK_KEY = { effects: "effect", filters: "filter", transitions: "transitionOut" } as const;
 
 export function EffectsPanel() {
   const toast = useToast();
   const params = useLocalSearchParams<{ tab?: string }>();
   const [tab, setTab] = useState<(typeof LOOK_TABS)[number]["id"]>(params.tab === "filters" || params.tab === "transitions" ? params.tab : "effects");
-  const look = useEditor((s) => s.doc.look);
+  const doc = useEditor((s) => s.doc);
+  const selected = useEditor((s) => s.selected);
+  const playhead = useEditor((s) => s.playhead);
   const edit = useEditor((s) => s.edit);
-  const setLook = (patch: Partial<typeof look>) => edit((d) => ({ ...d, look: { ...d.look, ...patch } }));
+  // The look goes on the selected clip, else the one under the playhead.
+  const target = (selected?.track === "video" ? doc.tracks.video.find((c) => c.id === selected.id) : null) ?? videoClipAt(doc, playhead) ?? doc.tracks.video[0] ?? null;
 
   const list = tab === "effects" ? EDITOR_EFFECTS : tab === "filters" ? EDITOR_FILTERS : EDITOR_TRANSITIONS;
-  const key = tab === "effects" ? "effect" : tab === "filters" ? "filter" : "transition";
-  const current = look[key];
+  const key = LOOK_KEY[tab];
+  const current = (target?.[key] as string | undefined) ?? "none";
+  const apply = (id: string, to: "clip" | "all") => {
+    if (!target) return toast("Add a video clip first.", "info");
+    edit((d) => setLook(d, to === "all" ? "all" : [target.id], { [key]: id } as never));
+    if (to === "all") toast("Applied to every clip.", "success");
+  };
 
   return (
     <PanelShell
       panel="effects"
       footer={
-        tab !== "filters" ? (
-          <>
-            <Button label="Apply to clip" variant="secondary" size="md" onPress={() => toast("Applied to this clip.", "success")} style={{ flex: 1 }} />
-            <Button label="Apply to all" variant="secondary" size="md" onPress={() => toast("Applied to every clip.", "success")} style={{ flex: 1 }} />
-          </>
-        ) : undefined
+        <>
+          <Text style={[type(12, "regular", { color: colors.fgMuted }), { flex: 1 }]}>{target ? `On clip ${doc.tracks.video.indexOf(target) + 1} of ${doc.tracks.video.length}` : "No video yet"}</Text>
+          <Button label="Apply to all" variant="secondary" size="md" disabled={!target} onPress={() => apply(current, "all")} />
+        </>
       }
     >
       <BoxTabs label="Look" tabs={LOOK_TABS} value={tab} onChange={setTab} />
@@ -450,7 +511,7 @@ export function EffectsPanel() {
         {list.map((o, i) => {
           const on = o.id === current;
           return (
-            <Pressable key={o.id} onPress={() => setLook({ [key]: o.id })} accessibilityRole="radio" aria-checked={on} accessibilityLabel={o.label} style={styles.cell}>
+            <Pressable key={o.id} onPress={() => apply(o.id, "clip")} accessibilityRole="radio" aria-checked={on} accessibilityLabel={o.label} style={styles.cell}>
               <View style={[styles.lookThumb, on && styles.tileOn]}>
                 <Image source={sample(LOOK_PHOTOS[i % LOOK_PHOTOS.length] ?? "creator-smile")} style={StyleSheet.absoluteFill} contentFit="cover" />
               </View>
@@ -461,11 +522,7 @@ export function EffectsPanel() {
           );
         })}
       </View>
-      {tab === "effects" && look.effect !== "none" ? (
-        <Field label="Intensity" right={<Text style={type(13, "semibold", { mono: true })}>{look.effectIntensity}%</Text>}>
-          <Slider label="Effect intensity" value={look.effectIntensity} step={5} onChange={(effectIntensity) => setLook({ effectIntensity })} formatValue={(v) => `${v} percent`} />
-        </Field>
-      ) : null}
+      {tab !== "filters" ? <Text style={text.caption}>{tab === "effects" ? "Effects" : "Transitions"} show in the export; the preview here doesn’t animate them.</Text> : null}
     </PanelShell>
   );
 }

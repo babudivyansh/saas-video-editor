@@ -7,7 +7,9 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./timeline": "./src/editor/timeline.ts",
+    "./timeline-utils": "./src/editor/timeline-utils.ts"
   },
   "dependencies": {
     "zod": "^4.4.3"

@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button, Header, Icon, ProgressBar, useToast, type IconName } from "@/components";
-import { sample } from "@/lib/images";
+import { imageSource } from "@/lib/images";
 import { colors, radius, text, type } from "@/theme";
 import { errorMessage } from "@mocks/core";
 import { startExport } from "@mocks/editor";
@@ -34,6 +34,10 @@ export function ExportScreen() {
   const [dest, setDest] = useState<Dest>("device");
   const [progress, setProgress] = useState<number | null>(null);
   const duration = durationOf(doc);
+  const title = useEditor((s) => s.title);
+  const media = useEditor((s) => s.media);
+  const first = doc.tracks.video[0];
+  const cover = first ? (media[first.assetId]?.thumbnailUrl ?? null) : null;
 
   // Mock render progress until Phase 9 polls the real job.
   useEffect(() => {
@@ -65,12 +69,12 @@ export function ExportScreen() {
 
         <View style={styles.summary}>
           <View style={styles.thumb}>
-            <Image source={sample(doc.segments[0]?.photo ?? "creator-smile")} style={StyleSheet.absoluteFill} contentFit="cover" />
+            {cover ? <Image source={imageSource(cover)} style={StyleSheet.absoluteFill} contentFit="cover" /> : null}
             <Text style={styles.thumbTime}>{clock(duration, false)}</Text>
           </View>
           <View style={{ flex: 1, gap: 4 }}>
             <Text style={type(16, "bold")} numberOfLines={2}>
-              Nobody tells you this part
+              {title}
             </Text>
             <Text style={type(12, "regular", { color: colors.fgMuted })}>
               {doc.aspect} · {clock(duration, false)} · captions on

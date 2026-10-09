@@ -42,7 +42,8 @@ export const PROJECT_STATUS: Record<ProjectSummary["status"], { label: string; t
 };
 
 /** Where a project opens: drafts resume in the editor, the rest show their clips. */
-export const projectHref = (p: ProjectSummary): Href => (p.status === "draft" ? "/editor" : { pathname: "/projects/[projectId]", params: { projectId: p.id } });
+export const projectHref = (p: ProjectSummary): Href =>
+  p.kind === "editor" ? { pathname: "/editor", params: { projectId: p.id } } : { pathname: "/projects/[projectId]", params: { projectId: p.id } };
 
 const meta = (p: ProjectSummary) =>
   `${p.kind === "autoclip" ? "AutoClip" : "Editor"} · ${p.kind === "autoclip" ? `${p.clipCount} clip${p.clipCount === 1 ? "" : "s"}` : "1 video"} · ${whenEdited(p.updatedAt)}`;
@@ -117,7 +118,7 @@ export function ProjectsScreen() {
       <ProjectChips value="all" />
       {draft && !q && !firstLoad && !list.isError ? (
         <Pressable
-          onPress={() => router.push("/editor")}
+          onPress={() => router.push(projectHref(draft))}
           accessibilityRole="button"
           accessibilityLabel={`Continue editing ${draft.title}, ${draftProgress(draft.draftSteps ?? [])}% done`}
           style={({ pressed }) => [styles.resume, pressed && { backgroundColor: colors.surface3 }]}
