@@ -33,6 +33,7 @@ vi.mock("@/lib/job-routes", () => ({
 }));
 vi.mock("@/lib/with-rate-limit", () => ({ withRateLimit: (h: unknown) => h }));
 vi.mock("fs", () => ({ default: { writeFileSync: vi.fn(), unlinkSync: vi.fn() } }));
+vi.mock("@/lib/tool-results", () => ({ saveToolResult: vi.fn(async () => ({ url: null, assetId: null })) }));
 
 const { POST } = await import("./route");
 
@@ -65,5 +66,7 @@ describe("POST /api/tools/background-remover — effective upload policy", () =>
     const res = await POST(imageRequest(10 * 1024 * 1024));
     expect(res.status).not.toBe(413);
     expect(chargeCredits).toHaveBeenCalled();
+    // The Generation is what the phone app follows (GET /api/mobile/v1/jobs/gen_<id>).
+    expect(await res.json()).toMatchObject({ generationId: "g1" });
   });
 });

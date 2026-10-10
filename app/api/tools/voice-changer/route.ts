@@ -6,6 +6,7 @@ import { getMediaDurationSec } from "@/utils/ffmpeg-render";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { fetchElevenLabs, ElevenLabsHttpError } from "@/utils/elevenlabs";
 import { logger } from "@/lib/logger";
+import { saveToolResult } from "@/lib/tool-results";
 import { env } from "@/lib/env";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress } from "@/lib/credits";
 import { voiceFxCredits } from "@/lib/audio-pricing";
@@ -171,6 +172,18 @@ async function handlePOST(req: NextRequest) {
       job.progress = 95;
 
       fs.writeFileSync(outputPath, audioBuffer);
+      // The local file serves the web's download; this keeps the result past a
+      // restart, on the Generation and in the user's Assets.
+      await saveToolResult({
+        userId: job.userId,
+        generationId: job.generationId,
+        toolSlug: "voice-changer",
+        source: { buffer: audioBuffer },
+        mimeType: "audio/mpeg",
+        name: downloadName,
+        durationMs: Math.round(durationSec * 1000),
+        meta: { voice: voiceSlug },
+      });
       job.progress = 100;
       job.status = "done";
       if (job.generationId) {
@@ -203,7 +216,8 @@ async function handlePOST(req: NextRequest) {
   })();
 
   void markQuestComplete(auth.userId, "explore-toolbox");
-  return NextResponse.json({ jobId }, { status: 202 });
+  // generationId: the durable record a client can read after a restart.
+  return NextResponse.json({ jobId, generationId: charge.generationId }, { status: 202 });
 }
 
 export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy: "user", name: "tools:voice-changer" });

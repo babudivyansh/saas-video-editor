@@ -17,6 +17,10 @@ const web = {
   voiceover: vi.fn(),
   enhance: vi.fn(),
   vocal: vi.fn(),
+  voiceChanger: vi.fn(),
+  bgRemover: vi.fn(),
+  faceSwap: vi.fn(),
+  subtitles: vi.fn(),
 };
 vi.mock("@/app/api/projects/route", () => ({ POST: web.createProject }));
 vi.mock("@/app/api/projects/[id]/route", () => ({ PATCH: web.patchProject, DELETE: web.deleteProject }));
@@ -27,6 +31,10 @@ vi.mock("@/app/api/tools/image-generator/route", () => ({ POST: web.image }));
 vi.mock("@/app/api/tools/voiceover/route", () => ({ POST: web.voiceover }));
 vi.mock("@/app/api/tools/enhance-speech/route", () => ({ POST: web.enhance }));
 vi.mock("@/app/api/tools/vocal-remover/route", () => ({ POST: web.vocal }));
+vi.mock("@/app/api/tools/voice-changer/route", () => ({ POST: web.voiceChanger }));
+vi.mock("@/app/api/tools/background-remover/route", () => ({ POST: web.bgRemover }));
+vi.mock("@/app/api/tools/face-swap/route", () => ({ POST: web.faceSwap }));
+vi.mock("@/app/api/tools/subtitle-remover/route", () => ({ POST: web.subtitles }));
 vi.mock("@/lib/auth", () => ({ getAuthUser: vi.fn(async () => ({ userId: "u1", email: "m@x.co", sessionId: "s1" })), convertToMobileSession: vi.fn(), verifyToken: vi.fn() }));
 const assetFindFirst = vi.fn();
 vi.mock("@/lib/prisma", () => ({ prisma: { asset: { findFirst: assetFindFirst } } }));
@@ -105,7 +113,7 @@ describe("tools and export", () => {
   });
 
   it("feeds an audio tool the caller's own asset as a file", async () => {
-    assetFindFirst.mockResolvedValue({ name: "take3.mp3", s3Key: "uploads/u1/take3.mp3", mimeType: "audio/mpeg", size: 1000 });
+    assetFindFirst.mockResolvedValue({ name: "take3.mp3", s3Key: "uploads/u1/take3.mp3", mimeType: "audio/mpeg", size: 1000, kind: "audio" });
     vi.stubGlobal("fetch", vi.fn(async () => new Response(new Uint8Array([1, 2, 3]))));
     web.enhance.mockResolvedValue(json({ jobId: "mem-2", generationId: "g2" }, 202));
     const res = await POST(req({ type: "enhance-speech", assetId: "a2", idempotencyKey: "k-12345678" }));
@@ -113,6 +121,41 @@ describe("tools and export", () => {
     const form = await (web.enhance.mock.calls[0]![0] as NextRequest).formData();
     const file = form.get("file") as File;
     expect([file.name, file.type, file.size, form.get("idempotencyKey")]).toEqual(["take3.mp3", "audio/mpeg", 3, "k-12345678"]);
+    vi.unstubAllGlobals();
+  });
+
+  it("sends the voice changer the recording, the voice and its settings", async () => {
+    assetFindFirst.mockResolvedValue({ name: "take3.mp3", s3Key: "uploads/u1/take3.mp3", mimeType: "audio/mpeg", size: 1000, kind: "audio" });
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(new Uint8Array([1, 2, 3]))));
+    web.voiceChanger.mockResolvedValue(json({ jobId: "mem-3", generationId: "g3" }, 202));
+    const res = await POST(req({ type: "voice-changer", assetId: "a2", voiceId: "aria", removeNoise: true, speed: 1.1 }));
+    expect(await res.json()).toEqual({ jobId: "gen_g3" });
+    const form = await (web.voiceChanger.mock.calls[0]![0] as NextRequest).formData();
+    expect([(form.get("audio") as File).name, form.get("voiceSlug"), form.get("removeNoise"), form.get("speed")]).toEqual(["take3.mp3", "aria", "true", "1.1"]);
+    vi.unstubAllGlobals();
+  });
+
+  it("gives face swap both photos, the face first", async () => {
+    assetFindFirst.mockImplementation(async ({ where }: { where: { id: string } }) => ({ name: `${where.id}.jpg`, s3Key: `uploads/u1/${where.id}.jpg`, mimeType: "image/jpeg", size: 10, kind: "image" }));
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(new Uint8Array([1]))));
+    web.faceSwap.mockResolvedValue(json({ jobId: "mem-4", generationId: "g4" }));
+    const res = await POST(req({ type: "face-swap", faceAssetId: "me", targetAssetId: "poster" }));
+    expect(await res.json()).toEqual({ jobId: "gen_g4" });
+    const form = await (web.faceSwap.mock.calls[0]![0] as NextRequest).formData();
+    expect([(form.get("characterImage") as File).name, (form.get("targetImage") as File).name]).toEqual(["me.jpg", "poster.jpg"]);
+    vi.unstubAllGlobals();
+  });
+
+  it("refuses the wrong kind of file, and says which plan a tool needs", async () => {
+    assetFindFirst.mockResolvedValue({ name: "song.mp3", s3Key: "k", mimeType: "audio/mpeg", size: 10, kind: "audio" });
+    let res = await POST(req({ type: "background-remover", assetId: "a1" }));
+    expect([res.status, (await res.json()).code]).toEqual([400, "wrong_kind"]);
+    expect(web.bgRemover).not.toHaveBeenCalled();
+    assetFindFirst.mockResolvedValue({ name: "talk.mp4", s3Key: "k", mimeType: "video/mp4", size: 10, kind: "video" });
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(new Uint8Array([1]))));
+    web.subtitles.mockResolvedValue(json({ error: "Subtitle Remover requires the pro plan or higher.", requiredTier: "pro", upgradeUrl: "/pricing" }, 403));
+    res = await POST(req({ type: "subtitle-remover", assetId: "v1" }));
+    expect([res.status, await res.json()]).toEqual([403, { error: "Subtitle Remover requires the pro plan or higher.", code: "plan_required", requiredTier: "pro" }]);
     vi.unstubAllGlobals();
   });
 

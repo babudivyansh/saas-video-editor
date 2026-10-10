@@ -53,7 +53,7 @@ describe("assets", () => {
       name: { contains: "ep42", mode: "insensitive" },
       isFavorite: true,
       folderId: null,
-      sourceFeature: { in: ["image-generator", "voiceover", "enhance-speech", "vocal-remover"] },
+      sourceFeature: { in: ["image-generator", "voiceover", "enhance-speech", "vocal-remover", "voice-changer", "background-remover", "face-swap", "subtitle-remover"] },
     });
     await listAssets("u1", { ...q, archived: true });
     expect(assetFindMany.mock.calls[1]![0].where).toEqual({ userId: "u1", archivedAt: { not: null } });
@@ -82,7 +82,7 @@ describe("sort, total and counts", () => {
     const page = await listAssets("u1", { kind: null, folderId: null, favorites: false, archived: false, ai: false, noAi: true, q: "", sort: "duration", cursor: null });
     const call = assetFindMany.mock.calls[0]![0];
     expect(call.orderBy[0]).toEqual({ duration: { sort: "desc", nulls: "last" } });
-    expect(call.where.sourceFeature).toEqual({ notIn: ["image-generator", "voiceover", "enhance-speech", "vocal-remover"] });
+    expect(call.where.sourceFeature).toEqual({ notIn: ["image-generator", "voiceover", "enhance-speech", "vocal-remover", "voice-changer", "background-remover", "face-swap", "subtitle-remover"] });
     expect(assetCount.mock.calls[0]![0].where).toBe(call.where);
     expect(page.total).toBe(57);
   });

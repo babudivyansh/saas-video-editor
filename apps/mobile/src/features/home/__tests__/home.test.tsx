@@ -13,6 +13,7 @@ const routes = {
   assistant: AssistantScreen,
   "create/ai-media": () => null,
   "create/autoclip": () => null,
+  "create/tool/[tool]": () => null,
   "projects/videos-reels-shorts": () => null,
 };
 const open = (url: string) => renderRouter(routes, { initialUrl: url, wrapper: makeWrapper() });
@@ -61,9 +62,15 @@ describe("Home", () => {
     expect(r.getSearchParams()).toMatchObject({ tab: "image" });
   });
 
-  it("shows the coming-soon toast for a tool without a screen", async () => {
-    open("/home");
+  it("opens the file tools on their own screen", async () => {
+    const r = open("/home");
     fireEvent.press(await screen.findByRole("button", { name: "Voice Changer" }));
+    await waitFor(() => expect(r.getPathname()).toBe("/create/tool/voice-changer"));
+  });
+
+  it("shows the coming-soon toast for a tool without a screen", async () => {
+    open("/home/recommended-tools");
+    fireEvent.press((await screen.findAllByRole("button", { name: /^AI Brainstormer./ }))[0]!);
     expect(await screen.findByText(/Coming to the app soon/)).toBeOnTheScreen();
   });
 });

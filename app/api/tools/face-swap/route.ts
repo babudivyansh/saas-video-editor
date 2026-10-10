@@ -9,6 +9,7 @@ import { fal } from "@fal-ai/client";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { withRetry } from "@/lib/with-retry";
 import { logger } from "@/lib/logger";
+import { saveToolResult } from "@/lib/tool-results";
 import { env } from "@/lib/env";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress, checkModelAccess } from "@/lib/credits";
 import { resolveUploadPolicy, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
@@ -214,7 +215,11 @@ async function handlePOST(req: NextRequest) {
 
       const dlRes = await fetch(resultUrl);
       if (!dlRes.ok) throw new Error("Failed to download result");
-      fs.writeFileSync(outputPath, Buffer.from(await dlRes.arrayBuffer()));
+      const swapped = Buffer.from(await dlRes.arrayBuffer());
+      fs.writeFileSync(outputPath, swapped);
+      // The local file serves the web's download; this keeps the result past a
+      // restart, on the Generation and in the user's Assets.
+      await saveToolResult({ userId: auth.userId, generationId: job.generationId, toolSlug: "face-swap", source: { buffer: swapped }, mimeType: "image/jpeg", name: `face-swap-${Date.now()}.jpg` });
 
       job.progress = 100;
       job.status = "done";
@@ -244,7 +249,8 @@ async function handlePOST(req: NextRequest) {
   })();
 
   void markQuestComplete(auth.userId, "explore-toolbox");
-  return NextResponse.json({ jobId });
+  // generationId: the durable record a client can read after a restart.
+  return NextResponse.json({ jobId, generationId: charge.generationId });
 }
 
 export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy: "user", name: "tools:face-swap" });

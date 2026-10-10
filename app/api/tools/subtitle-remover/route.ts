@@ -5,6 +5,8 @@ import { runFFmpegArgs, runFFmpegWithProgress, getMediaDurationSec } from "@/uti
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { withRetry } from "@/lib/with-retry";
 import { logger } from "@/lib/logger";
+import { saveToolResult } from "@/lib/tool-results";
+import { subtitleRemoverCredits } from "@/lib/subtitle-remover-pricing";
 import { env } from "@/lib/env";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress, checkModelAccess } from "@/lib/credits";
 import { resolveUploadPolicy, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
@@ -30,16 +32,8 @@ const MAX_CLUSTERS = 8;
 // with dozens of simultaneous requests for a single job.
 const OCR_CONCURRENCY = 4;
 
-// Credits scale with video duration (a rough proxy for how many OCR calls a
-// job makes, since sampling is capped/evenly-spaced across the duration) —
-// TODO verify-before-ship: this app's fal.ai account had an exhausted
-// balance during implementation, so the exact per-call cost of
-// fal-ai/florence-2-large/ocr could not be confirmed live. Revisit this
-// once real pricing is confirmable; this is a conservative placeholder, not
-// a measured cost.
-function creditCostForDuration(durationSec: number): number {
-  return Math.max(2, Math.min(20, Math.ceil(durationSec / 10)));
-}
+// Credits scale with video duration: lib/subtitle-remover-pricing.ts.
+const creditCostForDuration = subtitleRemoverCredits;
 
 interface DetectedRegion { x: number; y: number; w: number; h: number; t: number }
 interface SubtitleCluster { x: number; y: number; w: number; h: number; startSec: number; endSec: number }
@@ -308,6 +302,10 @@ async function handlePOST(req: NextRequest) {
 
       if ((job.status as string) === "cancelled") return;
 
+      // The local file serves the web's download; this keeps the result past a
+      // restart, on the Generation and in the user's Assets.
+      await saveToolResult({ userId: job.userId, generationId: job.generationId, toolSlug: "subtitle-remover", source: { filePath: outputPath }, mimeType: "video/mp4", name: downloadName, durationMs: Math.round(durationSec * 1000) });
+
       job.progress = 100;
       job.status = "done";
       if (job.generationId) {
@@ -331,7 +329,8 @@ async function handlePOST(req: NextRequest) {
     }
   })();
 
-  return NextResponse.json({ jobId }, { status: 202 });
+  // generationId: the durable record a client can read after a restart.
+  return NextResponse.json({ jobId, generationId: charge.generationId }, { status: 202 });
 }
 
 export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy: "user", name: "tools:subtitle-remover" });

@@ -1,9 +1,10 @@
 import { randomUUID } from "crypto";
+import fs from "fs";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { AssetLimitError, adoptExistingS3Object } from "@/lib/asset-service";
 import { parseS3Url } from "@/lib/s3-url";
-import { uploadBufferToS3 } from "@/utils/s3-upload";
+import { uploadBufferToS3, uploadFileToS3 } from "@/utils/s3-upload";
 
 // What an AI tool job made, saved where it outlives the job (2026-10, mobile
 // Phase 5.5). The tool routes keep their job in a `globalThis` Map that a
@@ -16,14 +17,14 @@ import { uploadBufferToS3 } from "@/utils/s3-upload";
 // failure here is logged and never turns into a failed, refunded job. Over the
 // storage quota, the result is still recorded, just not added to the library.
 
-export type ToolResultSlug = "image-generator" | "voiceover" | "enhance-speech" | "vocal-remover";
+export type ToolResultSlug = "image-generator" | "voiceover" | "enhance-speech" | "vocal-remover" | "voice-changer" | "background-remover" | "face-swap" | "subtitle-remover";
 
 export interface ToolResultInput {
   userId: string;
   generationId?: string | null;
   toolSlug: ToolResultSlug;
-  /** An object already in our bucket, or bytes to store. */
-  source: { s3Url: string } | { buffer: Buffer };
+  /** An object already in our bucket, bytes to store, or a file on disk to stream up (videos). */
+  source: { s3Url: string } | { buffer: Buffer } | { filePath: string };
   mimeType: string;
   /** File name in the library ("neon city.png"). */
   name: string;
@@ -37,7 +38,7 @@ export interface ToolResult {
   assetId: string | null;
 }
 
-const EXT: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "audio/mpeg": "mp3", "audio/wav": "wav" };
+const EXT: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "audio/mpeg": "mp3", "audio/wav": "wav", "video/mp4": "mp4" };
 
 export async function saveToolResult(o: ToolResultInput): Promise<ToolResult> {
   let url: string | null = null;
@@ -48,6 +49,10 @@ export async function saveToolResult(o: ToolResultInput): Promise<ToolResult> {
       const key = `tool-results/${o.userId}/${randomUUID()}.${EXT[o.mimeType] ?? "bin"}`;
       url = await uploadBufferToS3(o.source.buffer, key, o.mimeType, o.name);
       size = o.source.buffer.length;
+    } else if ("filePath" in o.source) {
+      const key = `tool-results/${o.userId}/${randomUUID()}.${EXT[o.mimeType] ?? "bin"}`;
+      url = await uploadFileToS3(o.source.filePath, key, o.mimeType);
+      size = fs.statSync(o.source.filePath).size;
     } else {
       url = o.source.s3Url;
     }

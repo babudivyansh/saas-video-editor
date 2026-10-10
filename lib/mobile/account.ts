@@ -255,9 +255,17 @@ function staticPlan(p: (typeof PLANS)[number]) {
   };
 }
 
+/**
+ * Web-only tools the app never lists, not even as "coming soon": Google Play
+ * removes apps that download from YouTube (decision 2026-10-10), and the
+ * Instagram one goes with it. Their names stay in TOOL_NAMES for usage history.
+ */
+const NOT_IN_APP = new Set(["youtube-downloader", "instagram-downloader"]);
+
 export async function buildTools(): Promise<Tool[]> {
   const config = await getAllToolConfigs();
   return TOOL_CATALOG.flatMap<Tool>(({ per, from, ...t }) => {
+    if (NOT_IN_APP.has(t.id)) return [];
     if (t.id === "autoclip") return [{ ...t, cost: { kind: "clipMinutes" as const }, requiredTier: null }];
     const live = config[t.id];
     if (live && !live.enabled) return [];

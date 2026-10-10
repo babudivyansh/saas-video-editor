@@ -5,9 +5,13 @@ import { POST as webAutoClip } from "@/app/api/generate/auto-clip/route";
 import { DELETE as webProjectDelete, PATCH as webProjectPatch } from "@/app/api/projects/[id]/route";
 import { POST as webImportUrl } from "@/app/api/projects/[id]/import-url/route";
 import { POST as webCreateProject } from "@/app/api/projects/route";
+import { POST as webBackgroundRemover } from "@/app/api/tools/background-remover/route";
 import { POST as webEnhanceSpeech } from "@/app/api/tools/enhance-speech/route";
+import { POST as webFaceSwap } from "@/app/api/tools/face-swap/route";
 import { POST as webImage } from "@/app/api/tools/image-generator/route";
+import { POST as webSubtitleRemover } from "@/app/api/tools/subtitle-remover/route";
 import { POST as webVocalRemover } from "@/app/api/tools/vocal-remover/route";
+import { POST as webVoiceChanger } from "@/app/api/tools/voice-changer/route";
 import { POST as webVoiceover } from "@/app/api/tools/voiceover/route";
 import type { TokenPayload } from "@/lib/auth";
 import { callWeb, callWebForm, mobileError, mobileJson, parseBody, webError, withMobileAuth } from "@/lib/mobile/http";
@@ -127,20 +131,71 @@ async function startAutoClip(req: NextRequest, auth: TokenPayload, b: Input<"aut
 // this only stops a huge file being pulled into memory first.
 const MAX_TOOL_INPUT_BYTES = 100 * 1024 * 1024;
 
-/** The audio tools take a multipart file: feed them the asset the app already uploaded. */
-async function startAudioTool(req: NextRequest, auth: TokenPayload, b: Input<"enhance-speech"> | Input<"vocal-remover">): Promise<Result> {
+type FileTool = Input<"enhance-speech" | "vocal-remover" | "voice-changer" | "background-remover" | "face-swap" | "subtitle-remover">;
+type AssetKindName = "audio" | "video" | "image";
+
+/** What each file tool takes from Assets, and the web route and form field it goes to. */
+const FILE_TOOLS: Record<FileTool["type"], { route: (req: NextRequest) => Promise<Response>; kinds: AssetKindName[]; noun: string }> = {
+  "enhance-speech": { route: webEnhanceSpeech, kinds: ["audio", "video"], noun: "an audio or video file" },
+  "vocal-remover": { route: webVocalRemover, kinds: ["audio", "video"], noun: "an audio or video file" },
+  "voice-changer": { route: webVoiceChanger, kinds: ["audio"], noun: "an audio file" },
+  "background-remover": { route: webBackgroundRemover, kinds: ["image"], noun: "an image" },
+  "face-swap": { route: webFaceSwap, kinds: ["image"], noun: "an image" },
+  "subtitle-remover": { route: webSubtitleRemover, kinds: ["video"], noun: "a video" },
+};
+
+/** One file from the caller's Assets, read for a web tool route (which takes multipart). */
+async function readAsset(userId: string, assetId: string, kinds: AssetKindName[], noun: string): Promise<File | Response> {
   const asset = await prisma.asset.findFirst({
-    where: { id: b.assetId, userId: auth.userId, kind: { in: ["audio", "video"] }, archivedAt: null },
-    select: { name: true, s3Key: true, mimeType: true, size: true },
+    where: { id: assetId, userId, archivedAt: null },
+    select: { name: true, s3Key: true, mimeType: true, size: true, kind: true },
   });
-  if (!asset) return { ok: false, res: mobileError(404, "File not found in your Assets") };
-  if (asset.size > MAX_TOOL_INPUT_BYTES) return { ok: false, res: mobileError(413, "That file is too long for this tool. Trim it first.") };
+  if (!asset) return mobileError(404, "File not found in your Assets");
+  if (!kinds.includes(asset.kind as AssetKindName)) return mobileError(400, `This tool needs ${noun}.`, { code: "wrong_kind" });
+  if (Number(asset.size) > MAX_TOOL_INPUT_BYTES) return mobileError(413, "That file is too big for this tool on the phone.");
   const file = await fetch(await getPresignedUrl(asset.s3Key));
-  if (!file.ok) return { ok: false, res: mobileError(502, "Couldn't read that file. Try again.") };
+  if (!file.ok) return mobileError(502, "Couldn't read that file. Try again.");
+  return new File([await file.arrayBuffer()], asset.name, { type: asset.mimeType });
+}
+
+/**
+ * The file tools take multipart uploads: feed them what the app already put
+ * in Assets. A plan gate (Face swap, Subtitle remover: Pro and up) comes back
+ * as 403 code "plan_required" with the plan it needs.
+ */
+async function startFileTool(req: NextRequest, auth: TokenPayload, b: FileTool): Promise<Result> {
+  const spec = FILE_TOOLS[b.type];
   const form = new FormData();
-  form.append("file", new File([await file.arrayBuffer()], asset.name, { type: asset.mimeType }));
+  const add = async (field: string, assetId: string) => {
+    const f = await readAsset(auth.userId, assetId, spec.kinds, spec.noun);
+    if (f instanceof Response) return f;
+    form.append(field, f);
+    return null;
+  };
+  let refused: Response | null;
+  switch (b.type) {
+    case "voice-changer":
+      refused = await add("audio", b.assetId);
+      form.append("voiceSlug", b.voiceId);
+      form.append("removeNoise", String(b.removeNoise));
+      form.append("speed", String(b.speed));
+      break;
+    case "face-swap":
+      refused = (await add("characterImage", b.faceAssetId)) ?? (await add("targetImage", b.targetAssetId));
+      break;
+    case "subtitle-remover":
+      refused = await add("video", b.assetId);
+      break;
+    default:
+      refused = await add("file", b.assetId);
+  }
+  if (refused) return { ok: false, res: refused };
   if (b.idempotencyKey) form.append("idempotencyKey", b.idempotencyKey);
-  return toolJob(await callWebForm(b.type === "enhance-speech" ? webEnhanceSpeech : webVocalRemover, req, form));
+  const r = await callWebForm(spec.route, req, form);
+  if (r.status === 403 && typeof r.json.requiredTier === "string") {
+    return { ok: false, res: mobileError(403, String(r.json.error ?? "This tool needs a higher plan."), { code: "plan_required", requiredTier: r.json.requiredTier }) };
+  }
+  return toolJob(r);
 }
 
 export const POST = withMobileAuth(async (req: NextRequest, auth) => {
@@ -165,7 +220,11 @@ export const POST = withMobileAuth(async (req: NextRequest, auth) => {
       break;
     case "enhance-speech":
     case "vocal-remover":
-      result = await startAudioTool(req, auth, b);
+    case "voice-changer":
+    case "background-remover":
+    case "face-swap":
+    case "subtitle-remover":
+      result = await startFileTool(req, auth, b);
       break;
   }
   return result.ok ? mobileJson({ jobId: result.jobId }, 202) : result.res;

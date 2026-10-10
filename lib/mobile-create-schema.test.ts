@@ -3,7 +3,9 @@ import {
   AUTOCLIP_LIMITS,
   IMAGE_MODEL_CATALOG as MOBILE_MODELS,
   DEFAULT_IMAGE_MODEL_ID,
+  FILE_TOOLS,
   audioToolCredits,
+  fileToolCredits,
   autoClipMinutes,
   isAllowedSourceUrl,
   voiceoverCredits,
@@ -13,6 +15,9 @@ import { voiceFxCredits, vocalRemoverCredits, voiceoverCredits as webVoiceoverCr
 import { billableSourceMinutes } from "./autoclip-pricing";
 import { DEFAULT_IMAGE_MODEL_ID as WEB_DEFAULT_MODEL, IMAGE_MODELS } from "./models/imageModels";
 import { MAX_UPLOAD_BYTES_BY_TIER, TIER_MAX_AUTOCLIP_SOURCE_SECONDS } from "./plans/tiers";
+import { subtitleRemoverCredits } from "./subtitle-remover-pricing";
+import { TOOL_COSTS } from "./tool-costs";
+import { FEATURE_TECHNICAL_MAX_BYTES } from "./upload-policy";
 import { isAllowedSourceUrl as webIsAllowedSourceUrl } from "./url-import";
 
 // The phone app copies these rules into @clipiro/shared so it can check input and show prices offline. If the web
@@ -56,6 +61,20 @@ describe("mobile Create rules match the web", () => {
     for (const sec of [1, 29, 30, 31, 89, 90, 300]) {
       expect(audioToolCredits("enhance", sec)).toBe(voiceFxCredits(sec));
       expect(audioToolCredits("vocal", sec)).toBe(vocalRemoverCredits(sec));
+    }
+  });
+
+  it("prices, limits and gates the file tools as their web routes do", () => {
+    for (const sec of [1, 9, 10, 11, 59, 90, 200, 600]) {
+      expect(fileToolCredits("voice-changer", sec)).toBe(voiceFxCredits(sec));
+      expect(fileToolCredits("subtitle-remover", sec)).toBe(subtitleRemoverCredits(sec));
+    }
+    expect(fileToolCredits("background-remover", 0)).toBe(TOOL_COSTS["background-remover"]!.creditCost);
+    expect(fileToolCredits("face-swap", 0)).toBe(TOOL_COSTS["face-swap"]!.creditCost);
+    for (const id of Object.keys(FILE_TOOLS) as (keyof typeof FILE_TOOLS)[]) {
+      // The phone never sends more than the server reads into memory (100 MB).
+      expect(FILE_TOOLS[id].maxBytes).toBe(Math.min(FEATURE_TECHNICAL_MAX_BYTES[id], 100 * 1024 * 1024));
+      expect(FILE_TOOLS[id].minPlan).toBe(TOOL_COSTS[id]!.requiredTier ?? "free");
     }
   });
 

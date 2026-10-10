@@ -59,7 +59,11 @@ export type SourceFeature =
   | "image-generator"
   | "voiceover"
   | "enhance-speech"
-  | "vocal-remover";
+  | "vocal-remover"
+  | "voice-changer"
+  | "background-remover"
+  | "face-swap"
+  | "subtitle-remover";
 
 export interface AdoptResult {
   asset: Asset & { url: string };

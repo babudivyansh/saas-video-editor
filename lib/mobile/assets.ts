@@ -1,5 +1,5 @@
 import type { Prisma } from "@prisma/client";
-import { AI_SOURCES, type Asset, type AssetKind, type AssetSort, type AssetSource } from "@clipiro/shared";
+import { AI_SOURCES, assetSourceSchema, type Asset, type AssetKind, type AssetSort, type AssetSource } from "@clipiro/shared";
 import { serializeAssets, type SerializedAsset } from "@/lib/asset-serialize";
 import { IMAGE_MODELS } from "@/lib/models/imageModels";
 import { prisma } from "@/lib/prisma";
@@ -9,7 +9,7 @@ import { prisma } from "@/lib/prisma";
 // then put in the app's shape.
 
 const PAGE = 50;
-const SOURCES: readonly AssetSource[] = ["upload", "autoclip", "url-import", "editor", "stock", "image-generator", "voiceover", "enhance-speech", "vocal-remover"];
+const SOURCES: readonly AssetSource[] = assetSourceSchema.options;
 export const UPLOAD_PART_BYTES = 10 * 1024 * 1024; // the web uploader's part size
 
 /** Web Asset.sourceFeature → the app's; anything else (avatar, legacy video tools) shows as an upload. */

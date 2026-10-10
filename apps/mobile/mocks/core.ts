@@ -29,6 +29,8 @@ const scenarios = new Map<string, MockScenario>();
 export function setMockScenario(area: string, scenario: MockScenario) {
   scenarios.set(area, scenario);
 }
+/** The scenario an area is set to, for fixtures that depend on another area's (a tool's plan gate on "account"). */
+export const scenarioOf = (area: string): MockScenario => scenarios.get(area) ?? "ok";
 export function resetMockScenarios() {
   scenarios.clear();
 }

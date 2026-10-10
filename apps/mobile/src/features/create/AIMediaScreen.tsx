@@ -1,57 +1,29 @@
 import {
-  ApiError,
   AUDIO_TOOLS,
-  assetUploadProblem,
   audioToolCredits,
   DEFAULT_IMAGE_MODEL_ID,
   MAX_PROMPT_CHARS,
   PLAN_LABEL,
   VOICEOVER_MAX_CHARS,
-  formatBytes,
   imageGenerateRequest,
   planAtLeast,
   voiceoverCredits,
   voiceoverRequest,
-  type Asset,
   type AudioToolId,
   type ImageModel,
-  type Job,
   type ImageRatio,
 } from "@clipiro/shared";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import * as DocumentPicker from "expo-document-picker";
-import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import {
-  BottomSheet,
-  Button,
-  Chip,
-  CreditsPill,
-  Header,
-  Icon,
-  OptionList,
-  ProgressBar,
-  SectionHeader,
-  Skeleton,
-  StatusBarScrim,
-  UnderlineTabs,
-  useToast,
-} from "@/components";
-import { assets, createTools, jobs } from "@/lib/api";
+import { BottomSheet, Button, Chip, CreditsPill, Header, Icon, OptionList, Skeleton, StatusBarScrim, UnderlineTabs, useToast } from "@/components";
+import { createTools, jobs } from "@/lib/api";
 import { apiErrorMessage } from "@/lib/errors";
-import { imageSource } from "@/lib/images";
-import { pollMs } from "@/lib/poll";
-import { colors, derived, radius, text, type } from "@/theme";
-import { probeDuration } from "@/lib/probe";
-import { useAssetStorage, usePlanTier } from "../assets/queries";
+import { colors, radius, text, type } from "@/theme";
 import { usePlayer } from "../assets/AudioRow";
-import { mmss } from "../projects/format";
-import { uploadToAssets } from "./toolUpload";
-import type { UploadFile } from "./upload";
-import { createKeys, useCreateContext, useImageModels, useRecentResults, useVoices } from "./queries";
+import { useCreateContext, useImageModels, useVoices } from "./queries";
+import { ActionBar, FileCard, newKey, Results, useFileInput, useToolJob, Working } from "./toolKit";
 
 type Tab = "image" | "voiceover" | "enhance" | "vocal";
 const TABS = [
@@ -97,177 +69,6 @@ export function AIMediaScreen() {
 }
 
 // ── Shared pieces ─────────────────────────────────────────────────────────
-
-function ActionBar({ cost, label, onPress, loading, disabled }: { cost: string; label: string; onPress: () => void; loading?: boolean; disabled?: boolean }) {
-  const insets = useSafeAreaInsets();
-  return (
-    <View style={[styles.bar, { paddingBottom: insets.bottom + 12 }]}>
-      <View style={{ flexShrink: 0 }}>
-        <Text style={type(11, "regular", { color: colors.fgSubtle })}>Cost</Text>
-        <Text style={type(14, "bold")}>{cost}</Text>
-      </View>
-      <Button label={label} onPress={onPress} loading={loading} disabled={disabled} style={{ flex: 1 }} />
-    </View>
-  );
-}
-
-/** Not enough AI credits for a tool: what it costs, what's left, and where to get more. */
-type Shortfall = { cost: number; balance: number | null };
-
-/**
- * Runs one AI tool job (POST /jobs, then polls it) the way every tab does:
- * progress while it works, the result saved in Assets → AI Assets, a refusal
- * for credits turned into the shortfall sheet. Resolves with the finished job,
- * or null when it didn't finish (already explained to the person).
- */
-function useToolJob(cost: number) {
-  const toast = useToast();
-  const qc = useQueryClient();
-  const ctx = useCreateContext();
-  const [progress, setProgress] = useState<number | null>(null);
-  const [shortfall, setShortfall] = useState<Shortfall | null>(null);
-
-  const run = async (start: () => Promise<{ jobId: string }>): Promise<Job | null> => {
-    if (ctx.data && ctx.data.aiCredits < cost) {
-      setShortfall({ cost, balance: ctx.data.aiCredits });
-      return null;
-    }
-    setProgress(0);
-    try {
-      const { jobId } = await start();
-      const job = await jobs.waitFor(jobId, { intervalMs: pollMs.tool, onProgress: (j) => setProgress(j.progress) });
-      if (job.status === "failed") {
-        toast(job.error ?? "That didn’t work. Your credits were refunded.", "error");
-        return null;
-      }
-      return job;
-    } catch (e) {
-      if (e instanceof ApiError && e.status === 402) setShortfall({ cost, balance: ctx.data?.aiCredits ?? null });
-      else toast(apiErrorMessage(e), "error");
-      return null;
-    } finally {
-      setProgress(null);
-      // Balances moved (charged, or refunded), and AI Assets has something new.
-      void qc.invalidateQueries({ queryKey: createKeys.context });
-      void qc.invalidateQueries({ queryKey: ["assets"] });
-    }
-  };
-  const sheet = <ShortfallSheet shortfall={shortfall} onClose={() => setShortfall(null)} />;
-  return { run, progress, busy: progress != null, sheet };
-}
-
-function ShortfallSheet({ shortfall, onClose }: { shortfall: Shortfall | null; onClose: () => void }) {
-  return (
-    <BottomSheet visible={!!shortfall} onClose={onClose} title="Not enough AI credits">
-      {shortfall ? (
-        <Text style={text.body}>
-          This needs {shortfall.cost} AI credit{shortfall.cost === 1 ? "" : "s"}
-          {shortfall.balance != null ? ` and you have ${shortfall.balance}` : ""}. Top up, or upgrade for more each month.
-        </Text>
-      ) : null}
-      <Button label="Get AI credits" fullWidth onPress={() => (onClose(), router.push("/you/credits"))} />
-      <Button label="Not now" variant="ghost" fullWidth onPress={onClose} />
-    </BottomSheet>
-  );
-}
-
-function Working({ progress, label }: { progress: number; label: string }) {
-  return (
-    <View style={styles.working} accessibilityLiveRegion="polite">
-      <Text style={type(14, "semibold")}>{label}</Text>
-      <ProgressBar value={progress} label={`${label} progress`} />
-      <Text style={text.caption}>It’s saved to Assets when it’s done, so you can leave this screen.</Text>
-    </View>
-  );
-}
-
-function Results({ kind, title }: { kind: "image" | "audio"; title: string }) {
-  const results = useRecentResults(kind);
-  const qc = useQueryClient();
-  const playing = usePlayer((s) => s.playing);
-  const toggle = async (m: Asset) => {
-    const key = createKeys.results(kind);
-    qc.setQueryData<Asset[]>(key, (list) => list?.map((x) => (x.id === m.id ? { ...x, favorite: !m.favorite } : x)));
-    try {
-      await assets.update(m.id, { favorite: !m.favorite });
-    } catch {
-      void qc.invalidateQueries({ queryKey: key });
-    }
-  };
-  return (
-    <View style={{ gap: 4 }}>
-      <SectionHeader title={title} action={{ label: "Saved to Assets", onPress: () => router.push("/projects/assets/ai-assets") }} />
-      {results.isPending ? (
-        <View style={styles.grid}>
-          <View style={{ flex: 1 }}>
-            <Skeleton height={kind === "image" ? 200 : 64} rounded={16} />
-          </View>
-          {kind === "image" ? (
-            <View style={{ flex: 1 }}>
-              <Skeleton height={200} rounded={16} />
-            </View>
-          ) : null}
-        </View>
-      ) : results.isError ? (
-        <View style={styles.inlineError}>
-          <Text style={[text.caption, { flex: 1 }]}>Couldn’t load your results.</Text>
-          <Button label="Try again" variant="ghost" size="md" icon="refresh" iconPosition="start" onPress={() => results.refetch()} />
-        </View>
-      ) : results.data.length === 0 ? (
-        <Text style={[text.caption, { paddingVertical: 12 }]}>
-          {kind === "image" ? "Your images will show up here, and in Assets." : "Your audio will show up here, and in Assets."}
-        </Text>
-      ) : kind === "image" ? (
-        <View style={styles.wrapGrid}>
-          {results.data.slice(0, 6).map((m) => (
-            <View key={m.id} style={styles.imageCard} accessible accessibilityLabel={`Generated image: ${m.name}`}>
-              {m.thumbnailUrl ?? m.url ? <Image source={imageSource((m.thumbnailUrl ?? m.url)!)} style={StyleSheet.absoluteFill} contentFit="cover" /> : null}
-              <Star on={m.favorite} onPress={() => void toggle(m)} />
-            </View>
-          ))}
-        </View>
-      ) : (
-        <View style={{ gap: 8 }}>
-          {results.data.slice(0, 5).map((m) => (
-            <View key={m.id} style={styles.audioRow}>
-              <Pressable
-                onPress={() => usePlayer.getState().toggle(m)}
-                accessibilityRole="button"
-                accessibilityLabel={`${playing === m.id ? "Pause" : "Play"} ${m.name}`}
-                style={styles.audioIcon}
-              >
-                <Icon name={playing === m.id ? "pause" : "play"} size={18} color={colors.emeraldBright} />
-              </Pressable>
-              <View style={{ flex: 1 }}>
-                <Text style={type(14, "medium")} numberOfLines={1}>
-                  {m.name}
-                </Text>
-                {m.madeWith || m.durationSec ? (
-                  <Text style={type(12, "regular", { color: colors.fgMuted })}>{[m.madeWith, m.durationSec ? mmss(m.durationSec) : null].filter(Boolean).join(" · ")}</Text>
-                ) : null}
-              </View>
-              <Star on={m.favorite} onPress={() => void toggle(m)} inline />
-            </View>
-          ))}
-        </View>
-      )}
-    </View>
-  );
-}
-
-function Star({ on, onPress, inline = false }: { on: boolean; onPress: () => void; inline?: boolean }) {
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={on ? "Remove from favourites" : "Add to favourites"}
-      aria-selected={on}
-      style={[styles.star, inline && styles.starInline]}
-    >
-      <Icon name="star" size={18} color={on ? colors.warning : colors.fg} filled={on} />
-    </Pressable>
-  );
-}
 
 function TextArea({ label, value, onChange, max, placeholder, height = 96 }: { label: string; value: string; onChange: (t: string) => void; max: number; placeholder: string; height?: number }) {
   return (
@@ -512,204 +313,44 @@ function VoiceoverTab({ initialVoice }: { initialVoice?: string }) {
   );
 }
 
-/** One per press: the server won't charge twice for a retried request. */
-const newKey = () => `m-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-
 // ── Enhance speech / Vocal remover ────────────────────────────────────────
 
-/** The file a tool runs on: picked on the phone (uploaded to Assets first) or already in Assets. */
-type Source = { kind: "phone"; file: UploadFile & { durationSec: number } } | { kind: "asset"; asset: Asset & { durationSec: number } };
-
-const lengthLabel = (sec: number) => (sec % 60 === 0 ? `${sec / 60} min` : `${sec} s`);
-
-// The server takes the file from Assets (POST /jobs { type, assetId }), so a
-// file from the phone is uploaded there first (decision 2026-10-10 A) — it
-// stays in Assets, and a retry doesn't upload it again. The length is read on
-// the phone so the price and the tool's length limit show before anything is
-// charged; the server checks both again.
+// The length is read on the phone so the price and the tool's length limit
+// show before anything is charged; the server checks both again.
 function AudioTab({ tool }: { tool: AudioToolId }) {
   const toast = useToast();
   const spec = AUDIO_TOOLS[tool];
-  const storage = useAssetStorage();
-  const plan = usePlanTier().data ?? "free";
-  const [source, setSource] = useState<Source | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [checking, setChecking] = useState(false);
-  const [choosing, setChoosing] = useState(false);
-  const [uploading, setUploading] = useState<number | null>(null);
-  const sec = source ? (source.kind === "phone" ? source.file.durationSec : source.asset.durationSec) : 0;
-  const cost = source ? audioToolCredits(tool, sec) : 0;
+  const fileSpec = { name: spec.name, accepts: ["audio", "video"] as const, maxBytes: spec.maxBytes, maxSec: spec.maxSec };
+  const input = useFileInput(fileSpec);
+  const cost = input.source?.durationSec ? audioToolCredits(tool, input.source.durationSec) : 0;
   const job = useToolJob(cost);
 
-  /** Problems with a file for this tool, in words; null when it's fine. */
-  const problem = (sizeBytes: number, durationSec: number | null) => {
-    if (sizeBytes > spec.maxBytes) return `That file is over the ${formatBytes(spec.maxBytes)} limit.`;
-    if (durationSec == null) return "Couldn’t read how long that file is. Try another one.";
-    if (durationSec > spec.maxSec) return `That file is ${mmss(durationSec)} long. ${spec.name} takes up to ${lengthLabel(spec.maxSec)}.`;
-    return null;
-  };
-
-  const pickPhone = async () => {
-    setChoosing(false);
-    const res = await DocumentPicker.getDocumentAsync({ type: ["audio/*", "video/*"], copyToCacheDirectory: true });
-    const f = res.canceled ? null : res.assets[0];
-    if (!f) return;
-    setSource(null);
-    if ((f.size ?? 0) > spec.maxBytes) return setError(problem(f.size ?? 0, 0));
-    setChecking(true);
-    const durationSec = await probeDuration(f.uri);
-    setChecking(false);
-    const p = problem(f.size ?? 0, durationSec) ?? assetUploadProblem(f.size ?? 0, storage.data?.usedBytes ?? 0, plan);
-    if (p) return setError(p);
-    setError(null);
-    setSource({ kind: "phone", file: { uri: f.uri, name: f.name, mimeType: f.mimeType ?? "application/octet-stream", sizeBytes: f.size ?? 0, durationSec: durationSec! } });
-  };
-
-  const pickAsset = async (a: Asset) => {
-    setChoosing(false);
-    setSource(null);
-    let durationSec = a.durationSec;
-    if (!durationSec && a.url) {
-      setChecking(true);
-      durationSec = await probeDuration(a.url);
-      setChecking(false);
-    }
-    const p = problem(a.sizeBytes, durationSec);
-    if (p) return setError(p);
-    setError(null);
-    setSource({ kind: "asset", asset: { ...a, durationSec: durationSec! } });
-  };
-
   const run = async () => {
-    if (!source) return;
-    const done = await job.run(async () => {
-      let assetId: string;
-      if (source.kind === "phone") {
-        setUploading(0);
-        try {
-          const asset = await uploadToAssets(source.file, setUploading);
-          // Now it's in Assets: a retry runs on it without uploading again.
-          setSource({ kind: "asset", asset: { ...asset, durationSec: source.file.durationSec } });
-          assetId = asset.id;
-        } finally {
-          setUploading(null);
-        }
-      } else {
-        assetId = source.asset.id;
-      }
-      return jobs.start({ type: tool === "enhance" ? "enhance-speech" : "vocal-remover", assetId, idempotencyKey: newKey() });
-    });
+    const done = await job.run(async () => jobs.start({ type: tool === "enhance" ? "enhance-speech" : "vocal-remover", assetId: await input.assetId(), idempotencyKey: newKey() }));
     if (done) {
       toast(`${tool === "enhance" ? "Clean audio" : "Instrumental"} ready. Saved to Assets.`, "success");
-      setSource(null);
+      input.clear();
     }
   };
 
-  const name = source ? (source.kind === "phone" ? source.file.name : source.asset.name) : "";
-  const size = source ? (source.kind === "phone" ? source.file.sizeBytes : source.asset.sizeBytes) : 0;
-  const rate = tool === "enhance" ? "8 credits / min" : "1 credit / 30 s";
   return (
     <>
       <ScrollView contentContainerStyle={styles.body}>
         <Text style={text.caption}>{tool === "enhance" ? "Removes background noise and room echo from a voice recording." : "Splits the vocals out of a song and keeps the music."}</Text>
-        {source ? (
-          <View style={styles.voiceRow}>
-            <View style={styles.audioIcon}>
-              <Icon name={source.kind === "asset" ? "folder" : "file"} size={18} color={colors.emeraldBright} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={type(14, "semibold")} numberOfLines={1}>
-                {name}
-              </Text>
-              <Text style={type(12, "regular", { color: colors.fgMuted })}>
-                {mmss(sec)} · {formatBytes(size)}
-                {source.kind === "asset" ? " · in Assets" : ""}
-              </Text>
-            </View>
-            <Button label="Change" variant="ghost" size="md" onPress={() => setChoosing(true)} disabled={job.busy} />
-          </View>
-        ) : (
-          <Pressable
-            onPress={() => setChoosing(true)}
-            disabled={checking}
-            accessibilityRole="button"
-            accessibilityLabel={`Choose an audio or video file, up to ${formatBytes(spec.maxBytes)} and ${lengthLabel(spec.maxSec)}`}
-            style={({ pressed }) => [styles.drop, pressed && { backgroundColor: colors.surface3 }]}
-          >
-            <View style={styles.dropIcon}>
-              <Icon name="cloudUpload" size={22} color={colors.emeraldBright} />
-            </View>
-            <Text style={type(15, "bold")}>{checking ? "Reading the file…" : "Choose a file"}</Text>
-            <Text style={[type(12, "regular", { color: colors.fgMuted }), { textAlign: "center" }]}>
-              MP3, WAV, M4A, MP4, MOV… · up to {formatBytes(spec.maxBytes)}, {lengthLabel(spec.maxSec)}
-            </Text>
-          </Pressable>
-        )}
-        {error ? (
-          <Text style={type(12, "medium", { color: colors.error })} accessibilityLiveRegion="polite">
-            {error}
-          </Text>
-        ) : null}
-        {uploading != null ? <Working progress={Math.round(uploading * 100)} label="Uploading to Assets…" /> : job.progress != null ? <Working progress={job.progress} label={`${spec.name}…`} /> : null}
+        <FileCard input={input} spec={fileSpec} disabled={job.busy} />
+        {input.uploading != null ? <Working progress={Math.round(input.uploading * 100)} label="Uploading to Assets…" /> : job.progress != null ? <Working progress={job.progress} label={`${spec.name}…`} /> : null}
         <Text style={text.caption}>You get: {spec.output}</Text>
         <Results kind="audio" title="Latest audio" />
       </ScrollView>
       <ActionBar
-        cost={source ? `${cost} credit${cost === 1 ? "" : "s"}` : rate}
+        cost={input.source ? `${cost} credit${cost === 1 ? "" : "s"}` : tool === "enhance" ? "8 credits / min" : "1 credit / 30 s"}
         label={tool === "enhance" ? "Enhance speech" : "Remove vocals"}
         onPress={() => void run()}
         loading={job.busy}
-        disabled={!source}
+        disabled={!input.source}
       />
-      <SourceSheet visible={choosing} tool={tool} onClose={() => setChoosing(false)} onPhone={() => void pickPhone()} onAsset={(a) => void pickAsset(a)} />
       {job.sheet}
     </>
-  );
-}
-
-function SourceSheet({ visible, tool, onClose, onPhone, onAsset }: { visible: boolean; tool: AudioToolId; onClose: () => void; onPhone: () => void; onAsset: (a: Asset) => void }) {
-  const spec = AUDIO_TOOLS[tool];
-  const list = useQuery({
-    queryKey: ["assets", "audio-tool-sources"],
-    queryFn: async () => {
-      const [audio, video] = await Promise.all([assets.list({ kind: "audio" }), assets.list({ kind: "video" })]);
-      return [...audio.assets, ...video.assets].filter((a) => a.status === "ready").sort((x, y) => y.createdAt.localeCompare(x.createdAt));
-    },
-    enabled: visible,
-  });
-  return (
-    <BottomSheet visible={visible} onClose={onClose} title="Choose a file">
-      <Button label="From this phone" icon="upload" iconPosition="start" variant="secondary" fullWidth onPress={onPhone} />
-      <Text style={text.label}>From Assets</Text>
-      {list.isPending ? (
-        <Skeleton height={56} rounded={16} />
-      ) : list.isError ? (
-        <Button label="Couldn’t load your files. Try again" variant="ghost" size="md" icon="refresh" iconPosition="start" onPress={() => void list.refetch()} />
-      ) : list.data.length === 0 ? (
-        <Text style={text.caption}>No audio or video in your Assets yet.</Text>
-      ) : (
-        <ScrollView style={{ maxHeight: 340 }}>
-          <OptionList
-            accessibilityLabel="Files in Assets"
-            value={null}
-            options={list.data.map((a) => {
-              const tooLong = a.durationSec != null && a.durationSec > spec.maxSec;
-              const tooBig = a.sizeBytes > spec.maxBytes;
-              return {
-                value: a.id,
-                label: a.name,
-                detail: tooBig ? `Over ${formatBytes(spec.maxBytes)}` : tooLong ? `Longer than ${lengthLabel(spec.maxSec)}` : [a.kind === "video" ? "Video" : "Audio", a.durationSec ? mmss(a.durationSec) : null, formatBytes(a.sizeBytes)].filter(Boolean).join(" · "),
-                disabled: tooLong || tooBig,
-              };
-            })}
-            onChange={(id) => {
-              const a = list.data.find((x) => x.id === id);
-              if (a) onAsset(a);
-            }}
-          />
-        </ScrollView>
-      )}
-    </BottomSheet>
   );
 }
 
@@ -752,50 +393,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   sizeOn: { backgroundColor: colors.tint, borderColor: colors.emeraldBright },
-  grid: { flexDirection: "row", gap: 10 },
-  wrapGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  imageCard: { width: "48.5%", height: 200, borderRadius: radius.tile, overflow: "hidden", backgroundColor: colors.surface3 },
-  star: {
-    position: "absolute",
-    right: 6,
-    bottom: 6,
-    width: 44,
-    height: 44,
-    borderRadius: radius.pill,
-    backgroundColor: derived.overlay,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  starInline: { position: "relative", right: 0, bottom: 0, backgroundColor: "transparent" },
-  audioRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingLeft: 12, minHeight: 56, borderRadius: radius.tile, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.line },
   audioIcon: { width: 36, height: 36, borderRadius: 10, backgroundColor: colors.tint, alignItems: "center", justifyContent: "center" },
   voicePick: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8, minHeight: 44 },
-  working: { gap: 10, padding: 14, borderRadius: radius.tile, backgroundColor: colors.tint, borderWidth: 1, borderColor: colors.tintBorder },
   voiceRow: { flexDirection: "row", alignItems: "center", gap: 12, padding: 12, minHeight: 60, borderRadius: radius.tile, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.line },
-  drop: {
-    alignItems: "center",
-    gap: 8,
-    padding: 20,
-    borderRadius: radius.card,
-    borderWidth: 1.5,
-    borderStyle: "dashed",
-    borderColor: colors.tintBorder,
-    backgroundColor: colors.surface2,
-  },
-  dropIcon: { width: 48, height: 48, borderRadius: 14, backgroundColor: colors.tint, alignItems: "center", justifyContent: "center" },
-  inlineError: { flexDirection: "row", alignItems: "center", gap: 8 },
-  bar: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingTop: 12,
-    paddingHorizontal: 16,
-    backgroundColor: colors.bgDeep,
-    borderTopWidth: 1,
-    borderTopColor: colors.lineStrong,
-  },
 });

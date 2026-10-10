@@ -53,6 +53,10 @@ const SOURCE_LABEL: Record<Asset["source"], string> = {
   voiceover: "AI voice",
   "enhance-speech": "Enhance speech",
   "vocal-remover": "Vocal remover",
+  "voice-changer": "Voice changer",
+  "background-remover": "Background remover",
+  "face-swap": "Face swap",
+  "subtitle-remover": "Subtitle remover",
 };
 
 const WAVE = [30, 60, 45, 80, 50, 70, 40, 90, 55, 65, 35, 75, 50, 85, 45, 60, 30, 70, 50, 80, 40, 65];

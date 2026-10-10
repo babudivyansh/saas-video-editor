@@ -6,7 +6,7 @@ import { autoClipSettingsSchema, imageGenerateRequest, sourceLinkSchema, voiceov
 // runs and exports from their Project, AI tools from their Generation), so a
 // job survives a server restart and the app can poll it from anywhere.
 
-export const JOB_TYPES = ["autoclip", "export", "ai-image", "voiceover", "enhance-speech", "vocal-remover"] as const;
+export const JOB_TYPES = ["autoclip", "export", "ai-image", "voiceover", "enhance-speech", "vocal-remover", "voice-changer", "background-remover", "face-swap", "subtitle-remover"] as const;
 export const jobTypeSchema = z.enum(JOB_TYPES);
 export type JobType = z.infer<typeof jobTypeSchema>;
 
@@ -32,6 +32,19 @@ export const startJobRequest = z.discriminatedUnion("type", [
   voiceoverRequest.extend({ type: z.literal("voiceover"), title: z.string().max(100).optional(), idempotencyKey }),
   z.object({ type: z.literal("enhance-speech"), assetId: z.string().min(1), idempotencyKey }),
   z.object({ type: z.literal("vocal-remover"), assetId: z.string().min(1), idempotencyKey }),
+  /** A voice recording from Assets, re-spoken in one of the voices (GET /voices ids). */
+  z.object({
+    type: z.literal("voice-changer"),
+    assetId: z.string().min(1),
+    voiceId: z.string().min(1),
+    removeNoise: z.boolean().default(false),
+    speed: z.number().min(0.7).max(1.2).default(1),
+    idempotencyKey,
+  }),
+  z.object({ type: z.literal("background-remover"), assetId: z.string().min(1), idempotencyKey }),
+  /** The face from `faceAssetId` put onto the person in `targetAssetId` (both images in Assets). */
+  z.object({ type: z.literal("face-swap"), faceAssetId: z.string().min(1), targetAssetId: z.string().min(1), idempotencyKey }),
+  z.object({ type: z.literal("subtitle-remover"), assetId: z.string().min(1), idempotencyKey }),
 ]);
 export type StartJobRequest = z.input<typeof startJobRequest>;
 
