@@ -10,6 +10,7 @@ import { AIMediaScreen } from "../AIMediaScreen";
 import { AutoClipScreen } from "../AutoClipScreen";
 import { CreateHubScreen } from "../CreateHubScreen";
 import { useAutoClipDraft } from "../draft";
+import { setToolUploadIO } from "../toolUpload";
 import { setUploadIO, useAutoClipUpload } from "../uploadStore";
 
 jest.mock("expo-document-picker", () => ({ getDocumentAsync: jest.fn() }));
@@ -303,7 +304,37 @@ describe("AI Media", () => {
     pickDocument.mockResolvedValue(picked("song.wav", 60 * MB, "audio/wav"));
     open("/create/ai-media?tab=vocal");
     fireEvent.press(await screen.findByRole("button", { name: /^Choose an audio or video file/ }));
+    press("From this phone");
     expect(await screen.findByText("That file is over the 50 MB limit.")).toBeOnTheScreen();
     expect(screen.getByRole("button", { name: "Remove vocals" })).toBeDisabled();
+  });
+
+  it("uploads a file from the phone into Assets, prices it by length, then cleans it", async () => {
+    setToolUploadIO({ readPart: async () => "file:///cache/part", putPart: async (_p, _u, onBytes) => (onBytes(1), { status: 200, etag: '"e1"' }), fileExists: () => true, load: async () => null, save: async () => {} });
+    pickDocument.mockResolvedValue(picked("take.m4a", 2 * MB, "audio/mp4"));
+    open("/create/ai-media?tab=enhance");
+    fireEvent.press(await screen.findByRole("button", { name: /^Choose an audio or video file/ }));
+    press("From this phone");
+    // 12 s, as the phone measured it: 8 credits a minute, rounded up.
+    expect(await screen.findByText("0:12 · 2 MB")).toBeOnTheScreen();
+    expect(screen.getByText("2 credits")).toBeOnTheScreen();
+    press("Enhance speech");
+    expect(await screen.findByText("Clean audio ready. Saved to Assets.")).toBeOnTheScreen();
+    jest.useRealTimers();
+    const all = await getAssets();
+    expect(all.find((a) => a.name === "take.m4a")).toMatchObject({ kind: "audio", durationSec: 12 });
+    expect(all.find((a) => a.source === "enhance-speech")).toBeTruthy();
+  });
+
+  it("runs on a file already in Assets, and won't take one that's too long", async () => {
+    open("/create/ai-media?tab=vocal");
+    fireEvent.press(await screen.findByRole("button", { name: /^Choose an audio or video file/ }));
+    expect(await screen.findByRole("radio", { name: "Ep. 41 — vocals removed, Longer than 5 min" })).toBeDisabled();
+    expect(screen.getByRole("radio", { name: "Founders Pod Ep. 42 — audio, Over 50 MB" })).toBeDisabled();
+    fireEvent.press(screen.getByRole("radio", { name: /^Intro sting — neon/ }));
+    expect(await screen.findByText("0:06 · 655 KB · in Assets")).toBeOnTheScreen();
+    expect(screen.getByText("1 credit")).toBeOnTheScreen();
+    press("Remove vocals");
+    expect(await screen.findByText("Instrumental ready. Saved to Assets.")).toBeOnTheScreen();
   });
 });

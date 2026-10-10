@@ -1,6 +1,8 @@
 import {
   ApiError,
   AUDIO_TOOLS,
+  assetUploadProblem,
+  audioToolCredits,
   DEFAULT_IMAGE_MODEL_ID,
   MAX_PROMPT_CHARS,
   PLAN_LABEL,
@@ -16,7 +18,7 @@ import {
   type Job,
   type ImageRatio,
 } from "@clipiro/shared";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as DocumentPicker from "expo-document-picker";
 import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
@@ -43,10 +45,12 @@ import { apiErrorMessage } from "@/lib/errors";
 import { imageSource } from "@/lib/images";
 import { pollMs } from "@/lib/poll";
 import { colors, derived, radius, text, type } from "@/theme";
-import { errorMessage } from "@mocks/core";
-import { runAudioTool } from "@mocks/create";
+import { probeDuration } from "@/lib/probe";
+import { useAssetStorage, usePlanTier } from "../assets/queries";
 import { usePlayer } from "../assets/AudioRow";
 import { mmss } from "../projects/format";
+import { uploadToAssets } from "./toolUpload";
+import type { UploadFile } from "./upload";
 import { createKeys, useCreateContext, useImageModels, useRecentResults, useVoices } from "./queries";
 
 type Tab = "image" | "voiceover" | "enhance" | "vocal";
@@ -513,73 +517,131 @@ const newKey = () => `m-${Date.now().toString(36)}-${Math.random().toString(36).
 
 // ── Enhance speech / Vocal remover ────────────────────────────────────────
 
+/** The file a tool runs on: picked on the phone (uploaded to Assets first) or already in Assets. */
+type Source = { kind: "phone"; file: UploadFile & { durationSec: number } } | { kind: "asset"; asset: Asset & { durationSec: number } };
+
+const lengthLabel = (sec: number) => (sec % 60 === 0 ? `${sec / 60} min` : `${sec} s`);
+
+// The server takes the file from Assets (POST /jobs { type, assetId }), so a
+// file from the phone is uploaded there first (decision 2026-10-10 A) — it
+// stays in Assets, and a retry doesn't upload it again. The length is read on
+// the phone so the price and the tool's length limit show before anything is
+// charged; the server checks both again.
 function AudioTab({ tool }: { tool: AudioToolId }) {
   const toast = useToast();
-  const qc = useQueryClient();
   const spec = AUDIO_TOOLS[tool];
-  const [file, setFile] = useState<{ name: string; size: number } | null>(null);
+  const storage = useAssetStorage();
+  const plan = usePlanTier().data ?? "free";
+  const [source, setSource] = useState<Source | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [choosing, setChoosing] = useState(false);
+  const [uploading, setUploading] = useState<number | null>(null);
+  const sec = source ? (source.kind === "phone" ? source.file.durationSec : source.asset.durationSec) : 0;
+  const cost = source ? audioToolCredits(tool, sec) : 0;
+  const job = useToolJob(cost);
 
-  const pick = async () => {
-    const res = await DocumentPicker.getDocumentAsync({ type: ["audio/*", "video/*"], copyToCacheDirectory: false });
+  /** Problems with a file for this tool, in words; null when it's fine. */
+  const problem = (sizeBytes: number, durationSec: number | null) => {
+    if (sizeBytes > spec.maxBytes) return `That file is over the ${formatBytes(spec.maxBytes)} limit.`;
+    if (durationSec == null) return "Couldn’t read how long that file is. Try another one.";
+    if (durationSec > spec.maxSec) return `That file is ${mmss(durationSec)} long. ${spec.name} takes up to ${lengthLabel(spec.maxSec)}.`;
+    return null;
+  };
+
+  const pickPhone = async () => {
+    setChoosing(false);
+    const res = await DocumentPicker.getDocumentAsync({ type: ["audio/*", "video/*"], copyToCacheDirectory: true });
     const f = res.canceled ? null : res.assets[0];
     if (!f) return;
-    if ((f.size ?? 0) > spec.maxBytes) {
-      setFile(null);
-      return setError(`That file is over the ${formatBytes(spec.maxBytes)} limit.`);
-    }
+    setSource(null);
+    if ((f.size ?? 0) > spec.maxBytes) return setError(problem(f.size ?? 0, 0));
+    setChecking(true);
+    const durationSec = await probeDuration(f.uri);
+    setChecking(false);
+    const p = problem(f.size ?? 0, durationSec) ?? assetUploadProblem(f.size ?? 0, storage.data?.usedBytes ?? 0, plan);
+    if (p) return setError(p);
     setError(null);
-    setFile({ name: f.name, size: f.size ?? 0 });
+    setSource({ kind: "phone", file: { uri: f.uri, name: f.name, mimeType: f.mimeType ?? "application/octet-stream", sizeBytes: f.size ?? 0, durationSec: durationSec! } });
+  };
+
+  const pickAsset = async (a: Asset) => {
+    setChoosing(false);
+    setSource(null);
+    let durationSec = a.durationSec;
+    if (!durationSec && a.url) {
+      setChecking(true);
+      durationSec = await probeDuration(a.url);
+      setChecking(false);
+    }
+    const p = problem(a.sizeBytes, durationSec);
+    if (p) return setError(p);
+    setError(null);
+    setSource({ kind: "asset", asset: { ...a, durationSec: durationSec! } });
   };
 
   const run = async () => {
-    if (!file) return;
-    setBusy(true);
-    try {
-      await runAudioTool(tool, file.name);
-      await qc.invalidateQueries({ queryKey: createKeys.results("audio") });
+    if (!source) return;
+    const done = await job.run(async () => {
+      let assetId: string;
+      if (source.kind === "phone") {
+        setUploading(0);
+        try {
+          const asset = await uploadToAssets(source.file, setUploading);
+          // Now it's in Assets: a retry runs on it without uploading again.
+          setSource({ kind: "asset", asset: { ...asset, durationSec: source.file.durationSec } });
+          assetId = asset.id;
+        } finally {
+          setUploading(null);
+        }
+      } else {
+        assetId = source.asset.id;
+      }
+      return jobs.start({ type: tool === "enhance" ? "enhance-speech" : "vocal-remover", assetId, idempotencyKey: newKey() });
+    });
+    if (done) {
       toast(`${tool === "enhance" ? "Clean audio" : "Instrumental"} ready. Saved to Assets.`, "success");
-      setFile(null);
-    } catch (e) {
-      toast(errorMessage(e), "error");
-    } finally {
-      setBusy(false);
+      setSource(null);
     }
   };
 
+  const name = source ? (source.kind === "phone" ? source.file.name : source.asset.name) : "";
+  const size = source ? (source.kind === "phone" ? source.file.sizeBytes : source.asset.sizeBytes) : 0;
   const rate = tool === "enhance" ? "8 credits / min" : "1 credit / 30 s";
-  const maxLen = spec.maxSec % 60 === 0 ? `${spec.maxSec / 60} min` : `${spec.maxSec} s`;
   return (
     <>
       <ScrollView contentContainerStyle={styles.body}>
         <Text style={text.caption}>{tool === "enhance" ? "Removes background noise and room echo from a voice recording." : "Splits the vocals out of a song and keeps the music."}</Text>
-        {file ? (
+        {source ? (
           <View style={styles.voiceRow}>
             <View style={styles.audioIcon}>
-              <Icon name="file" size={18} color={colors.emeraldBright} />
+              <Icon name={source.kind === "asset" ? "folder" : "file"} size={18} color={colors.emeraldBright} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={type(14, "semibold")} numberOfLines={1}>
-                {file.name}
+                {name}
               </Text>
-              <Text style={type(12, "regular", { color: colors.fgMuted })}>{formatBytes(file.size)}</Text>
+              <Text style={type(12, "regular", { color: colors.fgMuted })}>
+                {mmss(sec)} · {formatBytes(size)}
+                {source.kind === "asset" ? " · in Assets" : ""}
+              </Text>
             </View>
-            <Button label="Change" variant="ghost" size="md" onPress={pick} />
+            <Button label="Change" variant="ghost" size="md" onPress={() => setChoosing(true)} disabled={job.busy} />
           </View>
         ) : (
           <Pressable
-            onPress={pick}
+            onPress={() => setChoosing(true)}
+            disabled={checking}
             accessibilityRole="button"
-            accessibilityLabel={`Choose an audio or video file, up to ${formatBytes(spec.maxBytes)} and ${maxLen}`}
+            accessibilityLabel={`Choose an audio or video file, up to ${formatBytes(spec.maxBytes)} and ${lengthLabel(spec.maxSec)}`}
             style={({ pressed }) => [styles.drop, pressed && { backgroundColor: colors.surface3 }]}
           >
             <View style={styles.dropIcon}>
               <Icon name="cloudUpload" size={22} color={colors.emeraldBright} />
             </View>
-            <Text style={type(15, "bold")}>Choose a file</Text>
+            <Text style={type(15, "bold")}>{checking ? "Reading the file…" : "Choose a file"}</Text>
             <Text style={[type(12, "regular", { color: colors.fgMuted }), { textAlign: "center" }]}>
-              MP3, WAV, M4A, MP4, MOV… · up to {formatBytes(spec.maxBytes)}, {maxLen}
+              MP3, WAV, M4A, MP4, MOV… · up to {formatBytes(spec.maxBytes)}, {lengthLabel(spec.maxSec)}
             </Text>
           </Pressable>
         )}
@@ -588,17 +650,66 @@ function AudioTab({ tool }: { tool: AudioToolId }) {
             {error}
           </Text>
         ) : null}
+        {uploading != null ? <Working progress={Math.round(uploading * 100)} label="Uploading to Assets…" /> : job.progress != null ? <Working progress={job.progress} label={`${spec.name}…`} /> : null}
         <Text style={text.caption}>You get: {spec.output}</Text>
         <Results kind="audio" title="Latest audio" />
       </ScrollView>
       <ActionBar
-        cost={rate}
+        cost={source ? `${cost} credit${cost === 1 ? "" : "s"}` : rate}
         label={tool === "enhance" ? "Enhance speech" : "Remove vocals"}
-        onPress={run}
-        loading={busy}
-        disabled={!file}
+        onPress={() => void run()}
+        loading={job.busy}
+        disabled={!source}
       />
+      <SourceSheet visible={choosing} tool={tool} onClose={() => setChoosing(false)} onPhone={() => void pickPhone()} onAsset={(a) => void pickAsset(a)} />
+      {job.sheet}
     </>
+  );
+}
+
+function SourceSheet({ visible, tool, onClose, onPhone, onAsset }: { visible: boolean; tool: AudioToolId; onClose: () => void; onPhone: () => void; onAsset: (a: Asset) => void }) {
+  const spec = AUDIO_TOOLS[tool];
+  const list = useQuery({
+    queryKey: ["assets", "audio-tool-sources"],
+    queryFn: async () => {
+      const [audio, video] = await Promise.all([assets.list({ kind: "audio" }), assets.list({ kind: "video" })]);
+      return [...audio.assets, ...video.assets].filter((a) => a.status === "ready").sort((x, y) => y.createdAt.localeCompare(x.createdAt));
+    },
+    enabled: visible,
+  });
+  return (
+    <BottomSheet visible={visible} onClose={onClose} title="Choose a file">
+      <Button label="From this phone" icon="upload" iconPosition="start" variant="secondary" fullWidth onPress={onPhone} />
+      <Text style={text.label}>From Assets</Text>
+      {list.isPending ? (
+        <Skeleton height={56} rounded={16} />
+      ) : list.isError ? (
+        <Button label="Couldn’t load your files. Try again" variant="ghost" size="md" icon="refresh" iconPosition="start" onPress={() => void list.refetch()} />
+      ) : list.data.length === 0 ? (
+        <Text style={text.caption}>No audio or video in your Assets yet.</Text>
+      ) : (
+        <ScrollView style={{ maxHeight: 340 }}>
+          <OptionList
+            accessibilityLabel="Files in Assets"
+            value={null}
+            options={list.data.map((a) => {
+              const tooLong = a.durationSec != null && a.durationSec > spec.maxSec;
+              const tooBig = a.sizeBytes > spec.maxBytes;
+              return {
+                value: a.id,
+                label: a.name,
+                detail: tooBig ? `Over ${formatBytes(spec.maxBytes)}` : tooLong ? `Longer than ${lengthLabel(spec.maxSec)}` : [a.kind === "video" ? "Video" : "Audio", a.durationSec ? mmss(a.durationSec) : null, formatBytes(a.sizeBytes)].filter(Boolean).join(" · "),
+                disabled: tooLong || tooBig,
+              };
+            })}
+            onChange={(id) => {
+              const a = list.data.find((x) => x.id === id);
+              if (a) onAsset(a);
+            }}
+          />
+        </ScrollView>
+      )}
+    </BottomSheet>
   );
 }
 

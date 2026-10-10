@@ -41,7 +41,7 @@ import { PanelShell } from "./PanelShell";
 import { GenerateCaptionsSheet, TranslateCaptionsSheet, textTarget } from "./captionSheets";
 import { addText, captionPosition, insertAssets, newId, setClipVolume, setLook, setOriginalVolume, setTexts, styleCaptions, updateClip, type CaptionStyle } from "./docOps";
 import { clock, durationOf, useEditor } from "./store";
-import { probeDuration, withDurations } from "./probe";
+import { probeDuration, withDurations } from "@/lib/probe";
 import { placeWhenUploaded } from "./uploads";
 import { VoiceoverSheet } from "./voiceoverSheet";
 
