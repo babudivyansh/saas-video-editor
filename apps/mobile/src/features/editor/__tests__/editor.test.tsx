@@ -13,6 +13,7 @@ import { EditorScreen } from "../EditorScreen";
 import { ExportScreen } from "../ExportScreen";
 import { AiToolsPanel, AudioPanel, CaptionsPanel, EffectsPanel, MediaPanel, TextPanel } from "../panels";
 import { durationOf, useEditor } from "../store";
+import { useComposerSeed } from "../../social/queries";
 
 // The editor on the web's own timeline document, served by the mock API
 // (mocks/editor.ts: a podcast cut into three clips with word-timed captions)
@@ -354,9 +355,11 @@ describe("Export", () => {
     await screen.findByText("Your video is ready");
     press("Save to Assets");
     expect(await screen.findByText("Saved to Assets.")).toBeOnTheScreen();
-    fireEvent.press(screen.getByRole("radio", { name: "Post to YouTube Shorts" }));
+    fireEvent.press(screen.getByRole("radio", { name: "Post to social" }));
     press("Continue to post");
     await waitFor(() => expect(r.getPathname()).toBe("/composer"));
+    // The Composer posts the Assets copy just saved, not a second one.
+    expect(useComposerSeed.getState().assetId).toEqual(expect.any(String));
   });
 
   it("a failed render says why and offers to try again", async () => {

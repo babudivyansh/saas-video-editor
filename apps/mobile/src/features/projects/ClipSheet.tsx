@@ -2,6 +2,7 @@ import type { Clip, ProjectDetail } from "@clipiro/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { router } from "expo-router";
+import { useComposerSeed } from "../social/queries";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
@@ -139,7 +140,7 @@ export function ClipSheet({ clip, onClose }: { clip: Clip | null; onClose: () =>
             loading={busy === "share"}
             onPress={() => act("share", () => shareClip(clip.id, clip.title))}
           />
-          <Button label="Post" icon="send" iconPosition="start" variant="secondary" size="md" style={styles.cell} disabled={!ready} onPress={() => (onClose(), router.push("/composer"))} />
+          <Button label="Post" icon="send" iconPosition="start" variant="secondary" size="md" style={styles.cell} disabled={!ready} onPress={() => (onClose(), useComposerSeed.getState().seed({ clipId: clip.id }), router.push("/composer"))} />
           <Button label="Edit" icon="editor" iconPosition="start" variant="secondary" size="md" style={styles.cell} onPress={() => (onClose(), void startEdit({ from: "clip", clipId: clip.id }).then((err) => err && toast(err, "error")))} disabled={!ready} />
         </View>
         <Button label="Delete clip" icon="trash" iconPosition="start" variant="danger" size="sm" fullWidth onPress={() => setConfirm(true)} />

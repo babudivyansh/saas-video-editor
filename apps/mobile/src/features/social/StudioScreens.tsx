@@ -1,22 +1,22 @@
-import { PROVIDER_LABEL, PROVIDERS, compact, monthGrid, type Provider, type ScheduledPost, type SocialAccount } from "@clipiro/shared";
+import { PROVIDER_LABEL, PROVIDERS, compact, isAutoPost, linkPostRequest, monthGrid, type PostStatus, type Provider, type SocialAccount, type SocialPost } from "@clipiro/shared";
 import { useQueryClient } from "@tanstack/react-query";
+import * as Clipboard from "expo-clipboard";
 import { Image } from "expo-image";
 import { router, useLocalSearchParams, type Href } from "expo-router";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Avatar, BottomSheet, Button, ConfirmSheet, EmptyState, Header, Icon, IconButton, SegmentedControl, SkeletonCard, StatusBadge, StatusBarScrim, useToast } from "@/components";
+import { Avatar, BottomSheet, Button, ConfirmSheet, EmptyState, Header, Icon, IconButton, SegmentedControl, SkeletonCard, StatusBadge, StatusBarScrim, TextField, useToast } from "@/components";
 import { imageSource } from "@/lib/images";
 import { useScreenPadding } from "@/navigation/insets";
 import { colors, layout, radius, text, type } from "@/theme";
-import { errorMessage } from "@mocks/core";
-import { deletePost, retryPost } from "@mocks/social";
-import { social } from "@/lib/api";
+import { assets, social } from "@/lib/api";
 import { apiErrorMessage } from "@/lib/errors";
 import { SocialUpsell } from "../insights/InsightsShell";
 import { isUpsell, useConnectable, useSocialAccounts } from "../insights/queries";
+import { GalleryDenied, shareClip, shareVideo } from "../projects/clipFiles";
 import { connectAccount, readConnectReturn, type ConnectOutcome } from "./connect";
-import { dayKey, socialKeys, timeLabel, useComposerSeed, usePosts } from "./queries";
+import { STATUS, dayKey, dayLabel, platformLabel, socialKeys, timeLabel, useComposerSeed, usePost, usePosts } from "./queries";
 
 type Tab = "accounts" | "calendar" | "scheduled";
 const TABS = [
@@ -252,22 +252,27 @@ function syncAgo(iso: string | null) {
 
 const DOW = ["M", "T", "W", "T", "F", "S", "S"];
 
+/** A month's window, local midnight to the last instant. */
+const monthRange = (y: number, m: number) => ({ from: new Date(y, m, 1).toISOString(), to: new Date(y, m + 1, 1, 0, 0, 0, -1).toISOString() });
+const ON_CALENDAR = new Set<PostStatus>(["scheduled", "posting", "posted", "your_turn"]);
+
 export function CalendarScreen() {
-  const posts = usePosts();
   const { width } = useWindowDimensions();
   const [today] = useState(() => new Date());
   const [month, setMonth] = useState(() => ({ y: today.getFullYear(), m: today.getMonth() }));
   const [selected, setSelected] = useState(() => today.getDate());
+  const [open, setOpen] = useState<SocialPost | null>(null);
+  const posts = usePosts(monthRange(month.y, month.m));
   const cell = Math.floor((width - 32 - 24) / 7);
 
   const grid = monthGrid(month.y, month.m);
-  const byDay = new Map<string, ScheduledPost[]>();
+  const byDay = new Map<string, SocialPost[]>();
   for (const p of posts.data ?? []) {
-    if (p.status === "failed") continue;
+    if (!p.scheduledAt || !ON_CALENDAR.has(p.status)) continue;
     const k = dayKey(new Date(p.scheduledAt));
     byDay.set(k, [...(byDay.get(k) ?? []), p]);
   }
-  const dayPosts = (d: number) => (byDay.get(dayKey(new Date(month.y, month.m, d))) ?? []).sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt));
+  const dayPosts = (d: number) => (byDay.get(dayKey(new Date(month.y, month.m, d))) ?? []).sort((a, b) => a.scheduledAt!.localeCompare(b.scheduledAt!));
   const shift = (n: number) => {
     const d = new Date(month.y, month.m + n, 1);
     setMonth({ y: d.getFullYear(), m: d.getMonth() });
@@ -278,6 +283,13 @@ export function CalendarScreen() {
   const list = dayPosts(selected);
   const isToday = (d: number) => d === today.getDate() && month.m === today.getMonth() && month.y === today.getFullYear();
 
+  if (isUpsell(posts.error)) {
+    return (
+      <Shell tab="calendar" onRefresh={() => posts.refetch()}>
+        <SocialUpsell />
+      </Shell>
+    );
+  }
   return (
     <Shell tab="calendar" onRefresh={() => posts.refetch()}>
       <View style={styles.monthHead}>
@@ -302,6 +314,7 @@ export function CalendarScreen() {
               if (!d) return <View key={c} style={{ width: cell }} />;
               const ps = dayPosts(d);
               const on = d === selected;
+              const first = ps[0];
               return (
                 <Pressable
                   key={c}
@@ -312,7 +325,7 @@ export function CalendarScreen() {
                   style={[styles.day, { width: cell, minHeight: Math.max(48, cell + 8) }, on && styles.dayOn]}
                 >
                   <Text style={type(13, on ? "bold" : "medium", { color: on ? colors.bg : isToday(d) ? colors.emeraldBright : colors.fg })}>{d}</Text>
-                  {ps[0] ? <Image source={imageSource(ps[0].thumbnailUrl)} style={styles.dayThumb} contentFit="cover" /> : null}
+                  {first?.thumbnailUrl ? <Image source={imageSource(first.thumbnailUrl)} style={styles.dayThumb} contentFit="cover" /> : first ? <View style={styles.dayDot} /> : null}
                 </Pressable>
               );
             })}
@@ -328,12 +341,13 @@ export function CalendarScreen() {
         </Pressable>
       </View>
       {posts.isError ? (
-        <EmptyState tone="error" title="Couldn’t load your posts" body={errorMessage(posts.error)} action={{ label: "Try again", onPress: () => posts.refetch() }} />
+        <EmptyState tone="error" title="Couldn’t load your posts" body={apiErrorMessage(posts.error)} action={{ label: "Try again", onPress: () => posts.refetch() }} />
       ) : list.length ? (
-        list.map((p) => <PostRow key={p.id} p={p} time />)
+        list.map((p) => <PostRow key={p.id} p={p} time action={{ label: "Open", onPress: () => setOpen(p) }} />)
       ) : (
-        <Text style={[text.caption, { paddingVertical: 12 }]}>Nothing planned. Tap + Add to schedule a clip.</Text>
+        <Text style={[text.caption, { paddingVertical: 12 }]}>Nothing planned. Tap + Add to schedule a video.</Text>
       )}
+      <PostSheet post={open} onClose={() => setOpen(null)} />
     </Shell>
   );
 }
@@ -344,38 +358,64 @@ export function ScheduledScreen() {
   const toast = useToast();
   const qc = useQueryClient();
   const posts = usePosts();
+  const { post: linked } = useLocalSearchParams<{ post?: string }>();
+  // A notification's link (?post=) opens that post, once.
+  const [deepId] = useState(() => (typeof linked === "string" ? linked : null));
+  const deep = usePost(deepId);
   const [today] = useState(() => new Date());
-  const [deleting, setDeleting] = useState<string | null>(null);
-  const [open, setOpen] = useState<ScheduledPost | null>(null);
+  const [open, setOpen] = useState<SocialPost | null>(null);
+  const [shownDeep, setShownDeep] = useState(false);
+  if (deep.data && !shownDeep) {
+    setShownDeep(true);
+    setOpen(deep.data);
+  }
+  const toldDeepError = useRef(false);
+  useEffect(() => {
+    if (deep.isError && !toldDeepError.current) {
+      toldDeepError.current = true;
+      toast(apiErrorMessage(deep.error), "error");
+    }
+  }, [deep.isError, deep.error, toast]);
 
   const all = posts.data ?? [];
-  const count = (s: ScheduledPost["status"]) => all.filter((p) => p.status === s).length;
+  const count = (...s: PostStatus[]) => all.filter((p) => s.includes(p.status)).length;
   const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
-  const groups: [string, ScheduledPost[]][] = [
-    ["Today", all.filter((p) => p.status === "scheduled" && dayKey(new Date(p.scheduledAt)) === dayKey(today))],
-    ["Tomorrow", all.filter((p) => p.status === "scheduled" && dayKey(new Date(p.scheduledAt)) === dayKey(tomorrow))],
-    ["Later", all.filter((p) => p.status === "scheduled" && new Date(p.scheduledAt) >= new Date(tomorrow.getFullYear(), tomorrow.getMonth(), tomorrow.getDate() + 1))],
-    ["Earlier", all.filter((p) => p.status !== "scheduled").sort((a, b) => b.scheduledAt.localeCompare(a.scheduledAt)).slice(0, 5)],
+  const later = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 2);
+  const scheduled = all.filter((p) => p.status === "scheduled" && p.scheduledAt);
+  const groups: [string, SocialPost[]][] = [
+    ["Your turn", all.filter((p) => p.status === "your_turn")],
+    ["Posting now", all.filter((p) => p.status === "posting")],
+    ["Today", scheduled.filter((p) => dayKey(new Date(p.scheduledAt!)) === dayKey(today))],
+    ["Tomorrow", scheduled.filter((p) => dayKey(new Date(p.scheduledAt!)) === dayKey(tomorrow))],
+    ["Later", scheduled.filter((p) => new Date(p.scheduledAt!) >= later)],
+    ["Earlier", all.filter((p) => p.status === "posted" || p.status === "failed" || p.status === "missed").sort((a, b) => (b.scheduledAt ?? "").localeCompare(a.scheduledAt ?? "")).slice(0, 10)],
   ];
 
-  const act = async (fn: () => Promise<void>, done: string) => {
+  const retry = async (p: SocialPost) => {
     try {
-      await fn();
+      await social.retryPost(p.id);
       await qc.invalidateQueries({ queryKey: socialKeys.posts });
-      toast(done, "success");
+      toast(isAutoPost(p.account.provider) ? `Posting to ${platformLabel(p.account.provider)} again.` : "It’s your turn to post it again.", "success");
     } catch (e) {
-      toast(errorMessage(e), "error");
+      toast(apiErrorMessage(e), "error");
     }
   };
 
+  if (isUpsell(posts.error)) {
+    return (
+      <Shell tab="scheduled" onRefresh={() => posts.refetch()}>
+        <SocialUpsell />
+      </Shell>
+    );
+  }
   return (
     <Shell tab="scheduled" onRefresh={() => posts.refetch()}>
       {posts.isPending ? (
         <SkeletonCard lines={4} />
       ) : posts.isError ? (
-        <EmptyState tone="error" title="Couldn’t load your posts" body={errorMessage(posts.error)} action={{ label: "Try again", onPress: () => posts.refetch() }} />
+        <EmptyState tone="error" title="Couldn’t load your posts" body={apiErrorMessage(posts.error)} action={{ label: "Try again", onPress: () => posts.refetch() }} />
       ) : all.length === 0 ? (
-        <EmptyState icon="calendar" title="Nothing scheduled yet" body="Pick a ready clip and schedule it for YouTube Shorts." action={{ label: "New post", onPress: () => newPost() }} />
+        <EmptyState icon="calendar" title="Nothing scheduled yet" body="Pick a clip or a video from Assets and post it now or later." action={{ label: "New post", onPress: () => newPost() }} />
       ) : (
         <>
           <View style={styles.counts}>
@@ -383,7 +423,7 @@ export function ScheduledScreen() {
               [
                 ["Scheduled", count("scheduled")],
                 ["Posted", count("posted")],
-                ["Failed", count("failed")],
+                ["Failed", count("failed", "missed")],
               ] as const
             ).map(([l, n]) => (
               <View key={l} style={styles.count} accessible accessibilityLabel={`${n} ${l.toLowerCase()}`}>
@@ -399,78 +439,203 @@ export function ScheduledScreen() {
                   {label}
                 </Text>
                 {ps.map((p) => (
-                  <PostRow
-                    key={p.id}
-                    p={p}
-                    action={
-                      p.status === "scheduled"
-                        ? { label: "Edit", onPress: () => setOpen(p) }
-                        : p.status === "failed"
-                          ? { label: "Retry", onPress: () => act(() => retryPost(p.id), "Rescheduled for 5 minutes from now.") }
-                          : { label: "View", onPress: () => toast("Opens on YouTube once posting is live.", "info") }
-                    }
-                  />
+                  <PostRow key={p.id} p={p} action={rowAction(p, () => setOpen(p), () => void retry(p))} />
                 ))}
               </View>
             ) : null,
           )}
         </>
       )}
-      <BottomSheet visible={!!open} onClose={() => setOpen(null)} title={open?.title}>
-        <Text style={text.caption}>
-          {open ? `${new Date(open.scheduledAt).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} · ${timeLabel(open.scheduledAt)} · YouTube Shorts` : ""}
-        </Text>
-        <Button
-          label="Edit in composer"
-          variant="secondary"
-          size="sm"
-          fullWidth
-          onPress={() => {
-            useComposerSeed.getState().seed({ date: open?.scheduledAt, clipId: open?.clipId });
-            setOpen(null);
-            router.push("/composer");
-          }}
-        />
-        <Button label="Delete scheduled post" variant="danger" size="sm" fullWidth onPress={() => (setDeleting(open?.id ?? null), setOpen(null))} />
-      </BottomSheet>
-      <ConfirmSheet
-        visible={!!deleting}
-        title="Delete this scheduled post?"
-        body="It won't be posted. The clip stays in your project."
-        confirmLabel="Delete"
-        onClose={() => setDeleting(null)}
-        onConfirm={() => {
-          const id = deleting;
-          setDeleting(null);
-          if (id) act(() => deletePost(id), "Scheduled post deleted.");
-        }}
-      />
+      <PostSheet post={open} onClose={() => setOpen(null)} />
     </Shell>
   );
 }
 
-function PostRow({ p, time = false, action }: { p: ScheduledPost; time?: boolean; action?: { label: string; onPress: () => void } }) {
-  const when = new Date(p.scheduledAt);
-  const meta = p.status === "scheduled" ? `Shorts · ${timeLabel(p.scheduledAt)}` : `Shorts · ${when.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
+function rowAction(p: SocialPost, open: () => void, retry: () => void): { label: string; onPress: () => void } | undefined {
+  switch (p.status) {
+    case "scheduled":
+      return { label: "Edit", onPress: open };
+    case "failed":
+    case "missed":
+      return { label: "Retry", onPress: retry };
+    case "your_turn":
+      return { label: "Post it", onPress: open };
+    case "posted":
+      return { label: "View", onPress: open };
+    case "posting":
+      return undefined;
+  }
+}
+
+/** The caption as it goes on the platform: text, then hashtags. */
+const fullCaption = (p: SocialPost) => [p.caption.trim(), p.hashtags.join(" ")].filter(Boolean).join("\n\n");
+
+/** One post's details and what can be done with it. */
+function PostSheet({ post, onClose }: { post: SocialPost | null; onClose: () => void }) {
+  const toast = useToast();
+  const qc = useQueryClient();
+  const [link, setLink] = useState("");
+  const [linkError, setLinkError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<"share" | "link" | "retry" | null>(null);
+  const [confirm, setConfirm] = useState<SocialPost | null>(null);
+  const p = post;
+  const name = p ? platformLabel(p.account.provider) : "";
+
+  const refresh = () => qc.invalidateQueries({ queryKey: socialKeys.posts });
+  const close = () => {
+    setLink("");
+    setLinkError(null);
+    onClose();
+  };
+  const run = async (kind: "share" | "link" | "retry", fn: () => Promise<string | null>) => {
+    setBusy(kind);
+    try {
+      const msg = await fn();
+      if (msg) toast(msg, "success");
+    } catch (e) {
+      if (kind === "link") setLinkError(apiErrorMessage(e));
+      else toast(e instanceof GalleryDenied ? e.message : apiErrorMessage(e), "error");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const share = () =>
+    run("share", async () => {
+      if (!p) return null;
+      const caption = fullCaption(p);
+      if (caption) await Clipboard.setStringAsync(caption);
+      if (p.clipId) await shareClip(p.clipId, p.title);
+      else if (p.assetId) {
+        const a = await assets.get(p.assetId);
+        if (!a.url) return "This video can’t be shared from here. Download it from Assets.";
+        await shareVideo(a.url, `${p.assetId}.mp4`, p.title);
+      } else return "The video was deleted, so there’s nothing to share.";
+      return caption ? `Caption copied. Paste it in ${name}.` : null;
+    });
+
+  const saveLink = () =>
+    run("link", async () => {
+      if (!p) return null;
+      const parsed = linkPostRequest.safeParse({ permalink: link });
+      if (!parsed.success) {
+        setLinkError(parsed.error.issues[0]?.message ?? "Paste the post’s link");
+        return null;
+      }
+      setLinkError(null);
+      await social.linkPost(p.id, parsed.data.permalink);
+      await refresh();
+      close();
+      return "Linked. Its numbers show up in Insights after the next sync.";
+    });
+
+  const retry = () =>
+    run("retry", async () => {
+      if (!p) return null;
+      await social.retryPost(p.id);
+      await refresh();
+      close();
+      return isAutoPost(p.account.provider) ? `Posting to ${name} again.` : "It’s your turn to post it again.";
+    });
+
+  const remove = async (target: SocialPost) => {
+    try {
+      await social.deletePost(target.id);
+      await refresh();
+      toast(target.status === "scheduled" ? "Scheduled post deleted." : "Removed from Clipiro.", "success");
+    } catch (e) {
+      toast(apiErrorMessage(e), "error");
+    }
+  };
+
+  const when = p?.scheduledAt ? `${dayLabel(p.scheduledAt)} · ${timeLabel(p.scheduledAt)}` : "";
+  const confirmPlatform = confirm ? platformLabel(confirm.account.provider) : "";
   return (
-    <View style={styles.post} accessible={!action} accessibilityLabel={`${p.title}, ${meta}, ${p.status}${p.failureReason ? `. ${p.failureReason}` : ""}`}>
-      {time ? <Text style={[type(12, "medium", { mono: true, color: colors.emeraldBright }), { width: 70 }]}>{timeLabel(p.scheduledAt)}</Text> : null}
-      <Image source={imageSource(p.thumbnailUrl)} style={styles.postThumb} contentFit="cover" />
+    <>
+      <BottomSheet visible={!!p} onClose={close} title={p?.title}>
+        {p ? (
+          <>
+            <View style={styles.sheetMeta}>
+              <StatusBadge label={STATUS[p.status].label} tone={STATUS[p.status].tone} />
+              <Text style={[text.caption, { flex: 1 }]}>
+                {name} · {p.account.name}
+                {when ? ` · ${when}` : ""}
+              </Text>
+            </View>
+            {p.failureReason ? <Text style={type(13, "regular", { color: colors.error })}>{p.failureReason}</Text> : null}
+            {p.caption || p.hashtags.length ? (
+              <Text style={type(13, "regular", { color: colors.fgMuted })} numberOfLines={4}>
+                {fullCaption(p)}
+              </Text>
+            ) : null}
+
+            {p.status === "scheduled" ? (
+              <>
+                <Button label="Edit post" variant="secondary" size="sm" fullWidth onPress={() => (useComposerSeed.getState().seed({ editId: p.id }), close(), router.push("/composer"))} />
+                <Button label="Delete scheduled post" variant="danger" size="sm" fullWidth onPress={() => (setConfirm(p), close())} />
+              </>
+            ) : p.status === "posting" ? (
+              <Text style={text.caption}>Uploading to {name} now. It’ll be live in a few minutes.</Text>
+            ) : p.status === "your_turn" ? (
+              <>
+                <Text style={text.caption}>Share the video to {name} (we copy the caption for you), then paste the post’s link so Clipiro can track it.</Text>
+                <Button label={`Share to ${name}`} icon="send" iconPosition="start" size="sm" fullWidth loading={busy === "share"} onPress={share} />
+                <TextField label="Post link" value={link} onChangeText={setLink} placeholder={`https://www.${p.account.provider}.com/…`} autoCapitalize="none" autoCorrect={false} keyboardType="url" error={linkError ?? undefined} />
+                <Button label="Save link" variant="secondary" size="sm" fullWidth loading={busy === "link"} onPress={saveLink} />
+              </>
+            ) : p.status === "posted" ? (
+              p.permalink ? <Button label={`Open on ${name}`} icon="link" iconPosition="start" variant="secondary" size="sm" fullWidth onPress={() => void Linking.openURL(p.permalink!)} /> : null
+            ) : (
+              <Button label="Retry now" variant="secondary" size="sm" fullWidth loading={busy === "retry"} onPress={retry} />
+            )}
+            {p.status !== "scheduled" && p.status !== "posting" ? <Button label="Remove from Clipiro" variant="danger" size="sm" fullWidth onPress={() => (setConfirm(p), close())} /> : null}
+          </>
+        ) : null}
+      </BottomSheet>
+      <ConfirmSheet
+        visible={!!confirm}
+        title={confirm?.status === "scheduled" ? "Delete this scheduled post?" : "Remove this post from Clipiro?"}
+        body={confirm?.status === "posted" ? `It stays on ${confirmPlatform}. Clipiro stops tracking it.` : "It won’t be posted. The video stays where it is."}
+        confirmLabel={confirm?.status === "scheduled" ? "Delete" : "Remove"}
+        onClose={() => setConfirm(null)}
+        onConfirm={() => {
+          const target = confirm;
+          setConfirm(null);
+          if (target) void remove(target);
+        }}
+      />
+    </>
+  );
+}
+
+function PostRow({ p, time = false, action }: { p: SocialPost; time?: boolean; action?: { label: string; onPress: () => void } }) {
+  const name = platformLabel(p.account.provider);
+  const day = p.scheduledAt ? new Date(p.scheduledAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : null;
+  const meta = p.scheduledAt ? `${name} · ${p.status === "scheduled" ? timeLabel(p.scheduledAt) : day}` : name;
+  const status = STATUS[p.status];
+  return (
+    <View style={styles.post} accessible={!action} accessibilityLabel={`${p.title}, ${meta}, ${status.label}${p.failureReason ? `. ${p.failureReason}` : ""}`}>
+      {time && p.scheduledAt ? <Text style={[type(12, "medium", { mono: true, color: colors.emeraldBright }), { width: 70 }]}>{timeLabel(p.scheduledAt)}</Text> : null}
+      {p.thumbnailUrl ? <Image source={imageSource(p.thumbnailUrl)} style={styles.postThumb} contentFit="cover" /> : <View style={[styles.postThumb, styles.thumbEmpty]} />}
       <View style={{ flex: 1, gap: 4 }}>
         <Text style={type(14, "semibold")} numberOfLines={2}>
           {p.title}
         </Text>
-        <Text style={type(12, "regular", { color: colors.fgMuted })}>{time ? "Shorts" : meta}</Text>
-        {p.failureReason ? <Text style={type(11, "regular", { color: colors.error })}>{p.failureReason}</Text> : null}
+        <Text style={type(12, "regular", { color: colors.fgMuted })}>{time ? name : meta}</Text>
+        {p.failureReason ? (
+          <Text style={type(11, "regular", { color: colors.error })} numberOfLines={2}>
+            {p.failureReason}
+          </Text>
+        ) : null}
       </View>
-      {action ? (
-        <View style={{ alignItems: "flex-end", gap: 6 }}>
-          <StatusBadge label={p.status === "scheduled" ? "Scheduled" : p.status === "posted" ? "Posted" : "Failed"} tone={p.status === "scheduled" ? "success" : p.status === "posted" ? "info" : "error"} />
+      <View style={{ alignItems: "flex-end", gap: 6 }}>
+        <StatusBadge label={status.label} tone={status.tone} />
+        {action ? (
           <Pressable onPress={action.onPress} accessibilityRole="button" accessibilityLabel={`${action.label} ${p.title}`} style={styles.link}>
             <Text style={type(13, "semibold", { color: colors.emeraldBright })}>{action.label}</Text>
           </Pressable>
-        </View>
-      ) : null}
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -502,10 +667,13 @@ const styles = StyleSheet.create({
   day: { alignItems: "center", paddingVertical: 6, gap: 4, borderRadius: 12 },
   dayOn: { backgroundColor: colors.emeraldBright },
   dayThumb: { width: 20, height: 20, borderRadius: 5 },
+  dayDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.emeraldBright },
   dayHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   link: { minHeight: 44, justifyContent: "center", paddingLeft: 10 },
   post: { flexDirection: "row", alignItems: "center", gap: 12, padding: 12, borderRadius: radius.card, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.line },
   postThumb: { width: 44, height: 62, borderRadius: 8 },
+  thumbEmpty: { backgroundColor: colors.surface3 },
+  sheetMeta: { flexDirection: "row", alignItems: "center", gap: 8 },
   counts: { flexDirection: "row", gap: 10 },
   count: { flex: 1, gap: 6, padding: 14, borderRadius: radius.card, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.line },
 });
