@@ -29,7 +29,13 @@ export type NotificationType =
   // Editor export outcome (mobile Phase 9.3): the phone leaves the Export
   // screen while the server renders, so the result has to find the user.
   | "editor_export_complete"
-  | "editor_export_failed";
+  | "editor_export_failed"
+  // Social Studio posts (mobile Phase 11.3): scheduled posts go out while the
+  // person is elsewhere, and Instagram/Facebook ones need them to post.
+  | "social_post_published"
+  | "social_post_failed"
+  | "social_post_needs_reconnect"
+  | "social_post_your_turn";
 
 export interface NotifyInput {
   userId: string;
@@ -99,6 +105,10 @@ export const PUSH_TYPES: ReadonlySet<NotificationType> = new Set<NotificationTyp
   "autoclip_render_failed",
   "editor_export_complete",
   "editor_export_failed",
+  "social_post_published",
+  "social_post_failed",
+  "social_post_needs_reconnect",
+  "social_post_your_turn",
   "billing_payment_failed",
   "billing_subscription_halted",
 ]);

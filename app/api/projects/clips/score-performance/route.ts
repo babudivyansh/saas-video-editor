@@ -42,7 +42,7 @@ async function handleGET(req: NextRequest) {
   const low: Bucket = { count: 0, totalViews: 0 };
 
   for (const p of publishes) {
-    const score = p.clip.score;
+    const score = p.clip?.score;
     if (score == null) continue;
     const views = Number((p.metricsJson as { views?: unknown } | null)?.views ?? 0);
     if (!Number.isFinite(views) || views <= 0) continue;

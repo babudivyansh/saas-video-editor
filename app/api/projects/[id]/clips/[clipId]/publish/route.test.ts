@@ -59,12 +59,8 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 vi.mock("@/lib/autoclip-publish", () => ({ resolveProviderPostId: vi.fn() }));
-vi.mock("@/lib/social/service", () => ({ getValidAccessToken: vi.fn() }));
-vi.mock("@/lib/social/google", () => ({
-  uploadVideo: vi.fn(),
-  NeedsReauthError: class extends Error {},
-}));
-vi.mock("@/utils/download", () => ({ downloadFile: vi.fn() }));
+vi.mock("@/lib/social/google", () => ({ NeedsReauthError: class extends Error {} }));
+vi.mock("@/lib/social/publish", () => ({ AUTO_PUBLISH_PROVIDERS: new Set(["youtube"]), POST_INCLUDE: {}, uploadPost: vi.fn() }));
 vi.mock("@/lib/logger", () => ({ logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
 
 const { GET } = await import("./route");

@@ -88,6 +88,7 @@ export const KNOWN_RENDER_QUEUE_NAMES = [
   "asset-zip",
   "account-export",
   "review-attachment-moderation",
+  "social-publish",
 ] as const;
 export type RenderQueueName = typeof KNOWN_RENDER_QUEUE_NAMES[number];
 

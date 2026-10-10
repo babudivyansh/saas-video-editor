@@ -81,7 +81,7 @@ export async function recalibrateViralityWeights(): Promise<RecalibrationResult>
 
   const llms: number[] = [], audios: number[] = [], speechRates: number[] = [], silences: number[] = [], engagements: number[] = [];
   for (const p of publishes) {
-    const bd = p.clip.scoreBreakdown as unknown as ScoreBreakdown | null;
+    const bd = p.clip?.scoreBreakdown as unknown as ScoreBreakdown | null;
     if (!bd) continue;
     const rate = engagementRate(p.metricsJson as unknown as PublishMetrics | null);
     if (rate == null) continue;

@@ -1,15 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import os from "os";
-import path from "path";
-import fs from "fs";
-import { randomUUID } from "crypto";
 import { z } from "zod";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { resolveProviderPostId } from "@/lib/autoclip-publish";
-import { getValidAccessToken } from "@/lib/social/service";
-import { uploadVideo as uploadToYouTube, NeedsReauthError } from "@/lib/social/google";
-import { downloadFile } from "@/utils/download";
+import { NeedsReauthError } from "@/lib/social/google";
+import { AUTO_PUBLISH_PROVIDERS, POST_INCLUDE, uploadPost } from "@/lib/social/publish";
 import { logger } from "@/lib/logger";
 import { withRateLimit } from "@/lib/with-rate-limit";
 
@@ -23,13 +18,12 @@ const bodySchema = z.object({
 /** How long a "publishing" claim blocks a repeat before it's presumed dead. */
 const PUBLISH_CLAIM_MS = 15 * 60 * 1000;
 
-// Providers this app can actually push a rendered clip to directly, as
-// opposed to the manual-permalink flow. Instagram/Facebook aren't here: this
-// codebase's Meta OAuth only requests read/insights scopes (lib/social/meta.ts)
-// — publishing there needs both a new write scope grant AND a completed Meta
-// app review before any code here would even be authorized to call it, so
-// there's no "flip a flag" version of that — it's unbuilt, not just disabled.
-const AUTO_PUBLISH_PROVIDERS = new Set(["youtube"]);
+// AUTO_PUBLISH_PROVIDERS (lib/social/publish.ts): providers this app can push a
+// rendered clip to directly, as opposed to the manual-permalink flow.
+// Instagram/Facebook aren't there: this codebase's Meta OAuth only requests
+// read/insights scopes (lib/social/meta.ts) — publishing there needs both a new
+// write scope grant AND a completed Meta app review, so it's unbuilt, not just
+// disabled.
 
 // GET /api/projects/[id]/clips/[clipId]/publish
 // Returns the user's connected social accounts (publish targets) and any
@@ -126,27 +120,21 @@ async function handlePOST(req: NextRequest, { params }: { params: Promise<{ id: 
         select: { id: true },
       });
       if (inFlight) return null;
-      return tx.clipPublish.create({ data: { clipId, socialAccountId: account.id, status: "publishing" } });
+      // Unlisted: the web's "publish now" has always been the safe default; the
+      // creator changes visibility on YouTube afterwards.
+      return tx.clipPublish.create({
+        data: { userId: auth.userId, clipId, socialAccountId: account.id, status: "publishing", privacy: "unlisted" },
+        include: POST_INCLUDE,
+      });
     });
     if (!claim) {
       return NextResponse.json({ error: "This clip is already being uploaded to that account." }, { status: 409 });
     }
 
-    // Per request: two concurrent uploads of one clip shared a temp path and
-    // deleted each other's file.
-    const localPath = path.join(os.tmpdir(), `${clipId}-publish-${randomUUID()}.mp4`);
     try {
-      const accessToken = await getValidAccessToken(account);
-      await downloadFile(clip.videoUrl, localPath);
-      const buffer = fs.readFileSync(localPath);
-      const title = clip.title || `Clip ${clip.index + 1}`;
-
-      const result = await uploadToYouTube(accessToken, {
-        buffer,
-        title,
-        description: "Published via Clipiro AutoClip",
-        privacyStatus: "unlisted", // safest default — user can change visibility on YouTube afterward
-      });
+      // Streamed from storage to YouTube (lib/social/publish.ts); the title is
+      // the clip's and the description the fixed line, as before.
+      const result = await uploadPost(claim);
       const publish = await prisma.clipPublish.update({
         where: { id: claim.id },
         data: {
@@ -164,8 +152,6 @@ async function handlePOST(req: NextRequest, { params }: { params: Promise<{ id: 
       }
       logger.error("autoclip-publish", `${account.provider} upload failed for clip ${clipId}`, err);
       return NextResponse.json({ error: `Upload to ${account.provider} failed. Please try again.` }, { status: 502 });
-    } finally {
-      try { if (fs.existsSync(localPath)) fs.unlinkSync(localPath); } catch {}
     }
   }
 
@@ -173,6 +159,7 @@ async function handlePOST(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const publish = await prisma.clipPublish.create({
     data: {
+      userId: auth.userId,
       clipId,
       socialAccountId: account.id,
       permalink: body.permalink ?? null,
@@ -180,6 +167,8 @@ async function handlePOST(req: NextRequest, { params }: { params: Promise<{ id: 
       status: body.permalink ? "linked" : "pending",
       publishedAt: body.permalink ? new Date() : null,
       scheduledFor: isFutureSchedule ? scheduledAt : null,
+      // A scheduled web post has always gone out public (lib/clip-scheduler.ts).
+      privacy: isFutureSchedule ? "public" : "unlisted",
     },
   });
 

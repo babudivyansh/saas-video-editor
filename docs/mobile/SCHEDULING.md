@@ -158,3 +158,38 @@ the bell on the web:
    the callback's app redirect. Tests for ownership, state changes, caps.
 3. Notifications + the "Posts" push setting.
 4. App: Accounts (connect/reconnect), Composer, Calendar, Scheduled — live.
+
+## 6. As built (Phase 11.3)
+
+Backend done as above, with these differences from §3:
+
+- **One source, not "exactly one".** The CHECK is `clipId IS NULL OR assetId
+  IS NULL`. `assetId` is `SET NULL` on delete, so "exactly one" would have made
+  deleting a posted video fail; instead a finished post keeps its link and
+  numbers after its video is deleted, and a pending one fails with "the video
+  was deleted". New posts always set one.
+- **"Now" posts are created `pending` with `scheduledFor = now`**, not
+  `publishing`: the queue job (`social-publish`, `lib/social/publish-queue.ts`)
+  and the cron take the same pending → publishing claim, so whichever runs
+  first posts it once. The app shows a due pending YouTube post as Posting.
+- **Instagram/Facebook "now"** is `awaiting_manual` straight away (no push:
+  the person is in the app); a scheduled one becomes `awaiting_manual` with a
+  "your turn" push when its time comes.
+- **Quota guard.** `SOCIAL_YOUTUBE_DAILY_UPLOADS` (default 6) is a Redis
+  counter per Pacific day, taken just before an upload. When it's used up the
+  post stays pending and goes out on a later tick (after midnight Pacific);
+  past the 24 h window it is Missed. Creating a "now" post on a full day
+  returns the warning `uploads_busy`. `SOCIAL_POSTS_PER_USER_DAY` (default 10)
+  counts posts created in the last 24 h, one per account (429 `post_limit`).
+- **Times:** at least 5 minutes ahead, at most 90 days. Captions to Instagram
+  or Facebook stop at 2,200 characters, YouTube at 5,000; up to 30 hashtags.
+- **Missed and stuck posts** (`expired`, and stale `publishing` claims now
+  failed) carry a `failureReason` and send the "failed" push.
+- **The push switch** is the existing `postPublished` preference, shown as
+  "Posts" in Settings, on a new Android channel "posts". Notifications link to
+  `/dashboard/social-tracker?post=<id>`, which the app opens as
+  `/social/scheduled-posts?post=<id>`.
+- **Routes:** `GET|POST /social/posts`, `GET|PATCH|DELETE /social/posts/:id`,
+  `POST /social/posts/:id/retry`, `POST /social/posts/:id/link`,
+  `POST /social/captions`. Shapes: `socialPostSchema` and friends in
+  `packages/shared/src/schemas/social.ts`.

@@ -188,6 +188,12 @@ const schema = z.object({
   // default; see lib/social/refresh-queue.ts.
   SOCIAL_REFRESH_DRIVER: z.string().optional(),
   SOCIAL_REFRESH_INTERVAL_MIN: z.string().optional(),
+  // Posting caps (docs/mobile/SCHEDULING.md D5). YouTube uploads across ALL
+  // users per Pacific day: each costs 1,600 of the Google project's 10,000
+  // daily quota units, so default 6 until the quota increase. Raise with it.
+  SOCIAL_YOUTUBE_DAILY_UPLOADS: z.string().optional(),
+  // Posts one person can create per 24 h (one per account posted to), default 10.
+  SOCIAL_POSTS_PER_USER_DAY: z.string().optional(),
   // Render worker concurrency — defaults to 2 (lib/render-queue.ts).
   RENDER_CONCURRENCY: z.string().optional(),
 

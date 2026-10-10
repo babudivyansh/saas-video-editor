@@ -55,6 +55,7 @@ async function ensureChannels() {
   // Android 13+ only shows the permission prompt once a channel exists.
   await Notifications.setNotificationChannelAsync("clips", { name: "Clips ready", importance: Notifications.AndroidImportance.HIGH });
   await Notifications.setNotificationChannelAsync("account", { name: "Account and billing", importance: Notifications.AndroidImportance.HIGH });
+  await Notifications.setNotificationChannelAsync("posts", { name: "Posts", importance: Notifications.AndroidImportance.HIGH });
   channelsReady = true;
 }
 

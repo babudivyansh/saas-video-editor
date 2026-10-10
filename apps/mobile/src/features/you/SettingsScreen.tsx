@@ -157,10 +157,10 @@ export function SettingsScreen() {
               true
             )}
             {toggle(
-              "Post published",
+              "Posts",
               push.prefs.postPublished,
               (v) => void push.setPrefs({ postPublished: v }),
-              "Push"
+              "Push · posted, failed, or your turn to post"
             )}
             {toggle(
               "Weekly summary",
