@@ -229,7 +229,10 @@ export type AnalyticsOverview = z.infer<typeof analyticsOverviewSchema>;
 // plan every route answers 402 { code: "subscription_required" }.
 
 /** GET /social/accounts */
-export const socialAccountsResponse = z.object({ accounts: z.array(socialAccountSchema) });
+/** GET /social/accounts; `connectable` = platforms that can be connected right now (set up on the server). */
+export const socialAccountsResponse = z.object({ accounts: z.array(socialAccountSchema), connectable: z.array(providerSchema).default([]) });
+/** GET /social/connect/:provider → the platform's sign-in page (opened in an auth session; it ends at clipiro://social). */
+export const connectUrlResponse = z.object({ url: z.string() });
 
 /** GET /social/competitors */
 export const competitorsResponse = z.object({

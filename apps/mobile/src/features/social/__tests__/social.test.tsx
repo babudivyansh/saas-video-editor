@@ -2,6 +2,8 @@ import { fireEvent, renderRouter, screen, waitFor } from "expo-router/testing-li
 import { resetMockScenarios, setMockDelay, setMockScenario } from "@mocks/core";
 import { resetProjectMocks } from "@mocks/projects";
 import { resetSocialMocks } from "@mocks/social";
+import { resetInsightsMocks } from "@mocks/insights";
+import * as WebBrowser from "expo-web-browser";
 import { makeWrapper } from "@/test/providers";
 import { ComposerScreen } from "../ComposerScreen";
 import { useComposerSeed } from "../queries";
@@ -18,12 +20,14 @@ const routes = {
 };
 const open = (url: string) => renderRouter(routes, { initialUrl: url, wrapper: makeWrapper() });
 const press = (name: string | RegExp) => fireEvent.press(screen.getByRole("button", { name }));
+const signIn = WebBrowser.openAuthSessionAsync as jest.Mock;
 
 beforeEach(() => {
   setMockDelay(0);
   resetMockScenarios();
   resetSocialMocks();
   resetProjectMocks();
+  resetInsightsMocks();
   useComposerSeed.getState().seed({});
 });
 
@@ -35,10 +39,45 @@ describe("Accounts", () => {
     expect(screen.getByRole("button", { name: "Sync YouTube now" })).toBeOnTheScreen();
   });
 
-  it("explains that connecting comes with in-app sign-in", async () => {
+  it("connects YouTube through Google's sign-in, then shows it", async () => {
+    signIn.mockResolvedValueOnce({ type: "success", url: "clipiro://social?connected=youtube" });
     open("/social");
     fireEvent.press(await screen.findByRole("button", { name: "Connect YouTube" }));
-    expect(screen.getByText(/Connecting opens Google to sign in/)).toBeOnTheScreen();
+    expect(screen.getByText(/Google asks you to let Clipiro read your channel’s stats/)).toBeOnTheScreen();
+    press("Continue to Google");
+    expect(await screen.findByText("YouTube connected. The first numbers arrive in a minute.")).toBeOnTheScreen();
+    expect(signIn).toHaveBeenCalledWith("https://signin.test/youtube?state=s", "clipiro://social");
+  });
+
+  it("says why a connect didn't happen, and says nothing when it's closed", async () => {
+    signIn.mockResolvedValueOnce({ type: "success", url: "clipiro://social?error=access_denied" });
+    open("/social");
+    fireEvent.press(await screen.findByRole("button", { name: "Reconnect Instagram" }));
+    press("Continue to Meta");
+    expect(await screen.findByText("You didn’t give Clipiro access to Instagram, so nothing was connected.")).toBeOnTheScreen();
+    signIn.mockResolvedValueOnce({ type: "cancel" });
+    press("Continue to Meta");
+    await waitFor(() => expect(signIn).toHaveBeenCalledTimes(2));
+    expect(screen.getByRole("button", { name: "Continue to Meta" })).toBeOnTheScreen(); // still offered
+  });
+
+  it("reads a connect that came back through the app link", async () => {
+    open("/social?connected=instagram");
+    expect(await screen.findByText("Instagram connected. The first numbers arrive in a minute.")).toBeOnTheScreen();
+  });
+
+  it("disconnects an account after confirming", async () => {
+    open("/social");
+    fireEvent.press(await screen.findByRole("button", { name: "Disconnect Facebook" }));
+    press("Disconnect");
+    expect(await screen.findByText("Facebook disconnected.")).toBeOnTheScreen();
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Disconnect Facebook" })).toBeNull());
+  });
+
+  it("asks a Free account to upgrade", async () => {
+    setMockScenario("subscription", "empty");
+    open("/social");
+    expect(await screen.findByText("Insights are on paid plans")).toBeOnTheScreen();
   });
 
   it("opens the composer from New post", async () => {

@@ -4,6 +4,7 @@ import {
   analyticsOverviewSchema,
   audienceSchema,
   competitorsResponse,
+  connectUrlResponse,
   contentPerformanceSchema,
   csvExportResponse,
   reportCreatedResponse,
@@ -41,6 +42,9 @@ const q = (range: RangeDays, extra: Record<string, string | null | undefined> = 
 export function socialApi(api: ApiClient) {
   return {
     accounts: () => api.request("/social/accounts", { schema: socialAccountsResponse }),
+    /** The sign-in page for connecting (or reconnecting) a platform. */
+    connectUrl: (provider: string) => api.request(`/social/connect/${enc(provider)}`, { schema: connectUrlResponse }),
+    disconnect: (id: string) => api.request(`/social/accounts/${enc(id)}`, { method: "DELETE", schema: z.object({ ok: z.literal(true) }) }),
     syncAccount: (id: string) => api.request(`/social/accounts/${enc(id)}/sync`, { method: "POST", body: {}, schema: z.object({ ok: z.literal(true) }) }),
     overview: (range: RangeDays) => api.request(`/social/overview${q(range)}`, { schema: insightsOverviewSchema }),
     content: (range: RangeDays, accountId?: string | null) => api.request(`/social/content${q(range, { accountId })}`, { schema: contentPerformanceSchema }),

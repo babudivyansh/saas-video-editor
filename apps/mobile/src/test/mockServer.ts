@@ -1,6 +1,6 @@
 import { ApiError, NetworkError, scenarioOf } from "@mocks/core";
 import { addCompetitor, createReport, createShareLink, getAnalyticsOverview, getAudience, getCompetitors, getReports, getSummary, makeSummary, removeCompetitor, reportDownload, revokeShareLink } from "@mocks/analytics";
-import { exportCsv, getContentPerformance, getInsightsOverview, getPlatformAnalytics, getSocialAccounts, providerOf } from "@mocks/insights";
+import { disconnectAccount, exportCsv, getContentPerformance, getInsightsOverview, getPlatformAnalytics, getSocialAccounts, providerOf } from "@mocks/insights";
 import { AI_SOURCES, maxFileBytes, sortAssets, sortProjects, storageLimitBytes, type AiTextOperationId, type Asset, type AssetSort, type Clip, type ClipAspect, type ProjectSort, type Provider, type RangeDays, type ReportRequest, type StockItem, type TimelineDoc } from "@clipiro/shared";
 import { getAccount } from "@mocks/account";
 import { addUpload, createFolder, deleteAsset, getAssets, getFolders, updateAsset } from "@mocks/assets";
@@ -192,7 +192,13 @@ export const MOCK_ROUTES: Record<string, Route> = {
 
   // Social (subscriber-only: scenario "subscription" = "empty" is a Free account).
   ...socialRoutes({
-    "GET /social/accounts": async () => ok({ accounts: await getSocialAccounts() }),
+    "GET /social/accounts": async () => ok({ accounts: await getSocialAccounts(), connectable: ["youtube", "instagram", "facebook"] }),
+    // The platform's sign-in page; the test's auth session decides how it ends.
+    "GET /social/connect/:provider": async (url) => ok({ url: `https://signin.test/${socialIdOf(url)}?state=s` }),
+    "DELETE /social/accounts/:id": async (url) => {
+      await disconnectAccount(socialIdOf(url));
+      return ok({ ok: true });
+    },
     "POST /social/accounts/:id/sync": async () => ok({ ok: true }),
     "GET /social/overview": async (url) => ok(await getInsightsOverview(rangeOf(url))),
     "GET /social/content": async (url) => ok(await getContentPerformance(rangeOf(url))),

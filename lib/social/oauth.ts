@@ -14,10 +14,15 @@ import { env } from "@/lib/env";
 const JWT_SECRET = env.JWT_SECRET;
 const STATE_TTL = 600; // seconds (10 min) — both the JWT and the Redis verifier
 
+/** Who started the connect: the web dashboard, or the phone app (mobile Phase 11.2). */
+export type OAuthClient = "web" | "app";
+
 interface StatePayload {
   userId: string;
   provider: string; // the requested ProviderId (e.g. "instagram")
   nonce: string;
+  /** Absent = web (every state minted before the app existed). */
+  client?: "app";
 }
 
 export function appUrl(): string {
@@ -36,24 +41,39 @@ export function makePkce(): { verifier: string; challenge: string } {
 }
 
 // Mint the signed state and stash the PKCE verifier under its nonce.
-export async function createState(userId: string, provider: string, verifier: string): Promise<string> {
+export async function createState(userId: string, provider: string, verifier: string, client: OAuthClient = "web"): Promise<string> {
   const nonce = crypto.randomBytes(12).toString("hex");
   await redis.set(`social:pkce:${nonce}`, verifier, "EX", STATE_TTL);
-  const payload: StatePayload = { userId, provider, nonce };
+  const payload: StatePayload = { userId, provider, nonce, ...(client === "app" ? { client: "app" as const } : {}) };
   return jwt.sign(payload, JWT_SECRET, { expiresIn: STATE_TTL });
 }
 
 // Verify state + atomically consume the one-time PKCE verifier.
 export async function consumeState(
   state: string,
-): Promise<{ userId: string; provider: string; verifier: string } | null> {
+): Promise<{ userId: string; provider: string; verifier: string; client: OAuthClient } | null> {
   try {
     const payload = jwt.verify(state, JWT_SECRET) as StatePayload;
     const verifier = await redis.get(`social:pkce:${payload.nonce}`);
     if (!verifier) return null;
     await redis.del(`social:pkce:${payload.nonce}`); // single use
-    return { userId: payload.userId, provider: payload.provider, verifier };
+    return { userId: payload.userId, provider: payload.provider, verifier, client: payload.client === "app" ? "app" : "web" };
   } catch {
     return null;
+  }
+}
+
+/**
+ * Who started a connect, read from a state that is NOT consumed (the callback's
+ * error paths, where the provider sent the person back without a code). Only a
+ * validly signed state can send the browser to the app; anything else goes to
+ * the web dashboard, as before.
+ */
+export function stateClient(state: string | null): OAuthClient {
+  if (!state) return "web";
+  try {
+    return (jwt.verify(state, JWT_SECRET) as StatePayload).client === "app" ? "app" : "web";
+  } catch {
+    return "web";
   }
 }

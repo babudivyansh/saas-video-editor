@@ -1,8 +1,8 @@
-import { PROVIDER_LABEL, PROVIDERS, compact, monthGrid, type ScheduledPost } from "@clipiro/shared";
+import { PROVIDER_LABEL, PROVIDERS, compact, monthGrid, type Provider, type ScheduledPost, type SocialAccount } from "@clipiro/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
-import { router, type Href } from "expo-router";
-import { useState, type ReactNode } from "react";
+import { router, useLocalSearchParams, type Href } from "expo-router";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Avatar, BottomSheet, Button, ConfirmSheet, EmptyState, Header, Icon, IconButton, SegmentedControl, SkeletonCard, StatusBadge, StatusBarScrim, useToast } from "@/components";
@@ -11,7 +11,11 @@ import { useScreenPadding } from "@/navigation/insets";
 import { colors, layout, radius, text, type } from "@/theme";
 import { errorMessage } from "@mocks/core";
 import { deletePost, retryPost } from "@mocks/social";
-import { useSocialAccounts } from "../insights/queries";
+import { social } from "@/lib/api";
+import { apiErrorMessage } from "@/lib/errors";
+import { SocialUpsell } from "../insights/InsightsShell";
+import { isUpsell, useConnectable, useSocialAccounts } from "../insights/queries";
+import { connectAccount, readConnectReturn, type ConnectOutcome } from "./connect";
 import { dayKey, socialKeys, timeLabel, useComposerSeed, usePosts } from "./queries";
 
 type Tab = "accounts" | "calendar" | "scheduled";
@@ -70,18 +74,83 @@ function Shell({ tab, children, onRefresh }: { tab: Tab; children: ReactNode; on
 
 // ── Accounts ──────────────────────────────────────────────────────────────
 
+/** What each platform's sign-in asks for, said before it opens. */
+const CONNECT_NOTE: Record<Provider, string> = {
+  youtube: "Google asks you to let Clipiro read your channel’s stats and upload the videos you post from Clipiro. Nothing is posted without you.",
+  instagram: "Meta asks you to let Clipiro read your Instagram stats. Instagram needs a professional (Business or Creator) account linked to a Facebook Page.",
+  facebook: "Meta asks you to let Clipiro read the stats of the Facebook Pages you choose.",
+};
+
 export function AccountsScreen() {
   const toast = useToast();
+  const qc = useQueryClient();
   const accounts = useSocialAccounts();
-  const [connecting, setConnecting] = useState<string | null>(null);
+  const connectable = useConnectable().data;
+  const params = useLocalSearchParams<{ connected?: string; error?: string }>();
+  const [connecting, setConnecting] = useState<Provider | null>(null);
+  const [busy, setBusy] = useState(false);
   const [syncing, setSyncing] = useState<string | null>(null);
+  const [removing, setRemoving] = useState<SocialAccount | null>(null);
+
+  const refreshAll = () => Promise.all([qc.invalidateQueries({ queryKey: ["social"] }), qc.invalidateQueries({ queryKey: ["insights"] }), qc.invalidateQueries({ queryKey: ["analytics"] })]);
+  const report = (o: ConnectOutcome) => {
+    if (o.kind === "connected") {
+      toast(`${o.providers.map((p) => PROVIDER_LABEL[p] ?? p).join(" and ")} connected. The first numbers arrive in a minute.`, "success");
+      void refreshAll();
+    } else if (o.kind === "failed") toast(o.message, "error");
+  };
+
+  // Android can also hand the return link to the app itself (clipiro://social?connected=…):
+  // said once per arrival.
+  const announced = useRef<string | null>(null);
+  useEffect(() => {
+    const o = readConnectReturn({ connected: params.connected, error: params.error });
+    const key = `${params.connected ?? ""}|${params.error ?? ""}`;
+    if (!o || announced.current === key) return;
+    announced.current = key;
+    report(o);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per arrival
+  }, [params.connected, params.error]);
+
+  const connect = async (p: Provider) => {
+    setBusy(true);
+    try {
+      const o = await connectAccount(p);
+      report(o);
+      // A refusal or a closed sign-in leaves the sheet open, to try again.
+      if (o.kind === "connected") setConnecting(null);
+    } catch (e) {
+      toast(apiErrorMessage(e), "error");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const sync = async (id: string) => {
     setSyncing(id);
-    await accounts.refetch();
-    setSyncing(null);
-    toast("Synced.", "success");
+    try {
+      await social.syncAccount(id);
+      await refreshAll();
+      toast("Synced.", "success");
+    } catch (e) {
+      toast(apiErrorMessage(e), "error");
+    } finally {
+      setSyncing(null);
+    }
   };
+
+  const disconnect = async (a: SocialAccount) => {
+    try {
+      await social.disconnect(a.id);
+      await refreshAll();
+      toast(`${PROVIDER_LABEL[a.provider]} disconnected.`, "success");
+    } catch (e) {
+      toast(apiErrorMessage(e), "error");
+    } finally {
+      setRemoving(null);
+    }
+  };
+  const available = (p: Provider) => !connectable || connectable.includes(p);
 
   return (
     <Shell tab="accounts" onRefresh={() => accounts.refetch()}>
@@ -91,7 +160,11 @@ export function AccountsScreen() {
           <SkeletonCard lines={3} />
         </>
       ) : accounts.isError ? (
-        <EmptyState tone="error" title="Couldn’t load your accounts" body={errorMessage(accounts.error)} action={{ label: "Try again", onPress: () => accounts.refetch() }} />
+        isUpsell(accounts.error) ? (
+          <SocialUpsell />
+        ) : (
+          <EmptyState tone="error" title="Couldn’t load your accounts" body={apiErrorMessage(accounts.error)} action={{ label: "Try again", onPress: () => accounts.refetch() }} />
+        )
       ) : (
         <>
           {accounts.data.length === 0 ? (
@@ -126,6 +199,7 @@ export function AccountsScreen() {
                       <Button label="Sync now" variant="secondary" size="md" loading={syncing === a.id} onPress={() => sync(a.id)} style={{ flex: 1 }} accessibilityLabel={`Sync ${PROVIDER_LABEL[a.provider]} now`} />
                     )}
                     <Button label="Analytics" variant="secondary" size="md" onPress={() => router.push("/social/insights/platform-analytics")} style={{ flex: 1 }} accessibilityLabel={`${PROVIDER_LABEL[a.provider]} analytics`} />
+                    <IconButton icon="close" accessibilityLabel={`Disconnect ${PROVIDER_LABEL[a.provider]}`} onPress={() => setRemoving(a)} />
                   </View>
                 </View>
               );
@@ -136,7 +210,14 @@ export function AccountsScreen() {
           </Text>
           <View style={styles.addRow}>
             {PROVIDERS.map((p) => (
-              <Pressable key={p} onPress={() => setConnecting(p)} accessibilityRole="button" accessibilityLabel={`Connect ${PROVIDER_LABEL[p]}`} style={({ pressed }) => [styles.add, pressed && { backgroundColor: colors.surface2 }]}>
+              <Pressable
+                key={p}
+                onPress={() => (available(p) ? setConnecting(p) : toast(`${PROVIDER_LABEL[p]} can’t be connected right now. Try again later.`, "info"))}
+                accessibilityRole="button"
+                accessibilityLabel={`Connect ${PROVIDER_LABEL[p]}`}
+                aria-disabled={!available(p)}
+                style={({ pressed }) => [styles.add, !available(p) && { opacity: 0.45 }, pressed && { backgroundColor: colors.surface2 }]}
+              >
                 <Icon name="plus" size={18} color={colors.emeraldBright} />
                 <Text style={type(12, "medium")}>{PROVIDER_LABEL[p]}</Text>
               </Pressable>
@@ -144,12 +225,19 @@ export function AccountsScreen() {
           </View>
         </>
       )}
-      <BottomSheet visible={!!connecting} onClose={() => setConnecting(null)} title={`Connect ${connecting ? PROVIDER_LABEL[connecting as "youtube"] : ""}`}>
-        <Text style={type(14, "regular", { color: colors.fgMuted, lineHeight: 1.5 })}>
-          Connecting opens {connecting === "youtube" ? "Google" : "Meta"} to sign in. That arrives with real sign-in in the app (Phase 6). For now, connect it on clipiro.com and it shows up here.
-        </Text>
-        <Button label="Got it" variant="secondary" size="sm" fullWidth onPress={() => setConnecting(null)} />
+      <BottomSheet visible={!!connecting} onClose={() => !busy && setConnecting(null)} title={`Connect ${connecting ? PROVIDER_LABEL[connecting] : ""}`}>
+        <Text style={type(14, "regular", { color: colors.fgMuted, lineHeight: 1.5 })}>{connecting ? CONNECT_NOTE[connecting] : ""}</Text>
+        <Button label={`Continue to ${connecting === "youtube" ? "Google" : "Meta"}`} fullWidth loading={busy} onPress={() => connecting && void connect(connecting)} />
+        <Button label="Not now" variant="ghost" fullWidth disabled={busy} onPress={() => setConnecting(null)} />
       </BottomSheet>
+      <ConfirmSheet
+        visible={!!removing}
+        title={removing ? `Disconnect ${PROVIDER_LABEL[removing.provider]}?` : ""}
+        body="Clipiro stops reading its stats and posting to it. What it already tracked is removed. You can connect it again any time."
+        confirmLabel="Disconnect"
+        onClose={() => setRemoving(null)}
+        onConfirm={() => removing && void disconnect(removing)}
+      />
     </Shell>
   );
 }

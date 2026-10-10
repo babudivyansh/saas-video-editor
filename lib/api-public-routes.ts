@@ -50,6 +50,14 @@ const PUBLIC_API_PREFIXES = [
   // token or Bearer) and always answers ok.
   "/api/mobile/v1/auth/",
   "/api/account/reactivate",
+  // The Social Tracker's OAuth return from Google / Meta. It identifies the
+  // person only by the signed, single-use `state` plus the PKCE verifier it
+  // minted at connect time (lib/social/oauth.ts) — never by a session; its own
+  // comment says so. On the web the browser happened to carry the cookie, so
+  // nothing failed; a connect started in the phone app (mobile Phase 11.2)
+  // returns through a Custom Tab with no clipiro.com cookie at all, which this
+  // gate 401'd before the handler could read the state.
+  "/api/social/callback/",
   "/api/webhooks/razorpay",
   // Resend's bounce/complaint feedback. Authenticated by its Svix signature,
   // not by a session — Resend has no account here. Without this entry proxy.ts
