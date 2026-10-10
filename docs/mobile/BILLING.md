@@ -1,7 +1,9 @@
 # Billing in the Android app — options (mobile Phase 12)
 
-Status: **DRAFT, waiting for a decision** (§5). Nothing that takes money is
-built until one is made (PLAYBOOK.md Phase 12).
+Status: **APPROVED 2026-10-10**: B1 A (read-only at launch), B2 A (neutral
+"out of credits" message, no link), B3 A (web subscribers can cancel, resume
+and see invoices in the app). No purchase code in Phase 12; Play Billing (B)
+is a later phase if app users run out of credits often.
 
 What Clipiro sells today, on the web only, through Razorpay in INR and USD:
 three subscriptions (Creator, Pro, and the plans above them, monthly or
