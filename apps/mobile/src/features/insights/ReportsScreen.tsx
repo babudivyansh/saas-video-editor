@@ -14,13 +14,14 @@ import {
 } from "@clipiro/shared";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, Share, StyleSheet, Text, View } from "react-native";
 import { BottomSheet, Button, Checkbox, Chip, ConfirmSheet, EmptyState, Icon, SectionHeader, SegmentedControl, SkeletonCard, Stepper, StatusBadge, TextField, useToast } from "@/components";
+import { social } from "@/lib/api";
+import { apiErrorMessage as errorMessage } from "@/lib/errors";
 import { colors, radius, text, type } from "@/theme";
-import { createReport, createShareLink, getReports, revokeShareLink } from "@mocks/analytics";
-import { errorMessage } from "@mocks/core";
 import { AnalyticsShell } from "./AnalyticsShell";
 import { analyticsKeys } from "./analytics";
+import { shareReport } from "./files";
 import { useSocialAccounts } from "./queries";
 
 const SCHEDULES = [
@@ -35,7 +36,12 @@ export function ReportsScreen() {
   const toast = useToast();
   const qc = useQueryClient();
   const accounts = useSocialAccounts();
-  const q = useQuery({ queryKey: analyticsKeys.reports, queryFn: getReports });
+  const q = useQuery({
+    queryKey: analyticsKeys.reports,
+    queryFn: social.reports,
+    // A file being made: look again until it's ready.
+    refetchInterval: (query) => (query.state.data?.files.some((f) => f.status === "running") ? 5000 : false),
+  });
   const [sheet, setSheet] = useState<"report" | "link" | null>(null);
   const [revoking, setRevoking] = useState<string | null>(null);
 
@@ -47,9 +53,10 @@ export function ReportsScreen() {
   const [schedule, setSchedule] = useState<ReportSchedule>("none");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
-  // New link form.
-  const [linkName, setLinkName] = useState("");
+  // New link form: which accounts it shows, and for how long.
+  const [linkAccounts, setLinkAccounts] = useState<string[]>([]);
   const [days, setDays] = useState<number>(SHARE_LINK_DEFAULT_DAYS);
+  const [downloading, setDownloading] = useState<string | null>(null);
 
   const openReport = () => {
     setName("");
@@ -68,7 +75,7 @@ export function ReportsScreen() {
     }
     setBusy(true);
     try {
-      await createReport(parsed.data);
+      await social.createReport(parsed.data);
       await qc.invalidateQueries({ queryKey: analyticsKeys.reports });
       setSheet(null);
       toast(schedule === "none" ? "Report is being generated." : `Saved. It’ll be emailed ${schedule}, starting now.`, "success");
@@ -78,23 +85,39 @@ export function ReportsScreen() {
       setBusy(false);
     }
   };
+  const openLink = () => {
+    setLinkAccounts((accounts.data ?? []).map((a) => a.id));
+    setSheet("link");
+  };
   const newLink = async () => {
+    if (!linkAccounts.length) return toast("Pick at least one account.", "info");
     setBusy(true);
     try {
-      await createShareLink(linkName, days);
+      const { url } = await social.createShareLink({ accountIds: linkAccounts, days });
       await qc.invalidateQueries({ queryKey: analyticsKeys.reports });
       setSheet(null);
-      setLinkName("");
       toast("Link created. It’s read-only and can be revoked any time.", "success");
+      // The link is only shown now: hand it straight to the share sheet.
+      await Share.share({ message: url });
     } catch (e) {
       toast(errorMessage(e), "error");
     } finally {
       setBusy(false);
     }
   };
+  const download = async (id: string) => {
+    setDownloading(id);
+    try {
+      await shareReport(id);
+    } catch (e) {
+      toast(errorMessage(e), "error");
+    } finally {
+      setDownloading(null);
+    }
+  };
   const revoke = async (id: string) => {
     try {
-      await revokeShareLink(id);
+      await social.revokeShareLink(id);
       await qc.invalidateQueries({ queryKey: analyticsKeys.reports });
       toast("Link revoked.", "success");
     } catch (e) {
@@ -143,13 +166,17 @@ export function ReportsScreen() {
           <Text style={text.label} accessibilityRole="header">
             Recent files
           </Text>
-          <View style={styles.list}>
-            {q.data.files.map((f, i) => (
-              <FileRow key={f.id} f={f} first={i === 0} onDownload={() => toast(`Saving ${f.title}.`, "success")} />
-            ))}
-          </View>
+          {q.data.files.length ? (
+            <View style={styles.list}>
+              {q.data.files.map((f, i) => (
+                <FileRow key={f.id} f={f} first={i === 0} busy={downloading === f.id} onDownload={() => void download(f.id)} />
+              ))}
+            </View>
+          ) : (
+            <Text style={text.caption}>Reports you generate show up here.</Text>
+          )}
 
-          <SectionHeader title="Share links" action={{ label: "New link", onPress: () => setSheet("link") }} />
+          <SectionHeader title="Share links" action={{ label: "New link", onPress: openLink }} />
           {q.data.links.length ? (
             <View style={styles.list}>
               {q.data.links.map((l, i) => (
@@ -204,10 +231,15 @@ export function ReportsScreen() {
       </BottomSheet>
 
       <BottomSheet visible={sheet === "link"} onClose={() => setSheet(null)} title="New share link">
-        <TextField label="Name" value={linkName} onChangeText={setLinkName} placeholder="Sponsor view · all accounts" maxLength={80} />
+        <Text style={text.label}>Accounts</Text>
+        <View style={styles.chips}>
+          {(accounts.data ?? []).map((a) => (
+            <Chip key={a.id} label={PROVIDER_LABEL[a.provider]} selected={linkAccounts.includes(a.id)} onPress={() => setLinkAccounts((l) => toggle(l, a.id))} />
+          ))}
+        </View>
         <Text style={text.label}>Expires after</Text>
         <Stepper size="md" label="Days" value={days} min={1} max={SHARE_LINK_MAX_DAYS} onChange={setDays} format={(v) => `${v} day${v === 1 ? "" : "s"}`} />
-        <Text style={text.caption}>Anyone with the link sees a read-only view of your analytics until it expires or you revoke it.</Text>
+        <Text style={text.caption}>Anyone with the link sees a read-only view of these accounts’ KPIs, trends and top content until it expires or you revoke it.</Text>
         <Button label="Create link" variant="secondary" size="sm" fullWidth loading={busy} onPress={newLink} />
       </BottomSheet>
 
@@ -224,7 +256,7 @@ function FileBadge({ format }: { format: ReportFormat }) {
   );
 }
 
-function FileRow({ f, first, onDownload }: { f: ReportFile; first: boolean; onDownload: () => void }) {
+function FileRow({ f, first, busy, onDownload }: { f: ReportFile; first: boolean; busy: boolean; onDownload: () => void }) {
   return (
     <View style={[styles.row, !first && styles.divider]}>
       <FileBadge format={f.format} />
@@ -237,7 +269,7 @@ function FileRow({ f, first, onDownload }: { f: ReportFile; first: boolean; onDo
         </Text>
       </View>
       {f.status === "ready" ? (
-        <Pressable onPress={onDownload} accessibilityRole="button" accessibilityLabel={`Download ${f.title}`} style={styles.download}>
+        <Pressable onPress={onDownload} disabled={busy} accessibilityRole="button" accessibilityLabel={`Download ${f.title}`} aria-busy={busy} style={[styles.download, busy && { opacity: 0.5 }]}>
           <Icon name="download" size={18} color={colors.fg} />
         </Pressable>
       ) : f.status === "running" ? (

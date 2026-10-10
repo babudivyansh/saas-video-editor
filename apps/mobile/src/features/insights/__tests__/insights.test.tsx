@@ -1,6 +1,8 @@
 import { fireEvent, renderRouter, screen, waitFor } from "expo-router/testing-library";
 import { resetMockScenarios, setMockDelay, setMockScenario } from "@mocks/core";
+import * as Sharing from "expo-sharing";
 import { makeWrapper } from "@/test/providers";
+import { describeTrend } from "../charts";
 import { useRange } from "../queries";
 import { ContentScreen, InsightsOverviewScreen, PlatformsScreen } from "../screens";
 
@@ -69,7 +71,17 @@ describe("Content", () => {
     open("/social/insights/content-performance");
     await screen.findByLabelText("Best time: 6 PM");
     fireEvent.press(screen.getByRole("link", { name: "Export CSV" }));
-    expect(await screen.findByText(/\.csv saved/)).toBeOnTheScreen();
+    // The web's export is per account: pick one, and the file goes to the share sheet.
+    fireEvent.press(await screen.findByRole("radio", { name: /^Instagram/ }));
+    expect(await screen.findByText("instagram-maya.okafor-posts.csv: 2 posts.")).toBeOnTheScreen();
+    expect(Sharing.shareAsync).toHaveBeenCalledWith("file:///cache/instagram-maya.okafor-posts.csv", { mimeType: "text/csv", dialogTitle: "instagram-maya.okafor-posts.csv" });
+  });
+
+  it("asks a Free account to upgrade, as the web does", async () => {
+    setMockScenario("subscription", "empty");
+    open("/social/insights/content-performance");
+    expect(await screen.findByText("Insights are on paid plans")).toBeOnTheScreen();
+    expect(screen.getByRole("button", { name: "See plans" })).toBeOnTheScreen();
   });
 });
 
@@ -87,5 +99,15 @@ describe("Platforms", () => {
     open("/social/insights/platform-analytics");
     expect(await screen.findByLabelText("18–24: 38%")).toBeOnTheScreen();
     expect(screen.getByLabelText("India: 41%")).toBeOnTheScreen();
+  });
+});
+
+describe("Chart descriptions", () => {
+  it("say which way the line went, for screen readers", () => {
+    const fmt = (n: number) => String(n);
+    expect(describeTrend([100, 120, 150], fmt)).toBe("rising from 100 to 150");
+    expect(describeTrend([150, 120, 100], fmt)).toBe("falling from 150 to 100");
+    expect(describeTrend([100, 103, 101], fmt)).toBe("steady around 101");
+    expect(describeTrend([], fmt)).toBe("no data yet");
   });
 });

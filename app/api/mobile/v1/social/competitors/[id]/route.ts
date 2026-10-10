@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { MAX_COMPETITORS } from "@clipiro/shared";
 import { DELETE as webRemove } from "@/app/api/social/competitors/[id]/route";
 import { competitorTrackingConfigured } from "@/lib/social/competitors";
-import { listCompetitors } from "@/lib/mobile/social";
+import { listCompetitors, myCompetitorStats } from "@/lib/mobile/social";
 import { callWeb, mobileJson, webError, withMobileSubscriber } from "@/lib/mobile/http";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -11,5 +11,6 @@ type Ctx = { params: Promise<{ id: string }> };
 export const DELETE = withMobileSubscriber(async (req: NextRequest, auth, { params }: Ctx) => {
   const r = await callWeb(webRemove, req, undefined, "DELETE", { id: (await params).id });
   if (r.status >= 400) return webError(r);
-  return mobileJson({ competitors: await listCompetitors(auth.userId), enabled: competitorTrackingConfigured(), max: MAX_COMPETITORS });
+  const [competitors, mine] = await Promise.all([listCompetitors(auth.userId), myCompetitorStats(auth.userId)]);
+  return mobileJson({ competitors, enabled: competitorTrackingConfigured(), max: MAX_COMPETITORS, mine });
 });

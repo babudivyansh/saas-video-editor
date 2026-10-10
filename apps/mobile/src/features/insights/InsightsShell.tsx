@@ -5,8 +5,8 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, type Sty
 import { BottomSheet, EmptyState, Header, OptionList, SegmentedControl, SkeletonCard, StatusBarScrim } from "@/components";
 import { useScreenPadding } from "@/navigation/insets";
 import { colors, radius, text, type } from "@/theme";
-import { errorMessage } from "@mocks/core";
-import { useRange, useSocialAccounts } from "./queries";
+import { apiErrorMessage } from "@/lib/errors";
+import { isUpsell, useRange, useSocialAccounts } from "./queries";
 
 type Tab = "overview" | "content" | "platforms";
 const TABS = [
@@ -58,7 +58,11 @@ export function InsightsShell({ tab, children, onRefresh }: { tab: Tab; children
             <SkeletonCard lines={4} />
           </>
         ) : accounts.isError ? (
-          <EmptyState tone="error" title="Couldn’t load your accounts" body={errorMessage(accounts.error)} action={{ label: "Try again", onPress: () => accounts.refetch() }} />
+          isUpsell(accounts.error) ? (
+            <SocialUpsell />
+          ) : (
+            <EmptyState tone="error" title="Couldn’t load your accounts" body={apiErrorMessage(accounts.error)} action={{ label: "Try again", onPress: () => accounts.refetch() }} />
+          )
         ) : accounts.data.length === 0 ? (
           <EmptyState
             icon="social"
@@ -83,6 +87,18 @@ export function InsightsShell({ tab, children, onRefresh }: { tab: Tab; children
         />
       </BottomSheet>
     </View>
+  );
+}
+
+/** Social Tracker is on paid plans, as on the web: what it gives, and the way to it. */
+export function SocialUpsell() {
+  return (
+    <EmptyState
+      icon="chart"
+      title="Insights are on paid plans"
+      body="Track YouTube, Instagram and Facebook in one place: views, followers, best times to post, competitors and reports."
+      action={{ label: "See plans", onPress: () => router.push("/you/subscription") }}
+    />
   );
 }
 

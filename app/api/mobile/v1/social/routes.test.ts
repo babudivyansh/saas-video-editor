@@ -21,7 +21,7 @@ const buildOverview = vi.fn(async () => ({ range: 30 }));
 const buildAudience = vi.fn(async () => ({ provider: "youtube" }));
 vi.mock("@/lib/mobile/social", async () => {
   const real = await vi.importActual<typeof import("@/lib/mobile/social")>("@/lib/mobile/social");
-  return { rangeAndTz: real.rangeAndTz, toSummary: real.toSummary, ownedAccount, buildOverview, buildAudience, listCompetitors: vi.fn(async () => []) };
+  return { rangeAndTz: real.rangeAndTz, toSummary: real.toSummary, ownedAccount, buildOverview, buildAudience, listCompetitors: vi.fn(async () => []), myCompetitorStats: vi.fn(async () => []) };
 });
 
 const overview = (await import("./overview/route")).GET;

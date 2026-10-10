@@ -12,12 +12,12 @@ import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { Avatar, EmptyState, FilterPills, Icon, SectionHeader, SkeletonCard, useToast } from "@/components";
+import { Avatar, BottomSheet, EmptyState, FilterPills, Icon, OptionList, SectionHeader, SkeletonCard, useToast } from "@/components";
+import { apiErrorMessage } from "@/lib/errors";
 import { imageSource } from "@/lib/images";
 import { colors, radius, type } from "@/theme";
-import { errorMessage } from "@mocks/core";
-import { exportContentCsv } from "@mocks/insights";
-import { AreaChart, PercentBars, PROVIDER_COLOR, ShareBar } from "./charts";
+import { shareAccountCsv } from "./files";
+import { AreaChart, describeTrend, PercentBars, PROVIDER_COLOR, ShareBar } from "./charts";
 import { InsightsShell, KpiTile, Panel, insightStyles as s } from "./InsightsShell";
 import { useContent, useOverview, usePlatform, useRange, useSocialAccounts } from "./queries";
 
@@ -44,7 +44,7 @@ function Loading() {
 }
 
 function Failed({ error, retry }: { error: unknown; retry: () => void }) {
-  return <EmptyState tone="error" title="Couldn’t load insights" body={errorMessage(error)} action={{ label: "Try again", onPress: retry }} />;
+  return <EmptyState tone="error" title="Couldn’t load insights" body={apiErrorMessage(error)} action={{ label: "Try again", onPress: retry }} />;
 }
 
 // ── Overview (design/screens/BN-InsOverview.html) ─────────────────────────
@@ -71,7 +71,7 @@ export function InsightsOverviewScreen() {
               <KpiTile label="Clips posted" value={String(q.data.totals.clipsPosted.value ?? 0)} hint="this period" />
             </View>
             <Panel title="Views over time" note={q.data.sample ? "Sample data" : `Last ${range} days`}>
-              <AreaChart values={q.data.series.map((p) => p.value)} labels={axis(q.data.series)} label={`Views over the last ${range} days, rising to ${compact(q.data.series.at(-1)?.value ?? 0)} a day`} />
+              <AreaChart values={q.data.series.map((p) => p.value)} labels={axis(q.data.series)} label={`Views a day over the last ${range} days, ${describeTrend(q.data.series.map((p) => p.value), compact)}`} />
             </Panel>
             <Panel title="Views by platform">
               <ShareBar parts={q.data.byPlatform.map((p) => ({ label: PROVIDER_LABEL[p.provider], percent: p.share, color: PROVIDER_COLOR[p.provider] }))} />
@@ -119,21 +119,30 @@ const SORTS = [
 export function ContentScreen() {
   const toast = useToast();
   const range = useRange((r) => r.range);
-  const hasAccounts = (useSocialAccounts().data?.length ?? 0) > 0;
+  const accounts = useSocialAccounts();
+  const hasAccounts = (accounts.data?.length ?? 0) > 0;
   const q = useContent(range, hasAccounts);
   const [sort, setSort] = useState<ContentSort>("views");
   const [exporting, setExporting] = useState(false);
+  const [picking, setPicking] = useState(false);
 
-  const exportCsv = async () => {
+  // The web's export is per account: with more than one, ask which.
+  const exportAccount = async (id: string) => {
+    setPicking(false);
     setExporting(true);
     try {
-      const r = await exportContentCsv();
-      toast(`${r.filename} saved (${r.rows} posts).`, "success");
+      const r = await shareAccountCsv({ id });
+      toast(`${r.filename}: ${r.rows} post${r.rows === 1 ? "" : "s"}.`, "success");
     } catch (e) {
-      toast(errorMessage(e), "error");
+      toast(apiErrorMessage(e), "error");
     } finally {
       setExporting(false);
     }
+  };
+  const exportCsv = () => {
+    const list = accounts.data ?? [];
+    if (list.length === 1) void exportAccount(list[0]!.id);
+    else setPicking(true);
   };
 
   return (
@@ -178,6 +187,14 @@ export function ContentScreen() {
               ))}
             </>
           )}
+          <BottomSheet visible={picking} onClose={() => setPicking(false)} title="Export which account?">
+            <OptionList
+              accessibilityLabel="Account to export"
+              value={null}
+              options={(accounts.data ?? []).map((a) => ({ value: a.id, label: PROVIDER_LABEL[a.provider], detail: a.handle }))}
+              onChange={(id) => void exportAccount(id)}
+            />
+          </BottomSheet>
         </>
       )}
     </InsightsShell>
@@ -203,8 +220,8 @@ export function PlatformsScreen() {
   const connected = PROVIDERS.filter((p) => accounts.data?.some((a) => a.provider === p));
   const [provider, setProvider] = useState<Provider>("youtube");
   const current = connected.includes(provider) ? provider : (connected[0] ?? "youtube");
-  const q = usePlatform(current, range, connected.length > 0);
   const account = accounts.data?.find((a) => a.provider === current);
+  const q = usePlatform(account?.id ?? null, range);
   const watch = unavailableReason(current, "watchTimeSec");
 
   return (
@@ -245,7 +262,7 @@ export function PlatformsScreen() {
                 <KpiTile label="Watch time" value={`${compact(q.data.watchTimeHours.value ?? 0)} h`} unavailable={watch} />
               </View>
               <Panel title="Follower growth" note={`Last ${range} days`}>
-                <AreaChart values={q.data.growth.map((g) => g.value)} height={100} label={`${PROVIDER_LABEL[current]} followers grew to ${compact(q.data.followers.value ?? 0)}`} />
+                <AreaChart values={q.data.growth.map((g) => g.value)} height={100} label={`${PROVIDER_LABEL[current]} followers over the last ${range} days, ${describeTrend(q.data.growth.map((g) => g.value), compact)}`} />
               </Panel>
               <Panel title="Audience age">
                 <PercentBars rows={q.data.age} />

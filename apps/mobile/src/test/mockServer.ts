@@ -1,5 +1,7 @@
-import { ApiError, NetworkError } from "@mocks/core";
-import { AI_SOURCES, maxFileBytes, sortAssets, sortProjects, storageLimitBytes, type AiTextOperationId, type Asset, type AssetSort, type Clip, type ClipAspect, type ProjectSort, type StockItem, type TimelineDoc } from "@clipiro/shared";
+import { ApiError, NetworkError, scenarioOf } from "@mocks/core";
+import { addCompetitor, createReport, createShareLink, getAnalyticsOverview, getAudience, getCompetitors, getReports, getSummary, makeSummary, removeCompetitor, reportDownload, revokeShareLink } from "@mocks/analytics";
+import { exportCsv, getContentPerformance, getInsightsOverview, getPlatformAnalytics, getSocialAccounts, providerOf } from "@mocks/insights";
+import { AI_SOURCES, maxFileBytes, sortAssets, sortProjects, storageLimitBytes, type AiTextOperationId, type Asset, type AssetSort, type Clip, type ClipAspect, type ProjectSort, type Provider, type RangeDays, type ReportRequest, type StockItem, type TimelineDoc } from "@clipiro/shared";
 import { getAccount } from "@mocks/account";
 import { addUpload, createFolder, deleteAsset, getAssets, getFolders, updateAsset } from "@mocks/assets";
 import { EDIT_ID, exportAsset, getEdit, getVoices, renderJob, startRender, runAiText, saveEdit, searchStock, stockAsset, transcribe } from "@mocks/editor";
@@ -187,7 +189,59 @@ export const MOCK_ROUTES: Record<string, Route> = {
     await retryClip(idOf(url));
     return ok(clipDetail(await findClip(idOf(url))));
   },
+
+  // Social (subscriber-only: scenario "subscription" = "empty" is a Free account).
+  ...socialRoutes({
+    "GET /social/accounts": async () => ok({ accounts: await getSocialAccounts() }),
+    "POST /social/accounts/:id/sync": async () => ok({ ok: true }),
+    "GET /social/overview": async (url) => ok(await getInsightsOverview(rangeOf(url))),
+    "GET /social/content": async (url) => ok(await getContentPerformance(rangeOf(url))),
+    "GET /social/accounts/:id/platform": async (url) => ok(await getPlatformAnalytics(providerOrThrow(socialIdOf(url)), rangeOf(url))),
+    "GET /social/accounts/:id/audience": async (url) => ok(await getAudience(providerOrThrow(socialIdOf(url)))),
+    "GET /social/analytics": async () => ok(await getAnalyticsOverview()),
+    "GET /social/competitors": async () => ok(await getCompetitors()),
+    "POST /social/competitors": async (_url, body) => {
+      await addCompetitor(body.provider as Provider, String(body.handle));
+      return [201, await getCompetitors()];
+    },
+    "DELETE /social/competitors/:id": async (url) => {
+      await removeCompetitor(socialIdOf(url));
+      return ok(await getCompetitors());
+    },
+    "GET /social/summary": async (url) => ok({ summary: await getSummary(url.searchParams.get("accountId") ?? "") }),
+    "POST /social/summary": async (_url, body) => ok({ summary: await makeSummary(String(body.accountId)) }),
+    "GET /social/reports": async () => ok(await getReports()),
+    "POST /social/reports": async (_url, body) => [202, await createReport(body as ReportRequest)],
+    "GET /social/reports/:id/download": async (url) => ok(await reportDownload(socialIdOf(url))),
+    "POST /social/share-links": async (_url, body) => [201, await createShareLink(body.accountIds as string[], Number(body.days))],
+    "DELETE /social/share-links/:id": async (url) => {
+      await revokeShareLink(socialIdOf(url));
+      return ok({ ok: true });
+    },
+    "GET /social/export": async (url) => ok(await exportCsv(url.searchParams.get("accountId") ?? "")),
+  }),
 };
+
+/** Social routes refuse a Free account, as the API does (402 subscription_required). */
+function socialRoutes(routes: Record<string, Route>): Record<string, Route> {
+  return Object.fromEntries(
+    Object.entries(routes).map(([k, r]) => [
+      k,
+      async (url, body) => {
+        if (scenarioOf("subscription") === "empty") throw Object.assign(new ApiError("Social Tracker is available on paid plans.", 402), { code: "subscription_required" });
+        return r(url, body);
+      },
+    ]),
+  );
+}
+/** /api/mobile/v1/social/<area>/<id> */
+const socialIdOf = (url: URL) => url.pathname.split("/")[6]!;
+const rangeOf = (url: URL) => Number(url.searchParams.get("range") ?? 30) as RangeDays;
+function providerOrThrow(accountId: string): Provider {
+  const p = providerOf(accountId);
+  if (!p) throw new ApiError("Account not found", 404);
+  return p;
+}
 
 export function installMockServer(routes: Record<string, Route> = MOCK_ROUTES) {
   const original = globalThis.fetch;
