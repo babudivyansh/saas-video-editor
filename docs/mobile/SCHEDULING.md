@@ -1,7 +1,7 @@
 # Scheduling and posting — backend design (mobile Phase 11)
 
-Status: **DRAFT — waiting for approval.** Nothing in this document is built
-until it is approved (PLAYBOOK.md, Phase 11).
+Status: **APPROVED 2026-10-10** with every recommended option: D1 A, D2 A,
+D3 A, D4 A, D5 A (see §4). Built in Phase 11.3 (backend) and 11.4 (app).
 
 The app's Social Studio (design: Calendar, Composer, Scheduled posts, Accounts)
 lets a creator pick a clip, write a caption, choose where and when, and have
