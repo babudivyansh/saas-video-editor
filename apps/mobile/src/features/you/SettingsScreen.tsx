@@ -18,14 +18,14 @@ import {
 import { openPushSettings, usePush } from "@/lib/push";
 import { useSession } from "@/state/session";
 import { colors, type } from "@/theme";
-import { deactivateAccount } from "@mocks/account";
-import { errorMessage } from "@mocks/core";
+import { me } from "@/lib/api";
+import { apiErrorMessage as errorMessage } from "@/lib/errors";
 import { useCaptionTemplates } from "../create/queries";
 import { Label, Page } from "./bits";
 import { useAccount, useSaveSettings, useSettings } from "./queries";
 
 const ASPECTS = [
-  { value: "9:16", label: "9:16", detail: "Vertical · Shorts, Reels, TikTok" },
+  { value: "9:16", label: "9:16", detail: "Vertical · Shorts and Reels" },
   { value: "16:9", label: "16:9", detail: "Landscape · YouTube" },
   { value: "1:1", label: "1:1", detail: "Square · feeds" },
 ] as const;
@@ -50,6 +50,9 @@ export function SettingsScreen() {
   const [password, setPassword] = useState("");
   const [pwError, setPwError] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
+  // Accounts made with Google have no password: they confirm with an emailed code.
+  const [codeSent, setCodeSent] = useState(false);
+  const noPassword = account.data ? !account.data.user.hasPassword : false;
 
   const s = settings.data;
   const set = (patch: Partial<Settings>) => save.mutate(patch);
@@ -58,7 +61,7 @@ export function SettingsScreen() {
   const deleteAccount = async () => {
     setBusy(true);
     try {
-      await deactivateAccount(password);
+      await me.deactivate(noPassword ? { otp: password } : { password });
       setDeleting(false);
       qc.clear();
       useSession.getState().signOut();
@@ -137,14 +140,7 @@ export function SettingsScreen() {
 
           <Label>Preferences</Label>
           <ListGroup>
-            {toggle("Autoplay previews", s.autoplay, (v) => set({ autoplay: v }), undefined, true)}
-            {toggle("Haptic feedback", s.haptics, (v) => set({ haptics: v }))}
-            {toggle(
-              "Upload on Wi-Fi only",
-              s.wifiOnlyUploads,
-              (v) => set({ wifiOnlyUploads: v }),
-              "Save mobile data"
-            )}
+            {toggle("Autoplay previews", s.autoplay, (v) => set({ autoplay: v }), "Clip previews start playing when opened", true)}
           </ListGroup>
 
           <Label>Notifications</Label>
@@ -288,15 +284,38 @@ export function SettingsScreen() {
           with your projects, clips and assets. Log back in before then to keep it. A paid plan is
           cancelled.
         </Text>
-        <TextField
-          label="Password"
-          value={password}
-          onChangeText={(t) => (setPassword(t), setPwError(undefined))}
-          error={pwError}
-          secureTextEntry
-          autoCapitalize="none"
-          autoComplete="current-password"
-        />
+        {noPassword && !codeSent ? (
+          <Button
+            label="Email me a code"
+            variant="secondary"
+            size="sm"
+            fullWidth
+            loading={busy}
+            onPress={async () => {
+              setBusy(true);
+              try {
+                await me.sendStepUpCode();
+                setCodeSent(true);
+              } catch (e) {
+                setPwError(errorMessage(e));
+              } finally {
+                setBusy(false);
+              }
+            }}
+          />
+        ) : (
+          <TextField
+            label={noPassword ? "Code from your email" : "Password"}
+            value={password}
+            onChangeText={(t) => (setPassword(t), setPwError(undefined))}
+            error={pwError}
+            secureTextEntry={!noPassword}
+            keyboardType={noPassword ? "number-pad" : "default"}
+            autoCapitalize="none"
+            autoComplete={noPassword ? "one-time-code" : "current-password"}
+          />
+        )}
+        {noPassword && !codeSent && pwError ? <Text style={type(13, "medium", { color: colors.error })}>{pwError}</Text> : null}
         <Button
           label="Delete account"
           variant="danger"

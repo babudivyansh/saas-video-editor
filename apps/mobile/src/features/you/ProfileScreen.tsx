@@ -25,8 +25,8 @@ import { imageSource } from "@/lib/images";
 import { useScreenPadding } from "@/navigation/insets";
 import { useSession } from "@/state/session";
 import { colors, radius, statusTint, text, type, withAlpha } from "@/theme";
-import { errorMessage } from "@mocks/core";
-import { updateName } from "@mocks/account";
+import { me } from "@/lib/api";
+import { apiErrorMessage as errorMessage } from "@/lib/errors";
 import { IconChip, Label, ReferralSheet } from "./bits";
 import { useAccount, youKeys } from "./queries";
 
@@ -52,8 +52,7 @@ export function ProfileScreen() {
   const saveName = async () => {
     setSaving(true);
     try {
-      await updateName(name);
-      await qc.invalidateQueries({ queryKey: youKeys.account });
+      qc.setQueryData(youKeys.account, await me.rename({ name }));
       setEditing(false);
       toast("Name updated.", "success");
     } catch (e) {

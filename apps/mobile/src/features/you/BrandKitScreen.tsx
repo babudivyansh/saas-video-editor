@@ -3,7 +3,7 @@ import {
   BRAND_COLOR_PRESETS,
   BRAND_FONT_SIZE,
   CAPTION_FONTS,
-  type BrandKit,
+  type BrandKitPatch,
 } from "@clipiro/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import * as DocumentPicker from "expo-document-picker";
@@ -26,8 +26,9 @@ import {
 } from "@/components";
 import { imageSource, sample } from "@/lib/images";
 import { colors, derived, radius, type } from "@/theme";
-import { saveBrandKit } from "@mocks/account";
-import { errorMessage } from "@mocks/core";
+import { me } from "@/lib/api";
+import { apiErrorMessage as errorMessage } from "@/lib/errors";
+import { uploadToAssets } from "../create/toolUpload";
 import { useCaptionTemplates } from "../create/queries";
 import { Label, Page } from "./bits";
 import { useBrandKit, youKeys } from "./queries";
@@ -46,10 +47,11 @@ export function BrandKitScreen() {
   const [hexError, setHexError] = useState<string | undefined>();
   const [picking, setPicking] = useState<"font" | "style" | null>(null);
 
-  const save = async (patch: Partial<Omit<BrandKit, "id">>, done?: string) => {
+  const [logoBusy, setLogoBusy] = useState(false);
+  const save = async (patch: BrandKitPatch, done?: string) => {
     try {
-      const next = await saveBrandKit(patch);
-      qc.setQueryData(youKeys.brandKit, next);
+      const next = await me.saveBrandKit(patch);
+      qc.setQueryData(youKeys.brandKit, next.kit);
       if (done) toast(done, "success");
       return true;
     } catch (e) {
@@ -62,8 +64,18 @@ export function BrandKitScreen() {
     const res = await DocumentPicker.getDocumentAsync({
       type: ["image/png", "image/jpeg", "image/webp", "image/svg+xml"],
     });
-    if (res.canceled || !res.assets[0]) return;
-    await save({ logoUrl: res.assets[0].uri }, "Logo updated.");
+    const file = res.canceled ? null : res.assets[0];
+    if (!file) return;
+    // The logo is kept in Assets, like any image, and the kit points at it.
+    setLogoBusy(true);
+    try {
+      const asset = await uploadToAssets({ uri: file.uri, name: file.name, mimeType: file.mimeType ?? "image/png", sizeBytes: file.size ?? 0 }, () => {});
+      await save({ logoAssetId: asset.id }, "Logo updated.");
+    } catch (e) {
+      toast(errorMessage(e), "error");
+    } finally {
+      setLogoBusy(false);
+    }
   };
 
   const k = kit.data;
@@ -117,6 +129,7 @@ export function BrandKitScreen() {
               variant="secondary"
               size="md"
               onPress={pickLogo}
+              loading={logoBusy}
               accessibilityLabel={k.logoUrl ? "Replace logo" : "Add logo"}
             />
           </View>
@@ -269,7 +282,7 @@ export function BrandKitScreen() {
             accessibilityLabel="Caption font"
             value={(k?.fontName ?? null) as string | null}
             options={CAPTION_FONTS.map((f) => ({ value: f, label: f }))}
-            onChange={(f) => (setPicking(null), save({ fontName: f }))}
+            onChange={(f) => (setPicking(null), save({ fontName: f as (typeof CAPTION_FONTS)[number] }))}
           />
         </ScrollView>
       </BottomSheet>

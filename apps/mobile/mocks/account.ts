@@ -7,15 +7,16 @@ import {
   clonedVoiceSchema,
   libraryVoiceSchema,
   notificationSchema,
-  settingsSchema,
+  accountSettingsSchema,
   voiceNameSchema,
+  type AccountSettings,
+  type BrandKitPatch,
   type Account,
   type Activity,
   type AppNotification,
   type BrandKit,
   type ClonedVoice,
   type LibraryVoice,
-  type Settings,
 } from "@clipiro/shared";
 import { z } from "zod";
 import { ApiError, respond, wait } from "./core";
@@ -53,6 +54,10 @@ const FREE: Account = {
 };
 
 let ACCOUNT = STUDIO;
+/** Tests: an account made with Google, which has no password. */
+export function useGoogleAccount() {
+  ACCOUNT = { ...ACCOUNT, user: { ...ACCOUNT.user, hasPassword: false } };
+}
 
 export async function getAccount(): Promise<Account> {
   const s = await respond("account");
@@ -71,11 +76,12 @@ export async function getActivity(): Promise<Activity[]> {
   return z.array(activitySchema).parse(s === "empty" ? [] : ACTIVITY);
 }
 
-export async function updateName(name: string) {
+export async function updateName(name: string): Promise<Account> {
   const n = nameSchema.safeParse(name);
   if (!n.success) throw new ApiError(n.error.issues[0]?.message ?? "Enter your name", 400);
   await wait();
   ACCOUNT = { ...ACCOUNT, user: { ...ACCOUNT.user, name: n.data } };
+  return ACCOUNT;
 }
 
 /** The web cancels at the end of the paid period (billing/cancel); resume undoes it. */
@@ -84,11 +90,20 @@ export async function setCancelAtPeriodEnd(cancel: boolean) {
   ACCOUNT = { ...ACCOUNT, plan: { ...ACCOUNT.plan, cancelAtPeriodEnd: cancel } };
 }
 
-/** Soft-deletes: password-confirmed, purged after 30 days unless they log back in. */
-export async function deactivateAccount(password: string) {
+/** Soft-deletes: confirmed by password (or, without one, the emailed code "123456"); purged after 30 days unless they log back in. */
+export async function deactivateAccount(b: { password?: string; otp?: string }) {
   await wait();
-  if (!password) throw new ApiError("Enter your password", 400);
-  if (password === "wrong-password") throw new ApiError("That password is incorrect", 401);
+  if (!b.password && !b.otp) throw new ApiError("Enter your password", 400);
+  if (b.password === "wrong-password") throw new ApiError("That password is incorrect", 401);
+  if (b.otp && b.otp !== "123456") throw new ApiError("That code is incorrect or expired", 401);
+}
+
+/** POST /support/contact: the last message sent (tests check it). */
+let lastContact: { subject: string; message: string } | null = null;
+export const lastContactMessage = () => lastContact;
+export async function sendContact(b: { subject: string; message: string }) {
+  await wait();
+  lastContact = b;
 }
 
 // ── Voices ─────────────────────────────────────────────────────────────────
@@ -179,9 +194,11 @@ export async function getBrandKit(): Promise<BrandKit | null> {
   return s === "empty" ? null : KIT && brandKitSchema.parse(KIT);
 }
 
-export async function saveBrandKit(patch: Partial<Omit<BrandKit, "id">>): Promise<BrandKit> {
+export async function saveBrandKit(input: BrandKitPatch): Promise<BrandKit> {
   await wait();
-  const next = brandKitSchema.safeParse({ ...(KIT ?? { ...INITIAL_KIT, id: "bk_new", logoUrl: null }), ...patch });
+  const { logoAssetId, ...patch } = input;
+  const logo = logoAssetId === undefined ? {} : { logoUrl: logoAssetId === null ? null : `asset:${logoAssetId}` };
+  const next = brandKitSchema.safeParse({ ...(KIT ?? { ...INITIAL_KIT, id: "bk_new", name: "My brand", logoUrl: null }), ...patch, ...logo });
   if (!next.success) throw new ApiError(next.error.issues[0]?.message ?? "Check the brand kit", 400);
   KIT = next.data;
   return KIT;
@@ -195,6 +212,7 @@ const INITIAL_NOTIFICATIONS: AppNotification[] = [
   { id: "n3", type: "social_reconnect", title: "Instagram needs reconnecting", body: "Your access token expired", href: "/social", thumbnailUrl: null, readAt: ago(30), createdAt: ago(180) },
   { id: "n4", type: "referral_reward", title: "You earned 20 credits", body: "A friend subscribed with your link", href: "/you/credits", thumbnailUrl: null, readAt: daysAgo(5), createdAt: daysAgo(6) },
   { id: "n5", type: "product_update", title: "New: Nano Banana Pro", body: "Studio-only image model is live", href: "/create/ai-media", thumbnailUrl: null, readAt: daysAgo(7), createdAt: daysAgo(8) },
+  { id: "n7", type: "review_reply", title: "The team replied to your review", body: null, href: null, webUrl: "https://clipiro.com/reviews/r1", thumbnailUrl: null, readAt: daysAgo(11), createdAt: daysAgo(11) },
   { id: "n6", type: "social_weekly_summary", title: "Your weekly summary is ready", body: "Views up 18% this week", href: "/social/insights", thumbnailUrl: null, readAt: daysAgo(9), createdAt: daysAgo(10) },
 ];
 let NOTIFICATIONS = INITIAL_NOTIFICATIONS;
@@ -219,26 +237,18 @@ export async function markAllRead() {
 
 // ── Settings ───────────────────────────────────────────────────────────────
 
-const INITIAL_SETTINGS: Settings = {
-  language: "en",
-  aspectRatio: "9:16",
-  captionTemplateId: "hormozi",
-  autoplay: true,
-  haptics: true,
-  wifiOnlyUploads: false,
-  push: { renderFinished: true, postPublished: true },
-  email: { weeklySummary: true, productUpdates: false },
-};
+// GET/PATCH /me/settings: what the server keeps (the rest is on the phone).
+const INITIAL_SETTINGS: AccountSettings = { language: "en", email: { weeklySummary: true, productUpdates: false } };
 let SETTINGS = INITIAL_SETTINGS;
 
-export async function getSettings(): Promise<Settings> {
+export async function getSettings(): Promise<AccountSettings> {
   await respond("settings");
-  return settingsSchema.parse(SETTINGS);
+  return accountSettingsSchema.parse(SETTINGS);
 }
 
-export async function saveSettings(patch: Partial<Settings>): Promise<Settings> {
+export async function saveSettings(patch: { language?: AccountSettings["language"]; email?: Partial<AccountSettings["email"]> }): Promise<AccountSettings> {
   await wait();
-  SETTINGS = settingsSchema.parse({ ...SETTINGS, ...patch });
+  SETTINGS = accountSettingsSchema.parse({ ...SETTINGS, ...patch, email: { ...SETTINGS.email, ...patch.email } });
   return SETTINGS;
 }
 
@@ -248,4 +258,5 @@ export function resetAccountMocks() {
   KIT = INITIAL_KIT;
   NOTIFICATIONS = INITIAL_NOTIFICATIONS;
   SETTINGS = INITIAL_SETTINGS;
+  lastContact = null;
 }

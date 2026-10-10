@@ -4,6 +4,9 @@ import {
   accountSettingsPatch,
   accountSettingsSchema,
   activityPageSchema,
+  brandKitPatch,
+  brandKitResponse,
+  contactRequest,
   deactivateRequest,
   plansResponseSchema,
   updateProfileRequest,
@@ -24,6 +27,10 @@ export function meApi(api: ApiClient) {
     sendStepUpCode: () => api.request("/me/step-up-code", { method: "POST", body: {}, schema: z.object({ ok: z.literal(true) }).loose() }),
     deactivate: (b: z.input<typeof deactivateRequest>) =>
       api.request("/me/deactivate", { method: "POST", body: deactivateRequest.parse(b), schema: z.object({ ok: z.literal(true), purgeAt: z.string().nullable() }) }),
+    brandKit: () => api.request("/me/brand-kit", { schema: brandKitResponse }),
+    saveBrandKit: (b: z.input<typeof brandKitPatch>) => api.request("/me/brand-kit", { method: "PUT", body: brandKitPatch.parse(b), schema: brandKitResponse }),
+    /** A message to the Clipiro team, from the signed-in account's name and email. */
+    contact: (b: z.input<typeof contactRequest>) => api.request("/support/contact", { method: "POST", body: contactRequest.parse(b), schema: z.object({ ok: z.literal(true) }) }),
     home: () => api.request("/home", { schema: homeSummarySchema }),
     plans: () => api.request("/plans", { schema: plansResponseSchema }),
     tools: () => api.request("/tools", { schema: toolsResponseSchema }),
