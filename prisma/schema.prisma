@@ -199,6 +199,7 @@ model User {
   brandKits           BrandKit[]
   // Posts to social accounts (Social Studio, mobile Phase 11.3).
   socialPosts         ClipPublish[]
+  assistantMessages   AssistantMessage[]
   clonedVoices        ClonedVoice[]
   assetFolders        AssetFolder[]
   tags                Tag[]
@@ -2041,4 +2042,20 @@ model DeviceToken {
 
   @@index([userId])
   @@index([userId, sessionId])
+}
+
+// The app's AI Assistant chat (mobile Phase 13). One ongoing conversation per
+// person: "New chat" deletes it, and messages older than 90 days are dropped.
+model AssistantMessage {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String // user | assistant
+  text      String
+  /// Cards shown under an assistant reply (hooks, caption, best time, AutoClip):
+  /// @clipiro/shared assistantCardSchema[].
+  cards     Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
 }

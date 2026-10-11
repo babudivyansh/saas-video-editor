@@ -67,12 +67,41 @@ export type Tool = z.infer<typeof toolSchema>;
 
 export const toolsResponseSchema = z.object({ tools: z.array(toolSchema) });
 
-/** One chat turn with Clipiro AI. Rich parts are optional. */
+// ── Clipiro AI (mobile Phase 13; /api/mobile/v1/assistant) ───────────────
+
+/** What a reply can show under its text. Each comes from a tool the model ran on the person's own data. */
+export const assistantCardSchema = z.discriminatedUnion("type", [
+  /** find_hooks: a project's strongest clips. */
+  z.object({
+    type: z.literal("hooks"),
+    projectId: z.string(),
+    projectTitle: z.string(),
+    clips: z.array(z.object({ id: z.string(), title: z.string(), score: z.number().nullable(), durationSec: z.number(), thumbnailUrl: z.string().nullable() })),
+  }),
+  /** show_caption: a caption the assistant wrote, ready to copy or post. */
+  z.object({ type: z.literal("caption"), clipId: z.string().nullable(), caption: z.string(), hashtags: z.array(z.string()) }),
+  /** suggest_posting_time: from the person's own audience, or general guidance. */
+  z.object({
+    type: z.literal("best_time"),
+    provider: z.enum(["youtube", "instagram", "facebook"]),
+    /** Next occurrence, as an ISO time. */
+    at: z.string(),
+    label: z.string(),
+    source: z.enum(["audience", "general"]),
+  }),
+  /** create_clips: an AutoClip run to set up. Nothing runs until the person starts it on the AutoClip screen. */
+  z.object({ type: z.literal("autoclip"), assetId: z.string(), name: z.string(), durationSec: z.number().nullable(), estimatedMinutes: z.number().int() }),
+]);
+export type AssistantCard = z.infer<typeof assistantCardSchema>;
+
+/** One chat turn with Clipiro AI. */
 export const assistantMessageSchema = z.object({
   id: z.string(),
   role: z.enum(["user", "assistant"]),
   text: z.string(),
   createdAt: z.string(),
+  cards: z.array(assistantCardSchema).optional(),
+  // Design-time fields the screen still reads until Phase 13.2.
   clips: z.array(clipThumbSchema).optional(),
   checklist: z.array(z.string()).optional(),
   actions: z.array(z.object({ id: z.string(), label: z.string() })).optional(),
@@ -81,6 +110,34 @@ export type AssistantMessage = z.infer<typeof assistantMessageSchema>;
 
 export const assistantSendRequest = z.object({ text: z.string().trim().min(1, "Type a message").max(2000) });
 export type AssistantSendRequest = z.infer<typeof assistantSendRequest>;
+
+/** GET /assistant/messages: the conversation, oldest first, and today's allowance. */
+export const assistantHistoryResponse = z.object({
+  messages: z.array(assistantMessageSchema),
+  /** Messages left today (A2: 20 a day on Free, 200 on paid plans). */
+  remaining: z.number().int().nonnegative(),
+  limit: z.number().int().positive(),
+});
+
+/**
+ * POST /assistant/messages streams newline-delimited JSON, one event a line:
+ * text as it's written, cards as tools finish, then the saved reply (or an
+ * error). The person's own message is saved before the stream starts.
+ */
+export const assistantStreamEvent = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("user"), message: assistantMessageSchema }),
+  z.object({ type: z.literal("text"), delta: z.string() }),
+  /** A tool is running ("Looking at your projects…"). */
+  z.object({ type: z.literal("status"), label: z.string() }),
+  z.object({ type: z.literal("card"), card: assistantCardSchema }),
+  z.object({ type: z.literal("done"), message: assistantMessageSchema, remaining: z.number().int().nonnegative() }),
+  z.object({ type: z.literal("error"), error: z.string(), code: z.string().optional() }),
+]);
+export type AssistantStreamEvent = z.infer<typeof assistantStreamEvent>;
+/** How many of these a day (decision A2). */
+export const ASSISTANT_DAILY = { free: 20, paid: 200 } as const;
+/** Chats are kept this long (decision A3). */
+export const ASSISTANT_KEEP_DAYS = 90;
 
 /**
  * The tools the app lists, in order, without prices: GET /api/mobile/v1/tools
