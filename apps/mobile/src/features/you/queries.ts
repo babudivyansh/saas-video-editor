@@ -3,7 +3,7 @@ import type { AccountSettings, Settings } from "@clipiro/shared";
 import { me, notifications } from "@/lib/api";
 import { usePhonePrefs, type PhonePrefs } from "@/lib/phonePrefs";
 import { usePush } from "@/lib/push";
-import { getClonedVoices, getVoiceLibrary } from "@mocks/account";
+import { useVoices } from "../create/queries";
 
 export const youKeys = {
   // The same entry the Create tab reads (createKeys.context): one /me request.
@@ -28,8 +28,12 @@ export const useActivity = () =>
     select: (d) => d.pages.flatMap((p) => p.items),
   });
 
-export const useClonedVoices = () => useQuery({ queryKey: youKeys.clones, queryFn: getClonedVoices });
-export const useVoiceLibrary = () => useQuery({ queryKey: youKeys.library, queryFn: getVoiceLibrary, staleTime: 60 * 60_000 });
+export const useClonedVoices = () => useQuery({ queryKey: youKeys.clones, queryFn: me.clonedVoices });
+/** The catalogue (GET /voices) without the person's own clones, which it lists first. */
+export function useVoiceLibrary() {
+  const voices = useVoices();
+  return { ...voices, data: voices.data?.voices.filter((v) => !v.id.startsWith("clone:")) };
+}
 export const useBrandKit = () => useQuery({ queryKey: youKeys.brandKit, queryFn: () => me.brandKit().then((r) => r.kit) });
 
 /** The bell, newest first, a page at a time. */

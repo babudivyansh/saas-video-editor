@@ -23,7 +23,7 @@ export function VoiceoverSheet({ visible, onClose }: { visible: boolean; onClose
   const [progress, setProgress] = useState<number | null>(null);
 
   const list = voices.data?.voices ?? [];
-  const voice = list.find((v) => v.id === voiceId) ?? list[0] ?? null;
+  const voice = list.find((v) => v.id === voiceId) ?? list.find((v) => !v.id.startsWith("clone:")) ?? list[0] ?? null;
   const credits = voiceoverCredits(script.trim().length);
 
   const make = async () => {

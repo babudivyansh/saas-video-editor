@@ -69,7 +69,7 @@ function ToolBody({ tool }: { tool: FileToolId }) {
   const job = useToolJob(cost);
   const voices = useVoices();
   const voiceList = voices.data?.voices ?? [];
-  const voice = voiceList.find((v) => v.id === voiceId) ?? voiceList[0];
+  const voice = voiceList.find((v) => v.id === voiceId) ?? voiceList.find((v) => !v.id.startsWith("clone:")) ?? voiceList[0];
 
   const start = async () => {
     const key = newKey();

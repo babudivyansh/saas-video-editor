@@ -1,7 +1,7 @@
 import * as DocumentPicker from "expo-document-picker";
 import { act, fireEvent, renderRouter, screen, waitFor } from "expo-router/testing-library";
 import { Linking } from "react-native";
-import { getBrandKit, getSettings, lastContactMessage, resetAccountMocks, useGoogleAccount } from "@mocks/account";
+import { getBrandKit, getSettings, lastContactMessage, resetAccountMocks, setCloningEnabled, useGoogleAccount } from "@mocks/account";
 import { usePhonePrefs, DEFAULT_PHONE_PREFS } from "@/lib/phonePrefs";
 import { useAutoClipDraft } from "../../create/draft";
 import { setToolUploadIO } from "../../create/toolUpload";
@@ -88,16 +88,31 @@ describe("You", () => {
 });
 
 describe("My Voices", () => {
-  it("lists the real catalogue and opens voiceover with the chosen voice", async () => {
+  const stubUpload = () =>
+    setToolUploadIO({ readPart: async () => "file:///cache/part", putPart: async (_p, _u, onBytes) => (onBytes(1), { status: 200, etag: '"e1"' }), fileExists: () => true, load: async () => null, save: async () => {} });
+
+  it("lists the catalogue, plays a sample, and opens voiceover with the chosen voice", async () => {
     const r = open("/you/my-voices");
-    expect(await screen.findByText("Voice library · 22 narrators")).toBeOnTheScreen();
-    press("Use George");
+    expect(await screen.findByText("Voice library · 2 narrators")).toBeOnTheScreen();
+    expect(screen.getByText("Female · British · Warm and upbeat")).toBeOnTheScreen();
+    expect(screen.queryByRole("button", { name: "Play a sample of Brian" })).toBeNull(); // no preview
+    press("Play a sample of Aria");
+    expect(await screen.findByRole("button", { name: "Stop a sample of Aria" })).toBeOnTheScreen();
+    press("Use Aria");
     await waitFor(() => expect(r.getPathname()).toBe("/create/ai-media"));
-    expect(r.getSearchParams()).toEqual({ tab: "voiceover", voice: "george" });
+    expect(r.getSearchParams()).toEqual({ tab: "voiceover", voice: "aria" });
+  });
+
+  it("uses a cloned voice in a voiceover", async () => {
+    const r = open("/you/my-voices");
+    fireEvent.press(await screen.findByRole("button", { name: "Use Maya — natural in a voiceover" }));
+    await waitFor(() => expect(r.getPathname()).toBe("/create/ai-media"));
+    expect(r.getSearchParams()).toEqual({ tab: "voiceover", voice: "clone:cv_maya" });
   });
 
   it("clones an uploaded sample only with consent, up to the cap", async () => {
-    pickDocument.mockResolvedValue({ canceled: false, assets: [{ name: "me.m4a", uri: "file:///me.m4a" }] });
+    stubUpload();
+    pickDocument.mockResolvedValue({ canceled: false, assets: [{ name: "me.m4a", size: 900_000, mimeType: "audio/mp4", uri: "file:///me.m4a" }] });
     open("/you/my-voices");
     expect(await screen.findByText("1 of 3 cloned voices")).toBeOnTheScreen();
     for (const name of ["Calm", "Hype"]) {
@@ -110,6 +125,14 @@ describe("My Voices", () => {
     }
     expect(await screen.findByText(/used all 3 voice slots/)).toBeOnTheScreen();
     expect(screen.getByRole("button", { name: "Upload" })).toBeDisabled();
+  });
+
+  it("says cloning is coming soon while the server has it switched off", async () => {
+    setCloningEnabled(false);
+    open("/you/my-voices");
+    expect(await screen.findByText(/Voice cloning is coming soon/)).toBeOnTheScreen();
+    expect(screen.getByRole("button", { name: "Upload" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Record" })).toBeDisabled();
   });
 
   it("renames and deletes a cloned voice", async () => {

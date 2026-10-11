@@ -37,7 +37,8 @@ vi.mock("@/app/api/tools/face-swap/route", () => ({ POST: web.faceSwap }));
 vi.mock("@/app/api/tools/subtitle-remover/route", () => ({ POST: web.subtitles }));
 vi.mock("@/lib/auth", () => ({ getAuthUser: vi.fn(async () => ({ userId: "u1", email: "m@x.co", sessionId: "s1" })), convertToMobileSession: vi.fn(), verifyToken: vi.fn() }));
 const assetFindFirst = vi.fn();
-vi.mock("@/lib/prisma", () => ({ prisma: { asset: { findFirst: assetFindFirst } } }));
+const cloneFindFirst = vi.fn();
+vi.mock("@/lib/prisma", () => ({ prisma: { asset: { findFirst: assetFindFirst }, clonedVoice: { findFirst: cloneFindFirst } } }));
 vi.mock("@/utils/s3-upload", () => ({ getPresignedUrl: vi.fn(async () => "https://s3/signed") }));
 vi.mock("@/lib/signed-media", () => ({ resignMediaUrl: vi.fn() }));
 
@@ -171,5 +172,22 @@ describe("tools and export", () => {
     web.render.mockResolvedValue(json({ error: "Project is already rendering" }, 409));
     res = await POST(req({ type: "export", projectId: "p9" }));
     expect([res.status, await res.json()]).toEqual([409, { error: "This video is already exporting.", code: "already_rendering" }]);
+  });
+});
+
+describe("cloned voices", () => {
+  it("speaks with the caller's own cloned voice, by its ElevenLabs id", async () => {
+    cloneFindFirst.mockResolvedValueOnce({ elevenLabsVoiceId: "el_maya" });
+    web.voiceover.mockResolvedValue(json({ generationId: "g1" }, 202));
+    await POST(req({ type: "voiceover", text: "Hello there", voiceId: "clone:cv1" }));
+    expect(cloneFindFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "cv1", userId: "u1" } }));
+    expect((await sent(web.voiceover)).voiceId).toBe("el_maya");
+  });
+
+  it("refuses someone else's cloned voice without calling the voice tool", async () => {
+    cloneFindFirst.mockResolvedValueOnce(null);
+    const res = await POST(req({ type: "voiceover", text: "Hello there", voiceId: "clone:theirs" }));
+    expect([res.status, (await res.json()).code]).toEqual([404, "voice_not_found"]);
+    expect(web.voiceover).not.toHaveBeenCalled();
   });
 });

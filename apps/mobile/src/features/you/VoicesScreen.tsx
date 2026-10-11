@@ -1,9 +1,4 @@
-import {
-  CLONE_SAMPLE_SECONDS,
-  MAX_CLONED_VOICES,
-  type ClonedVoice,
-  type LibraryVoice,
-} from "@clipiro/shared";
+import { CLONE_SAMPLE_SECONDS, cloneVoiceRequest, type ClonedVoice, type EditorVoice } from "@clipiro/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import * as DocumentPicker from "expo-document-picker";
 import { router } from "expo-router";
@@ -21,20 +16,19 @@ import {
   TextField,
   useToast,
 } from "@/components";
+import { me } from "@/lib/api";
+import { apiErrorMessage as errorMessage } from "@/lib/errors";
 import { imageSource } from "@/lib/images";
+import { usePlayer } from "../assets/AudioRow";
+import { uploadToAssets } from "../create/toolUpload";
 import { colors, radius, text, type } from "@/theme";
-import { cloneVoice, deleteVoice, renameVoice } from "@mocks/account";
-import { errorMessage } from "@mocks/core";
 import { Label, Page } from "./bits";
 import { useAccount, useClonedVoices, useVoiceLibrary, youKeys } from "./queries";
 
 const SHOWN = 4;
-const GENDER: Record<LibraryVoice["gender"], string> = {
-  male: "Male",
-  female: "Female",
-  neutral: "Neutral",
-};
-const PREVIEW_SOON = "Voice previews play once audio playback arrives in the app.";
+const GENDER: Record<string, string> = { male: "Male", female: "Female", neutral: "Neutral" };
+/** "Male · British · Deep, resonant": what the catalogue knows about a voice. */
+const describe = (v: EditorVoice) => [GENDER[v.gender], v.accent, v.description].filter(Boolean).join(" · ");
 const openVoiceover = (id: string) =>
   router.push({ pathname: "/create/ai-media", params: { tab: "voiceover", voice: id } });
 
@@ -50,13 +44,18 @@ export function VoicesScreen() {
   const [nameError, setNameError] = useState<string | undefined>();
   const [deleting, setDeleting] = useState<ClonedVoice | null>(null);
   const [recording, setRecording] = useState(false);
-  const [sample, setSample] = useState<string | null>(null);
+  const [sample, setSample] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
+  const playing = usePlayer((s) => s.playing);
+  const play = (v: EditorVoice) => v.previewUrl && usePlayer.getState().toggle({ id: `voice:${v.id}`, url: v.previewUrl });
   const [consent, setConsent] = useState(false);
   const [browsing, setBrowsing] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const count = clones.data?.length ?? 0;
-  const full = count >= MAX_CLONED_VOICES;
+  const count = clones.data?.voices.length ?? 0;
+  const max = clones.data?.max ?? 3;
+  const full = count >= max;
+  // Off until the server turns cloning on (VOICE_CLONING_ENABLED): "coming soon".
+  const cloning = clones.data?.enabled ?? false;
   const refresh = () => qc.invalidateQueries({ queryKey: youKeys.clones });
 
   const run = async (fn: () => Promise<unknown>, done: string, onFail?: (e: unknown) => void) => {
@@ -81,7 +80,7 @@ export function VoicesScreen() {
       copyToCacheDirectory: false,
     });
     if (res.canceled || !res.assets[0]) return;
-    setSample(res.assets[0].name);
+    setSample(res.assets[0]);
     setNewName("");
     setNameError(undefined);
     setConsent(false);
@@ -99,8 +98,8 @@ export function VoicesScreen() {
           action={{ label: "Try again", onPress: () => clones.refetch() }}
         />
       ) : (
-        clones.data.map((v) => (
-          <View key={v.id} style={[styles.clone, v.isDefault && styles.cloneOn]}>
+        clones.data.voices.map((v) => (
+          <View key={v.id} style={styles.clone}>
             <View style={styles.cloneHead}>
               <Avatar
                 name={v.name}
@@ -115,11 +114,10 @@ export function VoicesScreen() {
                   {v.name}
                 </Text>
                 <Text style={type(12, "regular", { color: colors.fgMuted })}>
-                  Cloned voice{v.isDefault ? " · default" : ""}
+                  Cloned voice
                 </Text>
               </View>
               <Bars color={colors.emeraldBright} />
-              <PlayButton label={`Play ${v.name}`} onPress={() => toast(PREVIEW_SOON, "info")} />
             </View>
             <View style={styles.cloneActions}>
               <Button
@@ -139,9 +137,8 @@ export function VoicesScreen() {
                 variant="secondary"
                 size="md"
                 style={{ flex: 1.4 }}
-                onPress={() =>
-                  toast("Using your cloned voice in voiceovers is coming soon.", "info")
-                }
+                accessibilityLabel={`Use ${v.name} in a voiceover`}
+                onPress={() => openVoiceover(v.id)}
               />
             </View>
           </View>
@@ -159,9 +156,11 @@ export function VoicesScreen() {
             { textAlign: "center" },
           ]}
         >
-          {full
-            ? `You’ve used all ${MAX_CLONED_VOICES} voice slots. Delete one to clone another.`
-            : `Record or upload ${CLONE_SAMPLE_SECONDS} seconds of clean speech. Only you can use your cloned voices.`}
+          {!cloning
+            ? "Voice cloning is coming soon. You’ll be able to make a voiceover in your own voice from a short recording."
+            : full
+              ? `You’ve used all ${max} voice slots. Delete one to clone another.`
+              : `Record or upload ${CLONE_SAMPLE_SECONDS} seconds of clean speech. Only you can use your cloned voices.`}
         </Text>
         <View style={styles.cloneActions}>
           <Button
@@ -170,7 +169,7 @@ export function VoicesScreen() {
             variant="secondary"
             size="md"
             style={{ flex: 1 }}
-            disabled={full || !clones.data}
+            disabled={!cloning || full}
             onPress={() => setRecording(true)}
           />
           <Button
@@ -179,13 +178,11 @@ export function VoicesScreen() {
             variant="secondary"
             size="md"
             style={{ flex: 1 }}
-            disabled={full || !clones.data}
+            disabled={!cloning || full}
             onPress={pickSample}
           />
         </View>
-        {clones.data ? (
-          <Text style={text.caption}>{`${count} of ${MAX_CLONED_VOICES} cloned voices`}</Text>
-        ) : null}
+        {cloning ? <Text style={text.caption}>{`${count} of ${max} cloned voices`}</Text> : null}
       </View>
 
       <View style={styles.libraryHead}>
@@ -213,12 +210,13 @@ export function VoicesScreen() {
         />
       ) : (
         <View style={styles.list}>
-          {library.data.slice(0, SHOWN).map((v, i) => (
+          {(library.data ?? []).slice(0, SHOWN).map((v, i) => (
             <LibraryRow
               key={v.id}
               v={v}
               first={i === 0}
-              onPlay={() => toast(PREVIEW_SOON, "info")}
+              playing={playing === `voice:${v.id}`}
+              onPlay={() => play(v)}
             />
           ))}
         </View>
@@ -232,7 +230,8 @@ export function VoicesScreen() {
                 key={v.id}
                 v={v}
                 first={i === 0}
-                onPlay={() => toast(PREVIEW_SOON, "info")}
+                playing={playing === `voice:${v.id}`}
+                onPlay={() => play(v)}
                 onUse={() => setBrowsing(false)}
               />
             ))}
@@ -256,7 +255,7 @@ export function VoicesScreen() {
             if (
               renaming &&
               (await run(
-                () => renameVoice(renaming.id, newName),
+                () => me.renameVoice(renaming.id, { name: newName }),
                 "Voice renamed.",
                 (e) => setNameError(errorMessage(e))
               ))
@@ -282,7 +281,7 @@ export function VoicesScreen() {
         onClose={() => setDeleting(null)}
         onConfirm={async () => {
           const v = deleting;
-          if (v && (await run(() => deleteVoice(v.id), "Voice deleted."))) setDeleting(null);
+          if (v && (await run(() => me.deleteVoice(v.id), "Voice deleted."))) setDeleting(null);
         }}
       />
 
@@ -304,7 +303,7 @@ export function VoicesScreen() {
         <View style={styles.sample}>
           <Icon name="waveform" size={18} color={colors.emeraldBright} />
           <Text style={[type(13, "medium"), { flex: 1 }]} numberOfLines={1}>
-            {sample}
+            {sample?.name}
           </Text>
         </View>
         <TextField
@@ -328,9 +327,15 @@ export function VoicesScreen() {
           onPress={async () => {
             if (
               await run(
-                () => cloneVoice(newName, "upload"),
+                async () => {
+                  const parsed = cloneVoiceRequest.safeParse({ name: newName, assetId: "pending", consent });
+                  if (!parsed.success) throw new Error(parsed.error.issues[0]?.message);
+                  // The sample goes to Assets first, like every file a tool reads.
+                  const asset = await uploadToAssets({ uri: sample!.uri, name: sample!.name, mimeType: sample!.mimeType ?? "audio/mpeg", sizeBytes: sample!.size ?? 0 }, () => {});
+                  await me.cloneVoice({ name: newName, assetId: asset.id, consent: true });
+                },
                 "Voice cloned.",
-                (e) => setNameError(errorMessage(e))
+                (e) => setNameError(e instanceof Error && !("status" in e) ? e.message : errorMessage(e))
               )
             )
               setSample(null);
@@ -344,11 +349,13 @@ export function VoicesScreen() {
 function LibraryRow({
   v,
   first,
+  playing,
   onPlay,
   onUse,
 }: {
-  v: LibraryVoice;
+  v: EditorVoice;
   first: boolean;
+  playing: boolean;
   onPlay: () => void;
   onUse?: () => void;
 }) {
@@ -360,10 +367,10 @@ function LibraryRow({
           {v.name}
         </Text>
         <Text style={type(12, "regular", { color: colors.fgMuted })} numberOfLines={2}>
-          {GENDER[v.gender]} · {v.description}
+          {describe(v)}
         </Text>
       </View>
-      <PlayButton label={`Play ${v.name}`} onPress={onPlay} />
+      {v.previewUrl ? <PlayButton label={`${playing ? "Stop" : "Play"} a sample of ${v.name}`} playing={playing} onPress={onPlay} /> : null}
       <Pressable
         onPress={() => {
           onUse?.();
@@ -379,7 +386,7 @@ function LibraryRow({
   );
 }
 
-function PlayButton({ label, onPress }: { label: string; onPress: () => void }) {
+function PlayButton({ label, playing, onPress }: { label: string; playing: boolean; onPress: () => void }) {
   return (
     <Pressable
       onPress={onPress}
@@ -387,7 +394,7 @@ function PlayButton({ label, onPress }: { label: string; onPress: () => void }) 
       accessibilityLabel={label}
       style={({ pressed }) => [styles.play, pressed && { backgroundColor: colors.primaryPress }]}
     >
-      <Icon name="play" size={14} color={colors.onPrimary} filled />
+      <Icon name={playing ? "pause" : "play"} size={14} color={colors.onPrimary} filled />
     </Pressable>
   );
 }

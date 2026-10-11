@@ -202,6 +202,9 @@ const schema = z.object({
   // Default is conservative; raise to match the actual ElevenLabs plan's
   // real limit (utils/elevenlabs.ts).
   ELEVENLABS_MAX_VOICE_SLOTS: z.string().optional(),
+  // "true" turns on voice cloning in the app (mobile Phase 12.2, decision P1 A).
+  // Off until the ElevenLabs plan allows Instant Voice Cloning (the free tier doesn't).
+  VOICE_CLONING_ENABLED: z.string().optional(),
 
   // Custom/cloned ElevenLabs voice IDs — each falls back to a stock voice
   // when unset (utils/voice-ids.ts).

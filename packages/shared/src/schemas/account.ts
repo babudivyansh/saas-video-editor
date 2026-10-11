@@ -109,17 +109,19 @@ export const MAX_CLONED_VOICES = 3;
 export const CLONE_SAMPLE_SECONDS = 30;
 export const VOICE_NAME_MAX = 40;
 
-export const clonedVoiceSchema = z.object({ id: z.string(), name: z.string(), isDefault: z.boolean(), createdAt: z.string() });
+/** A cloned voice. `id` is "clone:<id>", usable wherever a voice id is (voiceover, voice changer). */
+export const clonedVoiceSchema = z.object({ id: z.string(), name: z.string(), createdAt: z.string() });
 export type ClonedVoice = z.infer<typeof clonedVoiceSchema>;
-export const libraryVoiceSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  gender: z.enum(["male", "female", "neutral"]),
-  age: z.enum(["young", "middle", "mature"]),
-  description: z.string(),
-});
-export type LibraryVoice = z.infer<typeof libraryVoiceSchema>;
 export const voiceNameSchema = z.string().trim().min(1, "Name your voice").max(VOICE_NAME_MAX, `Keep it under ${VOICE_NAME_MAX} characters`);
+/** GET /voices/cloned. `enabled`: false until the server turns cloning on ("coming soon"). */
+export const clonedVoicesResponse = z.object({ enabled: z.boolean(), max: z.number().int(), voices: z.array(clonedVoiceSchema) });
+/** POST /voices/cloned: a sample already uploaded to Assets, and the person's word that it's their voice. */
+export const cloneVoiceRequest = z.object({
+  name: voiceNameSchema,
+  assetId: z.string().min(1, "Choose a recording"),
+  consent: z.literal(true, { error: "Confirm this is your voice, or that you have permission" }),
+});
+export const renameVoiceRequest = z.object({ name: voiceNameSchema });
 
 // ── Brand kit (prisma BrandKit) ────────────────────────────────────────────
 // The web stores caption colours as ASS strings ("&H00FFFFFF", lib/ass-color.ts);
