@@ -487,7 +487,7 @@ function ShortfallSheet({ shortfall, busy, onClose }: { shortfall: Shortfall | n
           />
         ) : null}
         <Button
-          label="Get more minutes"
+          label="See your balance"
           variant="secondary"
           size="sm"
           fullWidth

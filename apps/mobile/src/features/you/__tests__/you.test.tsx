@@ -1,7 +1,8 @@
 import * as DocumentPicker from "expo-document-picker";
 import { act, fireEvent, renderRouter, screen, waitFor } from "expo-router/testing-library";
 import { Linking } from "react-native";
-import { getBrandKit, getSettings, lastContactMessage, resetAccountMocks, setCloningEnabled, useGoogleAccount } from "@mocks/account";
+import { getBrandKit, getSettings, lastContactMessage, resetAccountMocks, setCloningEnabled, useGoogleAccount, useRazorpayPlan } from "@mocks/account";
+import * as Sharing from "expo-sharing";
 import { usePhonePrefs, DEFAULT_PHONE_PREFS } from "@/lib/phonePrefs";
 import { useAutoClipDraft } from "../../create/draft";
 import { setToolUploadIO } from "../../create/toolUpload";
@@ -181,25 +182,42 @@ describe("Brand Kit", () => {
 });
 
 describe("Credits and Subscription", () => {
-  it("lists the web's packs and recent activity", async () => {
+  it("shows balances and activity, and no prices or packs (BILLING.md)", async () => {
     open("/you/credits");
-    expect(await screen.findByLabelText("Studio pack, 640 credits, $101.99, best value")).toBeOnTheScreen();
-    expect(screen.getByLabelText("100 minutes, $11.99")).toBeOnTheScreen();
     expect(await screen.findByLabelText(/^AutoClip · Ep. 42, .+, minus 59 minutes$/)).toBeOnTheScreen();
-    expect(screen.getByText(/coming soon/)).toBeOnTheScreen();
+    expect(screen.getByText(/refill each month, next on Mar 14, 2027/)).toBeOnTheScreen();
+    expect(screen.queryByText(/\$\d/)).toBeNull();
+    expect(screen.queryByText(/Credit packs|coming soon/)).toBeNull();
   });
 
-  it("prices yearly per month and cancels at the end of the period", async () => {
+  it("shows the plan with no price list, and cancels at the end of the period", async () => {
     open("/you/subscription");
-    expect(await screen.findByLabelText(/^Studio, current plan\. \$39\.50 a month/)).toBeOnTheScreen();
-    fireEvent.press(screen.getByRole("tab", { name: "Monthly" }));
-    expect(screen.getByLabelText(/^Studio, current plan\. \$59 a month/)).toBeOnTheScreen();
-    expect(screen.getByLabelText(/^Pro, most popular\. \$29 a month/)).toBeOnTheScreen();
+    expect(await screen.findByText("What’s included")).toBeOnTheScreen();
+    expect(screen.queryByText(/\/mo|Most popular/)).toBeNull();
     press("Cancel subscription");
     fireEvent.press(screen.getAllByRole("button", { name: "Cancel subscription" }).at(-1)!);
     expect(await screen.findByText("Ends on Mar 14, 2027 · then you move to Free")).toBeOnTheScreen();
     press("Keep my plan");
     expect(await screen.findByText("Renews on Mar 14, 2027")).toBeOnTheScreen();
+  });
+
+  it("explains when a cancelled plan can't renew again, without offering a new one", async () => {
+    useRazorpayPlan();
+    open("/you/subscription");
+    fireEvent.press(await screen.findByRole("button", { name: "Cancel subscription" }));
+    fireEvent.press(screen.getAllByRole("button", { name: "Cancel subscription" }).at(-1)!);
+    fireEvent.press(await screen.findByRole("button", { name: "Keep my plan" }));
+    expect(await screen.findByText(/can’t be switched back on for this plan/)).toBeOnTheScreen();
+  });
+
+  it("lists invoices and shares one as a PDF", async () => {
+    open("/you/subscription");
+    expect(await screen.findByText("Studio plan")).toBeOnTheScreen();
+    expect(screen.getByText(/₹14,999.00 · CL-2026-0107/)).toBeOnTheScreen();
+    press(/^Studio plan, .*Share the invoice$/);
+    await waitFor(() => expect(Sharing.shareAsync).toHaveBeenCalledWith(expect.stringMatching(/Clipiro-CL-2026-0107\.pdf$/), { mimeType: "application/pdf", dialogTitle: "Clipiro-CL-2026-0107.pdf" }));
+    // A purchase with no invoice can't be opened.
+    expect(screen.getByLabelText(/^100 AI credits, .*Refunded$/)).toBeOnTheScreen();
   });
 });
 

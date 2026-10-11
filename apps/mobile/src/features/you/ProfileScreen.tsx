@@ -150,7 +150,7 @@ export function ProfileScreen() {
                 <Text style={text.label}>Plan</Text>
                 <Text style={type(18, "bold")}>{planName(a)}</Text>
                 <Text style={type(12, "regular", { color: colors.fgMuted })}>
-                  {termName(a) ? `${termName(a)} · Manage` : "Upgrade"}
+                  {termName(a) ? `${termName(a)} · Manage` : "Details"}
                 </Text>
               </Pressable>
               <View
@@ -201,7 +201,7 @@ export function ProfileScreen() {
                 style={styles.link}
               >
                 <Text style={type(14, "semibold", { color: colors.emeraldBright })}>
-                  View credits & top up
+                  View credits
                 </Text>
                 <Icon name="chevronRight" size={16} color={colors.emeraldBright} />
               </Pressable>

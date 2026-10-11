@@ -166,7 +166,7 @@ function Dashboard({ s }: { s: HomeSummary }) {
             {fmt(aiCredits.remaining)}
           </Text>
           <Text style={text.caption}>remaining</Text>
-          <Button label="Top up" variant="secondary" size="sm" fullWidth onPress={() => router.push("/you/credits")} style={styles.pushDown} />
+          <Button label="Details" variant="secondary" size="sm" fullWidth onPress={() => router.push("/you/credits")} style={styles.pushDown} />
         </Card>
       </View>
 

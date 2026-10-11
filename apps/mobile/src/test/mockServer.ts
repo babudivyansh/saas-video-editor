@@ -2,7 +2,7 @@ import { ApiError, NetworkError, scenarioOf } from "@mocks/core";
 import { addCompetitor, createReport, createShareLink, getAnalyticsOverview, getAudience, getCompetitors, getReports, getSummary, makeSummary, removeCompetitor, reportDownload, revokeShareLink } from "@mocks/analytics";
 import { disconnectAccount, exportCsv, getContentPerformance, getInsightsOverview, getPlatformAnalytics, getSocialAccounts, providerOf } from "@mocks/insights";
 import { AI_SOURCES, maxFileBytes, sortAssets, sortProjects, storageLimitBytes, type AiTextOperationId, type Asset, type AssetSort, type Clip, type ClipAspect, type CreatePostsRequest, type ProjectSort, type Provider, type RangeDays, type ReportRequest, type StockItem, type TimelineDoc } from "@clipiro/shared";
-import { clonesAsVoices, cloneVoice, deactivateAccount, deleteVoice, getClonedVoices, renameVoice, getAccount, getActivity, getBrandKit, getNotifications, getSettings, markAllRead, markRead, saveBrandKit, saveSettings, sendContact, updateName } from "@mocks/account";
+import { INVOICES, setCancelAtPeriodEnd, clonesAsVoices, cloneVoice, deactivateAccount, deleteVoice, getClonedVoices, renameVoice, getAccount, getActivity, getBrandKit, getNotifications, getSettings, markAllRead, markRead, saveBrandKit, saveSettings, sendContact, updateName } from "@mocks/account";
 import { addUpload, createFolder, deleteAsset, getAssets, getFolders, updateAsset } from "@mocks/assets";
 import { EDIT_ID, exportAsset, getEdit, getVoices, renderJob, startRender, runAiText, saveEdit, searchStock, stockAsset, transcribe } from "@mocks/editor";
 import { enhancePrompt, startToolJob, toolJob } from "@mocks/jobs";
@@ -52,6 +52,14 @@ export const MOCK_ROUTES: Record<string, Route> = {
   "POST /me/deactivate": async (_url, body) => {
     await deactivateAccount(body as { password?: string; otp?: string });
     return ok({ ok: true, purgeAt: null });
+  },
+  "POST /billing/cancel": async () => ok(await setCancelAtPeriodEnd(true)),
+  "POST /billing/resume": async () => ok(await setCancelAtPeriodEnd(false)),
+  "GET /billing/invoices": async () => ok({ invoices: INVOICES }),
+  "GET /billing/invoices/:id": async (url) => {
+    const inv = INVOICES.find((i) => i.id === url.pathname.split("/")[6]); // /api/mobile/v1/billing/invoices/<id>
+    if (!inv) throw new ApiError("That purchase isn’t on your account.", 404);
+    return ok({ invoice: inv, fileName: inv.invoiceNumber ? `Clipiro-${inv.invoiceNumber}.pdf` : null });
   },
   "GET /me/brand-kit": async () => ok({ kit: await getBrandKit() }),
   "PUT /me/brand-kit": async (_url, body) => ok({ kit: await saveBrandKit(body) }),
