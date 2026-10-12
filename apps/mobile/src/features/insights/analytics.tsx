@@ -427,7 +427,7 @@ export function CompetitorsScreen() {
                       {Math.abs(c.followerChange)}% followers
                     </Text>
                   </View>
-                  <Pressable onPress={() => setRemoving(c.id)} accessibilityRole="button" accessibilityLabel={`Stop tracking ${c.name}`} style={styles.more}>
+                  <Pressable onPress={() => setRemoving(c.id)} accessibilityRole="button" accessibilityLabel={`Stop tracking ${c.name}`} hitSlop={4} style={styles.more}>
                     <Icon name="close" size={16} color={colors.fgMuted} />
                   </Pressable>
                 </View>

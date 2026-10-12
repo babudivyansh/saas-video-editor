@@ -362,6 +362,17 @@ describe("Export", () => {
     expect(useComposerSeed.getState().assetId).toEqual(expect.any(String));
   });
 
+  it("says when the edit a notification points at can't be opened, and tries again", async () => {
+    // Before Phase 14 a failed load counted as ready: Export showed an empty edit.
+    useEditor.getState().reset();
+    setMockScenario("edit", "error");
+    open(`/editor/export?projectId=${EDIT_ID}`);
+    expect(await screen.findByText("Couldn’t open this edit")).toBeOnTheScreen();
+    setMockScenario("edit", "ok");
+    press("Try again");
+    expect(await screen.findByText("No watermark on your plan")).toBeOnTheScreen();
+  });
+
   it("a failed render says why and offers to try again", async () => {
     setMockScenario("export", "error");
     open("/editor/export");

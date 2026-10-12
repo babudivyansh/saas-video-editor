@@ -236,7 +236,7 @@ export function AssetsScreen() {
             <Text style={text.label} accessibilityRole="header">
               {q ? `Results · ${list.total}` : `${folder ? "Files" : showArchived ? "Archived files" : "All files"} · ${sortLabel}`}
             </Text>
-            <Pressable onPress={() => setSheet("sort")} accessibilityRole="button" accessibilityLabel={`Sort: ${sortLabel}`} style={styles.sort}>
+            <Pressable onPress={() => setSheet("sort")} accessibilityRole="button" accessibilityLabel={`Sort: ${sortLabel}`} hitSlop={6} style={styles.sort}>
               <Text style={type(12, "medium")}>Sort</Text>
             </Pressable>
           </View>

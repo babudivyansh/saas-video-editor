@@ -64,7 +64,7 @@ export function AudioScreen() {
           <Text style={text.label} accessibilityRole="header">
             {audio.total} audio file{audio.total === 1 ? "" : "s"}
           </Text>
-          <Pressable onPress={() => setSorting(true)} accessibilityRole="button" accessibilityLabel={`Sort: ${ASSET_SORTS.find((s) => s.id === sort)?.label}`} style={styles.link}>
+          <Pressable onPress={() => setSorting(true)} accessibilityRole="button" accessibilityLabel={`Sort: ${ASSET_SORTS.find((s) => s.id === sort)?.label}`} hitSlop={6} style={styles.link}>
             <Text style={type(12, "regular", { color: colors.fgMuted })}>{ASSET_SORTS.find((s) => s.id === sort)?.label}</Text>
           </Pressable>
         </View>

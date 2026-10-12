@@ -52,6 +52,8 @@ function StepButton({ icon, label, disabled, onPress }: { icon: "minus" | "plus"
       disabled={disabled}
       accessibilityLabel={label}
       importantForAccessibility="no"
+      // 36 wide to fit the design; the touch area reaches 44.
+      hitSlop={{ left: 4, right: 4, top: 4, bottom: 4 }}
       style={({ pressed }) => [styles.btn, disabled && { opacity: 0.35 }, pressed && { backgroundColor: colors.surface3 }]}
     >
       <Icon name={icon} size={18} color={colors.fg} strokeWidth={2} />
