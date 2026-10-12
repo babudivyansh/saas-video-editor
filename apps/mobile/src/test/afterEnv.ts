@@ -1,3 +1,4 @@
+import { resetAssistantMocks } from "@mocks/home";
 import { resetToolJobs } from "@mocks/jobs";
 import { pollMs } from "@/lib/poll";
 import { installMockServer } from "./mockServer";
@@ -11,6 +12,7 @@ beforeEach(() => {
   pollMs.tool = 5;
   pollMs.export = 5;
   resetToolJobs();
+  resetAssistantMocks();
   restore = installMockServer();
 });
 afterEach(() => restore());

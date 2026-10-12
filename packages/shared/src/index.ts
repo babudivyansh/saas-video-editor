@@ -16,6 +16,7 @@ export * from "./api/assets";
 export * from "./schemas/jobs";
 export * from "./api/jobs";
 export * from "./api/social";
+export * from "./api/assistant";
 export * from "./api/notifications";
 export * from "./editor/timeline";
 export * from "./editor/timeline-utils";

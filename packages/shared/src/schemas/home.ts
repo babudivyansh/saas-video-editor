@@ -101,10 +101,6 @@ export const assistantMessageSchema = z.object({
   text: z.string(),
   createdAt: z.string(),
   cards: z.array(assistantCardSchema).optional(),
-  // Design-time fields the screen still reads until Phase 13.2.
-  clips: z.array(clipThumbSchema).optional(),
-  checklist: z.array(z.string()).optional(),
-  actions: z.array(z.object({ id: z.string(), label: z.string() })).optional(),
 });
 export type AssistantMessage = z.infer<typeof assistantMessageSchema>;
 

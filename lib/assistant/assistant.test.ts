@@ -31,7 +31,7 @@ vi.mock("@/lib/redis", () => ({
 }));
 
 const { runAssistant, toHistory } = await import("./run");
-const { TOOLS, nextAt } = await import("./tools");
+const { TOOLS, nextAt, queryWords } = await import("./tools");
 const store = await import("./store");
 
 const ctx = { userId: "u1", tz: "Asia/Kolkata", now: new Date("2026-10-12T06:00:00.000Z") };
@@ -106,10 +106,22 @@ describe("the model loop", () => {
 });
 
 describe("tools", () => {
+  it("find a project by any meaningful word, else offer the latest", async () => {
+    // Found live: Gemini searched "demo project" for a project titled "demo-90s-480p.mp4".
+    expect(queryWords("my demo project")).toEqual(["demo"]);
+    expect(queryWords("Ep. 42 podcast")).toEqual(["ep", "42"]);
+    const p = { id: "p1", title: "demo-90s-480p.mp4", status: "completed", productType: "auto-clip", createdAt: new Date("2026-10-01"), _count: { clips: 2 } };
+    h.project.findMany.mockResolvedValueOnce([p]);
+    expect((await TOOLS.list_projects!.run(ctx, { query: "my demo project" })).result).toEqual({ projects: [expect.objectContaining({ id: "p1", readyClips: 2 })] });
+    expect(h.project.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: "u1", OR: [{ title: { contains: "demo", mode: "insensitive" } }] } }));
+    h.project.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([p]);
+    expect((await TOOLS.list_projects!.run(ctx, { query: "wedding" })).result).toMatchObject({ note: expect.stringMatching(/Nothing matched/), projects: [expect.objectContaining({ id: "p1" })] });
+  });
+
   it("only look at the caller's projects and clips", async () => {
     h.project.findMany.mockResolvedValue([]);
-    await TOOLS.list_projects!.run(ctx, { query: "ep 42" });
-    expect(h.project.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: "u1", title: { contains: "ep 42", mode: "insensitive" } } }));
+    await TOOLS.list_projects!.run(ctx, {});
+    expect(h.project.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: "u1" } }));
     h.project.findFirst.mockResolvedValue(null);
     expect((await TOOLS.find_hooks!.run(ctx, { projectId: "theirs" })).result).toEqual({ error: "No such project for this person." });
     expect(h.project.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "theirs", userId: "u1" } }));

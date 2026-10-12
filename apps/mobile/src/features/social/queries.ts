@@ -40,14 +40,20 @@ export const usePosts = (range?: { from: string; to: string }) =>
 export const usePost = (id: string | null) =>
   useQuery({ queryKey: socialKeys.post(id ?? ""), queryFn: () => social.post(id!).then((r) => r.post), enabled: !!id, retry: (n, e) => !isUpsell(e) && n < 2 });
 
-/** What the Composer opens with: a day (Calendar "+ Add"), a clip (its "Post"), an Assets video (Export → Post), or a scheduled post to edit. */
-type Seed = { date: string | null; clipId: string | null; assetId: string | null; editId: string | null };
+/**
+ * What the Composer opens with: a day (Calendar "+ Add"), a clip (its "Post"),
+ * an Assets video (Export → Post), a scheduled post to edit, or a caption and
+ * hashtags to start from (Clipiro AI's caption card).
+ */
+type Seed = { date: string | null; clipId: string | null; assetId: string | null; editId: string | null; caption: string | null; hashtags: string[] | null };
 export const useComposerSeed = create<Seed & { seed: (s: Partial<Seed>) => void }>((set) => ({
   date: null,
   clipId: null,
   assetId: null,
   editId: null,
-  seed: (s) => set({ date: s.date ?? null, clipId: s.clipId ?? null, assetId: s.assetId ?? null, editId: s.editId ?? null }),
+  caption: null,
+  hashtags: null,
+  seed: (s) => set({ date: s.date ?? null, clipId: s.clipId ?? null, assetId: s.assetId ?? null, editId: s.editId ?? null, caption: s.caption ?? null, hashtags: s.hashtags ?? null }),
 }));
 
 export const STATUS: Record<PostStatus, { label: string; tone: StatusTone }> = {

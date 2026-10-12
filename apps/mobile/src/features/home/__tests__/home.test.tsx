@@ -1,6 +1,9 @@
 import { fireEvent, renderRouter, screen, waitFor } from "expo-router/testing-library";
 import { resetMockScenarios, setMockDelay, setMockScenario } from "@mocks/core";
-import { getTools } from "@mocks/home";
+import { getTools, useUpAssistant } from "@mocks/home";
+import * as Clipboard from "expo-clipboard";
+import { useAutoClipDraft } from "../../create/draft";
+import { useComposerSeed } from "../../social/queries";
 import { makeWrapper } from "@/test/providers";
 import { AssistantScreen } from "../AssistantScreen";
 import { HomeScreen } from "../HomeScreen";
@@ -15,6 +18,8 @@ const routes = {
   "create/autoclip": () => null,
   "create/tool/[tool]": () => null,
   "projects/videos-reels-shorts": () => null,
+  "projects/[projectId]": () => null,
+  composer: () => null,
 };
 const open = (url: string) => renderRouter(routes, { initialUrl: url, wrapper: makeWrapper() });
 
@@ -129,30 +134,88 @@ describe("Tool catalogue", () => {
 });
 
 describe("Assistant", () => {
-  it("shows the conversation and sends a message", async () => {
-    open("/assistant");
-    expect(await screen.findByText(/I found 12 moments/)).toBeOnTheScreen();
-    fireEvent.changeText(screen.getByLabelText("Message Clipiro AI"), "Write a hook");
+  const ask = (text: string) => {
+    fireEvent.changeText(screen.getByLabelText("Message Clipiro AI"), text);
     fireEvent.press(screen.getByRole("button", { name: "Send" }));
-    expect(await screen.findByText(/first pass at “Write a hook”/)).toBeOnTheScreen();
+  };
+
+  it("finds the hooks in a project and opens the clip it found (the playbook's check)", async () => {
+    const r = open("/assistant");
+    await screen.findByText(/have the strongest hooks for Shorts/);
+    ask("Find the best hooks in my Ep. 42 podcast");
+    expect(await screen.findByText(/Your strongest hook is/)).toBeOnTheScreen();
     expect(screen.getByLabelText("Message Clipiro AI").props.value).toBe("");
+    expect(screen.getByText("19 messages left today")).toBeOnTheScreen();
+    fireEvent.press(screen.getAllByRole("button", { name: /^Open Nobody tells you this part/ }).at(-1)!);
+    await waitFor(() => expect(r.getPathname()).toBe("/projects/founders-pod-ep-42"));
+    expect(r.getSearchParams()).toMatchObject({ clip: "clp_1" });
   });
 
-  it("marks a failed message and retries it", async () => {
+  it("writes a caption to copy or post from the composer", async () => {
+    const r = open("/assistant");
+    await screen.findByText(/have the strongest hooks/);
+    ask("Write a caption for my top clip");
+    expect(await screen.findByText("Nobody tells you this part of building a company.")).toBeOnTheScreen();
+    fireEvent.press(screen.getByRole("button", { name: "Copy" }));
+    await waitFor(() => expect(Clipboard.setStringAsync).toHaveBeenCalledWith("Nobody tells you this part of building a company.\n\n#founders #startup"));
+    fireEvent.press(screen.getByRole("button", { name: "Post it" }));
+    await waitFor(() => expect(r.getPathname()).toBe("/composer"));
+    expect(useComposerSeed.getState()).toMatchObject({ clipId: "clp_1", caption: "Nobody tells you this part of building a company.", hashtags: ["#founders", "#startup"] });
+  });
+
+  it("suggests a time and schedules a post for it", async () => {
+    const r = open("/assistant");
+    await screen.findByText(/have the strongest hooks/);
+    ask("When should I post on YouTube?");
+    expect(await screen.findByText("YouTube: Thu around 4 PM")).toBeOnTheScreen();
+    fireEvent.press(screen.getByRole("button", { name: "Schedule a post then" }));
+    await waitFor(() => expect(r.getPathname()).toBe("/composer"));
+    expect(useComposerSeed.getState().date).toBe("2026-10-15T10:30:00.000Z");
+  });
+
+  it("sets up AutoClip on a video without starting it", async () => {
+    const r = open("/assistant");
+    await screen.findByText(/have the strongest hooks/);
+    ask("Make clips with AutoClip from my Ep. 42 video");
+    expect(await screen.findByText(/About 59 Clip Minutes\. Nothing runs until you start it/)).toBeOnTheScreen();
+    fireEvent.press(screen.getByRole("button", { name: "Set up AutoClip" }));
+    await waitFor(() => expect(r.getPathname()).toBe("/create/autoclip"));
+    expect(useAutoClipDraft.getState().source).toEqual({ kind: "asset", assetId: "a1", title: "Founders Pod · Ep. 42.mp4", durationSec: 3520 });
+  });
+
+  it("marks a message that didn't send and retries it", async () => {
     open("/assistant");
-    await screen.findByText(/I found 12 moments/);
+    await screen.findByText(/have the strongest hooks/);
     setMockScenario("assistant-send", "error");
-    fireEvent.press(screen.getByRole("button", { name: "Write 3 hooks for my next Short" }));
+    ask("Write a caption");
     const retry = await screen.findByRole("button", { name: "Message not sent. Try again" });
     setMockScenario("assistant-send", "ok");
     fireEvent.press(retry);
-    expect(await screen.findByText(/first pass at “Write 3 hooks/)).toBeOnTheScreen();
+    expect(await screen.findByText("Here’s one you can post as it is.")).toBeOnTheScreen();
     expect(screen.queryByRole("button", { name: "Message not sent. Try again" })).toBeNull();
   });
 
-  it("greets a new conversation", async () => {
+  it("says when today's messages are used up", async () => {
+    useUpAssistant();
+    open("/assistant");
+    await screen.findByText("0 messages left today");
+    ask("hi");
+    expect(await screen.findByText(/sent today’s 20 messages/)).toBeOnTheScreen();
+  });
+
+  it("starts a new chat after confirming", async () => {
+    open("/assistant");
+    await screen.findByText(/have the strongest hooks/);
+    fireEvent.press(screen.getByRole("button", { name: "New chat" }));
+    fireEvent.press(screen.getAllByRole("button", { name: "New chat" }).at(-1)!);
+    expect(await screen.findByText("What are we making today?")).toBeOnTheScreen();
+  });
+
+  it("greets a new conversation with things to try", async () => {
     setMockScenario("assistant", "empty");
     open("/assistant");
     expect(await screen.findByText("What are we making today?")).toBeOnTheScreen();
+    fireEvent.press(screen.getByRole("button", { name: "Best time to post on YouTube?" }));
+    expect(await screen.findByText("YouTube: Thu around 4 PM")).toBeOnTheScreen();
   });
 });
