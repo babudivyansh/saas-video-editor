@@ -24,6 +24,7 @@ vi.mock("@/lib/marketing-attribution", () => ({
   buildAttributionCookie: () => null,
 }));
 vi.mock("@/lib/csp", () => ({ buildCsp: () => "default-src 'self'" }));
+vi.mock("@/lib/flags", () => ({ getMaintenanceModeCached: async () => ({ on: false }) }));
 
 const { proxy } = await import("./proxy");
 
@@ -86,5 +87,27 @@ describe("proxy() — protected-page auth redirect", () => {
     const { getSafeNextPath } = await import("@/lib/safe-redirect");
     expect(getSafeNextPath("https://evil.com/phish")).toBeNull();
     expect(getSafeNextPath("//evil.com")).toBeNull();
+  });
+});
+
+describe("proxy() — API auth gate", () => {
+  beforeEach(() => {
+    sessionValid = true;
+  });
+  const bearer = (url: string, token = "jwt") => new NextRequest(url, { headers: { authorization: `Bearer ${token}` } });
+
+  it("lets an API call through on a Bearer token alone (the Android app has no cookie)", async () => {
+    expect((await proxy(bearer("https://clipiro.com/api/mobile/v1/me"))).status).toBe(200);
+  });
+
+  it("still 401s an API call with neither cookie nor a valid Bearer", async () => {
+    expect((await proxy(makeRequest("https://clipiro.com/api/projects"))).status).toBe(401);
+    sessionValid = false;
+    expect((await proxy(bearer("https://clipiro.com/api/projects", "forged"))).status).toBe(401);
+  });
+
+  it("doesn't let a Bearer header open a page (pages read only the cookie)", async () => {
+    const res = await proxy(bearer("https://clipiro.com/dashboard"));
+    expect(res.status).toBe(307);
   });
 });

@@ -23,8 +23,11 @@ export interface TokenPayload {
 
 // Pinned on both sides so a token can only ever be checked as HS256 — never
 // whatever algorithm its own header happens to claim.
-export function signToken(payload: TokenPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d", algorithm: "HS256" });
+export function signToken(payload: TokenPayload, expiresInSec: number = SESSION_TTL, jwtid?: string): string {
+  // Only the three claims: a payload decoded from an earlier token also
+  // carries iat/exp, which jwt.sign refuses alongside expiresIn.
+  const { userId, email, sessionId } = payload;
+  return jwt.sign({ userId, email, sessionId }, JWT_SECRET, { expiresIn: expiresInSec, algorithm: "HS256", ...(jwtid ? { jwtid } : {}) });
 }
 
 export function verifyToken(token: string): TokenPayload {
@@ -95,6 +98,11 @@ export interface SessionInfo {
 
 interface SessionRecord extends SessionInfo {
   tokenHash: string; // sha256 of the JWT — never the raw token, so a Redis snapshot/log leak can't be replayed directly
+  /** Mobile app sessions only (see the mobile section below). */
+  client?: "mobile";
+  refreshHash?: string;
+  /** Refresh tokens already rotated away; presenting one again revokes the session. */
+  retiredRefreshHashes?: string[];
 }
 
 function sessionsKey(userId: string): string {
@@ -123,7 +131,11 @@ async function writeSessions(userId: string, records: SessionRecord[]): Promise<
     await redis.del(sessionsKey(userId));
     return;
   }
-  await redis.set(sessionsKey(userId), JSON.stringify(records), "EX", SESSION_TTL);
+  // The key lives as long as its longest session: a 60-day mobile session
+  // must not vanish because a 7-day web session wrote the key last.
+  const longest = Math.max(...records.map((r) => r.expiresAt));
+  const ttl = Math.max(1, Math.ceil((longest - Date.now()) / 1000));
+  await redis.set(sessionsKey(userId), JSON.stringify(records), "EX", ttl);
 }
 
 export interface SessionMeta {
@@ -294,6 +306,107 @@ export async function completeLogin(
 
   await cacheSession(user.id, sessionId, token, { device, ip, country: null });
   return { token, sessionId, device, ip };
+}
+
+// ── Mobile app sessions ─────────────────────────────────────────────────
+// The Android app (/api/mobile/v1) signs in through the same routes and the
+// same session records as the web, then converts the session it was issued:
+// a 1-hour access JWT (same format, so getAuthUser is unchanged) plus an
+// opaque refresh token that rotates on every use. The session slides to 60
+// days from its last refresh. Presenting a refresh token that was already
+// rotated away means it was copied, so the whole session is revoked.
+
+export const MOBILE_ACCESS_TTL = 60 * 60; // 1 hour
+export const MOBILE_REFRESH_TTL = 60 * 60 * 24 * 60; // 60 days, sliding
+const RETIRED_REFRESH_KEPT = 20;
+
+export interface MobileTokens {
+  accessToken: string;
+  refreshToken: string;
+  /** Seconds until accessToken expires. */
+  expiresIn: number;
+}
+
+function rotateMobileTokens(payload: TokenPayload, record: SessionRecord): MobileTokens {
+  // A fresh jti per token: two refreshes in the same second would otherwise
+  // mint byte-identical tokens, and the old one must stop working.
+  const accessToken = signToken(payload, MOBILE_ACCESS_TTL, randomUUID());
+  // userId and sessionId ride in the token so refresh can find the record
+  // without a global index; the random part is what proves possession.
+  const refreshToken = `${payload.userId}.${payload.sessionId}.${randomBytes(32).toString("base64url")}`;
+  const now = Date.now();
+  if (record.refreshHash) {
+    record.retiredRefreshHashes = [record.refreshHash, ...(record.retiredRefreshHashes ?? [])].slice(0, RETIRED_REFRESH_KEPT);
+  }
+  record.client = "mobile";
+  record.tokenHash = hashToken(accessToken);
+  record.refreshHash = hashToken(refreshToken);
+  record.lastSeenAt = now;
+  record.expiresAt = now + MOBILE_REFRESH_TTL * 1000;
+  return { accessToken, refreshToken, expiresIn: MOBILE_ACCESS_TTL };
+}
+
+/**
+ * Turns a session a login route just issued (a 7-day web token) into a mobile
+ * session. The web token stops working at once: its hash no longer matches.
+ */
+export async function convertToMobileSession(webToken: string): Promise<MobileTokens | null> {
+  let payload: TokenPayload;
+  try {
+    payload = verifyToken(webToken);
+  } catch {
+    return null;
+  }
+  const records = await readSessions(payload.userId);
+  const record = records.find((r) => r.sessionId === payload.sessionId && r.tokenHash === hashToken(webToken));
+  if (!record) return null;
+  const tokens = rotateMobileTokens(payload, record);
+  await writeSessions(payload.userId, records);
+  return tokens;
+}
+
+function parseRefreshToken(token: string): { userId: string; sessionId: string } | null {
+  const [userId, sessionId, secret, extra] = token.split(".");
+  return userId && sessionId && secret && extra === undefined ? { userId, sessionId } : null;
+}
+
+export type MobileRefreshResult = { ok: true; tokens: MobileTokens } | { ok: false; reason: "invalid" | "reused" };
+
+/** Swaps a refresh token for a new pair. One use per token. */
+export async function refreshMobileSession(refreshToken: string): Promise<MobileRefreshResult> {
+  const ids = parseRefreshToken(refreshToken);
+  if (!ids) return { ok: false, reason: "invalid" };
+  const records = await readSessions(ids.userId);
+  const record = records.find((r) => r.sessionId === ids.sessionId && r.client === "mobile");
+  if (!record) return { ok: false, reason: "invalid" };
+  const hash = hashToken(refreshToken);
+  if (record.refreshHash !== hash) {
+    if (record.retiredRefreshHashes?.includes(hash)) {
+      await writeSessions(ids.userId, records.filter((r) => r.sessionId !== ids.sessionId));
+      return { ok: false, reason: "reused" };
+    }
+    return { ok: false, reason: "invalid" };
+  }
+  const user = await prisma.user.findUnique({ where: { id: ids.userId }, select: { email: true, suspendedAt: true, deactivatedAt: true } });
+  if (!user || user.suspendedAt || user.deactivatedAt) {
+    await writeSessions(ids.userId, records.filter((r) => r.sessionId !== ids.sessionId));
+    return { ok: false, reason: "invalid" };
+  }
+  const tokens = rotateMobileTokens({ userId: ids.userId, email: user.email, sessionId: ids.sessionId }, record);
+  await writeSessions(ids.userId, records);
+  return { ok: true, tokens };
+}
+
+/** Ends the mobile session a refresh token (current or retired) belongs to. */
+export async function revokeMobileSession(refreshToken: string): Promise<boolean> {
+  const ids = parseRefreshToken(refreshToken);
+  if (!ids) return false;
+  const records = await readSessions(ids.userId);
+  const hash = hashToken(refreshToken);
+  const record = records.find((r) => r.sessionId === ids.sessionId && (r.refreshHash === hash || r.retiredRefreshHashes?.includes(hash)));
+  if (!record) return false;
+  await writeSessions(ids.userId, records.filter((r) => r.sessionId !== ids.sessionId));
+  return true;
 }
 
 /** Backfills the country on an already-cached session once an async geo lookup resolves. */

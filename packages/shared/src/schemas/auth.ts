@@ -90,6 +90,51 @@ export const loginResponse = z.union([
   z.object({ requiresEmailVerification: z.literal(true), email: z.string() }),
 ]);
 
+// ── Mobile API (/api/mobile/v1/auth) ───────────────────────────────────────
+// The app holds a 1-hour access token and a 60-day refresh token that
+// rotates on every refresh (lib/auth.ts, "Mobile app sessions").
+
+/** Every error the mobile API returns. `fields` maps a field to its message. */
+export const apiErrorSchema = z.object({
+  error: z.string(),
+  code: z.string().optional(),
+  fields: z.record(z.string(), z.string()).optional(),
+  // Flags some auth errors carry (the web routes' own).
+  expired: z.boolean().optional(),
+  deactivated: z.boolean().optional(),
+});
+export type ApiErrorBody = z.infer<typeof apiErrorSchema>;
+
+export const authTokensSchema = z.object({
+  accessToken: z.string(),
+  refreshToken: z.string(),
+  /** Seconds until accessToken expires. */
+  expiresIn: z.number().int().positive(),
+});
+export type AuthTokens = z.infer<typeof authTokensSchema>;
+
+export const mobileSessionSchema = authTokensSchema.extend({ user: userSchema });
+export type MobileSession = z.infer<typeof mobileSessionSchema>;
+
+const twoFactorStep = z.object({ requires2fa: z.literal(true), ticket: z.string() });
+/** Accounts from before signup verified email prove the inbox once, at login. */
+const verifyEmailStep = z.object({ requiresEmailVerification: z.literal(true), email: z.string(), passwordProof: z.string() });
+
+/** login, reactivate */
+export const mobileLoginResponse = z.union([mobileSessionSchema, twoFactorStep, verifyEmailStep]);
+/** login/verify-email, google */
+export const mobileSessionOr2fa = z.union([mobileSessionSchema, twoFactorStep]);
+export type MobileLoginResponse = z.infer<typeof mobileLoginResponse>;
+
+export const refreshRequest = z.object({ refreshToken: z.string().min(1) });
+export const logoutRequest = z.object({ refreshToken: z.string().min(1).optional() });
+export const googleSignInRequest = z.object({ idToken: z.string().min(1) });
+/** `code` is a TOTP code or a recovery code. */
+export const twoFactorRequest = z.object({ ticket: z.string().min(1), code: z.string().trim().min(1, "Enter the code") });
+export const verifyEmailRequest = z.object({ email: emailSchema, otp: otpSchema, passwordProof: z.string().optional() });
+export const resendCodeRequest = z.object({ email: emailSchema });
+export const okResponse = z.object({ ok: z.literal(true) });
+
 export type LoginRequest = z.input<typeof loginRequest>;
 export type SignupRequest = z.input<typeof signupRequest>;
 export type SignupVerifyRequest = z.input<typeof signupVerifyRequest>;

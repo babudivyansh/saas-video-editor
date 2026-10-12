@@ -142,6 +142,9 @@ const schema = z.object({
   GIPHY_API_KEY: z.string().optional(),
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
+  // Android OAuth client: also accepted as an ID-token audience by
+  // /api/mobile/v1/auth/google (the web client ID is the usual one).
+  GOOGLE_ANDROID_CLIENT_ID: z.string().optional(),
   EMAIL_HOST: z.string().optional(),
   EMAIL_PORT: z.string().optional(),
   EMAIL_USER: z.string().optional(),

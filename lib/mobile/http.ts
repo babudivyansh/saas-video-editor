@@ -1,0 +1,81 @@
+import { NextRequest, NextResponse } from "next/server";
+import type { z } from "zod";
+import { convertToMobileSession, verifyToken, type MobileTokens } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+
+// Shared plumbing for /api/mobile/v1. Routes validate with @clipiro/shared's
+// zod schemas, answer errors as { error, code?, fields? }, and send no
+// cookies: the app keeps its tokens in the Android Keystore.
+
+export function mobileError(status: number, error: string, extra: Record<string, unknown> = {}) {
+  return NextResponse.json({ error, ...extra }, { status, headers: { "Cache-Control": "no-store" } });
+}
+
+export function mobileJson(body: unknown, status = 200) {
+  return NextResponse.json(body, { status, headers: { "Cache-Control": "no-store" } });
+}
+
+/** Parses the JSON body with a shared schema; a 400 with per-field messages if it doesn't fit. */
+export async function parseBody<S extends z.ZodType>(req: NextRequest, schema: S): Promise<{ ok: true; data: z.infer<S> } | { ok: false; res: NextResponse }> {
+  const raw = await req.json().catch(() => undefined);
+  const parsed = schema.safeParse(raw ?? {});
+  if (parsed.success) return { ok: true, data: parsed.data };
+  const fields: Record<string, string> = {};
+  for (const issue of parsed.error.issues) {
+    const key = String(issue.path[0] ?? "form");
+    if (!(key in fields)) fields[key] = issue.message;
+  }
+  return { ok: false, res: mobileError(400, parsed.error.issues[0]?.message ?? "Check the form", { code: "invalid_request", fields }) };
+}
+
+type WebHandler = (req: NextRequest) => Promise<Response>;
+
+/**
+ * Runs an existing web route with a JSON body, so the mobile route reuses its
+ * logic (validation, rate limits, emails, login tail) rather than copying it.
+ * The caller's user agent and forwarding headers carry over, so rate limits
+ * and the session's device/IP are the same as a direct call.
+ */
+export async function callWeb(handler: WebHandler, req: NextRequest, body: unknown): Promise<{ status: number; json: Record<string, unknown> }> {
+  const headers = new Headers(req.headers);
+  headers.delete("content-length");
+  headers.delete("cookie");
+  headers.set("content-type", "application/json");
+  const inner = new NextRequest(req.url, { method: "POST", headers, body: JSON.stringify(body) });
+  const res = await handler(inner);
+  const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  return { status: res.status, json };
+}
+
+async function sessionUser(userId: string) {
+  return prisma.user.findUnique({ where: { id: userId }, select: { id: true, email: true, name: true, avatarUrl: true } });
+}
+
+/**
+ * A web route's answer, made mobile: a `{ token }` success becomes a mobile
+ * session (access + refresh tokens and the user); every other answer
+ * (2FA step, verify-email step, errors) passes through as it was.
+ */
+export async function asMobileSession(result: { status: number; json: Record<string, unknown> }): Promise<NextResponse> {
+  const { status, json } = result;
+  if (typeof json.token !== "string") {
+    // The web's own `user`/`credits` echo is not part of these answers.
+    const rest = { ...json };
+    delete rest.user;
+    if (rest.success === true) {
+      delete rest.success;
+      rest.ok = true;
+    }
+    if (status >= 400 && typeof rest.error !== "string") rest.error = "Something went wrong";
+    return mobileJson(rest, status);
+  }
+  const tokens = await convertToMobileSession(json.token);
+  if (!tokens) return mobileError(500, "Couldn't start your session. Try again.");
+  return mobileSessionResponse(tokens, status);
+}
+
+export async function mobileSessionResponse(tokens: MobileTokens, status = 200): Promise<NextResponse> {
+  const user = await sessionUser(verifyToken(tokens.accessToken).userId);
+  if (!user) return mobileError(401, "Account not found");
+  return mobileJson({ ...tokens, user }, status);
+}
