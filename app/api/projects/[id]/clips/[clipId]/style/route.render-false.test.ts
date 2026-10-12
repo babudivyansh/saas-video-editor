@@ -5,6 +5,15 @@
 // the 402s swallowed by Promise.allSettled. render:false is the style-only
 // path it always described.
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// Stub the queue factory: modules loaded here (e.g. lib/asset-moderation.ts
+// via autoclip-pipeline) call createRenderQueue at import time, which would
+// otherwise start a live BullMQ worker against REDIS_URL that logs after this
+// file finishes and fails the run ("Closing rpc while onUserConsoleLog was pending").
+vi.mock("@/lib/render-queue", async () => ({
+  createRenderQueue: () => ({ enqueue: async () => {}, driver: "in-process" }),
+  NonRetryableError: (await import("@/lib/job-queue")).NonRetryableError,
+}));
 import { NextRequest } from "next/server";
 
 const { requestRerender, clipUpdate, clipFind } = vi.hoisted(() => ({

@@ -10,6 +10,15 @@
 // pan/zoom chain must keep these green.
 
 import { describe, expect, it, vi } from "vitest";
+
+// Stub the queue factory: modules loaded here (e.g. lib/asset-moderation.ts
+// via autoclip-pipeline) call createRenderQueue at import time, which would
+// otherwise start a live BullMQ worker against REDIS_URL that logs after this
+// file finishes and fails the run ("Closing rpc while onUserConsoleLog was pending").
+vi.mock("@/lib/render-queue", async () => ({
+  createRenderQueue: () => ({ enqueue: async () => {}, driver: "in-process" }),
+  NonRetryableError: (await import("@/lib/job-queue")).NonRetryableError,
+}));
 import { spawnSync } from "child_process";
 import fs from "fs";
 import os from "os";
