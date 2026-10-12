@@ -27,8 +27,12 @@ vi.mock("@/lib/auth", () => ({
   invalidateOneSession,
   verifyToken: () => ({ userId: "u1", email: "maya@creatorlab.co", sessionId: "s1" }),
 }));
+const deviceDeleteMany = vi.fn();
 vi.mock("@/lib/prisma", () => ({
-  prisma: { user: { findUnique: vi.fn(async () => ({ id: "u1", email: "maya@creatorlab.co", name: "Maya Okafor", avatarUrl: null })) } },
+  prisma: {
+    user: { findUnique: vi.fn(async () => ({ id: "u1", email: "maya@creatorlab.co", name: "Maya Okafor", avatarUrl: null })) },
+    deviceToken: { deleteMany: deviceDeleteMany },
+  },
 }));
 const rateLimit = vi.fn(async () => ({ allowed: true }));
 vi.mock("@/lib/rate-limit", () => ({ rateLimit, getClientIp: () => "203.0.113.9" }));
@@ -164,12 +168,17 @@ describe("refresh and logout", () => {
   });
 
   it("logs out by refresh token and by Bearer, and is always ok", async () => {
+    revokeMobileSession.mockResolvedValue({ userId: "u1", sessionId: "s1" });
     getAuthUser.mockResolvedValue({ userId: "u1", sessionId: "s1" });
     const res = await logout(post("/logout", { refreshToken: "u1.s1.secret" }, { authorization: "Bearer acc" }));
     expect(await res.json()).toEqual({ ok: true });
     expect(revokeMobileSession).toHaveBeenCalledWith("u1.s1.secret");
     expect(invalidateOneSession).toHaveBeenCalledWith("u1", "s1");
+    // That phone's push tokens go with the session.
+    expect(deviceDeleteMany).toHaveBeenCalledWith({ where: { OR: [{ userId: "u1", sessionId: "s1" }, { userId: "u1", sessionId: "s1" }] } });
     getAuthUser.mockResolvedValue(null);
+    deviceDeleteMany.mockClear();
     expect((await logout(post("/logout", {}))).status).toBe(200);
+    expect(deviceDeleteMany).not.toHaveBeenCalled();
   });
 });

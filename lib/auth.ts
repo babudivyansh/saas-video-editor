@@ -397,16 +397,16 @@ export async function refreshMobileSession(refreshToken: string): Promise<Mobile
   return { ok: true, tokens };
 }
 
-/** Ends the mobile session a refresh token (current or retired) belongs to. */
-export async function revokeMobileSession(refreshToken: string): Promise<boolean> {
+/** Ends the mobile session a refresh token (current or retired) belongs to; which one, or null. */
+export async function revokeMobileSession(refreshToken: string): Promise<{ userId: string; sessionId: string } | null> {
   const ids = parseRefreshToken(refreshToken);
-  if (!ids) return false;
+  if (!ids) return null;
   const records = await readSessions(ids.userId);
   const hash = hashToken(refreshToken);
   const record = records.find((r) => r.sessionId === ids.sessionId && (r.refreshHash === hash || r.retiredRefreshHashes?.includes(hash)));
-  if (!record) return false;
+  if (!record) return null;
   await writeSessions(ids.userId, records.filter((r) => r.sessionId !== ids.sessionId));
-  return true;
+  return ids;
 }
 
 /** Backfills the country on an already-cached session once an async geo lookup resolves. */
