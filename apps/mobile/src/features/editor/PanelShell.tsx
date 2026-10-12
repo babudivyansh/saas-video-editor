@@ -68,6 +68,7 @@ export function PanelShell({ panel, children, footer }: { panel: PanelId; childr
           onPress={() => router.push("/editor/export")}
           accessibilityRole="button"
           accessibilityLabel="Export"
+          hitSlop={{ top: 2, bottom: 2 }}
           style={({ pressed }) => [styles.export, pressed && { backgroundColor: colors.primaryPress }]}
         >
           <Text style={type(14, "semibold", { color: colors.onPrimary })}>Export</Text>

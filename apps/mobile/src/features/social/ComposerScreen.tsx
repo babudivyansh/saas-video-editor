@@ -243,7 +243,9 @@ export function ComposerScreen() {
       <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + 12, paddingBottom: 140 }]} keyboardShouldPersistTaps="handled">
         <Header title={isEdit ? "Edit post" : "New post"} onBack={close} />
 
-        {loading ? null : editing.isError ? (
+        {loading ? null : !isEdit && clips.isError ? (
+          <EmptyState tone="error" title="Couldn’t load your clips" body={apiErrorMessage(clips.error)} action={{ label: "Try again", onPress: () => void clips.refetch() }} />
+        ) : editing.isError ? (
           <EmptyState tone="error" title="Couldn’t open this post" body={apiErrorMessage(editing.error)} action={{ label: "Back", onPress: close }} />
         ) : !chosen ? (
           <View style={styles.noClip}>

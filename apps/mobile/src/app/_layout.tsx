@@ -7,7 +7,7 @@ import {
   useFonts,
 } from "@expo-google-fonts/geist";
 import { GeistMono_400Regular, GeistMono_500Medium, GeistMono_600SemiBold } from "@expo-google-fonts/geist-mono";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
@@ -19,6 +19,7 @@ import { ToastProvider } from "@/components";
 import { useAutoClipUpload } from "@/features/create/uploadStore";
 import { configurePushPresentation, openTappedPushes, registerForPush, usePush } from "@/lib/push";
 import { usePhonePrefs } from "@/lib/phonePrefs";
+import { makeQueryClient } from "@/lib/queryClient";
 import { useSession } from "@/state/session";
 import { colors } from "@/theme";
 
@@ -27,7 +28,7 @@ SplashScreen.preventAutoHideAsync();
 SystemUI.setBackgroundColorAsync(colors.bg);
 
 export default function RootLayout() {
-  const [queryClient] = useState(() => new QueryClient());
+  const [queryClient] = useState(makeQueryClient);
   const signedIn = useSession((s) => s.signedIn);
   const ready = useSession((s) => s.ready);
   const [loaded, error] = useFonts({

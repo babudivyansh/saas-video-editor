@@ -66,6 +66,8 @@ export function Button({
       aria-disabled={inactive}
       aria-busy={loading}
       testID={testID}
+      // sm is 40 high; the touch area still reaches 44 (layout.minTouch).
+      hitSlop={s.height < 44 ? { top: (44 - s.height) / 2, bottom: (44 - s.height) / 2 } : undefined}
       style={({ pressed }) => [
         styles.base,
         {

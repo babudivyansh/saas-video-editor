@@ -5,7 +5,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Button, Header, Icon, ProgressBar, useToast, type IconName } from "@/components";
+import { Button, EmptyState, Header, Icon, ProgressBar, useToast, type IconName } from "@/components";
 import { editor, jobs } from "@/lib/api";
 import { useComposerSeed } from "../social/queries";
 import { apiErrorMessage } from "@/lib/errors";
@@ -46,6 +46,7 @@ export function ExportScreen() {
   const { projectId: fromLink } = useLocalSearchParams<{ projectId?: string }>();
   const storeId = useEditor((s) => s.projectId);
   const loading = useEditor((s) => s.loading);
+  const loadError = useEditor((s) => s.loadError);
   const doc = useEditor((s) => s.doc);
   const title = useEditor((s) => s.title);
   const media = useEditor((s) => s.media);
@@ -60,7 +61,9 @@ export function ExportScreen() {
   const [assetId, setAssetId] = useState<string | null>(null);
   const abort = useRef<AbortController | null>(null);
   const projectId = fromLink ?? storeId;
-  const ready = !!projectId && storeId === projectId && !loading;
+  // A failed load leaves an empty edit behind: that isn't ready to export.
+  const failed = !!projectId && storeId === projectId && !loading && loadError != null;
+  const ready = !!projectId && storeId === projectId && !loading && !failed;
 
   const duration = durationOf(doc);
   const first = doc.tracks.video[0];
@@ -165,6 +168,19 @@ export function ExportScreen() {
       setBusy(false);
     }
   };
+
+  if (!projectId || failed) {
+    return (
+      <View style={[styles.root, { paddingTop: insets.top + 12, paddingHorizontal: 16, gap: 12 }]}>
+        <Header title="Export" onBack={() => (router.canGoBack() ? router.back() : router.replace("/projects/drafts"))} />
+        {failed ? (
+          <EmptyState tone="error" title="Couldn’t open this edit" body={apiErrorMessage(loadError)} action={{ label: "Try again", onPress: () => void useEditor.getState().open(projectId!) }} />
+        ) : (
+          <EmptyState icon="editor" title="No edit open" body="Open a draft from Projects to export it." action={{ label: "Go to Drafts", onPress: () => router.replace("/projects/drafts") }} />
+        )}
+      </View>
+    );
+  }
 
   if (!ready) {
     return (
