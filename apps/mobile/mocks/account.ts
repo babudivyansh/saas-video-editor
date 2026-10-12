@@ -5,7 +5,6 @@ import {
   activitySchema,
   brandKitSchema,
   clonedVoiceSchema,
-  libraryVoiceSchema,
   notificationSchema,
   accountSettingsSchema,
   voiceNameSchema,
@@ -16,7 +15,6 @@ import {
   type AppNotification,
   type BrandKit,
   type ClonedVoice,
-  type LibraryVoice,
 } from "@clipiro/shared";
 import { z } from "zod";
 import { ApiError, respond, wait } from "./core";
@@ -107,70 +105,51 @@ export async function sendContact(b: { subject: string; message: string }) {
 }
 
 // ── Voices ─────────────────────────────────────────────────────────────────
+// GET/POST /voices/cloned, PATCH/DELETE /voices/cloned/:id. The catalogue is
+// GET /voices (mocks/editor.ts), which lists these clones first.
 
-const INITIAL_CLONES: ClonedVoice[] = [{ id: "cv_maya", name: "Maya — natural", isDefault: true, createdAt: daysAgo(40) }];
+const INITIAL_CLONES: ClonedVoice[] = [{ id: "clone:cv_maya", name: "Maya — natural", createdAt: daysAgo(40) }];
 let CLONES = INITIAL_CLONES;
+let CLONING = true;
 let seq = 0;
 
-// Active voices from lib/voices/catalog.ts (22 of them; retired slugs left out).
-export const VOICE_LIBRARY: LibraryVoice[] = [
-  ["brian", "Brian", "male", "middle", "Deep, Resonant and Comforting"],
-  ["george", "George", "male", "middle", "Warm, Captivating Storyteller"],
-  ["sarah", "Sarah", "female", "young", "Mature, Reassuring, Confident"],
-  ["jessica", "Jessica", "female", "young", "Playful, Bright, Warm"],
-  ["roger", "Roger", "male", "middle", "Laid-Back, Casual, Resonant"],
-  ["laura", "Laura", "female", "young", "Enthusiast, Quirky Attitude"],
-  ["charlie", "Charlie", "male", "young", "Deep, Confident, Energetic"],
-  ["callum", "Callum", "male", "middle", "Husky Trickster"],
-  ["river", "River", "neutral", "middle", "Relaxed, Neutral, Informative"],
-  ["harry", "Harry", "male", "young", "Fierce Warrior"],
-  ["liam", "Liam", "male", "young", "Energetic, Social Media Creator"],
-  ["alice", "Alice", "female", "middle", "Clear, Engaging Educator"],
-  ["matilda", "Matilda", "female", "middle", "Knowledgable, Professional"],
-  ["will", "Will", "male", "young", "Relaxed Optimist"],
-  ["eric", "Eric", "male", "middle", "Smooth, Trustworthy"],
-  ["bella", "Bella", "female", "middle", "Professional, Bright, Warm"],
-  ["chris", "Chris", "male", "middle", "Charming, Down-to-Earth"],
-  ["daniel", "Daniel", "male", "middle", "Steady Broadcaster"],
-  ["lily", "Lily", "female", "middle", "Velvety Actress"],
-  ["adam", "Adam", "male", "middle", "Dominant, Firm"],
-  ["bill", "Bill", "male", "mature", "Wise, Mature, Balanced"],
-  ["sunny-singh", "Sunny Singh", "male", "young", "Dramatic, Gripping & Vivid"],
-].map(([id, name, gender, age, description]) => ({ id, name, gender, age, description }) as LibraryVoice);
+/** Tests: the server's VOICE_CLONING_ENABLED switch. */
+export function setCloningEnabled(on: boolean) {
+  CLONING = on;
+}
 
-export async function getClonedVoices(): Promise<ClonedVoice[]> {
+export async function getClonedVoices(): Promise<{ enabled: boolean; max: number; voices: ClonedVoice[] }> {
   const s = await respond("voices");
-  return z.array(clonedVoiceSchema).parse(s === "empty" ? [] : CLONES);
+  return { enabled: CLONING, max: MAX_CLONED_VOICES, voices: z.array(clonedVoiceSchema).parse(s === "empty" ? [] : CLONES) };
 }
 
-export async function getVoiceLibrary(): Promise<LibraryVoice[]> {
-  await respond("voices");
-  return z.array(libraryVoiceSchema).parse(VOICE_LIBRARY);
-}
+/** The clones as catalogue entries (what GET /voices puts first). */
+export const clonesAsVoices = () => CLONES.map((c) => ({ id: c.id, name: c.name, description: "Your cloned voice", gender: "custom", accent: null, previewUrl: null, creditMultiplier: 1 }));
 
-export async function cloneVoice(name: string, source: "record" | "upload"): Promise<ClonedVoice> {
-  const n = voiceNameSchema.safeParse(name);
+export async function cloneVoice(b: { name: string; assetId: string }): Promise<ClonedVoice> {
+  const n = voiceNameSchema.safeParse(b.name);
   if (!n.success) throw new ApiError(n.error.issues[0]?.message ?? "Name your voice", 400);
   await respond("clone");
-  if (CLONES.length >= MAX_CLONED_VOICES) throw new ApiError(`You can have up to ${MAX_CLONED_VOICES} cloned voices.`, 409);
-  void source;
-  const v: ClonedVoice = { id: `cv_${++seq}`, name: n.data, isDefault: CLONES.length === 0, createdAt: new Date().toISOString() };
+  if (!CLONING) throw Object.assign(new ApiError("Voice cloning is coming soon.", 503), { code: "cloning_unavailable" });
+  if (CLONES.length >= MAX_CLONED_VOICES) throw Object.assign(new ApiError(`You can have up to ${MAX_CLONED_VOICES} cloned voices.`, 409), { code: "voice_limit" });
+  const v: ClonedVoice = { id: `clone:cv_${++seq}`, name: n.data, createdAt: new Date().toISOString() };
   CLONES = [...CLONES, v];
   return v;
 }
 
-export async function renameVoice(id: string, name: string) {
+export async function renameVoice(id: string, name: string): Promise<ClonedVoice> {
   const n = voiceNameSchema.safeParse(name);
   if (!n.success) throw new ApiError(n.error.issues[0]?.message ?? "Name your voice", 400);
   await wait();
   CLONES = CLONES.map((v) => (v.id === id ? { ...v, name: n.data } : v));
+  const v = CLONES.find((x) => x.id === id);
+  if (!v) throw new ApiError("That voice isn’t here any more.", 404);
+  return v;
 }
 
 export async function deleteVoice(id: string) {
   await wait();
-  const wasDefault = CLONES.find((v) => v.id === id)?.isDefault;
   CLONES = CLONES.filter((v) => v.id !== id);
-  if (wasDefault && CLONES[0]) CLONES = CLONES.map((v, i) => (i === 0 ? { ...v, isDefault: true } : v));
 }
 
 // ── Brand kit ──────────────────────────────────────────────────────────────
@@ -255,6 +234,7 @@ export async function saveSettings(patch: { language?: AccountSettings["language
 export function resetAccountMocks() {
   ACCOUNT = STUDIO;
   CLONES = INITIAL_CLONES;
+  CLONING = true;
   KIT = INITIAL_KIT;
   NOTIFICATIONS = INITIAL_NOTIFICATIONS;
   SETTINGS = INITIAL_SETTINGS;

@@ -2,7 +2,7 @@ import { ApiError, NetworkError, scenarioOf } from "@mocks/core";
 import { addCompetitor, createReport, createShareLink, getAnalyticsOverview, getAudience, getCompetitors, getReports, getSummary, makeSummary, removeCompetitor, reportDownload, revokeShareLink } from "@mocks/analytics";
 import { disconnectAccount, exportCsv, getContentPerformance, getInsightsOverview, getPlatformAnalytics, getSocialAccounts, providerOf } from "@mocks/insights";
 import { AI_SOURCES, maxFileBytes, sortAssets, sortProjects, storageLimitBytes, type AiTextOperationId, type Asset, type AssetSort, type Clip, type ClipAspect, type CreatePostsRequest, type ProjectSort, type Provider, type RangeDays, type ReportRequest, type StockItem, type TimelineDoc } from "@clipiro/shared";
-import { deactivateAccount, getAccount, getActivity, getBrandKit, getNotifications, getSettings, markAllRead, markRead, saveBrandKit, saveSettings, sendContact, updateName } from "@mocks/account";
+import { clonesAsVoices, cloneVoice, deactivateAccount, deleteVoice, getClonedVoices, renameVoice, getAccount, getActivity, getBrandKit, getNotifications, getSettings, markAllRead, markRead, saveBrandKit, saveSettings, sendContact, updateName } from "@mocks/account";
 import { addUpload, createFolder, deleteAsset, getAssets, getFolders, updateAsset } from "@mocks/assets";
 import { EDIT_ID, exportAsset, getEdit, getVoices, renderJob, startRender, runAiText, saveEdit, searchStock, stockAsset, transcribe } from "@mocks/editor";
 import { enhancePrompt, startToolJob, toolJob } from "@mocks/jobs";
@@ -157,7 +157,17 @@ export const MOCK_ROUTES: Record<string, Route> = {
   "POST /editor/ai-text": async (_url, body) => ok({ texts: await runAiText(body.operation as AiTextOperationId, body.texts as string[], body.targetLang as string | undefined) }),
   "GET /editor/stock": async (url) => ok({ items: await searchStock(url.searchParams.get("type") ?? "video", url.searchParams.get("q") ?? "") }),
   "POST /editor/stock/import": async (_url, body) => [201, stockAsset(String(body.type), body.item as StockItem)],
-  "GET /voices": async () => ok(await getVoices()),
+  "GET /voices": async () => {
+    const v = await getVoices();
+    return ok({ ...v, voices: [...clonesAsVoices(), ...v.voices] });
+  },
+  "GET /voices/cloned": async () => ok(await getClonedVoices()),
+  "POST /voices/cloned": async (_url, body) => [201, { voice: await cloneVoice(body as { name: string; assetId: string }) }],
+  "PATCH /voices/cloned/:id": async (url, body) => ok({ voice: await renameVoice(voiceIdOf(url), String(body.name)) }),
+  "DELETE /voices/cloned/:id": async (url) => {
+    await deleteVoice(voiceIdOf(url));
+    return ok({ ok: true });
+  },
   // AI tool jobs finish at once; a voiceover is saved into Assets.
   "POST /jobs": async (_url, body) => {
     if (body.type === "export") return [202, { jobId: await startRender(String(body.projectId)) }];
@@ -279,6 +289,8 @@ function socialRoutes(routes: Record<string, Route>): Record<string, Route> {
     ]),
   );
 }
+/** /api/mobile/v1/voices/cloned/<id>, decoded ("clone:…"). */
+const voiceIdOf = (url: URL) => decodeURIComponent(url.pathname.split("/")[6]!);
 /** /api/mobile/v1/social/<area>/<id> */
 const socialIdOf = (url: URL) => url.pathname.split("/")[6]!;
 const rangeOf = (url: URL) => Number(url.searchParams.get("range") ?? 30) as RangeDays;

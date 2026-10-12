@@ -213,3 +213,10 @@ export async function openS3ObjectStream(key: string): Promise<{ stream: NodeJS.
   if (!res.Body || res.ContentLength == null) throw new Error(`S3 object ${key} has no body`);
   return { stream: res.Body as NodeJS.ReadableStream, size: res.ContentLength };
 }
+
+/** A small S3 object (a voice sample) read into memory. */
+export async function downloadS3ObjectToBuffer(key: string): Promise<Buffer> {
+  const res = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }));
+  if (!res.Body) throw new Error(`S3 object ${key} has no body`);
+  return Buffer.from(await (res.Body as { transformToByteArray: () => Promise<Uint8Array> }).transformToByteArray());
+}

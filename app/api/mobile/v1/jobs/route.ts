@@ -16,6 +16,7 @@ import { POST as webVoiceover } from "@/app/api/tools/voiceover/route";
 import type { TokenPayload } from "@/lib/auth";
 import { callWeb, callWebForm, mobileError, mobileJson, parseBody, webError, withMobileAuth } from "@/lib/mobile/http";
 import { jobIdFor } from "@/lib/mobile/jobs";
+import { resolveVoiceRef } from "@/lib/mobile/voices";
 import { prisma } from "@/lib/prisma";
 import { getPresignedUrl } from "@/utils/s3-upload";
 
@@ -176,7 +177,11 @@ async function startFileTool(req: NextRequest, auth: TokenPayload, b: FileTool):
   switch (b.type) {
     case "voice-changer":
       refused = await add("audio", b.assetId);
-      form.append("voiceSlug", b.voiceId);
+      {
+        const voice = await resolveVoiceRef(auth.userId, b.voiceId);
+        if (!voice) return { ok: false, res: mobileError(404, "That voice isn’t yours to use.", { code: "voice_not_found" }) };
+        form.append("voiceSlug", voice);
+      }
       form.append("removeNoise", String(b.removeNoise));
       form.append("speed", String(b.speed));
       break;
@@ -215,9 +220,16 @@ export const POST = withMobileAuth(async (req: NextRequest, auth) => {
     case "ai-image":
       result = toolJob(await callWeb(webImage, req, { prompt: b.prompt, model: b.modelId, ratio: b.ratio, idempotencyKey: b.idempotencyKey }));
       break;
-    case "voiceover":
-      result = toolJob(await callWeb(webVoiceover, req, { text: b.text, voiceId: b.voiceId, title: b.title, idempotencyKey: b.idempotencyKey }));
+    case "voiceover": {
+      // A cloned voice ("clone:<id>") becomes the owner's ElevenLabs id here; the web route takes raw ids.
+      const voice = await resolveVoiceRef(auth.userId, b.voiceId);
+      if (!voice) {
+        result = { ok: false, res: mobileError(404, "That voice isn’t yours to use.", { code: "voice_not_found" }) };
+        break;
+      }
+      result = toolJob(await callWeb(webVoiceover, req, { text: b.text, voiceId: voice, title: b.title, idempotencyKey: b.idempotencyKey }));
       break;
+    }
     case "enhance-speech":
     case "vocal-remover":
     case "voice-changer":
