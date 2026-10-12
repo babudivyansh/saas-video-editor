@@ -1,5 +1,4 @@
-import { Placeholder } from "@/navigation/Placeholder";
+// screen: E-Forgot
+import { ForgotScreen } from "@/features/auth/ForgotScreen";
 
-export default function Screen() {
-  return <Placeholder id="E-Forgot" />;
-}
+export default ForgotScreen;

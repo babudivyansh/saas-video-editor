@@ -21,3 +21,7 @@ export { TabBar, type TabKey } from "./TabBar";
 export { TextField, type TextFieldProps } from "./TextField";
 export { ToastProvider, useToast } from "./Toast";
 export { Toggle } from "./Toggle";
+export { ErrorBanner, GoogleButton, OrDivider } from "./AuthBits";
+export { BrandMark } from "./BrandMark";
+export { OtpInput } from "./OtpInput";
+export { PhotoMosaic } from "./PhotoMosaic";

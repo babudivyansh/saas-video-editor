@@ -1,5 +1,4 @@
-import { Placeholder } from "@/navigation/Placeholder";
+// screen: Main
+import { SplashScreen } from "@/features/onboarding/SplashScreen";
 
-export default function Screen() {
-  return <Placeholder id="Main" />;
-}
+export default SplashScreen;

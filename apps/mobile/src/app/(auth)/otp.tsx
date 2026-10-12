@@ -1,5 +1,4 @@
-import { Placeholder } from "@/navigation/Placeholder";
+// screen: E-OTP
+import { OtpScreen } from "@/features/auth/OtpScreen";
 
-export default function Screen() {
-  return <Placeholder id="E-OTP" />;
-}
+export default OtpScreen;

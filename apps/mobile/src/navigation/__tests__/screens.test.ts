@@ -16,7 +16,10 @@ describe("screen registry", () => {
       const file = path.join(APP, SCREENS[id].file);
       expect({ id, exists: fs.existsSync(file) }).toEqual({ id, exists: true });
       // The file must render this screen, not a copy-pasted neighbour.
-      expect({ id, renders: fs.readFileSync(file, "utf8").includes(`id="${id}"`) }).toEqual({ id, renders: true });
+      // Placeholders pass id="…"; built screens carry a `// screen: …` marker.
+      const src = fs.readFileSync(file, "utf8");
+      const marker = new RegExp(`^// screen: ${id}\\r?$`, "m"); // whole line, so "E-Create" ≠ "E-CreateX"
+      expect({ id, renders: src.includes(`id="${id}"`) || marker.test(src) }).toEqual({ id, renders: true });
     }
   });
 

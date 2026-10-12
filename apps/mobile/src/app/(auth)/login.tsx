@@ -1,5 +1,4 @@
-import { Placeholder } from "@/navigation/Placeholder";
+// screen: E-Login
+import { LoginScreen } from "@/features/auth/LoginScreen";
 
-export default function Screen() {
-  return <Placeholder id="E-Login" />;
-}
+export default LoginScreen;
