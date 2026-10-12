@@ -7,7 +7,10 @@ import {
   projectDetailSchema,
   projectsPageSchema,
   renameRequest,
-  type ClipAspect,
+  bulkDeleteRequest,
+  bulkDeleteResponse,
+  type ClipListOptions,
+  type ProjectListOptions,
 } from "../schemas/projects";
 import type { ApiClient } from "./client";
 
@@ -23,17 +26,22 @@ const qs = (p: Record<string, string | null | undefined | false>) => {
 // /api/mobile/v1/projects and /clips.
 export function projectsApi(api: ApiClient) {
   return {
-    list: (cursor?: string | null) => api.request(`/projects${qs({ cursor })}`, { schema: projectsPageSchema }),
+    list: (o: ProjectListOptions = {}) =>
+      api.request(`/projects${qs({ q: o.q?.trim(), sort: o.sort, drafts: o.drafts && "1", cursor: o.cursor })}`, { schema: projectsPageSchema }),
     get: (id: string) => api.request(`/projects/${encodeURIComponent(id)}`, { schema: projectDetailSchema }),
     rename: (id: string, b: z.input<typeof renameRequest>) =>
       api.request(`/projects/${encodeURIComponent(id)}`, { method: "PATCH", body: renameRequest.parse(b), schema: projectDetailSchema }),
     remove: (id: string) => api.request(`/projects/${encodeURIComponent(id)}`, { method: "DELETE", schema: ok }),
-    clips: (o: { aspect?: ClipAspect | null; favorites?: boolean; cursor?: string | null } = {}) =>
-      api.request(`/clips${qs({ aspect: o.aspect, favorites: o.favorites && "1", cursor: o.cursor })}`, { schema: clipsPageSchema }),
+    /** Several projects at once (up to MAX_BULK). */
+    removeMany: (ids: string[]) => api.request("/projects/delete", { method: "POST", body: bulkDeleteRequest.parse({ ids }), schema: bulkDeleteResponse }),
+    clips: (o: ClipListOptions = {}) =>
+      api.request(`/clips${qs({ aspect: o.aspect, favorites: o.favorites && "1", q: o.q?.trim(), cursor: o.cursor })}`, { schema: clipsPageSchema }),
     clip: (id: string) => api.request(`/clips/${encodeURIComponent(id)}`, { schema: clipDetailSchema }),
     updateClip: (id: string, b: z.input<typeof clipPatchRequest>) =>
       api.request(`/clips/${encodeURIComponent(id)}`, { method: "PATCH", body: clipPatchRequest.parse(b), schema: clipDetailSchema }),
     removeClip: (id: string) => api.request(`/clips/${encodeURIComponent(id)}`, { method: "DELETE", schema: ok }),
+    /** Several clips at once; ones still rendering are skipped (`skipped`). */
+    removeClips: (ids: string[]) => api.request("/clips/delete", { method: "POST", body: bulkDeleteRequest.parse({ ids }), schema: bulkDeleteResponse }),
     retryClip: (id: string) => api.request(`/clips/${encodeURIComponent(id)}/retry`, { method: "POST", body: {}, schema: clipDetailSchema }),
     downloadLink: (id: string) => api.request(`/clips/${encodeURIComponent(id)}/download`, { schema: downloadLinkSchema }),
   };

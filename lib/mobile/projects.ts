@@ -1,8 +1,12 @@
 import type { Prisma } from "@prisma/client";
-import type { Clip, ClipAspect, ClipDetail, DownloadLink, ProjectDetail, ProjectSummary } from "@clipiro/shared";
+import type { BulkDeleteResult, Clip, ClipAspect, ClipDetail, DownloadLink, ProjectDetail, ProjectSort, ProjectSummary } from "@clipiro/shared";
 import { prisma } from "@/lib/prisma";
 import { RESUMABLE_PRODUCT_TYPES, STARTED_SIGNALS } from "@/lib/project-activity";
 import { resignMediaUrl } from "@/lib/signed-media";
+import { clipsWithJobsInFlight } from "@/lib/clip-busy";
+import { invalidateDashboardSummary } from "@/lib/dashboard-summary-cache";
+import { parseS3Url } from "@/lib/s3-url";
+import { collectProjectMediaKeys, deleteUnreferencedKeys } from "@/lib/storage-cleanup";
 
 // The Projects tab's reads for /api/mobile/v1/projects and /clips, from the
 // same Project/Clip rows the web reads. Ownership is in every query (Clip has
@@ -87,16 +91,32 @@ async function toSummary(p: ProjectRow): Promise<ProjectSummary> {
 /** Real work only: the empty shells the app used to create are left out (lib/project-activity.ts). */
 const ownedProjects = (userId: string): Prisma.ProjectWhereInput => ({ userId, productType: { in: RESUMABLE_PRODUCT_TYPES }, OR: STARTED_SIGNALS });
 
-export async function listProjects(userId: string, cursor: string | null) {
-  const rows = await prisma.project.findMany({
-    where: ownedProjects(userId),
-    orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
-    take: PAGE + 1,
-    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-    select: projectSelect,
-  });
+const PROJECT_ORDER: Record<ProjectSort, Prisma.ProjectOrderByWithRelationInput[]> = {
+  recent: [{ updatedAt: "desc" }, { id: "desc" }],
+  oldest: [{ updatedAt: "asc" }, { id: "asc" }],
+  name: [{ title: "asc" }, { id: "asc" }],
+  clips: [{ clips: { _count: "desc" } }, { updatedAt: "desc" }, { id: "desc" }],
+};
+
+export async function listProjects(userId: string, o: { cursor?: string | null; q?: string | null; sort?: ProjectSort; drafts?: boolean } = {}) {
+  const q = o.q?.trim();
+  const where: Prisma.ProjectWhereInput = {
+    ...ownedProjects(userId),
+    ...(o.drafts ? { productType: "editor", status: "draft" } : {}),
+    ...(q ? { title: { contains: q, mode: "insensitive" } } : {}),
+  };
+  const [rows, total] = await Promise.all([
+    prisma.project.findMany({
+      where,
+      orderBy: PROJECT_ORDER[o.sort ?? "recent"],
+      take: PAGE + 1,
+      ...(o.cursor ? { cursor: { id: o.cursor }, skip: 1 } : {}),
+      select: projectSelect,
+    }),
+    prisma.project.count({ where }),
+  ]);
   const page = rows.slice(0, PAGE);
-  return { projects: await Promise.all(page.map(toSummary)), nextCursor: rows.length > PAGE ? page[page.length - 1]!.id : null };
+  return { projects: await Promise.all(page.map(toSummary)), nextCursor: rows.length > PAGE ? page[page.length - 1]!.id : null, total };
 }
 
 const clipSelect = {
@@ -137,16 +157,60 @@ export async function getProjectDetail(userId: string, id: string): Promise<Proj
   return { ...(await toSummary(p)), clips: await Promise.all(clips.map(toClip)) };
 }
 
-export async function listClips(userId: string, opts: { aspect: ClipAspect | null; favorites: boolean; cursor: string | null }) {
-  const rows = await prisma.clip.findMany({
-    where: { project: { userId }, ...(opts.aspect ? { aspectRatio: opts.aspect } : {}), ...(opts.favorites ? { isFavorite: true } : {}) },
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    take: PAGE + 1,
-    ...(opts.cursor ? { cursor: { id: opts.cursor }, skip: 1 } : {}),
-    select: clipSelect,
-  });
+export async function listClips(userId: string, opts: { aspect?: ClipAspect | null; favorites?: boolean; q?: string | null; cursor?: string | null }) {
+  const q = opts.q?.trim();
+  const where: Prisma.ClipWhereInput = {
+    project: { userId },
+    ...(opts.aspect ? { aspectRatio: opts.aspect } : {}),
+    ...(opts.favorites ? { isFavorite: true } : {}),
+    ...(q ? { title: { contains: q, mode: "insensitive" } } : {}),
+  };
+  const [rows, total] = await Promise.all([
+    prisma.clip.findMany({
+      where,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: PAGE + 1,
+      ...(opts.cursor ? { cursor: { id: opts.cursor }, skip: 1 } : {}),
+      select: clipSelect,
+    }),
+    prisma.clip.count({ where }),
+  ]);
   const page = rows.slice(0, PAGE);
-  return { clips: await Promise.all(page.map(toClip)), nextCursor: rows.length > PAGE ? page[page.length - 1]!.id : null };
+  return { clips: await Promise.all(page.map(toClip)), nextCursor: rows.length > PAGE ? page[page.length - 1]!.id : null, total };
+}
+
+/**
+ * Deletes several of the caller's projects in one statement (the multi-select
+ * screens), with the web's single delete's clean-up: media nothing else
+ * references is removed afterwards, and the dashboard cache is dropped.
+ * Ids that aren't the caller's are ignored.
+ */
+export async function deleteProjects(userId: string, ids: string[]): Promise<BulkDeleteResult> {
+  const owned = (await prisma.project.findMany({ where: { id: { in: ids }, userId }, select: { id: true } })).map((p) => p.id);
+  if (owned.length === 0) return { deleted: 0, skipped: 0 };
+  const keys = await collectProjectMediaKeys({ id: { in: owned } });
+  const { count } = await prisma.project.deleteMany({ where: { id: { in: owned }, userId } });
+  void deleteUnreferencedKeys(keys, `bulk delete of ${count} projects`);
+  await invalidateDashboardSummary(userId);
+  return { deleted: count, skipped: 0 };
+}
+
+/**
+ * Deletes several of the caller's clips, with the web's single delete's
+ * rules: a clip still rendering, queued, captioning or dubbing is skipped
+ * (deleting it would break that job and its refund — lib/clip-busy.ts), and
+ * its files are removed unless the asset library still uses them.
+ */
+export async function deleteClips(userId: string, ids: string[]): Promise<BulkDeleteResult> {
+  const clips = await prisma.clip.findMany({ where: { id: { in: ids }, project: { userId } }, select: { id: true, status: true, videoUrl: true, thumbnailUrl: true } });
+  const jobs = await clipsWithJobsInFlight(clips.map((c) => c.id));
+  const free = clips.filter((c) => c.status !== "rendering" && c.status !== "queued" && !jobs.has(c.id));
+  if (free.length === 0) return { deleted: 0, skipped: clips.length };
+  const keys = free.flatMap((c) => [c.videoUrl, c.thumbnailUrl]).flatMap((u) => (u ? [parseS3Url(u)?.key].filter((k): k is string => !!k) : []));
+  const { count } = await prisma.clip.deleteMany({ where: { id: { in: free.map((c) => c.id) }, project: { userId } } });
+  void deleteUnreferencedKeys(keys, `bulk delete of ${count} clips`);
+  await invalidateDashboardSummary(userId);
+  return { deleted: count, skipped: clips.length - free.length };
 }
 
 /** The caller's clip, with its project id (the web routes are nested under it). */

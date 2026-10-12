@@ -6,14 +6,7 @@ import { withRateLimit } from "@/lib/with-rate-limit";
 import { parseS3Url } from "@/lib/s3-url";
 import { deleteS3Object } from "@/utils/s3-upload";
 import { logger } from "@/lib/logger";
-import type { CaptionRenderStatus } from "@/lib/captions/types";
-
-/** Caption-render states where a worker or the provider is doing paid work.
- *  ready_to_edit/editing wait on the USER, so they don't block a delete. */
-const CAPTION_JOB_IN_FLIGHT: readonly CaptionRenderStatus[] = [
-  "queued", "submitting", "transcribing", "export_queued", "rendering", "downloading", "uploading",
-  "needs_reconciliation",
-];
+import { CAPTION_JOB_IN_FLIGHT } from "@/lib/clip-busy";
 
 // PATCH / DELETE for a single clip.
 //

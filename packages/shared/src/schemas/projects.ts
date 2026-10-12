@@ -105,10 +105,23 @@ export function scoreSpread(clips: Pick<Clip, "score">[]): number[] {
 
 // ── Mobile API (/api/mobile/v1/projects, /clips) ───────────────────────────
 
-/** GET /projects?cursor= — started AutoClip runs and editor projects, newest first. */
-export const projectsPageSchema = z.object({ projects: z.array(projectSummarySchema), nextCursor: z.string().nullable() });
-/** GET /clips?aspect=&favorites=1&cursor= */
-export const clipsPageSchema = z.object({ clips: z.array(clipSchema), nextCursor: z.string().nullable() });
+/**
+ * GET /projects?q=&sort=&drafts=1&cursor= — started AutoClip runs and editor
+ * projects. `total` counts every match, not just this page.
+ */
+export const projectsPageSchema = z.object({ projects: z.array(projectSummarySchema), nextCursor: z.string().nullable(), total: z.number().int().nonnegative() });
+export const projectSortSchema = z.enum(["recent", "oldest", "name", "clips"]);
+export type ProjectListOptions = { q?: string; sort?: ProjectSort; drafts?: boolean; cursor?: string | null };
+/** GET /clips?aspect=&favorites=1&q=&cursor= — newest first. */
+export const clipsPageSchema = z.object({ clips: z.array(clipSchema), nextCursor: z.string().nullable(), total: z.number().int().nonnegative() });
+export type ClipListOptions = { aspect?: ClipAspect | null; favorites?: boolean; q?: string; cursor?: string | null };
+
+/** POST /projects/delete, /clips/delete — several at once (the multi-select screens). */
+export const MAX_BULK = 50;
+export const bulkDeleteRequest = z.object({ ids: z.array(z.string().min(1)).min(1, "Pick something to delete").max(MAX_BULK, `Delete up to ${MAX_BULK} at a time`) });
+/** `skipped`: clips still rendering, captioning or dubbing, which can't be deleted yet. */
+export const bulkDeleteResponse = z.object({ deleted: z.number().int().nonnegative(), skipped: z.number().int().nonnegative() });
+export type BulkDeleteResult = z.infer<typeof bulkDeleteResponse>;
 
 /** What a clip's virality score is made of (lib/virality-score.ts), each 0–99 like the score. */
 export const scoreBreakdownSchema = z.object({

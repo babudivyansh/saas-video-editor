@@ -3,10 +3,8 @@
 import path from "node:path";
 import { act, fireEvent, renderRouter, screen, testRouter, waitFor } from "expo-router/testing-library";
 import { useSession } from "@/state/session";
-import { installFakeApi } from "@/test/fakeApi";
 import { installFakeAuthServer } from "@/test/fakeAuthServer";
 import { setMockDelay } from "@mocks/core";
-import { getProject } from "@mocks/projects";
 import { SAMPLE_PROJECT_ID } from "../screens";
 
 // Renders the real src/app tree, so these exercise the actual layouts:
@@ -76,16 +74,11 @@ describe("navigation", () => {
   });
 
   it("opens a project detail with its id", async () => {
-    // The list is still mock data (Phase 8); the detail comes from the API.
-    jest.useRealTimers(); // the fixture fetcher waits on a timer
-    const detail = await getProject(SAMPLE_PROJECT_ID);
-    const server = installFakeApi({ [`GET /projects/${SAMPLE_PROJECT_ID}`]: () => [200, detail] });
     const r = renderRouter(APP, { initialUrl: "/projects" });
     // The real Projects screen loads its list first (mock data, Phase 4.5).
     await act(async () => fireEvent.press(await screen.findByRole("button", { name: /^Founders Pod · Ep. 42. Ready/ })));
     await waitFor(() => expect(r.getPathname()).toBe(`/projects/${SAMPLE_PROJECT_ID}`));
     expect(await screen.findByText("10 ready · 1 rendering · 1 failed")).toBeOnTheScreen();
-    server.restore();
   });
 
   it("opens the editor over the tabs, a panel over the editor, and backs out step by step", async () => {
