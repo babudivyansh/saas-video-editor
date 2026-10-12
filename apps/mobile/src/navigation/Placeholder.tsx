@@ -28,31 +28,21 @@ export function goBack(id: ScreenId) {
   }
 }
 
-export function Placeholder({
-  id,
-  detail,
-  /** "sheet" = editor panel presented as a bottom sheet (no safe-area top). */
-  variant = "screen",
-}: {
-  id: ScreenId;
-  detail?: string;
-  variant?: "screen" | "sheet";
-}) {
+export function Placeholder({ id, detail }: { id: ScreenId; detail?: string }) {
   const s = SCREENS[id];
   const insets = useSafeAreaInsets();
   const isTabRoot = TAB_ROOTS.includes(id);
   const inTabs = s.file.startsWith("(tabs)");
   const bottomPad = inTabs ? layout.tabBar.height + layout.tabBar.inset + insets.bottom + 24 : insets.bottom + 24;
-  // The first link is the screen's main action and the only lime one. Sheets
-  // sit over the editor, which already shows its own, so they get none.
-  const primary = variant === "sheet" ? undefined : s.links[0];
+  // The first link is the screen's main action and the only lime one.
+  const primary = s.links[0];
 
   return (
-    <View style={[styles.root, variant === "sheet" && styles.sheet]}>
+    <View style={styles.root}>
       <ScrollView
         contentContainerStyle={[
           styles.content,
-          { paddingTop: variant === "sheet" ? 20 : insets.top + 8, paddingBottom: bottomPad },
+          { paddingTop: insets.top + 8, paddingBottom: bottomPad },
         ]}
       >
         <Header
@@ -100,7 +90,6 @@ export function Placeholder({
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
-  sheet: { backgroundColor: colors.surface2 },
   content: { paddingHorizontal: layout.screenPadding, gap: 20 },
   links: { gap: 10 },
 });

@@ -29,3 +29,4 @@ export { StatusBarScrim } from "./StatusBarScrim";
 export { OptionList } from "./OptionList";
 export { Stepper } from "./Stepper";
 export { UnderlineTabs } from "./UnderlineTabs";
+export { Slider } from "./Slider";

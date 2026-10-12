@@ -1,5 +1,4 @@
-import { Placeholder } from "@/navigation/Placeholder";
+// screen: BN-EdText
+import { TextPanel } from "@/features/editor/panels";
 
-export default function Screen() {
-  return <Placeholder id="BN-EdText" variant="sheet" />;
-}
+export default TextPanel;

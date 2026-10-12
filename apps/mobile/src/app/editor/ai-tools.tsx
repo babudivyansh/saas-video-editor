@@ -1,5 +1,4 @@
-import { Placeholder } from "@/navigation/Placeholder";
+// screen: BN-EdAI
+import { AiToolsPanel } from "@/features/editor/panels";
 
-export default function Screen() {
-  return <Placeholder id="BN-EdAI" variant="sheet" />;
-}
+export default AiToolsPanel;

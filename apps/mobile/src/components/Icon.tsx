@@ -53,6 +53,17 @@ const GLYPHS = {
   star: <Path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z" />,
   file: <><Path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><Path d="M14 3v5h5" /></>,
   minus: <Path d="M5 12h14" />,
+  play: <Path d="M7 5l12 7-12 7z" />,
+  pause: <><Rect x="6" y="5" width="4" height="14" rx="1" /><Rect x="14" y="5" width="4" height="14" rx="1" /></>,
+  undo: <><Path d="M9 14L4 9l5-5" /><Path d="M4 9h11a5 5 0 0 1 0 10h-3" /></>,
+  redo: <><Path d="M15 14l5-5-5-5" /><Path d="M20 9H9a5 5 0 0 0 0 10h3" /></>,
+  /** Split at playhead; also Transitions. */
+  split: <><Path d="M12 3v18" /><Path d="M8 7L4 12l4 5" /><Path d="M16 7l4 5-4 5" /></>,
+  trash: <><Path d="M4 7h16" /><Path d="M10 11v6" /><Path d="M14 11v6" /><Path d="M5 7l1 13h12l1-13" /><Path d="M9 7V4h6v3" /></>,
+  text: <><Path d="M4 7V5h16v2" /><Path d="M12 5v14" /><Path d="M9 19h6" /></>,
+  filter: <Path d="M3 5h18l-7 8v6l-4 2v-8z" />,
+  globe: <><Circle cx="12" cy="12" r="9" /><Path d="M3 12h18" /><Path d="M12 3a14 14 0 0 1 0 18" /><Path d="M12 3a14 14 0 0 0 0 18" /></>,
+  send: <><Path d="M22 2L11 13" /><Path d="M22 2l-7 20-4-9-9-4z" /></>,
   refresh: <><Path d="M20 11a8 8 0 0 0-14.9-3.9L4 8" /><Path d="M4 4v4h4" /><Path d="M4 13a8 8 0 0 0 14.9 3.9L20 16" /><Path d="M20 20v-4h-4" /></>,
 } as const;
 

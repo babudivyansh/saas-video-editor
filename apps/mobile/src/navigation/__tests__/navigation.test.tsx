@@ -81,12 +81,12 @@ describe("navigation", () => {
     expect(r.getPathname()).toBe("/editor");
     await press("Captions");
     expect(r.getPathname()).toBe("/editor/captions");
-    // Switching panels replaces the sheet instead of stacking another one.
-    await press("Audio");
-    expect(r.getPathname()).toBe("/editor/audio");
-    await press("Back");
+    // Switching panels replaces the panel instead of stacking another one.
+    await act(() => fireEvent.press(screen.getByRole("tab", { name: "Audio" })));
+    await waitFor(() => expect(r.getPathname()).toBe("/editor/audio"));
+    await press("Back to timeline");
     expect(r.getPathname()).toBe("/editor");
-    await press("Back");
+    await press("Close editor");
     expect(r.getPathname()).toBe("/home");
   });
 

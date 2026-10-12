@@ -1,5 +1,4 @@
-import { Placeholder } from "@/navigation/Placeholder";
+// screen: BN-EdEffects
+import { EffectsPanel } from "@/features/editor/panels";
 
-export default function Screen() {
-  return <Placeholder id="BN-EdEffects" variant="sheet" />;
-}
+export default EffectsPanel;
