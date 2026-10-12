@@ -11,6 +11,7 @@ import os from "os";
 import path from "path";
 import fs from "fs";
 import { randomUUID } from "crypto";
+import { toByteCount } from "@/lib/asset-serialize";
 
 export const maxDuration = 120;
 
@@ -85,10 +86,10 @@ async function handlePOST(req: NextRequest) {
         height: typeof body.height === "number" ? body.height : undefined,
       },
     });
-    await auditAssetAction(auth.userId, "upload", asset.id, { name: asset.name, size: asset.size, source: "stock" });
+    await auditAssetAction(auth.userId, "upload", asset.id, { name: asset.name, size: toByteCount(asset.size), source: "stock" });
 
     const readUrl = await getAssetReadUrl(key);
-    return NextResponse.json({ asset: { ...asset, url: readUrl } });
+    return NextResponse.json({ asset: { ...asset, size: toByteCount(asset.size), url: readUrl } });
   } catch (err) {
     logger.error("stock/import", "request failed", err);
     const message = err instanceof Error ? err.message : "Import failed";

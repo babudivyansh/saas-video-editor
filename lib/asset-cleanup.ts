@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { deleteS3Object, abortMultipartUpload } from "@/utils/s3-upload";
 import { logger } from "@/lib/logger";
+import { toByteCount } from "@/lib/asset-serialize";
 
 // The two storage sweeps behind /api/cron/asset-cleanup, shared with the admin
 // Content & Storage page (which previews them with dryRun before running).
@@ -53,7 +54,7 @@ export async function sweepOrphanedUploads({ dryRun = false } = {}): Promise<Swe
 export async function purgeExpiredArchives({ dryRun = false } = {}): Promise<SweepResult> {
   const cutoff = new Date(Date.now() - ARCHIVE_RETENTION_DAYS * 24 * 60 * 60 * 1000);
   const expired = await prisma.asset.findMany({ where: { archivedAt: { lt: cutoff } } });
-  const bytes = expired.reduce((s, a) => s + (a.size ?? 0), 0);
+  const bytes = expired.reduce((s, a) => s + toByteCount(a.size), 0);
   const sample = expired.slice(0, SAMPLE).map((a) => ({ id: a.id, key: a.name, createdAt: a.createdAt.toISOString() }));
   if (dryRun) return { dryRun, matched: expired.length, deleted: 0, failed: 0, bytes, sample };
 

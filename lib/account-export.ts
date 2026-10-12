@@ -25,6 +25,7 @@ import { uploadFileToS3, getAssetReadUrl } from "@/utils/s3-upload";
 import { sendAccountExportReadyEmail } from "@/lib/email";
 import { logger } from "@/lib/logger";
 import { greetingName } from "@/lib/display-name";
+import { toByteCount } from "@/lib/asset-serialize";
 
 const EXPORT_URL_TTL_SEC = 24 * 3600;
 const LOGIN_HISTORY_LIMIT = 100;
@@ -76,7 +77,7 @@ export async function accountExportJob(payload: AccountExportPayload): Promise<v
     ]);
 
     const assetsWithUrls = await Promise.all(
-      assets.map(async (a) => ({ ...a, url: await getAssetReadUrl(a.s3Key).catch(() => null) })),
+      assets.map(async (a) => ({ ...a, size: toByteCount(a.size), url: await getAssetReadUrl(a.s3Key).catch(() => null) })),
     );
 
     // These four are keyed by accountId/competitorId (FKs), not userId

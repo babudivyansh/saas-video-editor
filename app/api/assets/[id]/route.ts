@@ -3,7 +3,7 @@ import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { deleteS3Object } from "@/utils/s3-upload";
-import { serializeOneAsset } from "@/lib/asset-serialize";
+import { serializeOneAsset, toByteCount } from "@/lib/asset-serialize";
 import { getAssetRelated } from "@/lib/related-content";
 import { auditAssetAction } from "@/lib/asset-audit";
 import { trackOnboardingEvent } from "@/lib/onboarding-analytics";
@@ -118,7 +118,7 @@ async function handleDELETE(req: NextRequest, { params }: { params: Promise<{ id
   await deleteS3Object(asset.s3Key);
   if (asset.thumbnailS3Key) await deleteS3Object(asset.thumbnailS3Key).catch(() => {});
   await prisma.asset.delete({ where: { id } });
-  await auditAssetAction(auth.userId, "delete", id, { name: asset.name, size: asset.size });
+  await auditAssetAction(auth.userId, "delete", id, { name: asset.name, size: toByteCount(asset.size) });
   trackOnboardingEvent(auth.userId, "asset_deleted", { assetId: id, sourceFeature: asset.sourceFeature });
 
   return NextResponse.json({ status: "deleted" });

@@ -3,7 +3,7 @@ import { getAuthUser, getUserTier } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { storageLimitBytesForTier, maxUploadBytesForTier } from "@/lib/plans/tiers";
-import { serializeAssets } from "@/lib/asset-serialize";
+import { serializeAssets, toByteCount } from "@/lib/asset-serialize";
 
 async function handleGET(req: NextRequest) {
   const auth = await getAuthUser(req);
@@ -21,7 +21,7 @@ async function handleGET(req: NextRequest) {
       prisma.asset.groupBy({ by: ["kind"], where: { userId: auth.userId, archivedAt: null }, _count: true }),
       getUserTier(auth.userId),
     ]);
-    const totalSize = totals._sum.size ?? 0;
+    const totalSize = toByteCount(totals._sum.size);
     const count = totals._count;
     const byKind = { video: 0, audio: 0, image: 0 };
     for (const row of byKindRows) {

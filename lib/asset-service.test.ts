@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Prisma } from "@prisma/client";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { MAX_UPLOAD_BYTES_BY_TIER } from "@/lib/plans/tiers";
 
 // Global Asset Library — core service tests. Mirrors the mocking convention
 // established in app/api/upload/route.test.ts: mock the I/O boundaries
@@ -85,6 +88,8 @@ const {
   assertUploadAllowed,
   AssetLimitError,
 } = await import("./asset-service");
+const { serializeAsset, toByteCount } = await import("./asset-serialize");
+type AssetRow = import("./asset-serialize").AssetRow;
 
 beforeEach(() => {
   tier = "free";
@@ -293,5 +298,74 @@ describe("assertUploadAllowed — multipart pre-flight (no dedup, declared size 
     await expect(assertUploadAllowed("u1", 300 * 1024 ** 2)).rejects.toBeInstanceOf(AssetLimitError);
     tier = "studio";
     await expect(assertUploadAllowed("u1", 300 * 1024 ** 2)).resolves.toBe("studio");
+  });
+});
+
+// Asset.size is int8 since Pro (2 GiB) and Studio (5 GiB) uploads overflow
+// int4. Prisma returns BigInt columns — and _sum over them — as `bigint`,
+// which JSON.stringify throws on and which can't be added to a number. These
+// mocks return bigint exactly as the real client does.
+describe("multi-GiB assets (Asset.size is BigInt)", () => {
+  const THREE_GIB = 3 * 1024 ** 3;
+
+  beforeEach(() => {
+    createImpl.mockImplementation(async ({ data }: { data: Record<string, unknown> }) =>
+      createDefault({ data: { ...data, size: BigInt(data.size as number) } }),
+    );
+  });
+
+  it("adopts a 3 GiB Studio upload and the row serializes to a plain-number size", async () => {
+    tier = "studio";
+    aggregateImpl.mockResolvedValueOnce({ _sum: { size: null } } as never);
+    const result = await adoptExistingS3Object({
+      userId: "u1", s3Key: "uploads/u1/huge.mp4", mimeType: "video/mp4",
+      name: "Huge", size: THREE_GIB, sourceFeature: "upload",
+    });
+    expect(createImpl).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ size: THREE_GIB }) }));
+    expect(result.asset.size).toBe(BigInt(THREE_GIB));
+
+    const wire = serializeAsset(
+      { status: "ready", sourceFeature: "upload", ...result.asset } as unknown as AssetRow,
+      { url: "https://signed.example/huge.mp4", thumbnailUrl: null },
+    );
+    expect(wire.size).toBe(THREE_GIB);
+    expect(JSON.parse(JSON.stringify(wire)).size).toBe(THREE_GIB);
+
+    // The audit row's metadata is a JSON column — a bigint there would throw.
+    const auditMeta = auditAssetAction.mock.calls.at(-1)?.[3] as Record<string, unknown>;
+    expect(auditMeta.size).toBe(THREE_GIB);
+    expect(() => JSON.stringify(auditMeta)).not.toThrow();
+  });
+
+  it("does the storage-quota math on a bigint _sum (Studio: 15 GiB)", async () => {
+    tier = "studio";
+    aggregateImpl.mockResolvedValueOnce({ _sum: { size: BigInt(11 * 1024 ** 3) } } as never);
+    await expect(assertUploadAllowed("u1", THREE_GIB)).resolves.toBe("studio"); // 14 GiB ≤ 15
+
+    aggregateImpl.mockResolvedValueOnce({ _sum: { size: BigInt(13 * 1024 ** 3) } } as never);
+    await expect(assertUploadAllowed("u1", THREE_GIB)).rejects.toMatchObject({
+      name: "AssetLimitError",
+      kind: "storage_quota",
+      usedBytes: 13 * 1024 ** 3, // a number, so the 413 body can be JSON-encoded
+    });
+  });
+});
+
+describe("toByteCount", () => {
+  it("converts Prisma's bigint (and a null _sum) to an exact number", () => {
+    expect(toByteCount(BigInt(5 * 1024 ** 3))).toBe(5 * 1024 ** 3);
+    expect(toByteCount(null)).toBe(0);
+    expect(toByteCount(undefined)).toBe(0);
+    expect(toByteCount(42)).toBe(42);
+  });
+});
+
+describe("Asset.size column width", () => {
+  it("is int8 — every tier's per-file cap overflows int4", () => {
+    const schema = readFileSync(path.join(process.cwd(), "prisma/schema.prisma"), "utf8");
+    const assetModel = schema.match(/model Asset \{([\s\S]*?)\n\}/)?.[1] ?? "";
+    expect(assetModel).toMatch(/^\s*size\s+BigInt\b/m);
+    // Why: the largest per-file cap doesn't fit in int4.
+    expect(Math.max(...Object.values(MAX_UPLOAD_BYTES_BY_TIER))).toBeGreaterThan(2 ** 31 - 1);
   });
 });
