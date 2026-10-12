@@ -21,6 +21,7 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Avatar, BottomSheet, Button, EmptyState, Header, Icon, OptionList, SegmentedControl, StatusBarScrim, TextField, useToast } from "@/components";
 import { assets, projects, social } from "@/lib/api";
+import { track } from "@/lib/analytics";
 import { apiErrorMessage } from "@/lib/errors";
 import { imageSource } from "@/lib/images";
 import { colors, derived, radius, statusTint, text, type } from "@/theme";
@@ -202,6 +203,7 @@ export function ComposerScreen() {
         when: when === "now" ? "now" : slot.toISOString(),
       };
       const r = await social.createPosts(body);
+      track("post_created");
       // One toast: a second would replace the first.
       const notes = [
         r.warnings.includes("not_short") ? "YouTube will post this as a regular video, not a Short: it’s over 3 minutes or not vertical." : null,

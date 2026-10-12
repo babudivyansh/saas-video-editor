@@ -99,6 +99,8 @@ jest.mock("expo-clipboard", () => {
   const state = { text: "" };
   return { __state: state, setStringAsync: jest.fn(async (t) => ((state.text = t), true)), getStringAsync: jest.fn(async () => state.text) };
 });
+// @sentry/react-native (native): off in tests.
+jest.mock("@sentry/react-native", () => ({ init: jest.fn(), wrap: (c) => c, captureException: jest.fn() }));
 // expo/fetch (native streaming): the mock server's streaming answer (src/test/mockServer.ts).
 jest.mock("expo/fetch", () => ({ fetch: (...args) => globalThis.__streamFetch(...args) }));
 // expo-web-browser (native): tests set how the sign-in session ends.

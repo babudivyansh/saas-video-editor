@@ -2059,3 +2059,18 @@ model AssistantMessage {
 
   @@index([userId, createdAt])
 }
+
+// The Android app's product analytics (mobile Phase 15, decision R2 A):
+// first-party daily counts per event and app version. No user or device id is
+// stored, which keeps the Play Store Data Safety answer to "app interactions,
+// not linked to the user". Events: @clipiro/shared APP_EVENTS.
+model AppEventDaily {
+  id         String   @id @default(uuid())
+  date       String // "YYYY-MM-DD" UTC
+  event      String
+  appVersion String
+  count      Int      @default(0)
+  updatedAt  DateTime @updatedAt
+
+  @@unique([date, event, appVersion])
+}

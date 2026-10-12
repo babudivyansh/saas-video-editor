@@ -7,6 +7,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button, EmptyState, Header, Icon, ProgressBar, useToast, type IconName } from "@/components";
 import { editor, jobs } from "@/lib/api";
+import { track } from "@/lib/analytics";
 import { useComposerSeed } from "../social/queries";
 import { apiErrorMessage } from "@/lib/errors";
 import { imageSource } from "@/lib/images";
@@ -119,6 +120,7 @@ export function ExportScreen() {
     }
     try {
       await jobs.start({ type: "export", projectId });
+      track("export_started");
     } catch (e) {
       if (!(e instanceof ApiError && e.code === "already_rendering")) {
         if (e instanceof ApiError && e.code === "insufficient_credits") toast(e.message, "error");

@@ -7,6 +7,7 @@ import {
   brandKitPatch,
   brandKitResponse,
   contactRequest,
+  appEventRequest,
   invoiceSchema,
   invoicesResponse,
   subscriptionChangeResponse,
@@ -48,6 +49,8 @@ export function meApi(api: ApiClient) {
     invoices: () => api.request("/billing/invoices", { schema: invoicesResponse }),
     /** One purchase, checked as the caller's; the PDF is then GET /billing/invoices/:id/pdf. */
     invoice: (id: string) => api.request(`/billing/invoices/${encodeURIComponent(id)}`, { schema: z.object({ invoice: invoiceSchema, fileName: z.string().nullable() }) }),
+    /** Counts one app event (first-party, no identity stored). */
+    track: (b: z.input<typeof appEventRequest>) => api.request("/events", { method: "POST", body: appEventRequest.parse(b), schema: z.object({ ok: z.literal(true) }) }),
     home: () => api.request("/home", { schema: homeSummarySchema }),
     plans: () => api.request("/plans", { schema: plansResponseSchema }),
     tools: () => api.request("/tools", { schema: toolsResponseSchema }),

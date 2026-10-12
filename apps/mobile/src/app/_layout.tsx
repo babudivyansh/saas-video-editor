@@ -18,8 +18,10 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ToastProvider } from "@/components";
 import { useAutoClipUpload } from "@/features/create/uploadStore";
 import { configurePushPresentation, openTappedPushes, registerForPush, usePush } from "@/lib/push";
+import { trackAppOpen } from "@/lib/analytics";
 import { usePhonePrefs } from "@/lib/phonePrefs";
 import { makeQueryClient } from "@/lib/queryClient";
+import { withSentry } from "@/lib/sentry";
 import { useSession } from "@/state/session";
 import { colors } from "@/theme";
 
@@ -27,7 +29,7 @@ SplashScreen.preventAutoHideAsync();
 // Dark-only app: paint the native root view so no white flashes between screens.
 SystemUI.setBackgroundColorAsync(colors.bg);
 
-export default function RootLayout() {
+function RootLayout() {
   const [queryClient] = useState(makeQueryClient);
   const signedIn = useSession((s) => s.signedIn);
   const ready = useSession((s) => s.ready);
@@ -55,6 +57,7 @@ export default function RootLayout() {
   // asking — the prompt comes when a run starts), and open tapped pushes.
   useEffect(() => {
     if (!ready || !signedIn) return;
+    trackAppOpen();
     void registerForPush({ ask: false });
     return openTappedPushes();
   }, [ready, signedIn]);
@@ -106,3 +109,5 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 }
+
+export default withSentry(RootLayout);
