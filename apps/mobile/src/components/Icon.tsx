@@ -42,6 +42,17 @@ const GLYPHS = {
   download: <><Path d="M12 4v12" /><Path d="M6 10l6 6 6-6" /><Path d="M4 20h16" /></>,
   waveform: <><Path d="M2 12h2" /><Path d="M6 8v8" /><Path d="M10 5v14" /><Path d="M14 8v8" /><Path d="M18 10v4" /><Path d="M22 12h0" /></>,
   bulb: <><Path d="M9 18h6" /><Path d="M10 21h4" /><Path d="M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z" /></>,
+  upload: <><Path d="M12 16V4" /><Path d="M6 10l6-6 6 6" /><Path d="M4 20h16" /></>,
+  cloudUpload: <><Path d="M7 18a5 5 0 0 1-.5-10A6 6 0 0 1 18 9a4.5 4.5 0 0 1-.5 9z" /><Path d="M12 12v6" /><Path d="M9.5 14.5L12 12l2.5 2.5" /></>,
+  link: <><Path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1" /><Path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1" /></>,
+  /** Timeline editor. */
+  editor: <><Rect x="3" y="4" width="18" height="16" rx="2" /><Path d="M3 14h18" /><Path d="M8 14v6" /><Path d="M14 14v6" /></>,
+  sliders: <><Path d="M4 6h10" /><Path d="M18 6h2" /><Circle cx="16" cy="6" r="2" /><Path d="M4 12h4" /><Path d="M12 12h8" /><Circle cx="10" cy="12" r="2" /><Path d="M4 18h12" /><Path d="M20 18h0" /><Circle cx="18" cy="18" r="2" /></>,
+  /** Presets (a split card). */
+  presets: <><Rect x="3" y="3" width="18" height="18" rx="2" /><Path d="M3 12h18" /></>,
+  star: <Path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z" />,
+  file: <><Path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><Path d="M14 3v5h5" /></>,
+  minus: <Path d="M5 12h14" />,
   refresh: <><Path d="M20 11a8 8 0 0 0-14.9-3.9L4 8" /><Path d="M4 4v4h4" /><Path d="M4 13a8 8 0 0 0 14.9 3.9L20 16" /><Path d="M20 20v-4h-4" /></>,
 } as const;
 
@@ -52,18 +63,21 @@ export function Icon({
   size = 20,
   color = colors.fg,
   strokeWidth = 1.8,
+  filled = false,
 }: {
   name: IconName;
   size?: number;
   color?: string;
   strokeWidth?: number;
+  /** Fill the shape too (a selected ★). */
+  filled?: boolean;
 }) {
   return (
     <Svg
       width={size}
       height={size}
       viewBox="0 0 24 24"
-      fill="none"
+      fill={filled ? color : "none"}
       stroke={color}
       strokeWidth={strokeWidth}
       strokeLinecap="round"
