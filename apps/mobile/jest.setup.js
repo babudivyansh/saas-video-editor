@@ -74,7 +74,15 @@ jest.mock("expo-notifications", () => ({
 jest.mock("expo-video", () => {
   const { View } = require("react-native");
   const player = () => ({ play: jest.fn(), pause: jest.fn(), replace: jest.fn(), currentTime: 0, playbackRate: 1, volume: 1, loop: false, timeUpdateEventInterval: 0 });
-  return { useVideoPlayer: jest.fn((_src, setup) => { const ref = require("react").useRef(null); if (!ref.current) { ref.current = player(); setup?.(ref.current); } return ref.current; }), VideoView: (props) => require("react").createElement(View, { testID: "video-view", ...props }) };
+  // A hidden player (src/features/editor/probe.ts) loads every file as 12 s long.
+  const createVideoPlayer = jest.fn(() => ({
+    release: jest.fn(),
+    addListener: jest.fn((event, fn) => {
+      if (event === "sourceLoad") setTimeout(() => fn({ duration: 12 }), 0);
+      return { remove: jest.fn() };
+    }),
+  }));
+  return { createVideoPlayer, useVideoPlayer: jest.fn((_src, setup) => { const ref = require("react").useRef(null); if (!ref.current) { ref.current = player(); setup?.(ref.current); } return ref.current; }), VideoView: (props) => require("react").createElement(View, { testID: "video-view", ...props }) };
 });
 jest.mock("expo-media-library", () => {
   const album = { add: jest.fn(async () => {}) };

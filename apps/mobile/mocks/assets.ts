@@ -90,8 +90,8 @@ export async function deleteAsset(id: string) {
 }
 
 /** A picked file starts uploading (Phase 7 does the real transfer). */
-export async function addUpload(file: { name: string; size: number; mimeType: string }) {
+export async function addUpload(file: { name: string; size: number; mimeType: string; durationSec?: number | null }) {
   await wait();
   const kind = file.mimeType.startsWith("video") ? "video" : file.mimeType.startsWith("audio") ? "audio" : "image";
-  ASSETS = [a({ id: `up${++seq}`, name: file.name, kind, sizeBytes: file.size, status: "processing", createdAt: new Date().toISOString() }), ...ASSETS];
+  ASSETS = [a({ id: `up${++seq}`, name: file.name, kind, sizeBytes: file.size, durationSec: file.durationSec ?? null, status: "processing", createdAt: new Date().toISOString() }), ...ASSETS];
 }

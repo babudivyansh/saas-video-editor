@@ -1,81 +1,87 @@
-import type { Asset, CaptionClip, EditorOpen, TimelineDoc, VideoClip } from "@clipiro/shared";
+import type { AiTextOperationId, Asset, CaptionClip, EditorOpen, EditorVoice, StockItem, TimelineDoc, VideoClip } from "@clipiro/shared";
 import { ApiError, respond, wait } from "./core";
 
-// Stand-in for the editor's API until Phase 9 (project doc, media library,
-// stock search via Pexels / Jamendo / Giphy, AI text, render jobs).
-// Scenarios (core.ts): "media", "stock", "ai-text", "export".
+// The editor's API as fixtures (src/test/mockServer.ts serves them as
+// /api/mobile/v1): the edit itself, stock search, AI text, voices, and the
+// words a transcription finds. Scenarios (core.ts): "edit", "stock",
+// "ai-text", "captions", "voices", "export".
 
-export type MediaItem = { id: string; kind: "video" | "image" | "gif"; thumbnailUrl: string; durationSec: number | null; title: string };
+const STOCK: Record<"video" | "image", StockItem[]> = {
+  video: [
+    { id: "pv1", name: "Mountain sunrise", thumbUrl: "asset:travel-summit", downloadUrl: "https://videos.pexels.test/1.mp4", width: 1080, height: 1920, durationSec: 15, attribution: "Ana B. on Pexels" },
+    { id: "pv2", name: "Film set", thumbUrl: "asset:clapper", downloadUrl: "https://videos.pexels.test/2.mp4", width: 1920, height: 1080, durationSec: 8, attribution: "Leo K. on Pexels" },
+    { id: "pv3", name: "Neon club", thumbUrl: "asset:dj-neon", downloadUrl: "https://videos.pexels.test/3.mp4", width: 1080, height: 1920, durationSec: 11, attribution: "Mia R. on Pexels" },
+  ],
+  image: [
+    { id: "pi1", name: "Conference stage", thumbUrl: "asset:keynote-stage", downloadUrl: "https://images.pexels.test/1.jpg", width: 1600, height: 900, attribution: "Sam T. on Pexels" },
+    { id: "pi2", name: "Podcast studio", thumbUrl: "asset:studio-mic", downloadUrl: "https://images.pexels.test/2.jpg", width: 1200, height: 1600, attribution: "Ola N. on Pexels" },
+  ],
+};
 
-const LIBRARY: MediaItem[] = [
-  { id: "m1", kind: "video", thumbnailUrl: "asset:podcast-mic", durationSec: 58 * 60 + 40, title: "Founders Pod · Ep. 42" },
-  { id: "m2", kind: "video", thumbnailUrl: "asset:travel-summit", durationSec: 12, title: "Summit b-roll" },
-  { id: "m3", kind: "video", thumbnailUrl: "asset:gym-lift", durationSec: 44, title: "Leg day" },
-  { id: "m4", kind: "video", thumbnailUrl: "asset:keynote-stage", durationSec: 134, title: "Keynote" },
-  { id: "m5", kind: "video", thumbnailUrl: "asset:dj-neon", durationSec: 6, title: "DJ teaser" },
-  { id: "m6", kind: "video", thumbnailUrl: "asset:creator-denim", durationSec: 9, title: "Street walk" },
-  { id: "m7", kind: "image", thumbnailUrl: "asset:clapper", durationSec: null, title: "Clapper" },
-  { id: "m8", kind: "image", thumbnailUrl: "asset:studio-mic", durationSec: null, title: "Studio mic" },
-  { id: "m9", kind: "gif", thumbnailUrl: "asset:creator-hat", durationSec: null, title: "Wave" },
-];
-
-export async function getMediaLibrary(): Promise<MediaItem[]> {
-  const s = await respond("media");
-  return s === "empty" ? [] : LIBRARY;
-}
-
-const STOCK: MediaItem[] = [
-  { id: "s1", kind: "video", thumbnailUrl: "asset:travel-summit", durationSec: 15, title: "Mountain sunrise" },
-  { id: "s2", kind: "video", thumbnailUrl: "asset:clapper", durationSec: 8, title: "Film set" },
-  { id: "s3", kind: "image", thumbnailUrl: "asset:keynote-stage", durationSec: null, title: "Conference stage" },
-  { id: "s4", kind: "video", thumbnailUrl: "asset:dj-neon", durationSec: 11, title: "Neon club" },
-  { id: "s5", kind: "image", thumbnailUrl: "asset:studio-mic", durationSec: null, title: "Podcast studio" },
-  { id: "s6", kind: "gif", thumbnailUrl: "asset:creator-violet", durationSec: null, title: "Sparkle sticker" },
-];
-
-/** Pexels (photos, video) and Giphy (stickers) on the web. */
-export async function searchStock(query: string): Promise<MediaItem[]> {
+/** GET /editor/stock — Pexels on the server. */
+export async function searchStock(type: string, q: string): Promise<StockItem[]> {
   const s = await respond("stock");
-  if (s === "empty") return [];
-  const q = query.trim().toLowerCase();
-  return q ? STOCK.filter((i) => i.title.toLowerCase().includes(q)) : STOCK;
+  const list = STOCK[type as "video" | "image"] ?? [];
+  const needle = q.trim().toLowerCase();
+  return s === "empty" ? [] : list.filter((i) => i.name.toLowerCase().includes(needle) || needle === "all");
 }
 
-export type MusicTrack = { id: string; title: string; artist: string; durationSec: number; mood: string };
-/** Jamendo (Creative Commons) on the web. */
-export async function getStockMusic(): Promise<MusicTrack[]> {
-  await wait();
-  return [
-    { id: "j1", title: "Upbeat drive", artist: "Lumen Park", durationSec: 142, mood: "Upbeat" },
-    { id: "j2", title: "Night shift", artist: "Kōda", durationSec: 188, mood: "Chill" },
-    { id: "j3", title: "Big reveal", artist: "Harbor Lights", durationSec: 96, mood: "Epic" },
-    { id: "j4", title: "Morning coffee", artist: "Sol & Fern", durationSec: 121, mood: "Acoustic" },
-  ];
+/** POST /editor/stock/import — the result saved into Assets. */
+export function stockAsset(type: string, item: StockItem): Asset {
+  return {
+    id: `stock_${item.id}`,
+    name: item.name,
+    kind: type === "image" ? "image" : "video",
+    sizeBytes: 4_000_000,
+    durationSec: item.durationSec ?? null,
+    thumbnailUrl: item.thumbUrl,
+    folderId: null,
+    favorite: false,
+    archivedAt: null,
+    source: "stock",
+    madeWith: null,
+    status: "ready",
+    createdAt: "2026-10-10T09:00:00.000Z",
+    url: item.downloadUrl,
+  };
 }
 
-export const CAPTION_LINES = [
-  "Nobody tells you this part",
-  "about building in public.",
-  "You ship, and then you wait.",
-  "The first ten users matter most.",
+/** POST /editor/ai-text — every line comes back changed in a way a test can read. */
+export async function runAiText(operation: AiTextOperationId, texts: string[], targetLang?: string): Promise<string[]> {
+  await respond("ai-text");
+  if (operation === "translate") return texts.map((t) => `[${targetLang}] ${t}`);
+  if (operation === "fillerWords") return texts.map((t) => t.replace(/\b(um|uh|like),?\s*/gi, ""));
+  if (operation === "emojis") return texts.map((t) => `${t} 🔥`);
+  return texts.map((t) => `${t} (${operation})`);
+}
+
+/**
+ * POST /editor/captions — the words heard in a file, in source milliseconds:
+ * the podcast talks where the edit's two podcast clips are cut from
+ * (812 s and 840 s); the b-roll is silent.
+ */
+export async function transcribe(assetId: string): Promise<{ word: string; start: number; end: number }[]> {
+  const s = await respond("captions");
+  if (s === "empty" || assetId !== "a_ep42") return [];
+  const say = (from: number, line: string) => line.split(" ").map((word, i) => ({ word, start: from * 1000 + i * 400, end: from * 1000 + i * 400 + 380 }));
+  return [...say(812, "nobody tells you this part about building in public"), ...say(840, "you ship and then you wait")];
+}
+
+const VOICES: EditorVoice[] = [
+  { id: "brian", name: "Brian", description: "Deep, steady narrator", gender: "male", accent: "American", previewUrl: null, creditMultiplier: 1 },
+  { id: "aria", name: "Aria", description: "Warm and upbeat", gender: "female", accent: "British", previewUrl: null, creditMultiplier: 1 },
 ];
 
-/** /api/editor/ai-text: rewrites every caption line (mock: returns a note). */
-export async function runAiText(op: string, language?: string): Promise<string> {
-  await respond("ai-text");
-  const done: Record<string, string> = {
-    rewrite: "Captions rewritten.",
-    grammar: "Grammar fixed.",
-    readability: "Captions made easier to read.",
-    shorten: "Captions shortened.",
-    expand: "Captions expanded.",
-    viral: "Captions punched up.",
-    translate: `Captions translated to ${language ?? "Spanish"}.`,
-    emojis: "Emojis added.",
-    lineBreaks: "Line breaks added.",
-    fillerWords: "Filler words removed.",
-  };
-  return done[op] ?? "Done.";
+/** GET /voices */
+export async function getVoices(): Promise<{ configured: boolean; voices: EditorVoice[] }> {
+  const s = await respond("voices");
+  return { configured: s !== "empty", voices: s === "empty" ? [] : VOICES };
+}
+
+/** A finished voiceover, as the job saves it into Assets. */
+export function voiceoverAsset(voiceId: string): Asset {
+  const v = VOICES.find((x) => x.id === voiceId) ?? VOICES[0]!;
+  return { ...stockAsset("video", STOCK.video[0]!), id: "vo_1", name: `Voiceover · ${v.name}`, kind: "audio", durationSec: 6, thumbnailUrl: null, source: "voiceover", madeWith: v.name, url: "https://cdn.test/vo_1.mp3" };
 }
 
 export async function startExport(): Promise<{ jobId: string }> {

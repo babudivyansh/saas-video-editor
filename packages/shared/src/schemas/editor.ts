@@ -174,3 +174,68 @@ export const editorCreateRequest = z.discriminatedUnion("from", [
 ]);
 export type EditorCreateRequest = z.input<typeof editorCreateRequest>;
 export const editorCreateResponse = z.object({ projectId: z.string() });
+
+// ── Mobile API: editor tools (Phase 9.2) ────────────────────────────────
+
+/** POST /editor/captions — transcribes one video from the caller's Assets (Clip Minutes: 1 per started minute of the whole file). */
+export const captionsRequest = z.object({ assetId: z.string().min(1), languageCode: z.string().trim().max(10).optional() });
+/** Word timings in source-time milliseconds; the app turns them into caption cues (wordsToCaptionCues). */
+export const captionsResponse = z.object({
+  words: z.array(z.object({ word: z.string(), start: z.number(), end: z.number() })),
+  minutesCharged: z.number().nonnegative(),
+  minutesRemaining: z.number(),
+});
+export type CaptionsResponse = z.infer<typeof captionsResponse>;
+
+/** The editor's text operations (lib/editor/ai-text.ts): seven AI, three instant. */
+export const AI_TEXT_OPERATION_IDS = ["rewrite", "grammar", "readability", "shorten", "expand", "viral", "translate", "emojis", "lineBreaks", "fillerWords"] as const;
+export type AiTextOperationId = (typeof AI_TEXT_OPERATION_IDS)[number];
+export const AI_TEXT_MAX_CHARS = 4000;
+/**
+ * POST /editor/ai-text — one or several texts (several = every caption at
+ * once, one line each, in a single AI call). The same number come back.
+ */
+export const aiTextRequest = z.object({
+  operation: z.enum(AI_TEXT_OPERATION_IDS),
+  texts: z.array(z.string().max(AI_TEXT_MAX_CHARS)).min(1).max(300),
+  targetLang: z.string().trim().max(40).optional(),
+});
+export const aiTextResponse = z.object({ texts: z.array(z.string()) });
+
+/**
+ * GET /editor/stock?type=&q=&page= — stock videos, images and music through
+ * the server (keys stay there). GIFs aren't offered: the import can't keep
+ * them animated.
+ */
+export const STOCK_TYPES = ["video", "image", "audio"] as const;
+export const stockItemSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  thumbUrl: z.string(),
+  downloadUrl: z.string(),
+  width: z.number().optional(),
+  height: z.number().optional(),
+  durationSec: z.number().optional(),
+  attribution: z.string(),
+});
+export type StockItem = z.infer<typeof stockItemSchema>;
+export const stockSearchResponse = z.object({ items: z.array(stockItemSchema) });
+/** POST /editor/stock/import — copies a search result into the caller's Assets. */
+export const stockImportRequest = z.object({
+  type: z.enum(STOCK_TYPES),
+  item: stockItemSchema,
+});
+
+/** GET /voices — the voices a voiceover can use (the web's /api/voices). */
+export const editorVoiceSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().nullable(),
+  gender: z.string(),
+  accent: z.string().nullable(),
+  previewUrl: z.string().nullable(),
+  /** Bills at this multiple of the usual per-character rate. */
+  creditMultiplier: z.number(),
+});
+export type EditorVoice = z.infer<typeof editorVoiceSchema>;
+export const voicesResponse = z.object({ configured: z.boolean(), voices: z.array(editorVoiceSchema) });

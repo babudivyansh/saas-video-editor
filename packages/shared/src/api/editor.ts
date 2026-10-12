@@ -1,4 +1,21 @@
-import { editorCreateRequest, editorCreateResponse, editorOpenResponse, editorSaveRequest, editorSaveResponse, type EditorCreateRequest } from "../schemas/editor";
+import type { z } from "zod";
+import { assetSchema } from "../schemas/assets";
+import {
+  aiTextRequest,
+  aiTextResponse,
+  captionsRequest,
+  captionsResponse,
+  editorCreateRequest,
+  editorCreateResponse,
+  editorOpenResponse,
+  editorSaveRequest,
+  editorSaveResponse,
+  stockImportRequest,
+  stockSearchResponse,
+  voicesResponse,
+  type EditorCreateRequest,
+  type STOCK_TYPES,
+} from "../schemas/editor";
 import type { TimelineDoc } from "../editor/timeline";
 import type { ApiClient } from "./client";
 
@@ -14,3 +31,15 @@ export function editorApi(api: ApiClient) {
   };
 }
 export type EditorApi = ReturnType<typeof editorApi>;
+
+/** The editor's server-side tools: captions, AI text, stock, voices. */
+export function editorToolsApi(api: ApiClient) {
+  return {
+    captions: (b: z.input<typeof captionsRequest>) => api.request("/editor/captions", { method: "POST", body: captionsRequest.parse(b), schema: captionsResponse }),
+    aiText: (b: z.input<typeof aiTextRequest>) => api.request("/editor/ai-text", { method: "POST", body: aiTextRequest.parse(b), schema: aiTextResponse }),
+    stock: (type: (typeof STOCK_TYPES)[number], q: string, page = 1) =>
+      api.request(`/editor/stock?type=${type}&q=${encodeURIComponent(q.trim())}&page=${page}`, { schema: stockSearchResponse }),
+    importStock: (b: z.input<typeof stockImportRequest>) => api.request("/editor/stock/import", { method: "POST", body: stockImportRequest.parse(b), schema: assetSchema }),
+    voices: () => api.request("/voices", { schema: voicesResponse }),
+  };
+}

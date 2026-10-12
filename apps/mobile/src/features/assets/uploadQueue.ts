@@ -1,4 +1,4 @@
-import { ApiError, NetworkError } from "@clipiro/shared";
+import { ApiError, NetworkError, type Asset } from "@clipiro/shared";
 import { AppState } from "react-native";
 import { create } from "zustand";
 import { abandonUpload, beginUpload, sendParts, UploadRefused, type SavedUpload, type UploadFile, type UploadIO } from "../create/upload";
@@ -21,7 +21,8 @@ export type QueueItem = {
 
 type Queue = {
   items: QueueItem[];
-  add: (files: UploadFile[]) => void;
+  /** Queues the files; returns their queue ids. */
+  add: (files: UploadFile[]) => string[];
   cancel: (id: string) => Promise<void>;
   retry: () => void;
   /** Hides finished and failed rows. */
@@ -33,10 +34,15 @@ let io: UploadIO = { ...deviceUploadIO, load: async () => null, save: async () =
 export function setQueueIO(next: UploadIO) {
   io = { ...next, load: async () => null, save: async () => {} };
 }
-/** Called with each file that lands in Assets (the screen refreshes its lists). */
-let onUploaded: () => void = () => {};
-export function setQueueListener(fn: () => void) {
-  onUploaded = fn;
+/**
+ * Calls `fn` with each file that lands in Assets (the Assets screen refreshes
+ * its lists; the editor places the files it queued). Returns the unsubscribe.
+ */
+type UploadedListener = (itemId: string, asset: Asset) => void;
+const listeners = new Set<UploadedListener>();
+export function onQueueUploaded(fn: UploadedListener): () => void {
+  listeners.add(fn);
+  return () => void listeners.delete(fn);
 }
 
 const files = new Map<string, UploadFile>();
@@ -64,11 +70,11 @@ export const useUploadQueue = create<Queue>((set, get) => {
             state = await beginUpload(io, file);
             states.set(next.id, state);
           }
-          await sendParts(io, state.saved, state.urls, { signal: controller.signal, onProgress: (f) => patch(next.id, { progress: f }) });
+          const asset = await sendParts(io, state.saved, state.urls, { signal: controller.signal, onProgress: (f) => patch(next.id, { progress: f }) });
           states.delete(next.id);
           files.delete(next.id);
           patch(next.id, { status: "done", progress: 1 });
-          onUploaded();
+          for (const fn of listeners) fn(next.id, asset);
         } catch (e) {
           if (get().items.find((x) => x.id === next.id)?.status !== "uploading") continue; // cancelled
           if (e instanceof UploadRefused || (e instanceof ApiError && e.status !== 401)) {
@@ -98,6 +104,7 @@ export const useUploadQueue = create<Queue>((set, get) => {
       });
       set({ items: [...get().items, ...added] });
       void pump();
+      return added.map((x) => x.id);
     },
     cancel: async (id) => {
       const item = get().items.find((x) => x.id === id);
