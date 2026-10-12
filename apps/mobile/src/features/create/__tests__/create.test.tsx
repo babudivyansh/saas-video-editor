@@ -133,7 +133,7 @@ describe("AutoClip", () => {
     await act(async () => fireEvent.press(await screen.findByRole("button", { name: "Generate clips" })));
     expect(await screen.findByText("This video needs 45 Clip Minutes and you have 30.")).toBeOnTheScreen();
     expect(screen.getByRole("button", { name: "Use 5 AI credits for the rest" })).toBeOnTheScreen();
-    press("Get more minutes");
+    press("See your balance");
     await waitFor(() => expect(r.getPathname()).toBe("/you/credits"));
   });
 
@@ -268,15 +268,16 @@ describe("AI Media", () => {
     expect(await screen.findByText("The model didn’t return an image. Your credits were refunded.")).toBeOnTheScreen();
   });
 
-  it("offers more credits when there aren't enough", async () => {
+  it("says when there aren't enough credits", async () => {
     const restore = installMockServer({ ...MOCK_ROUTES, "POST /jobs": async () => { throw new ApiError("Insufficient credits", 402); } });
     try {
       open("/create/ai-media");
       fireEvent.changeText(await screen.findByLabelText("Prompt"), "A lighthouse in a storm");
       await screen.findByLabelText("1,171 AI credits left");
       press("Generate image");
-      expect(await screen.findByText("This needs 2 AI credits and you have 1171. Top up, or upgrade for more each month.")).toBeOnTheScreen();
-      expect(screen.getByRole("button", { name: "Get AI credits" })).toBeOnTheScreen();
+      // Says what's short, sells nothing (docs/mobile/BILLING.md B2).
+      expect(await screen.findByText("This needs 2 AI credits and you have 1171. Your plan’s credits refill each month.")).toBeOnTheScreen();
+      expect(screen.getByRole("button", { name: "See your credits" })).toBeOnTheScreen();
     } finally {
       restore();
     }

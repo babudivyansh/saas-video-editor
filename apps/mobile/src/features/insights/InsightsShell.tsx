@@ -90,14 +90,13 @@ export function InsightsShell({ tab, children, onRefresh }: { tab: Tab; children
   );
 }
 
-/** Social Tracker is on paid plans, as on the web: what it gives, and the way to it. */
+/** Social Tracker is on paid plans, as on the web: what it gives (the app sells nothing, docs/mobile/BILLING.md). */
 export function SocialUpsell() {
   return (
     <EmptyState
       icon="chart"
       title="Insights are on paid plans"
       body="Track YouTube, Instagram and Facebook in one place: views, followers, best times to post, competitors and reports."
-      action={{ label: "See plans", onPress: () => router.push("/you/subscription") }}
     />
   );
 }

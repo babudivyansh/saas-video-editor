@@ -168,6 +168,24 @@ export type BrandKitPatch = z.input<typeof brandKitPatch>;
 /** Defaults for a kit's empty fields (the web's own "Classic" caption look). */
 export const BRAND_KIT_DEFAULTS = { name: "My brand", fontName: "Poppins", fontSize: 64, baseColor: "#ffffff", highlightColor: "#20d68a", outlineColor: "#000000", shadowColor: "#000000" } as const;
 
+// ── Billing, read-only (docs/mobile/BILLING.md, B1–B3 A) ──────────────────
+// The app shows and manages a plan bought on the web; it sells nothing.
+/** GET /billing/invoices: purchases, newest first. `invoiceNumber` null = no invoice issued. */
+export const invoiceSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  /** Minor units of `currency` (paise for INR, cents for USD). */
+  amount: z.number().int(),
+  currency: z.string(),
+  status: z.enum(["paid", "refunded", "failed", "pending"]),
+  invoiceNumber: z.string().nullable(),
+  createdAt: z.string(),
+});
+export type Invoice = z.infer<typeof invoiceSchema>;
+export const invoicesResponse = z.object({ invoices: z.array(invoiceSchema) });
+/** POST /billing/cancel and /billing/resume: when the plan ends (null = renews). */
+export const subscriptionChangeResponse = z.object({ cancelAtPeriodEnd: z.boolean(), endsAt: z.string().nullable() });
+
 // ── Support (POST /support/contact → the web's /api/contact) ──────────────
 export const SUPPORT_TOPICS = [
   { id: "support", label: "Help with the app or my account" },

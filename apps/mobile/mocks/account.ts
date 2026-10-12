@@ -85,8 +85,21 @@ export async function updateName(name: string): Promise<Account> {
 /** The web cancels at the end of the paid period (billing/cancel); resume undoes it. */
 export async function setCancelAtPeriodEnd(cancel: boolean) {
   await wait();
+  if (!cancel && RAZORPAY_PLAN) throw Object.assign(new ApiError("Renewal can’t be switched back on for this plan. It stays active until the end of the paid period.", 409), { code: "cannot_resume" });
   ACCOUNT = { ...ACCOUNT, plan: { ...ACCOUNT.plan, cancelAtPeriodEnd: cancel } };
+  return { cancelAtPeriodEnd: cancel, endsAt: ACCOUNT.plan.renewsAt };
 }
+/** Tests: a Razorpay subscription, which can't be resumed once cancelled. */
+let RAZORPAY_PLAN = false;
+export function useRazorpayPlan() {
+  RAZORPAY_PLAN = true;
+}
+
+/** GET /billing/invoices: purchases made on the web. */
+export const INVOICES = [
+  { id: "pu2", label: "Studio plan", amount: 1499900, currency: "INR", status: "paid" as const, invoiceNumber: "CL-2026-0107", createdAt: "2026-03-14T00:00:00.000Z" },
+  { id: "pu1", label: "100 AI credits", amount: 1799, currency: "USD", status: "refunded" as const, invoiceNumber: null, createdAt: "2026-02-02T00:00:00.000Z" },
+];
 
 /** Soft-deletes: confirmed by password (or, without one, the emailed code "123456"); purged after 30 days unless they log back in. */
 export async function deactivateAccount(b: { password?: string; otp?: string }) {
@@ -239,4 +252,5 @@ export function resetAccountMocks() {
   NOTIFICATIONS = INITIAL_NOTIFICATIONS;
   SETTINGS = INITIAL_SETTINGS;
   lastContact = null;
+  RAZORPAY_PLAN = false;
 }

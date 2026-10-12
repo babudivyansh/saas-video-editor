@@ -77,11 +77,11 @@ describe("Content", () => {
     expect(Sharing.shareAsync).toHaveBeenCalledWith("file:///cache/instagram-maya.okafor-posts.csv", { mimeType: "text/csv", dialogTitle: "instagram-maya.okafor-posts.csv" });
   });
 
-  it("asks a Free account to upgrade, as the web does", async () => {
+  it("tells a Free account Insights are on paid plans, without selling (BILLING.md)", async () => {
     setMockScenario("subscription", "empty");
     open("/social/insights/content-performance");
     expect(await screen.findByText("Insights are on paid plans")).toBeOnTheScreen();
-    expect(screen.getByRole("button", { name: "See plans" })).toBeOnTheScreen();
+    expect(screen.queryByRole("button", { name: "See plans" })).toBeNull();
   });
 });
 

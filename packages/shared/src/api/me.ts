@@ -7,6 +7,9 @@ import {
   brandKitPatch,
   brandKitResponse,
   contactRequest,
+  invoiceSchema,
+  invoicesResponse,
+  subscriptionChangeResponse,
   clonedVoicesResponse,
   clonedVoiceSchema,
   cloneVoiceRequest,
@@ -39,6 +42,12 @@ export function meApi(api: ApiClient) {
     cloneVoice: (b: z.input<typeof cloneVoiceRequest>) => api.request("/voices/cloned", { method: "POST", body: cloneVoiceRequest.parse(b), schema: z.object({ voice: clonedVoiceSchema }) }),
     renameVoice: (id: string, b: z.input<typeof renameVoiceRequest>) => api.request(`/voices/cloned/${encodeURIComponent(id)}`, { method: "PATCH", body: renameVoiceRequest.parse(b), schema: z.object({ voice: clonedVoiceSchema }) }),
     deleteVoice: (id: string) => api.request(`/voices/cloned/${encodeURIComponent(id)}`, { method: "DELETE", schema: z.object({ ok: z.literal(true) }) }),
+    /** Stops renewal at the end of the paid period (a plan bought on the web). */
+    cancelSubscription: () => api.request("/billing/cancel", { method: "POST", body: {}, schema: subscriptionChangeResponse }),
+    resumeSubscription: () => api.request("/billing/resume", { method: "POST", body: {}, schema: subscriptionChangeResponse }),
+    invoices: () => api.request("/billing/invoices", { schema: invoicesResponse }),
+    /** One purchase, checked as the caller's; the PDF is then GET /billing/invoices/:id/pdf. */
+    invoice: (id: string) => api.request(`/billing/invoices/${encodeURIComponent(id)}`, { schema: z.object({ invoice: invoiceSchema, fileName: z.string().nullable() }) }),
     home: () => api.request("/home", { schema: homeSummarySchema }),
     plans: () => api.request("/plans", { schema: plansResponseSchema }),
     tools: () => api.request("/tools", { schema: toolsResponseSchema }),

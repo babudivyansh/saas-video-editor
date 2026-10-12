@@ -208,9 +208,7 @@ export function ExportScreen() {
           <Spec label="Frame rate" value={`${EXPORT_FPS} fps`} />
         </View>
         {free ? (
-          <Pressable onPress={() => router.push("/you/subscription")} accessibilityRole="link" style={styles.upgrade}>
-            <Text style={type(13, "medium", { color: colors.emeraldBright })}>Upgrade for 1080p without a watermark →</Text>
-          </Pressable>
+          <Text style={[type(13, "regular", { color: colors.fgMuted }), styles.planNote]}>Paid plans export in 1080p without a watermark.</Text>
         ) : null}
 
         <View style={{ gap: 10 }}>
@@ -297,7 +295,7 @@ const styles = StyleSheet.create({
   thumbTime: { position: "absolute", right: 4, bottom: 4, ...type(10, "regular", { mono: true }), textShadowColor: colors.bg, textShadowRadius: 4 },
   outputs: { flexDirection: "row", alignItems: "center", gap: 14, padding: 14, borderRadius: radius.tile, backgroundColor: colors.surface1, borderWidth: 1, borderColor: colors.line },
   divider: { width: 1, alignSelf: "stretch", backgroundColor: colors.line },
-  upgrade: { minHeight: 44, justifyContent: "center" },
+  planNote: { minHeight: 44, textAlignVertical: "center" },
   dests: { flexDirection: "row", gap: 10 },
   dest: { flex: 1, minHeight: 72, gap: 6, borderRadius: radius.tile, backgroundColor: colors.surface1, borderWidth: 1, borderColor: colors.lineStrong, alignItems: "center", justifyContent: "center" },
   destOn: { backgroundColor: colors.tint, borderColor: colors.emeraldBright },

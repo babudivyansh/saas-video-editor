@@ -5,7 +5,7 @@ import { social } from "@/lib/api";
 
 // Insights' data from /api/mobile/v1/social — the web's Social Tracker
 // services (Phase 5.6). Subscriber-only: a 402 with code
-// "subscription_required" shows the upgrade prompt (isUpsell).
+// "subscription_required" shows the paid-plans notice (isUpsell).
 export const insightKeys = {
   accounts: ["social", "accounts"] as const,
   overview: (r: RangeDays) => ["insights", "overview", r] as const,

@@ -92,11 +92,11 @@ function ShortfallSheet({ shortfall, onClose }: { shortfall: Shortfall | null; o
       {shortfall ? (
         <Text style={text.body}>
           This needs {shortfall.cost} AI credit{shortfall.cost === 1 ? "" : "s"}
-          {shortfall.balance != null ? ` and you have ${shortfall.balance}` : ""}. Top up, or upgrade for more each month.
+          {shortfall.balance != null ? ` and you have ${shortfall.balance}` : ""}. Your plan’s credits refill each month.
         </Text>
       ) : null}
-      <Button label="Get AI credits" fullWidth onPress={() => (onClose(), router.push("/you/credits"))} />
-      <Button label="Not now" variant="ghost" fullWidth onPress={onClose} />
+      <Button label="OK" fullWidth onPress={onClose} />
+      <Button label="See your credits" variant="ghost" fullWidth onPress={() => (onClose(), router.push("/you/credits"))} />
     </BottomSheet>
   );
 }
@@ -111,16 +111,13 @@ export function Working({ progress, label }: { progress: number; label: string }
   );
 }
 
-/** A tool above the person's plan: what it needs, and the way to it. */
+/** A tool above the person's plan: which plan has it (the app sells nothing, docs/mobile/BILLING.md). */
 export function PlanGate({ name, minPlan }: { name: string; minPlan: PlanTier }) {
   return (
     <View style={styles.gate}>
       <Icon name="lock" size={18} color={colors.warning} />
       <View style={{ flex: 1, gap: 4 }}>
         <Text style={type(14, "semibold")}>{name} is on {PLAN_LABEL[minPlan]} and up</Text>
-        <Pressable onPress={() => router.push("/you/subscription")} accessibilityRole="link" hitSlop={8}>
-          <Text style={type(13, "medium", { color: colors.emeraldBright })}>See plans →</Text>
-        </Pressable>
       </View>
     </View>
   );
