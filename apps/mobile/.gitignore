@@ -42,3 +42,4 @@ yarn-error.*
 
 # Local Android bundle check (npm run export:android)
 dist-check/
+coverage/

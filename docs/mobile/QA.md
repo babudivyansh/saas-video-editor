@@ -1,6 +1,6 @@
 # Android app — quality pass (mobile Phase 14)
 
-Status: **14.1 done** (code audits and fixes, 2026-10-12). **14.2 to come**:
+Status: **14.1 done** (code audits and fixes, 2026-10-12). **14.2 in progress**:
 tests, Maestro flows, and the checks that need a device (TalkBack, large
 fonts on screen, startup and scrolling numbers).
 
@@ -71,9 +71,24 @@ No security fixes were needed in 14.1.
 - **minor:** Notifications, Activity and Scheduled posts render with a plain `ScrollView`. Notifications and Activity load 30 at a time ("Show older"). Scheduled shows one window (30 days back to 90 ahead), which a person with the 10-a-day cap fills with a few hundred rows at most. Fine at today's sizes; move them to FlashList if that changes.
 - **Owed on a device:** cold start time, scrolling frame rate on Projects and Assets, memory while previewing a clip.
 
-## 5. Owed in 14.2
+## 5. Tests (14.2)
 
-- The Maestro flows: sign up → AutoClip → download, and edit → export.
-- A TalkBack walkthrough and large-font check on the emulator.
-- Startup and scrolling numbers.
-- Test coverage report and gaps.
+- **Jest + React Native Testing Library:** 20 suites, 270 tests, including both audits above.
+  - Coverage: 87% of lines, 76% of branches, 77% of functions.
+  - The only file under 60% is `create/uploadIo.ts`, the native file-reading layer that tests deliberately swap out. It's exercised on a device.
+- **Server (Vitest):** every mobile route has tests. These include the auth coverage test and the ownership cases listed in §3.
+- **Maestro flows** in `apps/mobile/.maestro/` (how to run: its README):
+  - **`signup-autoclip-download.yaml`:** a fresh sign-up, the emailed code (fetched from a dev server that returns codes), then AutoClip from a link.
+  - **`edit-export.yaml`:** log in, open a project's top clip in the editor, go to Export.
+  - **Spending steps are off by default.** Starting AutoClip spends minutes and calls paid transcription; exporting uploads to S3. They run only with `RUN_AUTOCLIP=true` / `RUN_EXPORT=true`, against a server with its own bucket.
+
+## 6. Owed: needs the dev build on the emulator
+
+The app has to be built and installed first (`npx expo run:android` in `apps/mobile`, run by you; building from this session isn't allowed).
+
+| Check | Status |
+|---|---|
+| Maestro flows run | Not run yet. Needs the build, and the Maestro CLI, whose download is 315 MB (cli-2.11.0) |
+| TalkBack walkthrough, focus order | Not run yet |
+| Large fonts at 1.3× and 2× on screen | Not run yet |
+| Cold start time, scrolling on Projects and Assets, memory while previewing a clip | Not run yet |

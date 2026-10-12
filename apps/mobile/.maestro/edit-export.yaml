@@ -1,0 +1,51 @@
+# Edit → export (PLAYBOOK.md Phase 14).
+#
+# Logs in as a test account that already has an AutoClip project with ready
+# clips (TEST_EMAIL / TEST_PASSWORD: never commit them), opens the top clip
+# in the editor, trims nothing, and goes to Export. The export itself renders
+# on the server and uploads to S3, so it only runs with RUN_EXPORT=true,
+# against a test server with its own bucket; it then saves to the gallery.
+#
+#   maestro test -e TEST_EMAIL=... -e TEST_PASSWORD=... .maestro/edit-export.yaml
+appId: com.clipiro.app
+env:
+  RUN_EXPORT: "false"
+---
+- launchApp:
+    clearState: true
+- tapOn: "Clipiro. Continue"
+- tapOn: "Skip"
+- tapOn: "Email"
+- inputText: ${TEST_EMAIL}
+- tapOn: "Password"
+- inputText: ${TEST_PASSWORD}
+- tapOn: "Log in"
+- extendedWaitUntil:
+    visible: "Start AutoClipping"
+    timeout: 20000
+
+# The newest project, its top clip, into the editor
+- tapOn: "Projects"
+- tapOn:
+    text: ".*Ready.*"
+    index: 0
+- tapOn: "Edit"
+- extendedWaitUntil:
+    visible: "Export"
+    timeout: 30000
+
+# Export
+- tapOn: "Export"
+- assertVisible: "Export video"
+- runFlow:
+    when:
+      true: ${RUN_EXPORT == "true"}
+    commands:
+      - tapOn: "Export video"
+      - extendedWaitUntil:
+          visible: "Your video is ready"
+          timeout: 600000
+      - tapOn: "Save to gallery"
+      - extendedWaitUntil:
+          visible: "Saved to your gallery.*"
+          timeout: 120000
