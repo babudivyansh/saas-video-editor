@@ -3,8 +3,8 @@ import { assertOwnedAccounts, ok, parseQuery, withSocial } from "@/lib/social/ap
 import { CACHE_TTL, cached, keys, userVersion } from "@/lib/social/cache";
 import { overviewQuerySchema } from "@/lib/social/schemas";
 import { combinedCapabilities, loadAccountKpis, loadAccounts } from "@/lib/social/queries";
-import { METRIC_KEYS, type MetricKey } from "@/lib/social/capabilities";
-import { comparePlatforms, delta, rangeBounds, type MetricDelta } from "@/lib/social/metrics";
+import { comparePlatforms, rangeBounds } from "@/lib/social/metrics";
+import { aggregateKpis } from "@/lib/social/aggregate-kpis";
 
 // GET /api/social/overview?accountIds=a,b&range=30&tz=Asia/Kolkata
 //
@@ -32,7 +32,7 @@ export const GET = withSocial(async (req: NextRequest, { auth }) => {
     return {
       range: { from: from.toISOString(), to: to.toISOString(), days: q.range, tz: q.tz },
       capabilities: combinedCapabilities(accounts),
-      totals: aggregate(perAccount),
+      totals: aggregateKpis(perAccount),
       platforms: comparePlatforms(
         accounts.map((a) => ({
           accountId: a.id,
@@ -69,59 +69,3 @@ export const GET = withSocial(async (req: NextRequest, { auth }) => {
 }, {
   rateLimit: { key: (auth) => `social:overview:${auth.userId}`, max: 60, windowSec: 60 },
 });
-
-/** Metrics that are rates or levels — summing them across accounts is nonsense. */
-const NON_ADDITIVE = new Set<MetricKey>([
-  "engagementRate", "ctr", "avgViewDurationSec", "avgViewPercentage",
-  "followerGrowthRate", "postingFrequency", "viralScore", "healthScore",
-]);
-
-/**
- * Roll per-account KPIs into one figure.
- *
- * Counts add. Rates are weighted by each account's followers, because a plain
- * mean would let a 200-follower account with a freak 40% engagement rate drag
- * the portfolio number above every real one.
- *
- * A metric no selected account supports stays unavailable rather than becoming
- * a misleading zero.
- */
-function aggregate(
-  perAccount: Array<{ kpis: Record<MetricKey, MetricDelta & { available: string; unit: string }>; account: { followers: number | null } }>,
-): Record<string, MetricDelta & { available: string; unit: string; accountsReporting: number }> {
-  const out: Record<string, MetricDelta & { available: string; unit: string; accountsReporting: number }> = {};
-
-  for (const metric of METRIC_KEYS) {
-    const entries = perAccount.map((p) => ({ kpi: p.kpis[metric], weight: p.account.followers ?? 0 }));
-    const usable = entries.filter((e) => e.kpi.available !== "unavailable");
-    const unit = entries[0]?.kpi.unit ?? "count";
-
-    if (usable.length === 0) {
-      out[metric] = { current: null, previous: null, deltaPct: null, available: "unavailable", unit, accountsReporting: 0 };
-      continue;
-    }
-
-    const available = usable.some((e) => e.kpi.available === "native") ? "native" : "derived";
-    const reporting = usable.filter((e) => e.kpi.current !== null);
-
-    const combine = (pick: (k: MetricDelta) => number | null): number | null => {
-      const withValue = usable.filter((e) => pick(e.kpi) !== null);
-      if (withValue.length === 0) return null;
-      if (!NON_ADDITIVE.has(metric)) return withValue.reduce((s, e) => s + pick(e.kpi)!, 0);
-      const totalWeight = withValue.reduce((s, e) => s + e.weight, 0);
-      // No follower data to weight by — fall back to a plain mean rather than
-      // dividing by zero.
-      if (totalWeight <= 0) return withValue.reduce((s, e) => s + pick(e.kpi)!, 0) / withValue.length;
-      return withValue.reduce((s, e) => s + pick(e.kpi)! * e.weight, 0) / totalWeight;
-    };
-
-    out[metric] = {
-      ...delta(combine((k) => k.current), combine((k) => k.previous)),
-      available,
-      unit,
-      accountsReporting: reporting.length,
-    };
-  }
-
-  return out;
-}
