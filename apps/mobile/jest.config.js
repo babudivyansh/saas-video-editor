@@ -5,6 +5,7 @@ module.exports = {
   // the heaviest ones can pass the 5 s default.
   testTimeout: 60000,
   setupFiles: ["<rootDir>/jest.setup.js"],
+  setupFilesAfterEnv: ["<rootDir>/src/test/afterEnv.ts"],
   testPathIgnorePatterns: ["/node_modules/", "/dist-check/"],
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/src/$1",
