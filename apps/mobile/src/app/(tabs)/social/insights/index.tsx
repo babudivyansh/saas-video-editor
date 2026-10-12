@@ -1,5 +1,4 @@
-import { Placeholder } from "@/navigation/Placeholder";
+// screen: BN-InsOverview
+import { InsightsOverviewScreen } from "@/features/insights/screens";
 
-export default function Screen() {
-  return <Placeholder id="BN-InsOverview" />;
-}
+export default InsightsOverviewScreen;
