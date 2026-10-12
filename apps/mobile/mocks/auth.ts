@@ -11,6 +11,7 @@ import {
   type SignupVerifyRequest,
   type User,
 } from "@clipiro/shared";
+import { ApiError, NetworkError, wait } from "./core";
 
 // Stand-in for /api/mobile/v1/auth until Phase 5–6. Same request validation
 // (the shared zod schemas) and the same response shapes as the real API, so
@@ -23,23 +24,7 @@ import {
 //   email "offline@…"              → network error
 //   OTP "000000"                   → wrong/expired code
 
-export class ApiError extends Error {
-  constructor(message: string, readonly status: number, readonly field?: string) {
-    super(message);
-  }
-}
-export class NetworkError extends Error {
-  constructor() {
-    super("No connection. Check your internet and try again.");
-  }
-}
-
-let delayMs = 700;
-/** Tests set 0. */
-export function setMockDelay(ms: number) {
-  delayMs = ms;
-}
-const wait = () => new Promise((r) => setTimeout(r, delayMs));
+export { ApiError, NetworkError, errorMessage, setMockDelay } from "./core";
 
 const MAYA: User = { id: "usr_maya", email: "maya@creatorlab.co", name: "Maya Okafor", avatarUrl: null };
 
@@ -83,10 +68,4 @@ export async function forgotPassword(input: ForgotPasswordRequest): Promise<{ ok
   await wait();
   guard(email);
   return { ok: true };
-}
-
-/** Message for any error thrown by the calls above. */
-export function errorMessage(e: unknown): string {
-  if (e instanceof ApiError || e instanceof NetworkError) return e.message;
-  return "Something went wrong. Please try again.";
 }

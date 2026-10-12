@@ -30,6 +30,18 @@ const GLYPHS = {
   wand: <><Path d="M12 5h2" /><Path d="M16 5h2" /><Path d="M3 21l12-12" /><Path d="M15 9l2-2" /></>,
   key: <><Circle cx="8" cy="15" r="4" /><Path d="M11 12l9-9" /><Path d="M17 6l3 3" /></>,
   person: <><Circle cx="12" cy="8" r="4" /><Path d="M4 21c0-4 4-6 8-6s8 2 8 6" /></>,
+  bell: <><Path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><Path d="M10 21a2 2 0 0 0 4 0" /></>,
+  /** Magic wand with sparkles: Background Remover, "Open editor". */
+  magic: <><Path d="M5 3v4" /><Path d="M3 5h4" /><Path d="M18 14v4" /><Path d="M16 16h4" /><Path d="M14 4l6 6-10 10-6-6z" /></>,
+  mic: <><Rect x="9" y="3" width="6" height="11" rx="3" /><Path d="M5 11a7 7 0 0 0 14 0" /><Path d="M12 18v3" /></>,
+  image: <><Rect x="3" y="4" width="18" height="16" rx="2" /><Circle cx="9" cy="10" r="2" /><Path d="M21 16l-5-5-9 9" /></>,
+  volume: <><Path d="M4 9v6h4l5 4V5L8 9z" /><Path d="M17 9a4 4 0 0 1 0 6" /></>,
+  music: <><Path d="M9 18V5l12-2v13" /><Circle cx="6" cy="18" r="3" /><Circle cx="18" cy="16" r="3" /></>,
+  gift: <><Rect x="3" y="8" width="18" height="4" rx="1" /><Path d="M12 8v13" /><Path d="M19 12v9H5v-9" /><Path d="M7.5 8a2.5 2.5 0 1 1 0-5C11 3 12 8 12 8s1-5 4.5-5a2.5 2.5 0 1 1 0 5" /></>,
+  scissors: <><Circle cx="6" cy="6" r="3" /><Circle cx="6" cy="18" r="3" /><Path d="M20 4L8.12 15.88" /><Path d="M14.47 14.48L20 20" /><Path d="M8.12 8.12L12 12" /></>,
+  download: <><Path d="M12 4v12" /><Path d="M6 10l6 6 6-6" /><Path d="M4 20h16" /></>,
+  waveform: <><Path d="M2 12h2" /><Path d="M6 8v8" /><Path d="M10 5v14" /><Path d="M14 8v8" /><Path d="M18 10v4" /><Path d="M22 12h0" /></>,
+  bulb: <><Path d="M9 18h6" /><Path d="M10 21h4" /><Path d="M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z" /></>,
   refresh: <><Path d="M20 11a8 8 0 0 0-14.9-3.9L4 8" /><Path d="M4 4v4h4" /><Path d="M4 13a8 8 0 0 0 14.9 3.9L20 16" /><Path d="M20 20v-4h-4" /></>,
 } as const;
 

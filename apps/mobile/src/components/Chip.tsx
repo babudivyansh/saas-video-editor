@@ -51,7 +51,7 @@ export function FilterPills<T extends string>({
       contentContainerStyle={styles.row}
     >
       {options.map((o) => (
-        <Chip key={o.value} label={o.label} count={o.count} selected={o.value === value} onPress={() => onChange(o.value)} />
+        <Chip key={o.value} label={o.label} count={o.count} selected={o.value === value} onPress={() => onChange(o.value)} testID={`filter-${o.value}`} />
       ))}
       <View style={{ width: 4 }} />
     </ScrollView>

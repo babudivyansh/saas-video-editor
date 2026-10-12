@@ -33,6 +33,8 @@ export const derived = {
   glass: withAlpha(colors.bg, 0.55),
   /** Raised-card drop shadow colour. */
   shadow: withAlpha(BLACK, 0.45),
+  /** Behind the status bar over scrolled content. */
+  statusBar: withAlpha(colors.bg, 0.92),
   /** Skeleton base. */
   skeleton: colors.surface3,
 } as const;

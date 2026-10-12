@@ -1,5 +1,4 @@
-import { Placeholder } from "@/navigation/Placeholder";
+// screen: BN-Assistant
+import { AssistantScreen } from "@/features/home/AssistantScreen";
 
-export default function Screen() {
-  return <Placeholder id="BN-Assistant" />;
-}
+export default AssistantScreen;
