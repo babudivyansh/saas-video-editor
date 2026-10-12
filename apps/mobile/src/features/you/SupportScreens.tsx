@@ -1,15 +1,21 @@
+import { SUPPORT_TOPICS, contactRequest } from "@clipiro/shared";
 import Constants from "expo-constants";
 import { useMemo, useState } from "react";
 import { Linking, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import {
   BottomSheet,
   BrandMark,
+  Button,
   Icon,
   ListGroup,
   ListRow,
+  OptionList,
   TextField,
+  useToast,
   type IconName,
 } from "@/components";
+import { me } from "@/lib/api";
+import { apiErrorMessage } from "@/lib/errors";
 import { colors, radius, text, type } from "@/theme";
 import { IconChip, Label, Page } from "./bits";
 
@@ -69,7 +75,7 @@ const FAQ: { topic: Topic; q: string; a: string }[] = [
   {
     topic: "social",
     q: "Where can I post?",
-    a: "YouTube Shorts for now. Instagram Reels and Facebook are coming. You can still track Instagram and Facebook accounts in Insights.",
+    a: "Clipiro posts to YouTube for you, now or at a time you pick. For Instagram and Facebook, we remind you when it’s time, copy the caption, and you share the video and paste the link back so its numbers show in Insights.",
   },
   {
     topic: "account",
@@ -78,7 +84,46 @@ const FAQ: { topic: Topic; q: string; a: string }[] = [
   },
 ];
 
+/** A message to the team, sent as the signed-in account (POST /support/contact). */
+function ContactSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const toast = useToast();
+  const [subject, setSubject] = useState<(typeof SUPPORT_TOPICS)[number]["id"]>("support");
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState<string | undefined>();
+  const [busy, setBusy] = useState(false);
+  const send = async () => {
+    const parsed = contactRequest.safeParse({ subject, message });
+    if (!parsed.success) return setError(parsed.error.issues[0]?.message);
+    setBusy(true);
+    try {
+      await me.contact(parsed.data);
+      setMessage("");
+      onClose();
+      toast("Sent. We’ll reply to your account’s email.", "success");
+    } catch (e) {
+      setError(apiErrorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <BottomSheet visible={visible} onClose={onClose} title="Message us">
+      <OptionList accessibilityLabel="What it’s about" value={subject} options={SUPPORT_TOPICS.map((t) => ({ value: t.id, label: t.label }))} onChange={setSubject} />
+      <TextField
+        label="Message"
+        value={message}
+        onChangeText={(t) => (setMessage(t), setError(undefined))}
+        placeholder="What happened, and what you expected"
+        multiline
+        error={error}
+      />
+      <Button label="Send" size="sm" fullWidth loading={busy} onPress={send} />
+    </BottomSheet>
+  );
+}
+
 export function HelpScreen() {
+  const [contact, setContact] = useState(false);
   const [query, setQuery] = useState("");
   const [topic, setTopic] = useState<Topic | null>(null);
   const [open, setOpen] = useState<string | null>(FAQ[0]!.q);
@@ -177,6 +222,12 @@ export function HelpScreen() {
       <ListGroup>
         <ListRow
           first
+          leading={<IconChip name="chat" />}
+          title="Message us"
+          subtitle="We reply by email, usually within a day"
+          onPress={() => setContact(true)}
+        />
+        <ListRow
           leading={<IconChip name="mail" />}
           title="Email support"
           subtitle={SUPPORT_EMAIL}
@@ -195,6 +246,7 @@ export function HelpScreen() {
           onPress={bug}
         />
       </ListGroup>
+      <ContactSheet visible={contact} onClose={() => setContact(false)} />
     </Page>
   );
 }

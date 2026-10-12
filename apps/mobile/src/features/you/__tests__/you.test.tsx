@@ -1,7 +1,10 @@
 import * as DocumentPicker from "expo-document-picker";
 import { act, fireEvent, renderRouter, screen, waitFor } from "expo-router/testing-library";
 import { Linking } from "react-native";
-import { resetAccountMocks } from "@mocks/account";
+import { getBrandKit, getSettings, lastContactMessage, resetAccountMocks, useGoogleAccount } from "@mocks/account";
+import { usePhonePrefs, DEFAULT_PHONE_PREFS } from "@/lib/phonePrefs";
+import { useAutoClipDraft } from "../../create/draft";
+import { setToolUploadIO } from "../../create/toolUpload";
 import { resetMockScenarios, setMockDelay, setMockScenario } from "@mocks/core";
 import { useSession } from "@/state/session";
 import { makeWrapper } from "@/test/providers";
@@ -45,6 +48,8 @@ beforeEach(() => {
   pickDocument.mockReset();
   openURL = jest.spyOn(Linking, "openURL").mockResolvedValue(true);
   useSession.setState({ signedIn: true });
+  usePhonePrefs.setState(DEFAULT_PHONE_PREFS);
+  useAutoClipDraft.getState().reset();
 });
 afterEach(() => openURL.mockRestore());
 
@@ -132,6 +137,17 @@ describe("Brand Kit", () => {
     expect(await screen.findByRole("button", { name: /^Highlight colour #facc15/ })).toBeOnTheScreen();
   });
 
+  it("uploads a new logo to Assets and points the kit at it", async () => {
+    setToolUploadIO({ readPart: async () => "file:///cache/part", putPart: async (_p, _u, onBytes) => (onBytes(1), { status: 200, etag: '"e1"' }), fileExists: () => true, load: async () => null, save: async () => {} });
+    pickDocument.mockResolvedValue({ canceled: false, assets: [{ name: "logo.png", size: 20_000, mimeType: "image/png", uri: "file:///logo.png" }] });
+    open("/you/brand-kit");
+    fireEvent.press(await screen.findByRole("button", { name: "Replace logo" }));
+    expect(await screen.findByText("Logo updated.")).toBeOnTheScreen();
+    jest.useRealTimers();
+    // The kit holds the uploaded Assets image, never the phone's file path.
+    expect((await getBrandKit())!.logoUrl).toMatch(/^asset:(?!file:)/);
+  });
+
   it("marks watermark and intro/outro as coming soon, and offers to create a kit", async () => {
     open("/you/brand-kit");
     expect(await screen.findAllByText("Coming soon")).toHaveLength(2);
@@ -176,6 +192,12 @@ describe("Notifications", () => {
     press(/^Posted to YouTube Shorts/);
     await waitFor(() => expect(r.getPathname()).toBe("/social/scheduled-posts"));
   });
+
+  it("opens one only the web can show on clipiro.com", async () => {
+    open("/you/notifications");
+    fireEvent.press(await screen.findByRole("button", { name: /^The team replied to your review/ }));
+    expect(openURL).toHaveBeenCalledWith("https://clipiro.com/reviews/r1");
+  });
 });
 
 describe("Settings", () => {
@@ -187,6 +209,19 @@ describe("Settings", () => {
     fireEvent.press(screen.getByRole("radio", { name: "Español" }));
     expect(await screen.findByText("Español")).toBeOnTheScreen();
     expect(screen.getByRole("switch", { name: "Product news" })).toBeChecked();
+  });
+
+  it("keeps defaults on the phone, where a new AutoClip run starts from them, and language on the server", async () => {
+    open("/you/settings");
+    fireEvent.press(await screen.findByRole("button", { name: /^Default aspect ratio/ }));
+    fireEvent.press(screen.getByRole("radio", { name: /^16:9/ }));
+    await waitFor(() => expect(usePhonePrefs.getState().aspectRatio).toBe("16:9"));
+    expect(useAutoClipDraft.getState().settings.aspectRatio).toBe("16:9");
+    press("Language");
+    fireEvent.press(screen.getByRole("radio", { name: "Español" }));
+    await screen.findByText("Español");
+    jest.useRealTimers();
+    expect((await getSettings()).language).toBe("es");
   });
 
   it("opens security pages on the web", async () => {
@@ -205,6 +240,20 @@ describe("Settings", () => {
     fireEvent.press(screen.getAllByRole("button", { name: "Delete account" }).at(-1)!);
     await waitFor(() => expect(useSession.getState().signedIn).toBe(false));
   });
+
+  it("deletes an account with no password using an emailed code", async () => {
+    useGoogleAccount();
+    open("/you/settings");
+    await screen.findByRole("button", { name: /^Sessions, 2 devices/ }); // the account has loaded
+    fireEvent.press(await screen.findByRole("button", { name: "Delete account" }));
+    press("Email me a code");
+    fireEvent.changeText(await screen.findByLabelText("Code from your email"), "000000");
+    fireEvent.press(screen.getAllByRole("button", { name: "Delete account" }).at(-1)!);
+    expect(await screen.findByText("That code is incorrect or expired")).toBeOnTheScreen();
+    fireEvent.changeText(screen.getByLabelText("Code from your email"), "123456");
+    fireEvent.press(screen.getAllByRole("button", { name: "Delete account" }).at(-1)!);
+    await waitFor(() => expect(useSession.getState().signedIn).toBe(false));
+  });
 });
 
 describe("Help and Legal", () => {
@@ -219,6 +268,19 @@ describe("Help and Legal", () => {
     fireEvent.changeText(screen.getByLabelText("Search help articles"), "commercial");
     expect(screen.getByRole("button", { name: "Can I use clips commercially?" })).toBeOnTheScreen();
     expect(screen.queryByRole("button", { name: "Can I cancel anytime?" })).toBeNull();
+  });
+
+  it("sends a message to the team from the app", async () => {
+    open("/you/help-support");
+    press("Message us");
+    fireEvent.press(screen.getByRole("radio", { name: "Billing or a refund" }));
+    fireEvent.changeText(screen.getByLabelText("Message"), "short");
+    press("Send");
+    expect(await screen.findByText("Tell us a little more")).toBeOnTheScreen();
+    fireEvent.changeText(screen.getByLabelText("Message"), "My invoice shows the wrong GST number.");
+    press("Send");
+    expect(await screen.findByText("Sent. We’ll reply to your account’s email.")).toBeOnTheScreen();
+    expect(lastContactMessage()).toEqual({ subject: "billing", message: "My invoice shows the wrong GST number." });
   });
 
   it("opens policies on clipiro.com", async () => {

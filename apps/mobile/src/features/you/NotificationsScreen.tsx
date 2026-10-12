@@ -7,7 +7,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { router, type Href } from "expo-router";
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import {
   Button,
   EmptyState,
@@ -18,8 +18,8 @@ import {
 } from "@/components";
 import { imageSource } from "@/lib/images";
 import { colors, radius, type } from "@/theme";
-import { markAllRead, markRead } from "@mocks/account";
-import { errorMessage } from "@mocks/core";
+import { notifications } from "@/lib/api";
+import { apiErrorMessage as errorMessage } from "@/lib/errors";
 import { IconChip, Label, Page } from "./bits";
 import { useNotifications, youKeys } from "./queries";
 
@@ -73,16 +73,18 @@ export function NotificationsScreen() {
 
   const open = async (n: AppNotification) => {
     if (!n.readAt) {
-      markRead(n.id)
+      notifications
+        .markRead(n.id)
         .then(refresh)
         .catch(() => undefined);
     }
     if (n.href) router.push(n.href as Href);
+    else if (n.webUrl) void Linking.openURL(n.webUrl); // only on clipiro.com (reviews, invoices…)
   };
 
   const readAll = async () => {
     try {
-      await markAllRead();
+      await notifications.markAllRead();
       await refresh();
       toast("All caught up.", "success");
     } catch (e) {
@@ -189,6 +191,9 @@ export function NotificationsScreen() {
           ) : null
         )
       )}
+      {list.hasNextPage ? (
+        <Button label="Show older" variant="secondary" size="sm" fullWidth loading={list.isFetchingNextPage} onPress={() => void list.fetchNextPage()} />
+      ) : null}
       <Button
         label="Notification settings"
         icon="gear"

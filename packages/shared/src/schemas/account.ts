@@ -143,6 +143,40 @@ export const brandKitSchema = z.object({
   captionTemplateId: z.string().nullable(),
 });
 export type BrandKit = z.infer<typeof brandKitSchema>;
+/** GET /me/brand-kit: the most recent kit, or null before one is made. */
+export const brandKitResponse = z.object({ kit: brandKitSchema.nullable() });
+/**
+ * PUT /me/brand-kit: changes the kit (made on first save). A new logo is an
+ * image already uploaded to Assets (logoAssetId); null removes it.
+ */
+export const brandKitPatch = z
+  .object({
+    name: z.string().trim().min(1, "Name your brand kit").max(100),
+    fontName: z.enum(CAPTION_FONTS, { error: "Choose a font from the list" }),
+    fontSize: z.number().int().min(BRAND_FONT_SIZE.min).max(BRAND_FONT_SIZE.max),
+    baseColor: hex,
+    highlightColor: hex,
+    outlineColor: hex,
+    shadowColor: hex,
+    captionTemplateId: z.string().max(64).nullable(),
+    logoAssetId: z.string().min(1).nullable(),
+  })
+  .partial();
+export type BrandKitPatch = z.input<typeof brandKitPatch>;
+/** Defaults for a kit's empty fields (the web's own "Classic" caption look). */
+export const BRAND_KIT_DEFAULTS = { name: "My brand", fontName: "Poppins", fontSize: 64, baseColor: "#ffffff", highlightColor: "#20d68a", outlineColor: "#000000", shadowColor: "#000000" } as const;
+
+// ── Support (POST /support/contact → the web's /api/contact) ──────────────
+export const SUPPORT_TOPICS = [
+  { id: "support", label: "Help with the app or my account" },
+  { id: "billing", label: "Billing or a refund" },
+  { id: "feedback", label: "Feedback or an idea" },
+] as const;
+export const contactRequest = z.object({
+  subject: z.enum(["support", "billing", "feedback"]),
+  message: z.string().trim().min(10, "Tell us a little more").max(5000, "Keep it under 5,000 characters"),
+});
+
 export const BRAND_COLOR_FIELDS = [
   { key: "baseColor", label: "Text" },
   { key: "highlightColor", label: "Highlight" },
@@ -185,8 +219,6 @@ export const settingsSchema = z.object({
   captionTemplateId: z.string(),
   /** Phone-only preferences. */
   autoplay: z.boolean(),
-  haptics: z.boolean(),
-  wifiOnlyUploads: z.boolean(),
   /** Push switches: kept on the phone and sent with its token (POST /devices). */
   push: pushPrefsSchema,
   /** The web's NotificationPreference email switches. */

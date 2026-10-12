@@ -14,7 +14,7 @@ import { api } from "@/lib/api";
 // sending — lib/push.ts on the web), and opening the right screen when one
 // is tapped.
 
-const notifications = notificationsApi(api);
+const devices = notificationsApi(api);
 const PREFS_KEY = "clipiro.pushPrefs";
 export const DEFAULT_PUSH_PREFS: PushPrefs = { renderFinished: true, postPublished: true };
 
@@ -79,7 +79,7 @@ export async function registerForPush({ ask }: { ask: boolean }): Promise<PushPe
     usePush.setState({ permission });
     if (permission !== "granted") return permission;
     const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId: id });
-    await notifications.registerDevice({
+    await devices.registerDevice({
       token,
       provider: "expo",
       deviceName: Device.modelName ?? undefined,

@@ -2,6 +2,7 @@ import type { Clip, ProjectDetail } from "@clipiro/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { router } from "expo-router";
+import { usePhonePrefs } from "@/lib/phonePrefs";
 import { useComposerSeed } from "../social/queries";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useState } from "react";
@@ -165,9 +166,10 @@ export function ClipSheet({ clip, onClose }: { clip: Clip | null; onClose: () =>
 
 /** The clip itself, looping, with the system controls and fullscreen. */
 function ClipPreview({ uri, aspect, title }: { uri: string; aspect: Clip["aspect"]; title: string }) {
+  const autoplay = usePhonePrefs((s) => s.autoplay);
   const player = useVideoPlayer(uri, (p) => {
     p.loop = true;
-    p.play();
+    if (autoplay) p.play(); // Settings → Autoplay previews
   });
   const ratio = aspect === "9:16" ? 9 / 16 : aspect === "16:9" ? 16 / 9 : 1;
   return (

@@ -18,6 +18,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ToastProvider } from "@/components";
 import { useAutoClipUpload } from "@/features/create/uploadStore";
 import { configurePushPresentation, openTappedPushes, registerForPush, usePush } from "@/lib/push";
+import { usePhonePrefs } from "@/lib/phonePrefs";
 import { useSession } from "@/state/session";
 import { colors } from "@/theme";
 
@@ -46,6 +47,7 @@ export default function RootLayout() {
     useSession.getState().hydrate();
     configurePushPresentation();
     void usePush.getState().load();
+    void usePhonePrefs.getState().load();
   }, []);
 
   // Signed in: keep this phone's push token current with the server (without

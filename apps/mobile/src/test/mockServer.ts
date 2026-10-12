@@ -2,7 +2,7 @@ import { ApiError, NetworkError, scenarioOf } from "@mocks/core";
 import { addCompetitor, createReport, createShareLink, getAnalyticsOverview, getAudience, getCompetitors, getReports, getSummary, makeSummary, removeCompetitor, reportDownload, revokeShareLink } from "@mocks/analytics";
 import { disconnectAccount, exportCsv, getContentPerformance, getInsightsOverview, getPlatformAnalytics, getSocialAccounts, providerOf } from "@mocks/insights";
 import { AI_SOURCES, maxFileBytes, sortAssets, sortProjects, storageLimitBytes, type AiTextOperationId, type Asset, type AssetSort, type Clip, type ClipAspect, type CreatePostsRequest, type ProjectSort, type Provider, type RangeDays, type ReportRequest, type StockItem, type TimelineDoc } from "@clipiro/shared";
-import { getAccount } from "@mocks/account";
+import { deactivateAccount, getAccount, getActivity, getBrandKit, getNotifications, getSettings, markAllRead, markRead, saveBrandKit, saveSettings, sendContact, updateName } from "@mocks/account";
 import { addUpload, createFolder, deleteAsset, getAssets, getFolders, updateAsset } from "@mocks/assets";
 import { EDIT_ID, exportAsset, getEdit, getVoices, renderJob, startRender, runAiText, saveEdit, searchStock, stockAsset, transcribe } from "@mocks/editor";
 import { enhancePrompt, startToolJob, toolJob } from "@mocks/jobs";
@@ -44,6 +44,33 @@ export const MOCK_ROUTES: Record<string, Route> = {
   "GET /home": async () => ok(await getHomeSummary()),
   "GET /tools": async () => ok({ tools: await getTools() }),
   "GET /me": async () => ok(await getAccount()),
+  "PATCH /me": async (_url, body) => ok(await updateName(String(body.name ?? ""))),
+  "GET /me/activity": async () => ok({ items: await getActivity(), nextCursor: null }),
+  "GET /me/settings": async () => ok(await getSettings()),
+  "PATCH /me/settings": async (_url, body) => ok(await saveSettings(body)),
+  "POST /me/step-up-code": async () => ok({ ok: true }),
+  "POST /me/deactivate": async (_url, body) => {
+    await deactivateAccount(body as { password?: string; otp?: string });
+    return ok({ ok: true, purgeAt: null });
+  },
+  "GET /me/brand-kit": async () => ok({ kit: await getBrandKit() }),
+  "PUT /me/brand-kit": async (_url, body) => ok({ kit: await saveBrandKit(body) }),
+  "POST /support/contact": async (_url, body) => {
+    await sendContact(body as { subject: string; message: string });
+    return ok({ ok: true });
+  },
+  "GET /notifications": async () => {
+    const items = await getNotifications();
+    return ok({ items, nextCursor: null, unreadCount: items.filter((n) => !n.readAt).length });
+  },
+  "POST /notifications/:id/read": async (url) => {
+    await markRead(idOf(url));
+    return ok((await getNotifications()).find((n) => n.id === idOf(url)));
+  },
+  "POST /notifications/read-all": async () => {
+    await markAllRead();
+    return ok({ ok: true });
+  },
 
   "GET /assets": async (url) => {
     const p = url.searchParams;
