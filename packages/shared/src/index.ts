@@ -3,3 +3,4 @@ export * from "./schemas/auth";
 export * from "./schemas/home";
 export * from "./schemas/create";
 export * from "./schemas/editor";
+export * from "./schemas/projects";

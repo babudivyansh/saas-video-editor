@@ -64,6 +64,9 @@ const GLYPHS = {
   filter: <Path d="M3 5h18l-7 8v6l-4 2v-8z" />,
   globe: <><Circle cx="12" cy="12" r="9" /><Path d="M3 12h18" /><Path d="M12 3a14 14 0 0 1 0 18" /><Path d="M12 3a14 14 0 0 0 0 18" /></>,
   send: <><Path d="M22 2L11 13" /><Path d="M22 2l-7 20-4-9-9-4z" /></>,
+  calendar: <><Rect x="3" y="5" width="18" height="16" rx="2" /><Path d="M3 10h18" /><Path d="M8 3v4" /><Path d="M16 3v4" /></>,
+  chevronDown: <Path d="M6 9l6 6 6-6" />,
+  pencil: <><Path d="M4 20h4L20 8l-4-4L4 16z" /><Path d="M14 6l4 4" /></>,
   refresh: <><Path d="M20 11a8 8 0 0 0-14.9-3.9L4 8" /><Path d="M4 4v4h4" /><Path d="M4 13a8 8 0 0 0 14.9 3.9L20 16" /><Path d="M20 20v-4h-4" /></>,
 } as const;
 
