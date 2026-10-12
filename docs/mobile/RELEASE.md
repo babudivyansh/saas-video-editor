@@ -16,8 +16,8 @@ nothing in this repo can do them. Everything else is already configured
 
 | # | Blocker | Why it blocks | Who |
 |---|---|---|---|
-| B1 | **Privacy policy is out of date.** `app/privacy/page.tsx` "Linked Social Accounts" says Clipiro requests "read-only analytics permissions only" and "cannot post". It asks for YouTube's `youtube.upload` and posts videos for the person (the web's AutoClip publish, and the app's Composer since Phase 11). It also says nothing about the Android app's data: push tokens, crash reports, aggregate app analytics, AI Assistant messages processed by Google Gemini, voice samples sent to ElevenLabs. | Play's Data safety form and Google's OAuth verification of `youtube.upload` both check the policy against what the app does | **(you)** approve wording; the draft is in §9 |
-| B2 | **No public "delete my account" page.** Play requires a web link where someone can request deletion without installing the app. The privacy policy only mentions the right. The app itself deletes accounts (You → Settings → Delete account). | Play's account-deletion requirement | **(you)** approve; a small page at `/delete-account` (draft in §9) |
+| B1 | **Privacy policy is out of date.** `app/privacy/page.tsx` "Linked Social Accounts" says Clipiro requests "read-only analytics permissions only" and "cannot post". It asks for YouTube's `youtube.upload` and posts videos for the person (the web's AutoClip publish, and the app's Composer since Phase 11). It also says nothing about the Android app's data: push tokens, crash reports, aggregate app analytics, AI Assistant messages processed by Google Gemini, voice samples sent to ElevenLabs. | Play's Data safety form and Google's OAuth verification of `youtube.upload` both check the policy against what the app does | **In PR #335** (approved wording, targets main): merge and deploy it |
+| B2 | **No public "delete my account" page.** Play requires a web link where someone can request deletion without installing the app. The privacy policy only mentions the right. The app itself deletes accounts (You → Settings → Delete account). | Play's account-deletion requirement | **In PR #335**: `/delete-account`, public, in the /legal hub. It says truthfully that accounts with billing history are finished by the team, because `lib/account-deletion.ts` keeps Purchase rows and the purge only alerts staff. Making that automatic is a follow-up |
 | B3 | **Server not deployed.** The app talks to `https://clipiro.com/api/mobile/v1`, which exists only once PRs #286–#333 are merged and deployed, with the migrations in §2 applied. | Every screen | **(you)** merge and deploy |
 | B4 | **Google sign-in on Android needs an Android OAuth client.** | "Continue with Google" fails without it | **(you)** §1.4 |
 | B5 | **Photo & video permission declaration.** The app declares `READ_MEDIA_VIDEO` (expo-media-library, to save exports into a "Clipiro" album). Play asks apps holding it to justify it, or to use the photo picker. | Review may reject | **(you)** fill the declaration (§4.6). If it's refused, the fallback is to save without the album, which needs no read permission (a small code change) |
@@ -265,7 +265,7 @@ To roll back: `npx eas-cli@latest update:republish` with the previous update's g
 
 ---
 
-## 9. Drafts for B1 and B2 (approve before publishing)
+## 9. Drafts for B1 and B2 (approved 2026-10-12, shipped in PR #335)
 
 **B1. Privacy policy: replace the first paragraph of "Linked Social Accounts" with:**
 
