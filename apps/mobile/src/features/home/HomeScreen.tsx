@@ -25,6 +25,7 @@ import { imageSource, sample } from "@/lib/images";
 import { useScreenPadding } from "@/navigation/insets";
 import { colors, radius, text, type } from "@/theme";
 import { apiErrorMessage } from "@/lib/errors";
+import { startEdit } from "../editor/open";
 import { useHomeSummary, useTools } from "./queries";
 import { COMING_SOON, HOME_TOOL_IDS, TOOL_ICONS, openTool } from "./tools";
 
@@ -114,6 +115,7 @@ function TopBar({ summary }: { summary?: HomeSummary }) {
 }
 
 function AutoClipHero() {
+  const toast = useToast();
   return (
     <View style={styles.hero}>
       <View style={[styles.heroPhotos, { pointerEvents: "none" }]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
@@ -138,7 +140,7 @@ function AutoClipHero() {
         </Text>
         <View style={styles.heroActions}>
           <Button label="Start AutoClipping" icon="arrowRight" onPress={() => router.push("/create/autoclip")} style={{ flex: 1 }} />
-          <IconButton icon="magic" accessibilityLabel="Open the editor" size={54} onPress={() => router.push("/editor")} />
+          <IconButton icon="magic" accessibilityLabel="Open the editor" size={54} onPress={() => void startEdit({ from: "blank" }).then((err) => err && toast(err, "error"))} />
         </View>
       </View>
     </View>

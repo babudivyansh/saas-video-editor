@@ -1,124 +1,203 @@
-import type { EditorAspect, EditorFont } from "@clipiro/shared";
+import { ApiError, NetworkError, docDuration, type Asset, type TimelineDoc } from "@clipiro/shared";
+import { AppState } from "react-native";
 import { create } from "zustand";
-import type { SampleImage } from "@/lib/images";
+import { editor } from "@/lib/api";
+import * as ops from "./docOps";
+import type { Selection } from "./docOps";
 
-// The project being edited. A mock stand-in for Phase 9's real edit state: it
-// keeps the shape (segments on a timeline, captions, audio, looks, text) and
-// undo / redo, so every panel can visibly change the preview.
+// The edit being worked on: the web editor's own timeline document
+// (decision 2026-10-09 A), the files it plays (signed links from the API),
+// undo / redo, the playhead and selection — and autosave. Every change is
+// saved to the server about two seconds after the last one, against the
+// version it was read at; a save from somewhere else since then stops
+// autosave and asks to reload, rather than overwriting it.
 
-export type Segment = { id: string; photo: SampleImage; start: number; end: number };
-export type TextOverlay = { id: string; preset: string; text: string; font: EditorFont; color: string; animation: string };
+export type SaveState = "saved" | "dirty" | "saving" | "offline" | "conflict" | "error";
 
-export type EditorDoc = {
-  title: string;
-  aspect: EditorAspect;
-  segments: Segment[];
-  captions: { templateId: string; highlight: "none" | "word" | "phrase" | "karaoke"; position: "top" | "center" | "bottom"; sizePx: number; language: string };
-  audio: { original: number; music: { title: string; volume: number } | null; voiceover: { voice: string; volume: number } | null };
-  look: { effect: string; effectIntensity: number; filter: string; transition: string };
-  texts: TextOverlay[];
-};
-
-export const INITIAL_DOC: EditorDoc = {
-  title: "Untitled project",
-  aspect: "9:16",
-  segments: [
-    { id: "seg1", photo: "creator-smile", start: 0, end: 15 },
-    { id: "seg2", photo: "founder-portrait", start: 15, end: 22 },
-    { id: "seg3", photo: "creator-smile", start: 22, end: 41 },
-  ],
-  captions: { templateId: "hormozi", highlight: "word", position: "bottom", sizePx: 48, language: "English" },
-  audio: { original: 100, music: { title: "Upbeat drive", volume: 30 }, voiceover: { voice: "Brian", volume: 85 } },
-  look: { effect: "none", effectIntensity: 60, filter: "none", transition: "none" },
-  texts: [],
-};
-
-export const durationOf = (doc: EditorDoc) => doc.segments.reduce((t, s) => t + (s.end - s.start), 0);
-
-/** Each clip with where it starts on the timeline. */
-export function placed(doc: EditorDoc): { seg: Segment; start: number; len: number }[] {
-  return doc.segments.map((seg, i) => ({
-    seg,
-    start: doc.segments.slice(0, i).reduce((t, s) => t + (s.end - s.start), 0),
-    len: seg.end - seg.start,
-  }));
-}
-
-/** The clip under time t (the last one past the end). */
-export const clipAt = (doc: EditorDoc, t: number) => placed(doc).find((p) => t < p.start + p.len) ?? placed(doc)[doc.segments.length - 1];
+/** Autosave waits this long after the last change. */
+export const SAVE_DELAY_MS = 2000;
+const MAX_UNDO = 50;
+/** The phone won't split closer than this to a clip's edge. */
+const MIN_PIECE = 0.3;
 
 type State = {
-  doc: EditorDoc;
-  past: EditorDoc[];
-  future: EditorDoc[];
+  projectId: string | null;
+  title: string;
+  version: number;
+  doc: TimelineDoc;
+  media: Record<string, Asset>;
+  loading: boolean;
+  loadError: unknown;
+  save: SaveState;
+  saveError: string | null;
+  past: TimelineDoc[];
+  future: TimelineDoc[];
   playhead: number;
   playing: boolean;
-  selected: string | null;
-  /** Change the doc as one undoable step. */
-  edit: (fn: (d: EditorDoc) => EditorDoc) => void;
+  selected: Selection | null;
+
+  open: (projectId: string) => Promise<void>;
+  /** Change the doc as one undoable step (and autosave it). */
+  edit: (fn: (d: TimelineDoc) => TimelineDoc, select?: Selection | null) => void;
   undo: () => void;
   redo: () => void;
   split: () => boolean;
+  duplicate: () => boolean;
   remove: () => boolean;
   seek: (t: number) => void;
-  select: (id: string | null) => void;
+  select: (sel: Selection | null) => void;
+  setPlaying: (playing: boolean) => void;
   togglePlay: () => void;
+  /** Saves now (autosave, leaving the editor, Export). Resolves once it's on the server. */
+  flush: () => Promise<boolean>;
+  /** Files added to the doc (Media panel) — their playable links. */
+  addMedia: (assets: Asset[]) => void;
   reset: () => void;
 };
 
-const MIN_PIECE = 0.5;
+const EMPTY: TimelineDoc = { version: 1, aspect: "9:16", fps: 30, tracks: { video: [], text: [], audio: [], image: [], caption: [] } };
 
-export const useEditor = create<State>((set, get) => ({
-  doc: INITIAL_DOC,
-  past: [],
-  future: [],
-  playhead: 14.2,
-  playing: false,
-  selected: null,
-  edit: (fn) => set((s) => ({ doc: fn(s.doc), past: [...s.past, s.doc].slice(-50), future: [] })),
-  undo: () =>
-    set((s) => {
-      const prev = s.past[s.past.length - 1];
-      return prev ? { doc: prev, past: s.past.slice(0, -1), future: [s.doc, ...s.future] } : s;
-    }),
-  redo: () =>
-    set((s) => {
-      const next = s.future[0];
-      return next ? { doc: next, past: [...s.past, s.doc], future: s.future.slice(1) } : s;
-    }),
-  /** Split the clip under the playhead. False when it's too close to an edge. */
-  split: () => {
-    const { doc, playhead } = get();
-    let t = 0;
-    const i = doc.segments.findIndex((s) => {
-      const len = s.end - s.start;
-      const hit = playhead >= t && playhead < t + len;
-      if (!hit) t += len;
-      return hit;
-    });
-    const seg = doc.segments[i];
-    if (!seg) return false;
-    const at = seg.start + (playhead - t);
-    if (at - seg.start < MIN_PIECE || seg.end - at < MIN_PIECE) return false;
-    get().edit((d) => ({
-      ...d,
-      segments: [...d.segments.slice(0, i), { ...seg, end: at }, { ...seg, id: `${seg.id}b${d.segments.length}`, start: at }, ...d.segments.slice(i + 1)],
+let timer: ReturnType<typeof setTimeout> | null = null;
+let inFlight: Promise<boolean> | null = null;
+
+export const durationOf = (doc: TimelineDoc) => docDuration(doc);
+
+export const useEditor = create<State>((set, get) => {
+  const schedule = () => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => void get().flush(), SAVE_DELAY_MS);
+  };
+
+  const commit = (doc: TimelineDoc, selected?: Selection | null) => {
+    set((s) => ({
+      doc,
+      past: [...s.past, s.doc].slice(-MAX_UNDO),
+      future: [],
+      save: s.save === "conflict" ? "conflict" : "dirty",
+      ...(selected !== undefined ? { selected } : {}),
+      playhead: Math.min(s.playhead, Math.max(0, durationOf(doc))),
     }));
-    return true;
-  },
-  /** Delete the selected clip (never the last one). */
-  remove: () => {
-    const { doc, selected } = get();
-    if (!selected || doc.segments.length <= 1) return false;
-    get().edit((d) => ({ ...d, segments: d.segments.filter((s) => s.id !== selected) }));
-    set((s) => ({ selected: null, playhead: Math.min(s.playhead, durationOf(s.doc)) }));
-    return true;
-  },
-  seek: (t) => set((s) => ({ playhead: Math.max(0, Math.min(t, durationOf(s.doc))) })),
-  select: (selected) => set({ selected }),
-  togglePlay: () => set((s) => ({ playing: !s.playing })),
-  reset: () => set({ doc: INITIAL_DOC, past: [], future: [], playhead: 14.2, playing: false, selected: null }),
-}));
+    if (get().save !== "conflict") schedule();
+  };
+
+  return {
+    projectId: null,
+    title: "",
+    version: 0,
+    doc: EMPTY,
+    media: {},
+    loading: false,
+    loadError: null,
+    save: "saved",
+    saveError: null,
+    past: [],
+    future: [],
+    playhead: 0,
+    playing: false,
+    selected: null,
+
+    open: async (projectId) => {
+      if (timer) clearTimeout(timer);
+      set({ projectId, loading: true, loadError: null, past: [], future: [], playhead: 0, playing: false, selected: null, save: "saved", saveError: null });
+      try {
+        const e = await editor.open(projectId);
+        if (get().projectId !== projectId) return; // another edit was opened meanwhile
+        set({ title: e.title, version: e.version, doc: e.doc, media: e.media, loading: false });
+      } catch (err) {
+        if (get().projectId === projectId) set({ loading: false, loadError: err });
+      }
+    },
+
+    edit: (fn, select) => commit(fn(get().doc), select),
+
+    undo: () => {
+      const { past, doc, future } = get();
+      const prev = past[past.length - 1];
+      if (!prev) return;
+      set({ doc: prev, past: past.slice(0, -1), future: [doc, ...future], selected: null, save: get().save === "conflict" ? "conflict" : "dirty" });
+      schedule();
+    },
+    redo: () => {
+      const { past, doc, future } = get();
+      const next = future[0];
+      if (!next) return;
+      set({ doc: next, past: [...past, doc], future: future.slice(1), selected: null, save: get().save === "conflict" ? "conflict" : "dirty" });
+      schedule();
+    },
+
+    /** Splits the selected clip, or the video clip under the playhead. False when too close to an edge. */
+    split: () => {
+      const { doc, playhead, selected } = get();
+      const target = ops.findClip(doc, selected) ?? doc.tracks.video.find((c) => playhead >= c.timelineStart && playhead < c.timelineStart + c.duration);
+      if (!target || playhead - target.timelineStart < MIN_PIECE || target.timelineStart + target.duration - playhead < MIN_PIECE) return false;
+      const r = ops.split(doc, playhead, selected?.track === "caption" || selected?.track === "video" ? selected : null);
+      if (!r) return false;
+      commit(r.doc, r.selected);
+      return true;
+    },
+    duplicate: () => {
+      const { doc, selected } = get();
+      const r = selected && ops.duplicate(doc, selected);
+      if (!r) return false;
+      commit(r.doc, r.selected);
+      return true;
+    },
+    remove: () => {
+      const { doc, selected } = get();
+      if (!selected || !ops.findClip(doc, selected)) return false;
+      commit(ops.remove(doc, selected), null);
+      return true;
+    },
+
+    seek: (t) => set((s) => ({ playhead: Math.max(0, Math.min(t, durationOf(s.doc))) })),
+    select: (selected) => set({ selected }),
+    setPlaying: (playing) => set({ playing }),
+    togglePlay: () => set((s) => ({ playing: !s.playing && durationOf(s.doc) > 0, playhead: !s.playing && s.playhead >= durationOf(s.doc) - 0.05 ? 0 : s.playhead })),
+
+    flush: async () => {
+      if (timer) clearTimeout(timer);
+      timer = null;
+      if (inFlight) await inFlight;
+      const s = get();
+      if (!s.projectId || s.save === "saved" || s.save === "conflict") return s.save === "saved";
+      const doc = s.doc;
+      set({ save: "saving" });
+      inFlight = (async () => {
+        try {
+          const { version } = await editor.save(s.projectId!, doc, get().version);
+          // An edit made while saving is still waiting.
+          set({ version, save: get().doc === doc ? "saved" : "dirty", saveError: null });
+          if (get().doc !== doc) schedule();
+          return true;
+        } catch (e) {
+          if (e instanceof ApiError && e.code === "version_conflict") set({ save: "conflict", saveError: e.message });
+          else if (e instanceof NetworkError) set({ save: "offline", saveError: e.message });
+          else set({ save: "error", saveError: e instanceof ApiError ? e.message : "Couldn’t save this edit." });
+          return false;
+        } finally {
+          inFlight = null;
+        }
+      })();
+      return inFlight;
+    },
+
+    addMedia: (assets) => set((s) => ({ media: { ...s.media, ...Object.fromEntries(assets.map((a) => [a.id, a])) } })),
+
+    reset: () => {
+      if (timer) clearTimeout(timer);
+      timer = null;
+      set({ projectId: null, title: "", version: 0, doc: EMPTY, media: {}, loading: false, loadError: null, save: "saved", saveError: null, past: [], future: [], playhead: 0, playing: false, selected: null });
+    },
+  };
+});
+
+// Offline saves try again when the app comes back to the foreground.
+AppState.addEventListener("change", (s) => {
+  const st = useEditor.getState();
+  if (s === "active" && (st.save === "offline" || st.save === "dirty")) void st.flush();
+  // Leaving the app saves what's there.
+  if (s !== "active" && st.save === "dirty") void st.flush();
+});
 
 /** "0:14.20" — the timeline's clock. */
 export function clock(t: number, hundredths = true): string {

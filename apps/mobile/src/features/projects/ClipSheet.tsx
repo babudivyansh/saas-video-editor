@@ -11,6 +11,7 @@ import { apiErrorMessage } from "@/lib/errors";
 import { imageSource } from "@/lib/images";
 import { colors, radius, statusTint, type } from "@/theme";
 import { GalleryDenied, saveClipsToGallery, shareClip } from "./clipFiles";
+import { startEdit } from "../editor/open";
 import { mmss } from "./format";
 import { projectKeys, useClip } from "./queries";
 
@@ -139,7 +140,7 @@ export function ClipSheet({ clip, onClose }: { clip: Clip | null; onClose: () =>
             onPress={() => act("share", () => shareClip(clip.id, clip.title))}
           />
           <Button label="Post" icon="send" iconPosition="start" variant="secondary" size="md" style={styles.cell} disabled={!ready} onPress={() => (onClose(), router.push("/composer"))} />
-          <Button label="Edit" icon="editor" iconPosition="start" variant="secondary" size="md" style={styles.cell} onPress={() => (onClose(), router.push("/editor"))} />
+          <Button label="Edit" icon="editor" iconPosition="start" variant="secondary" size="md" style={styles.cell} onPress={() => (onClose(), void startEdit({ from: "clip", clipId: clip.id }).then((err) => err && toast(err, "error")))} disabled={!ready} />
         </View>
         <Button label="Delete clip" icon="trash" iconPosition="start" variant="danger" size="sm" fullWidth onPress={() => setConfirm(true)} />
       </BottomSheet>

@@ -1,4 +1,5 @@
-import { respond, wait } from "./core";
+import type { Asset, CaptionClip, EditorOpen, TimelineDoc, VideoClip } from "@clipiro/shared";
+import { ApiError, respond, wait } from "./core";
 
 // Stand-in for the editor's API until Phase 9 (project doc, media library,
 // stock search via Pexels / Jamendo / Giphy, AI text, render jobs).
@@ -80,4 +81,87 @@ export async function runAiText(op: string, language?: string): Promise<string> 
 export async function startExport(): Promise<{ jobId: string }> {
   await respond("export");
   return { jobId: "render_1" };
+}
+
+// ── The edit the editor opens (GET /projects/:id/editor) ─────────────────
+// A podcast cut into three clips with word-timed captions, as the web's
+// "Edit in editor" makes from an AutoClip clip. Tests and the dev gallery use
+// it through src/test/mockServer.ts.
+
+const caption = (id: string, start: number, words: string[]): CaptionClip => ({
+  id,
+  type: "caption",
+  timelineStart: start,
+  duration: words.length * 0.5,
+  text: words.join(" "),
+  words: words.map((word, i) => ({ word, startMs: i * 500, endMs: (i + 1) * 500 })),
+  fontFamily: "Poppins",
+  fontSizePct: 0.05,
+  color: "#ffffff",
+  bold: true,
+  bgColor: null,
+  x: 0.5,
+  y: 0.8,
+  positionPreset: "bottom",
+  highlightMode: "word",
+  highlightColor: "#20d68a",
+});
+
+const video = (id: string, assetId: string, start: number, duration: number, srcIn: number): VideoClip => ({ id, type: "video", assetId, timelineStart: start, duration, srcIn, volume: 1, muted: false });
+
+const editAsset = (id: string, name: string, durationSec: number): Asset => ({
+  id,
+  name,
+  kind: "video",
+  sizeBytes: 50_000_000,
+  durationSec,
+  thumbnailUrl: "asset:creator-smile",
+  folderId: null,
+  favorite: false,
+  archivedAt: null,
+  source: "autoclip",
+  madeWith: null,
+  status: "ready",
+  createdAt: "2026-10-09T09:00:00.000Z",
+  url: `https://cdn.test/${id}.mp4`,
+});
+
+export const EDIT_ID = "ed_founders";
+
+export function editFixture(): EditorOpen {
+  const doc: TimelineDoc = {
+    version: 1,
+    aspect: "9:16",
+    fps: 30,
+    tracks: {
+      video: [video("v1", "a_ep42", 0, 15, 812), video("v2", "a_ep42", 15, 7, 840), video("v3", "a_broll", 22, 19, 0)],
+      text: [],
+      audio: [],
+      image: [],
+      caption: [caption("c1", 0, ["nobody", "tells", "you", "this", "part"]), caption("c2", 3, ["and", "it", "costs", "you"])],
+    },
+  };
+  return { projectId: EDIT_ID, title: "Nobody tells you this part", version: 3, doc, media: { a_ep42: editAsset("a_ep42", "Founders Pod · Ep. 42.mp4", 3492), a_broll: editAsset("a_broll", "Summit b-roll.mp4", 41) } };
+}
+
+let edit = editFixture();
+export function resetEditMock() {
+  edit = editFixture();
+}
+export async function getEdit(id: string): Promise<EditorOpen> {
+  await respond("edit");
+  if (id !== EDIT_ID) throw new ApiError("Edit not found", 404);
+  return edit;
+}
+/** Saves against the version it was read at, like the server. */
+export async function saveEdit(id: string, doc: TimelineDoc, expectedVersion: number): Promise<{ version: number }> {
+  await wait();
+  if (id !== EDIT_ID) throw new ApiError("Edit not found", 404);
+  if (expectedVersion !== edit.version) throw Object.assign(new ApiError("This edit was changed somewhere else. Reload to get the latest version.", 409), { code: "version_conflict" });
+  edit = { ...edit, doc, version: edit.version + 1 };
+  return { version: edit.version };
+}
+/** Something else saved the edit (another phone, the web). */
+export function bumpEditElsewhere() {
+  edit = { ...edit, version: edit.version + 1 };
 }

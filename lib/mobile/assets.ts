@@ -46,12 +46,12 @@ export function toMobileAsset(a: SerializedAsset, madeWith: string | null): Asse
   };
 }
 
-const include = {
+export const include = {
   folder: { select: { id: true, name: true, color: true } },
   tags: { include: { tag: { select: { id: true, name: true } } } },
 } satisfies Prisma.AssetInclude;
 
-async function serialize(rows: Prisma.AssetGetPayload<{ include: typeof include }>[]): Promise<Asset[]> {
+export async function serialize(rows: Prisma.AssetGetPayload<{ include: typeof include }>[]): Promise<Asset[]> {
   const [serialized, madeWith] = await Promise.all([serializeAssets(rows), madeWithFor(rows)]);
   return serialized.map((s, i) => toMobileAsset(s, rows[i]!.sourceJobId ? (madeWith.get(rows[i]!.sourceJobId!) ?? null) : null));
 }

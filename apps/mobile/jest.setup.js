@@ -73,7 +73,8 @@ jest.mock("expo-notifications", () => ({
 // expo-video, expo-media-library, expo-sharing (native).
 jest.mock("expo-video", () => {
   const { View } = require("react-native");
-  return { useVideoPlayer: jest.fn(() => ({ play: jest.fn(), pause: jest.fn() })), VideoView: (props) => require("react").createElement(View, { testID: "video-view", ...props }) };
+  const player = () => ({ play: jest.fn(), pause: jest.fn(), replace: jest.fn(), currentTime: 0, playbackRate: 1, volume: 1, loop: false, timeUpdateEventInterval: 0 });
+  return { useVideoPlayer: jest.fn((_src, setup) => { const ref = require("react").useRef(null); if (!ref.current) { ref.current = player(); setup?.(ref.current); } return ref.current; }), VideoView: (props) => require("react").createElement(View, { testID: "video-view", ...props }) };
 });
 jest.mock("expo-media-library", () => {
   const album = { add: jest.fn(async () => {}) };

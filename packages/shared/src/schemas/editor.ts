@@ -1,3 +1,7 @@
+import { z } from "zod";
+import { validateDoc, type TimelineDoc } from "../editor/timeline";
+import { assetSchema } from "./assets";
+
 // Editor catalogue: the options the web editor really has, copied so the phone
 // offers the same ones (lib/editor/types.ts, lib/editor/ai-text.ts,
 // app/dashboard/editor/components/panels/text/textPresets.ts). Pinned by
@@ -137,3 +141,36 @@ export function exportResolution(aspect: EditorAspect, free: boolean): string {
   const short = free ? 720 : 1080;
   return aspect === "16:9" ? `${long}×${short}` : aspect === "1:1" ? `${short}×${short}` : `${short}×${long}`;
 }
+
+// ── Mobile API: the editor (/api/mobile/v1/projects/:id/editor, /editor/projects) ──
+// The app edits the web editor's own timeline document (decision 2026-10-09
+// A), so a draft opens on either. Every doc that crosses the wire is checked
+// with the same validateDoc the server's renderer uses.
+
+/** A timeline document that passes validateDoc. */
+export const timelineDocSchema = z.custom<TimelineDoc>((d) => validateDoc(d) === null, { message: "That edit can’t be saved: the timeline isn’t valid." });
+
+/** GET /projects/:id/editor — the doc, its save version, and a playable link for every file it uses. */
+export const editorOpenResponse = z.object({
+  projectId: z.string(),
+  title: z.string(),
+  /** Send back as expectedVersion; a save from elsewhere bumps it. */
+  version: z.number().int(),
+  doc: timelineDocSchema,
+  /** assetId → the file (signed url, length, thumbnail). Missing = deleted or not the caller's. */
+  media: z.record(z.string(), assetSchema),
+});
+export type EditorOpen = z.infer<typeof editorOpenResponse>;
+
+/** PUT /projects/:id/editor → { version }, or 409 { code: "version_conflict", currentVersion }. */
+export const editorSaveRequest = z.object({ doc: timelineDocSchema, expectedVersion: z.number().int() });
+export const editorSaveResponse = z.object({ version: z.number().int() });
+
+/** POST /editor/projects — start an edit from a clip, a file in Assets, or nothing. */
+export const editorCreateRequest = z.discriminatedUnion("from", [
+  z.object({ from: z.literal("clip"), clipId: z.string().min(1) }),
+  z.object({ from: z.literal("asset"), assetId: z.string().min(1) }),
+  z.object({ from: z.literal("blank"), aspect: z.enum(EDITOR_ASPECTS).default("9:16"), title: z.string().trim().min(1).max(200).optional() }),
+]);
+export type EditorCreateRequest = z.input<typeof editorCreateRequest>;
+export const editorCreateResponse = z.object({ projectId: z.string() });

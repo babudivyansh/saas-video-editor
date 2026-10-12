@@ -83,9 +83,10 @@ describe("navigation", () => {
 
   it("opens the editor over the tabs, a panel over the editor, and backs out step by step", async () => {
     const r = renderRouter(APP, { initialUrl: "/home" });
+    // Starts a blank edit on the server, then opens it.
     await press("Open the editor");
-    expect(r.getPathname()).toBe("/editor");
-    await press("Captions");
+    await waitFor(() => expect(r.getPathname()).toBe("/editor"));
+    await act(async () => fireEvent.press(await screen.findByRole("button", { name: "Captions" })));
     expect(r.getPathname()).toBe("/editor/captions");
     // Switching panels replaces the panel instead of stacking another one.
     await act(() => fireEvent.press(screen.getByRole("tab", { name: "Audio" })));
@@ -93,7 +94,7 @@ describe("navigation", () => {
     await press("Back to timeline");
     expect(r.getPathname()).toBe("/editor");
     await press("Close editor");
-    expect(r.getPathname()).toBe("/home");
+    await waitFor(() => expect(r.getPathname()).toBe("/home"));
   });
 
   it("sends a cross-tab link to the tab that owns the screen", async () => {

@@ -8,6 +8,7 @@ import { assets as assetsApi } from "@/lib/api";
 import { apiErrorMessage } from "@/lib/errors";
 import { colors, type } from "@/theme";
 import { useAutoClipDraft } from "../create/draft";
+import { startEdit } from "../editor/open";
 import { mmss } from "../projects/format";
 import { assetKeys, patchAssetEverywhere, useFolders } from "./queries";
 
@@ -98,7 +99,7 @@ export function AssetSheet({ asset, onClose }: { asset: Asset | null; onClose: (
                     }}
                   />
                 ) : null}
-                <Button label="Use in editor" icon="editor" iconPosition="start" variant="secondary" size="sm" fullWidth disabled={!ready} onPress={() => (close(), router.push("/editor"))} />
+                <Button label="Use in editor" icon="editor" iconPosition="start" variant="secondary" size="sm" fullWidth disabled={!ready} onPress={() => (close(), void startEdit({ from: "asset", assetId: asset.id }).then((err) => err && toast(err, "error")))} />
                 <View style={{ flexDirection: "row", gap: 8 }}>
                   <Button
                     label={asset.favorite ? "Starred" : "Star"}

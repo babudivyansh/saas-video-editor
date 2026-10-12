@@ -6,6 +6,7 @@ import { CreditsPill, Header, Icon, SectionHeader, StatusBarScrim, useToast, typ
 import { sample, type SampleImage } from "@/lib/images";
 import { useScreenPadding } from "@/navigation/insets";
 import { colors, derived, radius, text, type } from "@/theme";
+import { startEdit } from "../editor/open";
 import { COMING_SOON, openTool } from "../home/tools";
 import { useCreateContext } from "./queries";
 
@@ -92,7 +93,7 @@ export function CreateHubScreen() {
             Create & edit
           </Text>
           <View style={styles.row}>
-            <BigCard title="Editor" body="Start from scratch" icon="editor" photo="keynote-stage" href="/editor" />
+            <BigCard title="Editor" body="Start from scratch" icon="editor" photo="keynote-stage" onPress={() => void startEdit({ from: "blank" }).then((err) => err && toast(err, "error"))} />
             <BigCard title="AI Media" body="Images, voiceovers, cleanup" icon="sparkle" photo="creator-golden" href="/create/ai-media" />
           </View>
         </View>
@@ -125,10 +126,10 @@ export function CreateHubScreen() {
   );
 }
 
-function BigCard({ title, body, icon, photo, href }: { title: string; body: string; icon: IconName; photo: SampleImage; href: Href }) {
+function BigCard({ title, body, icon, photo, href, onPress }: { title: string; body: string; icon: IconName; photo: SampleImage; href?: Href; onPress?: () => void }) {
   return (
     <Pressable
-      onPress={() => router.push(href)}
+      onPress={onPress ?? (() => href && router.push(href))}
       accessibilityRole="button"
       accessibilityLabel={`${title}. ${body}`}
       style={({ pressed }) => [styles.big, pressed && { opacity: 0.9 }]}
