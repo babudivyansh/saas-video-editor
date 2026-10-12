@@ -1,0 +1,70 @@
+# Sign up → AutoClip → download (PLAYBOOK.md Phase 14).
+#
+# Signs up a fresh @example.com account, verifies it with the emailed code
+# (fetched from a dev server, scripts/signupCode.js), and sets up an AutoClip
+# run from a link. Starting the run spends Clip Minutes and calls paid
+# transcription, so it only runs with RUN_AUTOCLIP=true, against a test server
+# and bucket; it then waits for the clips and downloads the first one.
+#
+#   maestro test -e API=http://10.0.2.2:3200 -e VIDEO_URL=https://... .maestro/signup-autoclip-download.yaml
+appId: com.clipiro.app
+env:
+  API: http://localhost:3200
+  VIDEO_URL: https://www.youtube.com/watch?v=dQw4w9WgXcQ
+  RUN_AUTOCLIP: "false"
+---
+- launchApp:
+    clearState: true
+- evalScript: ${output.email = "maestro-" + new Date().getTime() + "@example.com"}
+
+# Splash → onboarding → sign up
+- tapOn: "Clipiro. Continue"
+- tapOn: "Skip"
+- tapOn: "Create an account"
+- tapOn: "Full name"
+- inputText: "Maestro Test"
+- tapOn: "Email"
+- inputText: ${output.email}
+- tapOn: "Password"
+- inputText: "Maestro-test-2026!"
+- tapOn: "I agree to Clipiro’s Terms and Privacy Policy"
+- tapOn: "Create account"
+
+# The emailed code
+- assertVisible: "Verify"
+- runScript:
+    file: scripts/signupCode.js
+    env:
+      EMAIL: ${output.email}
+- tapOn:
+    id: "otp-input"
+- inputText: ${output.code}
+- extendedWaitUntil:
+    visible: "Start AutoClipping"
+    timeout: 20000
+
+# AutoClip from a link
+- tapOn: "Start AutoClipping"
+- tapOn: "Paste link"
+- tapOn: "Video link"
+- inputText: ${VIDEO_URL}
+- tapOn: "Use this link"
+- assertVisible: "Generate clips"
+
+- runFlow:
+    when:
+      true: ${RUN_AUTOCLIP == "true"}
+    commands:
+      - tapOn: "Generate clips"
+      # A real run takes minutes: wait for the project's first ready clip.
+      - extendedWaitUntil:
+          visible: ".*clips? ready.*"
+          timeout: 900000
+      - tapOn: ".*clips? ready.*"
+      - tapOn:
+          text: "Open.*"
+          index: 0
+      - tapOn: "Download"
+      - extendedWaitUntil:
+          visible: "Saved to your gallery.*"
+          timeout: 120000
