@@ -1,5 +1,4 @@
-import { Placeholder } from "@/navigation/Placeholder";
+// screen: BN-Calendar
+import { CalendarScreen } from "@/features/social/StudioScreens";
 
-export default function Screen() {
-  return <Placeholder id="BN-Calendar" />;
-}
+export default CalendarScreen;

@@ -1,5 +1,4 @@
-import { Placeholder } from "@/navigation/Placeholder";
+// screen: BN-Accounts
+import { AccountsScreen } from "@/features/social/StudioScreens";
 
-export default function Screen() {
-  return <Placeholder id="BN-Accounts" />;
-}
+export default AccountsScreen;
