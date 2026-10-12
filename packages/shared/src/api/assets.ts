@@ -13,6 +13,7 @@ import {
   uploadStartRequest,
   uploadStartResponse,
   type AssetKind,
+  type AssetSort,
 } from "../schemas/assets";
 import type { ApiClient } from "./client";
 
@@ -26,6 +27,9 @@ export interface AssetListOptions {
   favorites?: boolean;
   archived?: boolean;
   ai?: boolean;
+  /** Leave out what the AI tools made (the main library view). */
+  noAi?: boolean;
+  sort?: AssetSort;
   q?: string;
   cursor?: string | null;
 }
@@ -40,6 +44,8 @@ export function assetsApi(api: ApiClient) {
       if (o.favorites) p.set("favorites", "1");
       if (o.archived) p.set("archived", "1");
       if (o.ai) p.set("ai", "1");
+      if (o.noAi) p.set("noAi", "1");
+      if (o.sort && o.sort !== "date") p.set("sort", o.sort);
       if (o.q) p.set("q", o.q);
       if (o.cursor) p.set("cursor", o.cursor);
       const s = p.toString();

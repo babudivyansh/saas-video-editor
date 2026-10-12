@@ -2,11 +2,14 @@ import { fireEvent, renderRouter, screen, waitFor } from "expo-router/testing-li
 import * as DocumentPicker from "expo-document-picker";
 import { resetAssetMocks } from "@mocks/assets";
 import { resetMockScenarios, setMockDelay, setMockScenario } from "@mocks/core";
+import { installMockServer, MOCK_ROUTES } from "@/test/mockServer";
 import { makeWrapper } from "@/test/providers";
 import { useAutoClipDraft } from "../../create/draft";
 import { AiAssetsScreen } from "../AiAssetsScreen";
 import { AssetsScreen } from "../AssetsScreen";
 import { AudioScreen } from "../AudioScreen";
+import { usePlayer } from "../AudioRow";
+import { setQueueIO, useUploadQueue } from "../uploadQueue";
 
 jest.mock("expo-document-picker", () => ({ getDocumentAsync: jest.fn() }));
 const pickDocument = DocumentPicker.getDocumentAsync as jest.Mock;
@@ -24,12 +27,20 @@ const routes = {
 const open = (url: string) => renderRouter(routes, { initialUrl: url, wrapper: makeWrapper() });
 const press = (name: string | RegExp) => fireEvent.press(screen.getByRole("button", { name }));
 
+let restoreServer: () => void = () => {};
+afterEach(() => {
+  restoreServer();
+  restoreServer = () => {};
+});
+
 beforeEach(() => {
   setMockDelay(0);
   resetMockScenarios();
   resetAssetMocks();
   useAutoClipDraft.getState().reset();
   pickDocument.mockReset();
+  useUploadQueue.setState({ items: [] });
+  usePlayer.setState({ playing: null });
 });
 
 describe("Assets", () => {
@@ -66,8 +77,9 @@ describe("Assets", () => {
     fireEvent.press(await screen.findByRole("button", { name: /^Leg day\.mov/ }));
     press(/^Archive · kept/);
     expect(await screen.findByText(/Archived\. Restore it/)).toBeOnTheScreen();
-    press("Archived · 2");
-    press(/^Leg day\.mov/);
+    // The archive count comes back from the server with the meter.
+    fireEvent.press(await screen.findByRole("button", { name: "Archived · 2" }));
+    fireEvent.press(await screen.findByRole("button", { name: /^Leg day\.mov/ }));
     press("Restore");
     expect(await screen.findByText("Restored.")).toBeOnTheScreen();
   });
@@ -81,7 +93,7 @@ describe("Assets", () => {
   });
 
   it("refuses uploads that don't fit the plan", async () => {
-    setMockScenario("create", "empty"); // Free: 250 MB per file, 0.5 GB total
+    setMockScenario("account", "empty"); // Free: 250 MB per file, 0.5 GB total
     pickDocument.mockResolvedValue({ canceled: false, assets: [{ name: "huge.mp4", size: 300 * MB, mimeType: "video/mp4", uri: "file:///huge.mp4" }] });
     open("/projects/assets");
     await screen.findByText("Free storage");
@@ -90,6 +102,7 @@ describe("Assets", () => {
   });
 
   it("adds an accepted upload as processing", async () => {
+    setQueueIO({ readPart: async () => "file:///cache/part", putPart: async (_p, _u, onBytes) => (onBytes(1), { status: 200, etag: '"e1"' }), fileExists: () => true, load: async () => null, save: async () => {} });
     pickDocument.mockResolvedValue({ canceled: false, assets: [{ name: "clip.mp4", size: 20 * MB, mimeType: "video/mp4", uri: "file:///clip.mp4" }] });
     open("/projects/assets");
     await screen.findByText("Studio storage");
@@ -126,5 +139,80 @@ describe("AI Assets", () => {
     expect(screen.getByLabelText("2 Voiceovers")).toBeOnTheScreen();
     expect(screen.getByLabelText("2 Cleanup")).toBeOnTheScreen();
     expect(screen.getByRole("button", { name: /made with Seedream 5\.0$/ })).toBeOnTheScreen();
+  });
+});
+
+describe("Instant changes", () => {
+  it("stars at once, and puts it back when the server says no", async () => {
+    restoreServer();
+    restoreServer = installMockServer({ ...MOCK_ROUTES, "PATCH /assets/:id": async () => [500, { error: "Something went wrong on our side. Try again." }] });
+    open("/projects/assets");
+    fireEvent.press(await screen.findByRole("button", { name: /^Leg day\.mov/ }));
+    press("Star");
+    // Shown starred straight away…
+    expect(await screen.findByRole("button", { name: /^Leg day\.mov.*, starred/ })).toBeOnTheScreen();
+    // …then put back with the server's reason.
+    expect(await screen.findByText("Something went wrong on our side. Try again.")).toBeOnTheScreen();
+    await waitFor(() => expect(screen.queryByRole("button", { name: /^Leg day\.mov.*, starred/ })).toBeNull());
+  });
+});
+
+describe("Audio playback", () => {
+  it("plays the file's signed link and switches tracks", async () => {
+    const player = (jest.requireMock("expo-audio") as { __player: { replace: jest.Mock; play: jest.Mock; pause: jest.Mock } }).__player;
+    open("/projects/assets/audio");
+    await screen.findByText(/^7 audio files/);
+    press("Play Upbeat drive");
+    expect(player.replace).toHaveBeenLastCalledWith({ uri: expect.stringMatching(/^https:\/\/cdn\.test\//) });
+    expect(player.play).toHaveBeenCalled();
+    press("Pause Upbeat drive");
+    expect(player.pause).toHaveBeenCalled();
+  });
+});
+
+describe("Upload queue", () => {
+  const file = (name: string) => ({ uri: `file:///cache/${name}`, name, mimeType: "video/mp4", sizeBytes: 3 * MB });
+  const io = (fail: () => boolean) => ({
+    readPart: async () => "file:///cache/part",
+    putPart: async (_p: string, _u: string, onBytes: (n: number) => void) => {
+      if (fail()) throw new Error("Network request failed");
+      onBytes(1);
+      return { status: 200, etag: '"e1"' };
+    },
+    fileExists: () => true,
+    load: async () => null,
+    save: async () => {},
+  });
+  const settle = () => waitFor(() => expect(useUploadQueue.getState().items.every((x) => x.status !== "queued" && x.status !== "uploading")).toBe(true));
+
+  it("uploads one file after another", async () => {
+    jest.useRealTimers();
+    setQueueIO(io(() => false));
+    useUploadQueue.getState().add([file("a.mp4"), file("b.mp4")]);
+    await settle();
+    expect(useUploadQueue.getState().items.map((x) => x.status)).toEqual(["done", "done"]);
+  });
+
+  it("pauses on a lost connection and carries on with Retry", async () => {
+    jest.useRealTimers();
+    let offline = true;
+    setQueueIO(io(() => offline));
+    useUploadQueue.getState().add([file("a.mp4"), file("b.mp4")]);
+    // The first pauses; the rest wait behind it.
+    await waitFor(() => expect(useUploadQueue.getState().items.map((x) => x.status)).toEqual(["paused", "queued"]));
+    offline = false;
+    useUploadQueue.getState().retry();
+    await settle();
+    expect(useUploadQueue.getState().items.map((x) => x.status)).toEqual(["done", "done"]);
+  });
+
+  it("cancel drops the file and tells storage", async () => {
+    jest.useRealTimers();
+    setQueueIO(io(() => true));
+    useUploadQueue.getState().add([file("a.mp4")]);
+    await settle();
+    const id = useUploadQueue.getState().items[0]!.id;
+    await useUploadQueue.getState().cancel(id);
+    expect(useUploadQueue.getState().items).toEqual([]);
   });
 });

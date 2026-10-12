@@ -93,3 +93,9 @@ jest.mock("@shopify/flash-list/dist/recyclerview/utils/measureLayout", () => {
   const size = (w, h) => () => ({ x: 0, y: 0, width: w, height: h });
   return { ...actual, measureParentSize: jest.fn(size(400, 900)), measureFirstChildLayout: jest.fn(size(400, 900)), measureItemLayout: jest.fn(size(100, 100)) };
 });
+
+// expo-audio (native): one fake player that remembers what it was told.
+jest.mock("expo-audio", () => {
+  const player = { source: null, playing: false, listeners: [], replace: jest.fn((s) => (player.source = s)), play: jest.fn(() => (player.playing = true)), pause: jest.fn(() => (player.playing = false)), addListener: jest.fn((_e, fn) => player.listeners.push(fn)) };
+  return { __player: player, createAudioPlayer: jest.fn(() => player) };
+});

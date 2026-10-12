@@ -58,6 +58,7 @@ export const ASSET_SORTS = [
   { id: "duration", label: "Longest" },
 ] as const;
 export type AssetSort = (typeof ASSET_SORTS)[number]["id"];
+export const assetSortSchema = z.enum(["date", "name", "size", "duration"]);
 
 export function sortAssets<T extends Asset>(list: T[], sort: AssetSort): T[] {
   const by: Record<AssetSort, (a: T, b: T) => number> = {
@@ -81,13 +82,16 @@ export type AssetFilter = (typeof ASSET_FILTERS)[number]["id"];
 // ── Mobile API (/api/mobile/v1/assets, /uploads) ───────────────────────────
 
 /** GET /assets?kind=&folderId=(id|none)&favorites=1&archived=1&ai=1&q=&cursor= */
-export const assetsPageSchema = z.object({ assets: z.array(assetSchema), nextCursor: z.string().nullable() });
+/** `total` counts every match, not just this page. */
+export const assetsPageSchema = z.object({ assets: z.array(assetSchema), nextCursor: z.string().nullable(), total: z.number().int().nonnegative() });
 /** GET /assets/storage */
 export const assetStorageSchema = z.object({
   usedBytes: z.number().int().nonnegative(),
   limitBytes: z.number().int().nonnegative(),
   maxUploadBytes: z.number().int().nonnegative(),
   count: z.number().int().nonnegative(),
+  /** Live files of each kind, AI-made left out (the main library view), and the archive. */
+  counts: z.object({ video: z.number().int().nonnegative(), audio: z.number().int().nonnegative(), image: z.number().int().nonnegative(), archived: z.number().int().nonnegative() }),
 });
 export type AssetStorage = z.infer<typeof assetStorageSchema>;
 

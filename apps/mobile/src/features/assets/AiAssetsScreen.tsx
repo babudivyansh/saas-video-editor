@@ -7,28 +7,30 @@ import { EmptyState, Header, IconButton, SectionHeader, SkeletonCard, StatusBarS
 import { imageSource } from "@/lib/images";
 import { useScreenPadding } from "@/navigation/insets";
 import { colors, derived, radius, text, type } from "@/theme";
-import { errorMessage } from "@mocks/core";
+import { apiErrorMessage } from "@/lib/errors";
 import { AssetChips } from "./AssetChips";
 import { AssetSheet } from "./AssetSheet";
 import { AudioRow } from "./AudioRow";
-import { useAssets } from "./queries";
+import { useAssetList } from "./queries";
 
 // design/screens/BN-AssetsAI.html — everything the AI tools made. The web
 // doesn't save these as Assets yet; Phase 5's API does (decision 2026-10-02).
 export function AiAssetsScreen() {
   const pad = useScreenPadding();
   const { width } = useWindowDimensions();
-  const assets = useAssets();
+  // AI-made images, and AI-made audio (voiceovers and cleaned-up tracks).
+  const imageList = useAssetList({ ai: true, kind: "image" });
+  const audioList = useAssetList({ ai: true, kind: "audio" });
+  const assets = { isPending: imageList.isPending || audioList.isPending, isError: imageList.isError || audioList.isError, error: imageList.error ?? audioList.error, refetch: () => Promise.all([imageList.refetch(), audioList.refetch()]) };
   const [openId, setOpenId] = useState<string | null>(null);
 
-  const live = (assets.data ?? []).filter((x) => !x.archivedAt);
-  const images = live.filter((x) => x.source === "image-generator");
-  const voiceovers = live.filter((x) => x.source === "voiceover");
-  const cleanup = live.filter((x) => x.source === "enhance-speech" || x.source === "vocal-remover");
+  const images = imageList.items;
+  const voiceovers = audioList.items.filter((x) => x.source === "voiceover");
+  const cleanup = audioList.items.filter((x) => x.source !== "voiceover");
   const tile = Math.floor((width - 32 - 16) / 3);
   const all: Asset[] = [...images, ...voiceovers, ...cleanup];
   const counts: [string, number][] = [
-    ["Images", images.length],
+    ["Images", imageList.total],
     ["Voiceovers", voiceovers.length],
     ["Cleanup", cleanup.length],
   ];
@@ -41,7 +43,7 @@ export function AiAssetsScreen() {
         {assets.isPending ? (
           <SkeletonCard lines={3} />
         ) : assets.isError ? (
-          <EmptyState tone="error" title="Couldn’t load AI assets" body={errorMessage(assets.error)} action={{ label: "Try again", onPress: () => assets.refetch() }} />
+          <EmptyState tone="error" title="Couldn’t load AI assets" body={apiErrorMessage(assets.error)} action={{ label: "Try again", onPress: () => assets.refetch() }} />
         ) : all.length === 0 ? (
           <EmptyState icon="sparkle" title="Nothing generated yet" body="Images, voiceovers and cleaned-up audio from AI Media land here." action={{ label: "Open AI Media", onPress: () => router.push("/create/ai-media") }} />
         ) : (

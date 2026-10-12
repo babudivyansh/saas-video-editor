@@ -4,12 +4,12 @@ import { router } from "expo-router";
 import { useState } from "react";
 import { Text, View } from "react-native";
 import { BottomSheet, Button, ConfirmSheet, OptionList, TextField, useToast } from "@/components";
+import { assets as assetsApi } from "@/lib/api";
+import { apiErrorMessage } from "@/lib/errors";
 import { colors, type } from "@/theme";
-import { errorMessage } from "@mocks/core";
-import { deleteAsset, updateAsset } from "@mocks/assets";
 import { useAutoClipDraft } from "../create/draft";
 import { mmss } from "../projects/format";
-import { assetKeys, useFolders } from "./queries";
+import { assetKeys, patchAssetEverywhere, useFolders } from "./queries";
 
 type Mode = "menu" | "move" | "rename" | "delete";
 
@@ -26,17 +26,31 @@ export function AssetSheet({ asset, onClose }: { asset: Asset | null; onClose: (
     setMode("menu");
     onClose();
   };
-  const run = async (fn: () => Promise<void>, done: string) => {
+  const refresh = () => qc.invalidateQueries({ queryKey: assetKeys.all });
+  const run = async (fn: () => Promise<unknown>, done: string) => {
     setBusy(true);
     try {
       await fn();
-      await qc.invalidateQueries({ queryKey: assetKeys.all });
+      await refresh();
       toast(done, "success");
       close();
     } catch (e) {
-      toast(errorMessage(e), "error");
+      toast(apiErrorMessage(e), "error");
     } finally {
       setBusy(false);
+    }
+  };
+  /** Shows the change at once; puts it back if the server says no. */
+  const instant = async (change: Partial<Asset> | "remove", fn: () => Promise<unknown>, done: string | null, closeAfter: boolean) => {
+    const undo = patchAssetEverywhere(qc, asset!.id, change);
+    if (closeAfter) close();
+    try {
+      await fn();
+      if (done) toast(done, "success");
+      if (change === "remove") void qc.invalidateQueries({ queryKey: assetKeys.storage });
+    } catch (e) {
+      undo();
+      toast(apiErrorMessage(e), "error");
     }
   };
 
@@ -49,11 +63,11 @@ export function AssetSheet({ asset, onClose }: { asset: Asset | null; onClose: (
       <ConfirmSheet
         visible
         title="Delete for good?"
-        body={`“${asset.name}” will be deleted now and can't be restored. To keep it for ${ARCHIVE_RETENTION_DAYS} days instead, archive it.`}
+        body={`“${asset.name}” will be deleted now and its storage freed. This can't be undone.`}
         confirmLabel="Delete for good"
         busy={busy}
         onClose={() => setMode("menu")}
-        onConfirm={() => run(() => deleteAsset(asset.id), "File deleted.")}
+        onConfirm={() => run(() => assetsApi.remove(asset.id), "File deleted.")}
       />
     );
 
@@ -65,7 +79,7 @@ export function AssetSheet({ asset, onClose }: { asset: Asset | null; onClose: (
           {asset.status === "processing" ? <Text style={type(12, "regular", { color: colors.info })}>Still processing. You can use it once it’s ready.</Text> : null}
           <View style={{ gap: 8 }}>
             {asset.archivedAt ? (
-              <Button label="Restore" icon="refresh" iconPosition="start" variant="secondary" size="sm" fullWidth loading={busy} onPress={() => run(() => updateAsset(asset.id, { archivedAt: null }), "Restored.")} />
+              <Button label="Restore" icon="refresh" iconPosition="start" variant="secondary" size="sm" fullWidth loading={busy} onPress={() => void instant("remove", () => assetsApi.update(asset.id, { restore: true }), "Restored.", true)} />
             ) : (
               <>
                 {asset.kind === "video" ? (
@@ -93,7 +107,7 @@ export function AssetSheet({ asset, onClose }: { asset: Asset | null; onClose: (
                     variant="secondary"
                     size="sm"
                     style={{ flex: 1 }}
-                    onPress={() => run(() => updateAsset(asset.id, { favorite: !asset.favorite }), asset.favorite ? "Removed from starred." : "Starred.")}
+                    onPress={() => void instant({ favorite: !asset.favorite }, () => assetsApi.update(asset.id, { favorite: !asset.favorite }), null, false)}
                   />
                   <Button label="Move" icon="folder" iconPosition="start" variant="secondary" size="sm" style={{ flex: 1 }} onPress={() => setMode("move")} />
                 </View>
@@ -105,11 +119,11 @@ export function AssetSheet({ asset, onClose }: { asset: Asset | null; onClose: (
                   variant="secondary"
                   size="sm"
                   fullWidth
-                  onPress={() => run(() => updateAsset(asset.id, { archivedAt: new Date().toISOString() }), "Archived. Restore it any time in the next 30 days.")}
+                  onPress={() => void instant("remove", () => assetsApi.archive(asset.id), `Archived. Restore it any time in the next ${ARCHIVE_RETENTION_DAYS} days.`, true)}
                 />
               </>
             )}
-            <Button label="Delete for good" variant="danger" size="sm" fullWidth onPress={() => setMode("delete")} />
+            {asset.archivedAt ? <Button label="Delete for good" variant="danger" size="sm" fullWidth onPress={() => setMode("delete")} /> : null}
           </View>
         </>
       ) : mode === "move" ? (
@@ -118,13 +132,13 @@ export function AssetSheet({ asset, onClose }: { asset: Asset | null; onClose: (
             accessibilityLabel="Folder"
             value={asset.folderId ?? "none"}
             options={[{ value: "none", label: "No folder" }, ...(folders.data ?? []).map((f) => ({ value: f.id, label: f.name, detail: `${f.fileCount} files` }))]}
-            onChange={(id) => run(() => updateAsset(asset.id, { folderId: id === "none" ? null : id }), id === "none" ? "Removed from folder." : "Moved.")}
+            onChange={(id) => run(() => assetsApi.update(asset.id, { folderId: id === "none" ? null : id }), id === "none" ? "Removed from folder." : "Moved.")}
           />
         </View>
       ) : (
         <>
           <TextField label="Name" value={name} onChangeText={setName} autoFocus maxLength={200} returnKeyType="done" />
-          <Button label="Save" variant="secondary" size="sm" fullWidth loading={busy} onPress={() => run(() => updateAsset(asset.id, { name: name.trim() }), "Renamed.")} />
+          <Button label="Save" variant="secondary" size="sm" fullWidth loading={busy} onPress={() => run(() => assetsApi.update(asset.id, { name: name.trim() }), "Renamed.")} />
         </>
       )}
       {mode !== "menu" ? <Button label="Back" variant="ghost" size="md" onPress={() => setMode("menu")} /> : null}

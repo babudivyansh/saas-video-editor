@@ -18,7 +18,8 @@ vi.mock("@/lib/auth", () => ({ getAuthUser: vi.fn(async () => ({ userId: "u1", e
 vi.mock("@/lib/with-rate-limit", () => ({ withRateLimit: (h: unknown) => h }));
 vi.mock("@/lib/prisma", () => ({ prisma: {} }));
 const getAsset = vi.fn();
-vi.mock("@/lib/mobile/assets", () => ({ getAsset, UPLOAD_PART_BYTES: 10 * 1024 * 1024 }));
+const COUNTS = { video: 4, audio: 1, image: 2, archived: 3 };
+vi.mock("@/lib/mobile/assets", () => ({ getAsset, assetCounts: vi.fn(async () => COUNTS), UPLOAD_PART_BYTES: 10 * 1024 * 1024 }));
 const partUrl = vi.fn(async (_k: string, _u: string, n: number) => `https://s3/part-${n}`);
 vi.mock("@/utils/s3-upload", () => ({ getMultipartPartUploadUrl: partUrl }));
 const getOwnedPendingUpload = vi.fn();
@@ -67,7 +68,7 @@ describe("assets", () => {
 
   it("reads storage from the web's stats", async () => {
     webStats.mockResolvedValue(NextResponse.json({ usedBytes: 5, limitBytes: 15, maxUploadBytes: 3, count: 2, byKind: {} }));
-    expect(await (await storage(req("GET", undefined, "http://localhost/api/mobile/v1/assets/storage"))).json()).toEqual({ usedBytes: 5, limitBytes: 15, maxUploadBytes: 3, count: 2 });
+    expect(await (await storage(req("GET", undefined, "http://localhost/api/mobile/v1/assets/storage"))).json()).toEqual({ usedBytes: 5, limitBytes: 15, maxUploadBytes: 3, count: 2, counts: COUNTS });
     expect((webStats.mock.calls[0]![0] as NextRequest).nextUrl.searchParams.get("stats")).toBe("true");
   });
 });
