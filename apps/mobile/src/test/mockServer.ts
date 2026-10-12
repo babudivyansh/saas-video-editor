@@ -44,6 +44,7 @@ export const MOCK_ROUTES: Record<string, Route> = {
   "GET /home": async () => ok(await getHomeSummary()),
   "GET /tools": async () => ok({ tools: await getTools() }),
   "GET /me": async () => ok(await getAccount()),
+  "POST /events": async () => ok({ ok: true }),
   "GET /assistant/messages": async () => ok(await getAssistantHistory()),
   "DELETE /assistant/messages": async () => {
     await clearAssistant();

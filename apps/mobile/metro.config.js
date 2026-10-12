@@ -4,12 +4,14 @@
 // packages/shared — and anything that folder imports is resolved from THIS
 // app's node_modules, never the web app's (one React, one React Native).
 const path = require("path");
-const { getDefaultConfig } = require("expo/metro-config");
+// Sentry's version of Expo's default config: it adds debug ids so crash
+// reports map back to the source (mobile Phase 15).
+const { getSentryExpoConfig } = require("@sentry/react-native/metro");
 
 const projectRoot = __dirname;
 const sharedRoot = path.resolve(projectRoot, "../../packages/shared");
 
-const config = getDefaultConfig(projectRoot);
+const config = getSentryExpoConfig(projectRoot);
 
 config.watchFolders = [sharedRoot];
 config.resolver.nodeModulesPaths = [path.resolve(projectRoot, "node_modules")];

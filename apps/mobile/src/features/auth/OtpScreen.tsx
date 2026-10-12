@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Button, ErrorBanner, Icon, OtpInput, useToast } from "@/components";
 import { auth } from "@/lib/api";
+import { track } from "@/lib/analytics";
 import { colors, radius, type } from "@/theme";
 import { AuthScaffold, FooterLink } from "./AuthScaffold";
 import { finishSignIn } from "./finish";
@@ -38,7 +39,10 @@ export function OtpScreen() {
     setError(undefined);
     run(async () => {
       if (login) await finishSignIn(await auth.verifyEmail({ email, otp: parsed.data, passwordProof: params.proof }));
-      else await finishSignIn(await auth.verifySignup({ email, otp: parsed.data, signupToken: params.signupToken ?? "" }));
+      else {
+        await finishSignIn(await auth.verifySignup({ email, otp: parsed.data, signupToken: params.signupToken ?? "" }));
+        track("signup_completed");
+      }
     });
   };
 

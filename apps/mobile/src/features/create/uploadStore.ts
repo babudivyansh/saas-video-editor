@@ -2,6 +2,7 @@ import { ApiError, DEFAULT_AUTOCLIP_SETTINGS, NetworkError, type Asset } from "@
 import { AppState } from "react-native";
 import { create } from "zustand";
 import { jobs } from "@/lib/api";
+import { track } from "@/lib/analytics";
 import { abandonUpload, beginUpload, partCount, sendParts, UploadRefused, type PendingRun, type SavedUpload, type UploadFile, type UploadIO } from "./upload";
 import { deviceUploadIO } from "./uploadIo";
 
@@ -93,6 +94,7 @@ export const useAutoClipUpload = create<UploadState>((set, get) => {
     set({ status: "starting", asset: result.asset, saved: null, progress: 1 });
     try {
       const { jobId } = await jobs.start({ type: "autoclip", source: { kind: "asset", assetId: result.asset.id }, settings: result.run.settings, allowCreditOverflow: result.run.allowCreditOverflow ?? false });
+      track("autoclip_started");
       set({ status: "started", jobId });
     } catch (e) {
       // The video is safely in Assets either way; the screen offers the next step.

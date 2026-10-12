@@ -186,6 +186,16 @@ export const invoicesResponse = z.object({ invoices: z.array(invoiceSchema) });
 /** POST /billing/cancel and /billing/resume: when the plan ends (null = renews). */
 export const subscriptionChangeResponse = z.object({ cancelAtPeriodEnd: z.boolean(), endsAt: z.string().nullable() });
 
+// ── Analytics (POST /events, mobile Phase 15 R2 A) ─────────────────────────
+// First-party daily counts per event and app version; nothing about who.
+export const APP_EVENTS = ["app_open", "signup_completed", "autoclip_started", "export_started", "post_created"] as const;
+export type AppEvent = (typeof APP_EVENTS)[number];
+export const appEventRequest = z.object({
+  event: z.enum(APP_EVENTS),
+  /** "1.0.0": the app's version, a short boring token. */
+  appVersion: z.string().regex(/^\d{1,3}\.\d{1,3}\.\d{1,3}$/),
+});
+
 // ── Support (POST /support/contact → the web's /api/contact) ──────────────
 export const SUPPORT_TOPICS = [
   { id: "support", label: "Help with the app or my account" },

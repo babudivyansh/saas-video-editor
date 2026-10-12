@@ -16,7 +16,15 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.clipiro.app"
+      "package": "com.clipiro.app",
+      "blockedPermissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_AUDIO",
+        "android.permission.ACCESS_MEDIA_LOCATION"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -35,7 +43,9 @@
       [
         "expo-media-library",
         {
-          "granularPermissions": ["video"],
+          "granularPermissions": [
+            "video"
+          ],
           "isAccessMediaLocationEnabled": false
         }
       ],
@@ -65,6 +75,9 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "runtimeVersion": {
+      "policy": "fingerprint"
     }
   }
 }

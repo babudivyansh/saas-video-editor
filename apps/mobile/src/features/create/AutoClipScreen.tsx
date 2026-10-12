@@ -25,6 +25,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BottomSheet, Button, CreditsPill, EmptyState, Header, Icon, IconButton, OptionList, ProgressBar, SkeletonCard, StatusBarScrim, Stepper, useToast } from "@/components";
 import { jobs } from "@/lib/api";
+import { track } from "@/lib/analytics";
 import { apiErrorMessage } from "@/lib/errors";
 import { registerForPush } from "@/lib/push";
 import { sample } from "@/lib/images";
@@ -128,6 +129,7 @@ export function AutoClipScreen() {
         settings,
         allowCreditOverflow,
       });
+      track("autoclip_started");
       setShortfall(null);
       started(jobId);
     } catch (e) {
