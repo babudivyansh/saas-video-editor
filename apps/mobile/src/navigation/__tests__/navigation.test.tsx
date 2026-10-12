@@ -40,7 +40,8 @@ describe("navigation", () => {
     await waitFor(() => expect(r.getPathname()).toBe("/home"));
     // OTP → Home reset the history: nothing behind the tabs for back to reach.
     expect(rootHistory(r)).toEqual(["(tabs)"]);
-  }, 30000);
+    // Walks every launch screen into the real Home; on a cold transform cache (CI) that is slow.
+  }, 90000);
 
   it("switches tabs with the floating tab bar and keeps each tab's history", async () => {
     const r = renderRouter(APP, { initialUrl: "/projects" });

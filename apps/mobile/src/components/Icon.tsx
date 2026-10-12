@@ -67,6 +67,7 @@ const GLYPHS = {
   calendar: <><Rect x="3" y="5" width="18" height="16" rx="2" /><Path d="M3 10h18" /><Path d="M8 3v4" /><Path d="M16 3v4" /></>,
   chevronDown: <Path d="M6 9l6 6 6-6" />,
   pencil: <><Path d="M4 20h4L20 8l-4-4L4 16z" /><Path d="M14 6l4 4" /></>,
+  more: <><Circle cx="5" cy="12" r="1.2" /><Circle cx="12" cy="12" r="1.2" /><Circle cx="19" cy="12" r="1.2" /></>,
   refresh: <><Path d="M20 11a8 8 0 0 0-14.9-3.9L4 8" /><Path d="M4 4v4h4" /><Path d="M4 13a8 8 0 0 0 14.9 3.9L20 16" /><Path d="M20 20v-4h-4" /></>,
 } as const;
 
