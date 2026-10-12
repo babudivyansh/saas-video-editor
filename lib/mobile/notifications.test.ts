@@ -17,6 +17,8 @@ describe("appHref", () => {
     ["/dashboard?billing=1&view=manage", "/you/subscription"],
     ["/dashboard?billing=1&tab=topup", "/you/credits"],
     ["/dashboard/tools/voiceover", "/create/ai-media?tab=voiceover"],
+    ["/dashboard/editor?projectId=p1", "/editor/export?projectId=p1"],
+    ["/dashboard/editor", null],
     ["/reviews/r1", null],
     ["/admin/users/u1", null],
     ["https://x.com/clipiro", null],

@@ -4,7 +4,7 @@ import { ApiError, respond, wait } from "./core";
 // The editor's API as fixtures (src/test/mockServer.ts serves them as
 // /api/mobile/v1): the edit itself, stock search, AI text, voices, and the
 // words a transcription finds. Scenarios (core.ts): "edit", "stock",
-// "ai-text", "captions", "voices", "export".
+// "ai-text", "captions", "voices", "export" (a render that fails).
 
 const STOCK: Record<"video" | "image", StockItem[]> = {
   video: [
@@ -82,11 +82,6 @@ export async function getVoices(): Promise<{ configured: boolean; voices: Editor
 export function voiceoverAsset(voiceId: string): Asset {
   const v = VOICES.find((x) => x.id === voiceId) ?? VOICES[0]!;
   return { ...stockAsset("video", STOCK.video[0]!), id: "vo_1", name: `Voiceover · ${v.name}`, kind: "audio", durationSec: 6, thumbnailUrl: null, source: "voiceover", madeWith: v.name, url: "https://cdn.test/vo_1.mp3" };
-}
-
-export async function startExport(): Promise<{ jobId: string }> {
-  await respond("export");
-  return { jobId: "render_1" };
 }
 
 // ── The edit the editor opens (GET /projects/:id/editor) ─────────────────
@@ -170,4 +165,34 @@ export async function saveEdit(id: string, doc: TimelineDoc, expectedVersion: nu
 /** Something else saved the edit (another phone, the web). */
 export function bumpEditElsewhere() {
   edit = { ...edit, version: edit.version + 1 };
+}
+
+// ── Exports (POST /jobs { type: "export" }, GET /jobs/exp_<projectId>) ──
+// A render reports progress once, then finishes; scenario "export" = "error"
+// makes it fail (refunded), as the server reports a failed render.
+
+let render: { polls: number } | null = null;
+export function resetExportMock() {
+  render = null;
+}
+export async function startRender(projectId: string): Promise<string> {
+  await wait();
+  if (projectId !== EDIT_ID) throw new ApiError("Project not found", 404);
+  if (render && render.polls < 2) throw Object.assign(new ApiError("This video is already exporting.", 409), { code: "already_rendering" });
+  render = { polls: 0 };
+  return `exp_${projectId}`;
+}
+/** The export job as GET /jobs reports it: running, then done (or failed). */
+export async function renderJob(jobId: string) {
+  const s = await respond("export").catch(() => "error" as const);
+  const base = { id: jobId, type: "export" as const, stage: null, createdAt: "2026-10-10T09:00:00.000Z" };
+  if (!render) return { ...base, status: "queued" as const, progress: 0, error: null, result: null };
+  render.polls++;
+  if (render.polls < 2) return { ...base, status: "running" as const, progress: 40, stage: "rendering" as const, error: null, result: null };
+  if (s === "error") return { ...base, status: "failed" as const, progress: 40, error: "Video encoding failed. Please try exporting again. Your credit was refunded.", result: null };
+  return { ...base, status: "done" as const, progress: 100, error: null, result: { assetId: null, url: `https://cdn.test/renders/${EDIT_ID}.mp4`, projectId: EDIT_ID, clipCount: null } };
+}
+/** POST /projects/:id/export/asset — the export, copied into Assets. */
+export function exportAsset(): Asset {
+  return { ...editAsset("ex_1", "Nobody tells you this part.mp4", 41), source: "editor", url: `https://cdn.test/ex_1.mp4` };
 }

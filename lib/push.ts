@@ -23,6 +23,8 @@ const BATCH = 100;
 export const PUSHED: Partial<Record<NotificationType, { pref: keyof PushPrefs | null; channel: string }>> = {
   autoclip_render_complete: { pref: "renderFinished", channel: "clips" },
   autoclip_render_failed: { pref: "renderFinished", channel: "clips" },
+  editor_export_complete: { pref: "renderFinished", channel: "clips" },
+  editor_export_failed: { pref: "renderFinished", channel: "clips" },
   billing_payment_failed: { pref: null, channel: "account" },
   billing_subscription_halted: { pref: null, channel: "account" },
 };

@@ -15,6 +15,7 @@ const projectUpdates: Record<string, unknown>[] = [];
 const projectRow = {
   id: "proj-1",
   userId: "user-1",
+  title: "Launch",
   editorDoc: {
     version: 1,
     aspect: "9:16",
@@ -45,6 +46,8 @@ vi.mock("@/lib/credits", () => ({ restoreSpend }));
 
 vi.mock("@/lib/render-queue", () => ({ setRenderProgress: vi.fn(async () => {}) }));
 vi.mock("@/lib/quests", () => ({ markQuestComplete: vi.fn(async () => {}) }));
+const notify = vi.fn(async () => {});
+vi.mock("@/lib/notify", () => ({ notify }));
 vi.mock("@/lib/auth", () => ({ getUserTier: vi.fn(async () => "pro") }));
 vi.mock("@/utils/download", () => ({ downloadFile: vi.fn(async () => {}) }));
 vi.mock("@/utils/s3-upload", () => ({ uploadFileToS3: vi.fn(async () => "https://cdn.example.com/renders/proj-1.mp4") }));
@@ -92,6 +95,7 @@ describe("editorRenderJob", () => {
     projectUpdates.length = 0;
     ffmpegShouldFail = null;
     restoreSpend.mockClear();
+    notify.mockClear();
   });
 
   it("on success: marks the project completed with a videoUrl, clears no failureReason (none set), and never refunds", async () => {
@@ -102,6 +106,8 @@ describe("editorRenderJob", () => {
     expect(finalUpdate.videoUrl).toBe("https://cdn.example.com/renders/proj-1.mp4");
     expect(restoreSpend).not.toHaveBeenCalled();
     expect(projectUpdates.some((u) => u.status === "failed")).toBe(false);
+    // The owner hears about it (bell + phone push), linking back to the edit.
+    expect(notify).toHaveBeenCalledWith({ userId: "user-1", type: "editor_export_complete", title: "Your video is ready 🎬", body: "“Launch” finished exporting.", href: "/dashboard/editor?projectId=proj-1" });
   });
 
   it("on failure: persists a sanitized failureReason (not the raw error text), marks failed, and refunds exactly once", async () => {
@@ -127,5 +133,7 @@ describe("editorRenderJob", () => {
     ffmpegShouldFail = new Error("FFmpeg timed out after 900000ms and was killed");
     await editorRenderJob({ projectId: "proj-1", assetUrls: { "asset-1": "https://s3.example.com/asset-1.mp4" } });
     expect(projectUpdates.some((u) => u.status === "completed")).toBe(false);
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ userId: "user-1", type: "editor_export_failed", body: expect.stringMatching(/Your credit was refunded.$/) }));
   });
 });

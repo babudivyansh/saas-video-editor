@@ -25,7 +25,11 @@ export type NotificationType =
   // to sit on the page polling — nothing told them when clips were ready (or
   // that a render had failed).
   | "autoclip_render_complete"
-  | "autoclip_render_failed";
+  | "autoclip_render_failed"
+  // Editor export outcome (mobile Phase 9.3): the phone leaves the Export
+  // screen while the server renders, so the result has to find the user.
+  | "editor_export_complete"
+  | "editor_export_failed";
 
 export interface NotifyInput {
   userId: string;
@@ -93,6 +97,8 @@ export async function notifyAdmins(
 export const PUSH_TYPES: ReadonlySet<NotificationType> = new Set<NotificationType>([
   "autoclip_render_complete",
   "autoclip_render_failed",
+  "editor_export_complete",
+  "editor_export_failed",
   "billing_payment_failed",
   "billing_subscription_halted",
 ]);

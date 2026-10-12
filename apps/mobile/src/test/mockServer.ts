@@ -2,7 +2,7 @@ import { ApiError, NetworkError } from "@mocks/core";
 import { AI_SOURCES, maxFileBytes, sortAssets, sortProjects, storageLimitBytes, type AiTextOperationId, type Asset, type AssetSort, type Clip, type ClipAspect, type ProjectSort, type StockItem, type TimelineDoc } from "@clipiro/shared";
 import { getAccount } from "@mocks/account";
 import { addUpload, createFolder, deleteAsset, getAssets, getFolders, updateAsset } from "@mocks/assets";
-import { EDIT_ID, getEdit, getVoices, runAiText, saveEdit, searchStock, stockAsset, transcribe, voiceoverAsset } from "@mocks/editor";
+import { EDIT_ID, exportAsset, getEdit, getVoices, renderJob, startRender, runAiText, saveEdit, searchStock, stockAsset, transcribe, voiceoverAsset } from "@mocks/editor";
 import { getHomeSummary, getTools } from "@mocks/home";
 import { deleteClips, deleteProjects, getClips, getProject, getProjects, renameProject, retryClip, setClipFavorite } from "@mocks/projects";
 
@@ -114,6 +114,10 @@ export const MOCK_ROUTES: Record<string, Route> = {
     return ok(page(list, url, "projects"));
   },
   "GET /projects/:id/editor": async (url) => ok(await getEdit(idOf(url))),
+  "POST /projects/:id/export/asset": async (url) => {
+    if ((await renderJob(`exp_${idOf(url)}`)).status !== "done") throw Object.assign(new ApiError("Export the video first.", 409), { code: "not_exported" });
+    return [201, exportAsset()];
+  },
   "PUT /projects/:id/editor": async (url, body) => ok(await saveEdit(idOf(url), body.doc as TimelineDoc, Number(body.expectedVersion))),
   "POST /editor/projects": async () => [201, { projectId: EDIT_ID }],
   "POST /editor/captions": async (_url, body) => {
@@ -126,10 +130,12 @@ export const MOCK_ROUTES: Record<string, Route> = {
   "GET /voices": async () => ok(await getVoices()),
   // AI tool jobs finish at once; a voiceover is saved into Assets.
   "POST /jobs": async (_url, body) => {
+    if (body.type === "export") return [202, { jobId: await startRender(String(body.projectId)) }];
     if (body.type === "voiceover") lastVoice = String(body.voiceId);
     return [201, { jobId: `job_${String(body.type)}` }];
   },
   "GET /jobs/:id": async (url) => {
+    if (idOf(url).startsWith("exp_")) return ok(await renderJob(idOf(url)));
     const type = idOf(url).replace(/^job_/, "");
     const asset = type === "voiceover" ? voiceoverAsset(lastVoice) : null;
     return ok({ id: idOf(url), type, status: "done", progress: 100, stage: null, error: null, createdAt: "2026-10-10T09:00:00.000Z", result: { assetId: asset?.id ?? null, url: asset?.url ?? null, projectId: null, clipCount: null } });

@@ -28,6 +28,8 @@ export function editorApi(api: ApiClient) {
     save: (projectId: string, doc: TimelineDoc, expectedVersion: number) =>
       api.request(`/projects/${encodeURIComponent(projectId)}/editor`, { method: "PUT", body: editorSaveRequest.parse({ doc, expectedVersion }), schema: editorSaveResponse }),
     create: (b: EditorCreateRequest) => api.request("/editor/projects", { method: "POST", body: editorCreateRequest.parse(b), schema: editorCreateResponse }),
+    /** A copy of the latest export into Assets. 409 code "not_exported" before one has finished. */
+    saveExport: (projectId: string) => api.request(`/projects/${encodeURIComponent(projectId)}/export/asset`, { method: "POST", schema: assetSchema }),
   };
 }
 export type EditorApi = ReturnType<typeof editorApi>;

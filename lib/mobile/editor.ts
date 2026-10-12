@@ -1,7 +1,9 @@
 import { randomUUID } from "crypto";
-import { DEFAULT_DOC, normalizeDoc, type Asset, type AudioClip, type EditorAspect, type EditorOpen, type ImageClip, type TimelineDoc, type VideoClip } from "@clipiro/shared";
-import { include, serialize } from "@/lib/mobile/assets";
+import { ASPECT_DIMENSIONS, DEFAULT_DOC, docDuration, normalizeDoc, type Asset, type AudioClip, type EditorAspect, type EditorOpen, type ImageClip, type TimelineDoc, type VideoClip } from "@clipiro/shared";
+import { adoptExistingS3Object } from "@/lib/asset-service";
+import { getAsset, include, serialize } from "@/lib/mobile/assets";
 import { prisma } from "@/lib/prisma";
+import { copyS3Object, sanitizeS3Key } from "@/utils/s3-upload";
 
 // The editor for /api/mobile/v1: the web editor's own timeline document
 // (Project.editorDoc), so a draft opens on either. Reads go straight to the
@@ -62,4 +64,42 @@ export async function createBlank(userId: string, aspect: EditorAspect, title?: 
     select: { id: true },
   });
   return { projectId: p.id };
+}
+
+/**
+ * Keeps a copy of the edit's latest export in the caller's Assets ("Save to
+ * Assets" on the phone's Export screen). The render lives at
+ * renders/<projectId>.mp4 and the next export overwrites it, so the Asset
+ * gets its own copy of the bytes. Counts toward storage like any upload;
+ * an AssetLimitError (file too big, storage full) reaches the route.
+ */
+export async function saveExportToAssets(userId: string, projectId: string): Promise<Asset | "not-found" | "not-exported"> {
+  const p = await prisma.project.findFirst({
+    where: { id: projectId, userId, productType: "editor" },
+    select: { title: true, status: true, videoUrl: true, editorDoc: true },
+  });
+  if (!p) return "not-found";
+  if (p.status !== "completed" || !p.videoUrl) return "not-exported";
+  const doc = normalizeDoc((p.editorDoc as unknown as TimelineDoc | null) ?? DEFAULT_DOC);
+  const size = ASPECT_DIMENSIONS[doc.aspect];
+
+  const key = sanitizeS3Key(`uploads/${userId}/${randomUUID()}.mp4`);
+  // Same orphan safety as an upload: the asset-cleanup cron deletes the copy
+  // if adopting it fails (storage full) or the process dies in between.
+  const pending = await prisma.pendingUpload.create({ data: { userId, s3Key: key } });
+  await copyS3Object(`renders/${projectId}.mp4`, key);
+  const { asset } = await adoptExistingS3Object({
+    userId,
+    s3Key: key,
+    mimeType: "video/mp4",
+    name: `${p.title.slice(0, 120)}.mp4`,
+    sourceFeature: "editor",
+    sourceProjectId: projectId,
+    duration: docDuration(doc),
+    width: size.w,
+    height: size.h,
+    skipModeration: true,
+  });
+  await prisma.pendingUpload.delete({ where: { id: pending.id } }).catch(() => {});
+  return (await getAsset(userId, asset.id))!;
 }

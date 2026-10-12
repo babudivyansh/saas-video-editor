@@ -16,28 +16,49 @@ export class GalleryDenied extends Error {
   }
 }
 
-/** Downloads one clip into the app cache; returns the local file uri. */
-export async function fetchClipFile(clipId: string): Promise<string> {
-  const link = await projects.downloadLink(clipId);
-  const file = new File(Paths.cache, `clip-${clipId}.mp4`);
-  if (file.exists) file.delete(); // signed links change; the clip may have been re-rendered
-  const saved = await File.downloadFileAsync(link.url, file);
+/** Downloads a video from a signed link into the app cache; returns the local file uri. */
+export async function fetchVideoFile(url: string, name: string): Promise<string> {
+  const file = new File(Paths.cache, name);
+  if (file.exists) file.delete(); // signed links change; the video may have been re-rendered
+  const saved = await File.downloadFileAsync(url, file);
   return saved.uri;
 }
 
-/** Saves clips to the gallery, one at a time; `onEach` reports how many are done. */
-export async function saveClipsToGallery(clipIds: string[], onEach?: (done: number) => void): Promise<void> {
+/** Downloads one clip into the app cache; returns the local file uri. */
+export async function fetchClipFile(clipId: string): Promise<string> {
+  const link = await projects.downloadLink(clipId);
+  return fetchVideoFile(link.url, `clip-${clipId}.mp4`);
+}
+
+/** Saves downloaded videos (local uris) into the gallery's "Clipiro" album, then drops the cached copies. */
+async function addToGallery(next: () => Promise<string>, count: number, onEach?: (done: number) => void): Promise<void> {
   const { status } = await requestPermissionsAsync(true, ["video"]);
   if (status !== "granted") throw new GalleryDenied();
   let album = await Album.get(ALBUM).catch(() => null);
-  for (let i = 0; i < clipIds.length; i++) {
-    const uri = await fetchClipFile(clipIds[i]!);
+  for (let i = 0; i < count; i++) {
+    const uri = await next();
     const asset = await Asset.create(uri);
     if (album) await album.add(asset).catch(() => {});
     else album = await Album.create(ALBUM, [asset], true).catch(() => null);
     new File(uri).delete(); // the gallery has its own copy now
     onEach?.(i + 1);
   }
+}
+
+/** Saves a video from a signed link (an editor export) to the gallery. */
+export async function saveVideoToGallery(url: string, name: string): Promise<void> {
+  await addToGallery(() => fetchVideoFile(url, name), 1);
+}
+
+/** Opens Android's share sheet with a video from a signed link. */
+export async function shareVideo(url: string, name: string, title: string): Promise<void> {
+  await Sharing.shareAsync(await fetchVideoFile(url, name), { mimeType: "video/mp4", dialogTitle: title });
+}
+
+/** Saves clips to the gallery, one at a time; `onEach` reports how many are done. */
+export async function saveClipsToGallery(clipIds: string[], onEach?: (done: number) => void): Promise<void> {
+  let i = 0;
+  await addToGallery(() => fetchClipFile(clipIds[i++]!), clipIds.length, onEach);
 }
 
 /** Opens Android's share sheet with the clip's MP4 (WhatsApp, Instagram, Drive…). */
