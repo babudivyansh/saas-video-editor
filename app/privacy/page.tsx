@@ -205,7 +205,9 @@ const doc: LegalDoc = {
           <p>
             We use ElevenLabs to synthesise voiceovers from your scripts. Your script text is transmitted to ElevenLabs
             servers to generate audio. ElevenLabs&apos; data practices are governed by their own privacy policy. Audio
-            is generated in real time and not stored by ElevenLabs on your behalf.
+            is generated in real time and not stored by ElevenLabs on your behalf. If you clone your voice, the sample
+            you upload is sent to ElevenLabs to create it, and ElevenLabs keeps that voice until you delete it in
+            Clipiro.
           </p>
 
           <h3>Amazon Web Services (AWS)</h3>
@@ -225,13 +227,16 @@ const doc: LegalDoc = {
     },
     {
       id: "social-accounts",
-      title: "Linked Social Accounts (Social Tracker)",
+      title: "Linked Social Accounts (Social Tracker and posting)",
       body: (
         <>
           <p>
-            If you use the Social Tracker, you may link your YouTube, Instagram, or Facebook accounts via each
-            platform&apos;s official OAuth flow. We request <strong>read-only</strong> analytics permissions only — we
-            cannot post, message, delete content, or read your direct messages or follower lists.
+            If you use the Social Tracker or Social Studio, you may link your YouTube, Instagram, or Facebook accounts
+            through each platform’s official sign-in. For all three we read your analytics. For{" "}
+            <strong>YouTube</strong>, you can also let Clipiro upload videos you choose to your channel, now or at a
+            time you schedule (the <code>youtube.upload</code> permission). We never post anything you didn’t ask
+            us to. For Instagram and Facebook, Clipiro doesn’t post: it reminds you to, and you post yourself. We
+            can’t send messages, delete your content, or read your direct messages or follower lists.
           </p>
           <ul>
             <li>
@@ -257,12 +262,45 @@ const doc: LegalDoc = {
             </li>
             <li>
               <strong>Instagram &amp; Facebook:</strong> data obtained through the Meta Graph API is used solely to
-              display your own insights, in accordance with Meta&apos;s Platform Terms.
+              display your own insights, in accordance with Meta’s Platform Terms.
             </li>
             <li>
               <strong>Disconnecting:</strong> you can unlink any account at any time from the Social Tracker. Doing so
               revokes our access at the provider and deletes the stored tokens and analytics. Deleting your Clipiro
               account removes all linked-account data automatically.
+            </li>
+          </ul>
+        </>
+      ),
+    },
+    {
+      id: "android-app",
+      title: "The Clipiro Android App",
+      body: (
+        <>
+          <p>
+            The app uses the same account and data as clipiro.com. In addition:
+          </p>
+          <ul>
+            <li>
+              <strong>Notifications:</strong> it stores a push-notification token for your phone, to tell you when
+              clips are ready or a post went out. You can turn these off in the app’s Settings.
+            </li>
+            <li>
+              <strong>Crash reports:</strong> it sends crash reports to Sentry, without your name, email, or IP
+              address.
+            </li>
+            <li>
+              <strong>Usage counts:</strong> it counts a few in-app events per day (opening the app, signing up,
+              starting AutoClip, exporting, posting) without recording who did them.
+            </li>
+            <li>
+              <strong>Clipiro AI:</strong> messages you send to Clipiro AI are processed by Google Gemini to answer
+              you, and are kept for 90 days or until you start a new chat.
+            </li>
+            <li>
+              <strong>Voice cloning:</strong> voice samples you upload for voice cloning are sent to ElevenLabs to
+              create your voice.
             </li>
           </ul>
         </>
@@ -319,7 +357,9 @@ const doc: LegalDoc = {
             </li>
             <li>
               <strong>Deletion:</strong> Request that we delete your account and associated personal data, subject to
-              legal retention obligations.
+              legal retention obligations. If you have made a purchase, we keep your invoices and payment records
+              (including the billing name, email, address, and GSTIN on each invoice) for as long as Indian tax law
+              requires; everything else is deleted. <a href="/delete-account">How to delete your account</a>.
             </li>
             <li>
               <strong>Portability:</strong> Request your data in a structured, machine-readable format.

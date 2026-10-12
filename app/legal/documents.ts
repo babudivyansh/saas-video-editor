@@ -23,7 +23,18 @@ export const LEGAL_DOCS: LegalDocMeta[] = [
     title: "Privacy Policy",
     description: "How we collect, use, and protect your personal information when you use Clipiro.",
     effective: "2026-06-28",
-    updated: "2026-06-28",
+    // 2026-10-12: YouTube posting (youtube.upload) described, the Android app's
+    // data, voice cloning at ElevenLabs, and a link to account deletion.
+    updated: "2026-10-12",
+  },
+  {
+    // A public page Google Play requires: how to delete an account without
+    // the app (mobile Phase 15, docs/mobile/RELEASE.md B2).
+    slug: "/delete-account",
+    title: "Delete Your Account",
+    description: "How to delete your Clipiro account and data, in the app, on the web, or by email.",
+    effective: "2026-10-12",
+    updated: "2026-10-12",
   },
   {
     slug: "/refund",
