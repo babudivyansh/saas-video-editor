@@ -6,7 +6,7 @@ import { INVOICES, setCancelAtPeriodEnd, clonesAsVoices, cloneVoice, deactivateA
 import { addUpload, createFolder, deleteAsset, getAssets, getFolders, updateAsset } from "@mocks/assets";
 import { EDIT_ID, exportAsset, getEdit, getVoices, renderJob, startRender, runAiText, saveEdit, searchStock, stockAsset, transcribe } from "@mocks/editor";
 import { enhancePrompt, startToolJob, toolJob } from "@mocks/jobs";
-import { getHomeSummary, getTools } from "@mocks/home";
+import { assistantReply, clearAssistant, getAssistantHistory, getHomeSummary, getTools } from "@mocks/home";
 import { captionIdeas, createPosts, deletePost, getPost, linkPost, listPosts, retryPost, updatePost } from "@mocks/social";
 import { deleteClips, deleteProjects, getClips, getProject, getProjects, renameProject, retryClip, setClipFavorite } from "@mocks/projects";
 
@@ -44,6 +44,11 @@ export const MOCK_ROUTES: Record<string, Route> = {
   "GET /home": async () => ok(await getHomeSummary()),
   "GET /tools": async () => ok({ tools: await getTools() }),
   "GET /me": async () => ok(await getAccount()),
+  "GET /assistant/messages": async () => ok(await getAssistantHistory()),
+  "DELETE /assistant/messages": async () => {
+    await clearAssistant();
+    return ok({ ok: true });
+  },
   "PATCH /me": async (_url, body) => ok(await updateName(String(body.name ?? ""))),
   "GET /me/activity": async () => ok({ items: await getActivity(), nextCursor: null }),
   "GET /me/settings": async () => ok(await getSettings()),
@@ -308,8 +313,30 @@ function providerOrThrow(accountId: string): Provider {
   return p;
 }
 
+/**
+ * The streaming fetch (expo/fetch, mocked in jest.setup.js to call this):
+ * Clipiro AI's reply as newline-delimited JSON, a line per chunk.
+ */
+async function streamFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const url = new URL(String(input));
+  if (!url.pathname.endsWith("/assistant/messages")) return { ok: false, status: 404, json: async () => ({ error: "Not found" }) } as Response;
+  try {
+    const events = await assistantReply(JSON.parse(String(init?.body ?? "{}")));
+    const lines = events.map((e) => `${JSON.stringify(e)}\n`);
+    const encoder = new TextEncoder();
+    let i = 0;
+    const body = { getReader: () => ({ read: async () => (i < lines.length ? { done: false, value: encoder.encode(lines[i++]) } : { done: true, value: undefined }) }) };
+    return { ok: true, status: 200, body, json: async () => ({}) } as unknown as Response;
+  } catch (e) {
+    if (e instanceof NetworkError) throw new TypeError("Network request failed");
+    if (e instanceof ApiError) return { ok: false, status: e.status, body: null, json: async () => ({ error: e.message, ...("code" in e ? { code: (e as { code: string }).code } : {}) }) } as unknown as Response;
+    throw e;
+  }
+}
+
 export function installMockServer(routes: Record<string, Route> = MOCK_ROUTES) {
   const original = globalThis.fetch;
+  (globalThis as { __streamFetch?: typeof streamFetch }).__streamFetch = streamFetch;
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input));
     const key = `${init?.method ?? "GET"} ${url.pathname.replace(/^\/api\/mobile\/v1/, "")}`;

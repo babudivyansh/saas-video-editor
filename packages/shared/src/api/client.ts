@@ -137,7 +137,68 @@ export function createApiClient(opts: ApiClientOptions) {
     return parsed.data;
   }
 
-  return { request, refresh, signOut };
+  /**
+   * A request whose answer streams newline-delimited JSON (Clipiro AI's
+   * replies): each line is checked against `schema` and handed to `onEvent`
+   * as it arrives. Same auth and single refresh as `request`. `fetch` must be
+   * able to stream (React Native's can't; the app passes expo/fetch).
+   */
+  async function stream<S extends z.ZodType>(
+    path: string,
+    o: { body: unknown; schema: S; fetch: typeof fetch; signal?: AbortSignal },
+    onEvent: (e: z.infer<S>) => void,
+  ): Promise<void> {
+    const go = async (token: string | null) => {
+      const headers: Record<string, string> = { Accept: "application/x-ndjson", "Content-Type": "application/json" };
+      if (token) headers.Authorization = `Bearer ${token}`;
+      if (opts.userAgent) headers["User-Agent"] = opts.userAgent;
+      try {
+        return await o.fetch(`${opts.baseUrl}${API_PREFIX}${path}`, { method: "POST", headers, body: JSON.stringify(o.body), signal: o.signal });
+      } catch (e) {
+        if (o.signal?.aborted) throw e;
+        throw new NetworkError(e);
+      }
+    };
+    let token = (await opts.tokens.get())?.accessToken ?? null;
+    let res = await go(token);
+    if (res.status === 401 && token && (await refresh())) {
+      token = (await opts.tokens.get())?.accessToken ?? null;
+      res = await go(token);
+      if (res.status === 401) await signOut();
+    }
+    if (!res.ok || !res.body) {
+      const json: unknown = await res.json().catch(() => ({}));
+      const err = apiErrorSchema.safeParse(json);
+      throw new ApiError(res.status, err.success ? err.data : { error: res.status >= 500 ? "Something went wrong on our side. Try again." : "Request failed" });
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffered = "";
+    const emit = (line: string) => {
+      if (!line.trim()) return;
+      const parsed = o.schema.safeParse(JSON.parse(line));
+      if (!parsed.success) throw new ResponseShapeError(path, parsed.error.issues);
+      onEvent(parsed.data);
+    };
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffered += decoder.decode(value, { stream: true });
+        let nl: number;
+        while ((nl = buffered.indexOf("\n")) >= 0) {
+          emit(buffered.slice(0, nl));
+          buffered = buffered.slice(nl + 1);
+        }
+      }
+    } catch (e) {
+      if (e instanceof ResponseShapeError || o.signal?.aborted) throw e;
+      throw new NetworkError(e);
+    }
+    emit(buffered + decoder.decode());
+  }
+
+  return { request, stream, refresh, signOut };
 }
 
 export type ApiClient = ReturnType<typeof createApiClient>;

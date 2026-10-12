@@ -2,12 +2,14 @@ import {
   assistantSendRequest,
   homeSummarySchema,
   toolsResponseSchema,
+  type AssistantCard,
   type AssistantMessage,
   type AssistantSendRequest,
+  type AssistantStreamEvent,
   type HomeSummary,
   type Tool,
 } from "@clipiro/shared";
-import { respond } from "./core";
+import { ApiError, respond } from "./core";
 
 // Stand-in for the Home tab's API (/api/mobile/v1/me/summary, /tools,
 // /assistant). Responses are parsed with the shared schemas, so a shape drift
@@ -71,45 +73,98 @@ export async function getTools(): Promise<Tool[]> {
   return toolsResponseSchema.parse({ tools: s === "empty" ? [] : TOOLS }).tools;
 }
 
-// The conversation drawn in design/screens/BN-Assistant.html.
-const HISTORY: AssistantMessage[] = [
-  { id: "m1", role: "user", text: "Find the best hooks in my Ep. 42 podcast and make Shorts from them", createdAt: "2026-10-01T18:42:00+05:30" },
+// ── Clipiro AI (GET/POST/DELETE /assistant/messages) ─────────────────────
+// Replies are picked by keyword and carry the same cards the server's tools
+// make, from the project and asset mocks. The real stream is newline-
+// delimited JSON (lib/assistant); assistantReply returns its events.
+
+const INITIAL_HISTORY: AssistantMessage[] = [
+  { id: "m1", role: "user", text: "Find the best hooks in my Ep. 42 podcast", createdAt: "2026-10-01T18:42:00+05:30" },
   {
     id: "m2",
     role: "assistant",
-    text: "I found 12 moments in **Founders Pod · Ep. 42**. These four have the strongest hooks for Shorts:",
+    text: "These four from **Founders Pod · Ep. 42** have the strongest hooks for Shorts.",
     createdAt: "2026-10-01T18:42:10+05:30",
-    clips: [
-      { id: "clp_1", score: 92, durationSec: 41, thumbnailUrl: "asset:creator-smile" },
-      { id: "clp_2", score: 88, durationSec: 28, thumbnailUrl: "asset:founder-portrait" },
-      { id: "clp_3", score: 81, durationSec: 35, thumbnailUrl: "asset:creator-violet" },
-      { id: "clp_5", score: 69, durationSec: 44, thumbnailUrl: "asset:creator-golden" },
-    ],
-    checklist: ["Captions: Bold Impact, word by word", "Reframed to 9:16, speaker tracked", "Uses ~59 Clip Minutes"],
-    actions: [
-      { id: "review-clips", label: "Review clips" },
-      { id: "change-style", label: "Change style" },
+    cards: [
+      {
+        type: "hooks",
+        projectId: "founders-pod-ep-42",
+        projectTitle: "Founders Pod · Ep. 42",
+        clips: [
+          { id: "clp_1", title: "Nobody tells you this part", score: 92, durationSec: 41, thumbnailUrl: "asset:creator-smile" },
+          { id: "clp_2", title: "We almost shut down twice", score: 88, durationSec: 28, thumbnailUrl: "asset:founder-portrait" },
+        ],
+      },
     ],
   },
-  { id: "m3", role: "user", text: "Can you also write a caption for the first one?", createdAt: "2026-10-01T18:43:00+05:30" },
 ];
+let HISTORY = INITIAL_HISTORY;
+let USED = 0;
+const DAILY = 20;
+let seq = 0;
 
-export const ASSISTANT_SUGGESTIONS = ["Write 3 hooks for my next Short", "Best time to post on YouTube?", "Write a caption for Reels"];
-
-export async function getAssistantHistory(): Promise<AssistantMessage[]> {
-  const s = await respond("assistant");
-  return s === "empty" ? [] : HISTORY;
+export function resetAssistantMocks() {
+  HISTORY = INITIAL_HISTORY;
+  USED = 0;
+}
+/** Tests: use up today's messages. */
+export function useUpAssistant() {
+  USED = DAILY;
 }
 
-let replyCount = 0;
-export async function sendAssistantMessage(input: AssistantSendRequest): Promise<AssistantMessage> {
+export async function getAssistantHistory(): Promise<{ messages: AssistantMessage[]; remaining: number; limit: number }> {
+  const s = await respond("assistant");
+  return { messages: s === "empty" ? [] : HISTORY, remaining: Math.max(0, DAILY - USED), limit: DAILY };
+}
+
+export async function clearAssistant() {
+  HISTORY = [];
+}
+
+/** POST /assistant/messages: the events the server would stream. */
+export async function assistantReply(input: AssistantSendRequest): Promise<AssistantStreamEvent[]> {
   const { text } = assistantSendRequest.parse(input);
   await respond("assistant-send");
-  replyCount += 1;
-  return {
-    id: `reply_${replyCount}`,
-    role: "assistant",
-    text: `Here's a first pass at “${text.slice(0, 60)}”. This is a preview reply: Clipiro AI isn't connected yet.`,
-    createdAt: new Date().toISOString(),
-  };
+  if (USED >= DAILY) throw Object.assign(new ApiError(`You’ve sent today’s ${DAILY} messages to Clipiro AI. It resets in 24 hours.`, 429), { code: "assistant_limit" });
+  USED += 1;
+  const now = new Date().toISOString();
+  const question: AssistantMessage = { id: `q${++seq}`, role: "user", text, createdAt: now };
+  HISTORY = [...HISTORY, question];
+  const q = text.toLowerCase();
+  let reply: { text: string; status?: string; card?: AssistantCard };
+  if (q.includes("hook")) {
+    reply = {
+      status: "Finding the strongest hooks…",
+      text: "Your strongest hook is **Nobody tells you this part**.",
+      card: {
+        type: "hooks",
+        projectId: "founders-pod-ep-42",
+        projectTitle: "Founders Pod · Ep. 42",
+        clips: [
+          { id: "clp_1", title: "Nobody tells you this part", score: 92, durationSec: 41, thumbnailUrl: "asset:creator-smile" },
+          { id: "clp_2", title: "We almost shut down twice", score: 88, durationSec: 28, thumbnailUrl: "asset:founder-portrait" },
+        ],
+      },
+    };
+  } else if (q.includes("caption")) {
+    reply = { status: "Writing the caption…", text: "Here’s one you can post as it is.", card: { type: "caption", clipId: "clp_1", caption: "Nobody tells you this part of building a company.", hashtags: ["#founders", "#startup"] } };
+  } else if (q.includes("time") || q.includes("when")) {
+    reply = { status: "Checking when your audience is online…", text: "Your audience is most active Thursday afternoons.", card: { type: "best_time", provider: "youtube", at: "2026-10-15T10:30:00.000Z", label: "Thu around 4 PM", source: "audience" } };
+  } else if (q.includes("autoclip") || q.includes("make clips")) {
+    reply = { status: "Finding the video…", text: "Ready when you are.", card: { type: "autoclip", assetId: "a1", name: "Founders Pod · Ep. 42.mp4", durationSec: 3520, estimatedMinutes: 59 } };
+  } else {
+    reply = { text: "I can find hooks in a project, write captions, suggest a time to post, or set up AutoClip on a video." };
+  }
+  const answer: AssistantMessage = { id: `a${seq}`, role: "assistant", text: reply.text, createdAt: now, ...(reply.card ? { cards: [reply.card] } : {}) };
+  HISTORY = [...HISTORY, answer];
+  // The text arrives in two pieces, as a real stream would.
+  const half = Math.ceil(reply.text.length / 2);
+  return [
+    { type: "user", message: question },
+    ...(reply.status ? [{ type: "status" as const, label: reply.status }] : []),
+    ...(reply.card ? [{ type: "card" as const, card: reply.card }] : []),
+    { type: "text", delta: reply.text.slice(0, half) },
+    { type: "text", delta: reply.text.slice(half) },
+    { type: "done", message: answer, remaining: DAILY - USED },
+  ];
 }

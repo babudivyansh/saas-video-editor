@@ -28,10 +28,11 @@ const keep = (c: Clip, f: Filter) => f === "all" || (f === "ready" ? c.status ==
 export function ProjectScreen() {
   const pad = useScreenPadding();
   const toast = useToast();
-  const { projectId } = useLocalSearchParams<{ projectId: string }>();
+  // `clip`: open that clip's sheet (a link from Clipiro AI's hooks card).
+  const { projectId, clip: clipParam } = useLocalSearchParams<{ projectId: string; clip?: string }>();
   const project = useProject(projectId ?? "");
   const [filter, setFilter] = useState<Filter>("all");
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(typeof clipParam === "string" ? clipParam : null);
 
   const back = () => (router.canGoBack() ? router.back() : router.replace("/projects"));
   const [saving, setSaving] = useState<string | null>(null);

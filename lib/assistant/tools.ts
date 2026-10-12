@@ -50,6 +50,12 @@ function transcriptText(json: unknown, maxWords: number): string {
     .join(" ");
 }
 
+const FILLER = new Set(["my", "the", "a", "an", "of", "in", "on", "for", "and", "project", "projects", "video", "videos", "clip", "clips", "podcast", "episode", "latest", "last", "new"]);
+/** The words worth searching titles for ("my demo project" → ["demo"]). */
+export function queryWords(q: string): string[] {
+  return [...new Set(q.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 2 && !FILLER.has(w)))].slice(0, 6);
+}
+
 /** The next time it's `day` (0 = Monday) at `hour` in the time zone, as an ISO string. */
 export function nextAt(day: number, hour: number, tz: string, now: Date): string {
   const local = new Date(now.toLocaleString("en-US", { timeZone: tz }));
@@ -81,15 +87,23 @@ export const TOOLS: Record<string, Tool> = {
       },
     },
     run: async (ctx, args) => {
-      const query = str(args.query, 80);
-      const projects = await prisma.project.findMany({
-        where: { userId: ctx.userId, ...(query ? { title: { contains: query, mode: "insensitive" } } : {}) },
-        orderBy: { createdAt: "desc" },
-        take: 8,
-        select: { id: true, title: true, status: true, productType: true, createdAt: true, _count: { select: { clips: { where: { status: "ready" } } } } },
-      });
+      // People don't say a title exactly ("my demo project" for "demo-90s-480p.mp4"):
+      // match any meaningful word, and fall back to the latest so the model can ask.
+      const words = queryWords(str(args.query, 80));
+      const select = { id: true, title: true, status: true, productType: true, createdAt: true, _count: { select: { clips: { where: { status: "ready" as const } } } } };
+      const find = (byWords: boolean) =>
+        prisma.project.findMany({
+          where: { userId: ctx.userId, ...(byWords ? { OR: words.map((w) => ({ title: { contains: w, mode: "insensitive" as const } })) } : {}) },
+          orderBy: { createdAt: "desc" },
+          take: 8,
+          select,
+        });
+      let projects = words.length ? await find(true) : [];
+      const matched = projects.length > 0;
+      if (!matched) projects = await find(false);
       return {
         result: {
+          ...(words.length && !matched ? { note: "Nothing matched those words; these are the latest projects. Pick the likely one or ask which." } : {}),
           projects: projects.map((p) => ({ id: p.id, title: p.title, kind: p.productType === "editor" ? "edit" : "autoclip", status: p.status, readyClips: p._count.clips, created: p.createdAt.toISOString().slice(0, 10) })),
         },
       };

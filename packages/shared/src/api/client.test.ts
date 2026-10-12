@@ -90,3 +90,57 @@ describe("api client", () => {
     expect((calls[0]![1].headers as Record<string, string>).Authorization).toBeUndefined();
   });
 });
+
+describe("api client streams", () => {
+  const ev = z.object({ type: z.string(), n: z.number().optional() });
+  const NL = "\n";
+  /** A body that arrives in the given chunks. */
+  const chunked = (parts: string[], status = 200) =>
+    new Response(
+      new ReadableStream({
+        start(c) {
+          for (const p of parts) c.enqueue(new TextEncoder().encode(p));
+          c.close();
+        },
+      }),
+      { status },
+    );
+  const asFetch = (f: unknown) => f as typeof globalThis.fetch;
+
+  it("hands over each line as it arrives, even split across chunks", async () => {
+    const fetch = vi.fn(async () => chunked([`{"type":"text","n":1}${NL}{"ty`, `pe":"text","n":2}${NL}`, `{"type":"done"}`]));
+    const api = createApiClient({ baseUrl: "https://clipiro.test", tokens: memoryStore(pair(2)) });
+    const got: unknown[] = [];
+    await api.stream("/assistant/messages", { body: { text: "hi" }, schema: ev, fetch: asFetch(fetch) }, (e) => got.push(e));
+    expect(got).toEqual([{ type: "text", n: 1 }, { type: "text", n: 2 }, { type: "done" }]);
+    expect((fetch.mock.calls[0] as unknown as [string, RequestInit])[1].headers).toMatchObject({ Authorization: "Bearer a2" });
+  });
+
+  it("refreshes once on a 401, then streams", async () => {
+    const tokens = memoryStore(pair(1));
+    const srv = server();
+    const fetch = vi.fn(async (_url: string, init: RequestInit) =>
+      (init.headers as Record<string, string>).Authorization === "Bearer a2" ? chunked([`{"type":"done"}${NL}`]) : json(401, { error: "Unauthorized" }),
+    );
+    const api = createApiClient({ baseUrl: "https://clipiro.test", tokens, fetch: srv.fetch });
+    const got: unknown[] = [];
+    await api.stream("/assistant/messages", { body: {}, schema: ev, fetch: asFetch(fetch) }, (e) => got.push(e));
+    expect(got).toEqual([{ type: "done" }]);
+    expect(tokens.current?.accessToken).toBe("a2");
+  });
+
+  it("throws the server's error before any stream", async () => {
+    const fetch = vi.fn(async () => json(429, { error: "You’ve sent today’s 20 messages.", code: "assistant_limit" }));
+    const api = createApiClient({ baseUrl: "https://clipiro.test", tokens: memoryStore(pair(2)) });
+    const err = await api.stream("/assistant/messages", { body: {}, schema: ev, fetch: asFetch(fetch) }, () => {}).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).code).toBe("assistant_limit");
+  });
+
+  it("refuses a line that doesn't fit the schema", async () => {
+    const fetch = vi.fn(async () => chunked([`{"nope":true}${NL}`]));
+    const api = createApiClient({ baseUrl: "https://clipiro.test", tokens: memoryStore(pair(2)) });
+    await expect(api.stream("/x", { body: {}, schema: ev, fetch: asFetch(fetch) }, () => {})).rejects.toBeInstanceOf(ResponseShapeError);
+  });
+});
+

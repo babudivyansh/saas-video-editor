@@ -104,8 +104,8 @@ export function ComposerScreen() {
   const ytAccount = postable.find((a) => a.provider === "youtube" && a.health !== "reconnect");
 
   const [title, setTitle] = useState("");
-  const [caption, setCaption] = useState("");
-  const [tags, setTags] = useState<string[]>([]);
+  const [caption, setCaption] = useState(seed.caption ?? "");
+  const [tags, setTags] = useState<string[]>(seed.hashtags ?? []);
   const [privacy, setPrivacy] = useState<PostPrivacy>("public");
   const [when, setWhen] = useState<When>(isEdit ? "schedule" : seed.date ? "schedule" : "now");
   const [date, setDate] = useState<Date>(() => (seed.date ? new Date(seed.date) : nextSlot((new Date().getDay() + 6) % 7, 18)));
