@@ -101,9 +101,23 @@ export function withMobileAuth<Args extends unknown[]>(handler: (req: NextReques
   };
 }
 
+/**
+ * A web message as the app may show it. Google Play doesn't let the app send
+ * people to buy anything (docs/mobile/BILLING.md), so the web's "Upgrade …"
+ * nudges (the free tools' daily caps say "Upgrade for 50 a day, or try again
+ * tomorrow.") come out; what's left still says what happened.
+ */
+export function appSafeMessage(msg: string): string {
+  const out = msg
+    .replace(/\s*Upgrade for [^,.]+, or try again tomorrow\./gi, " Try again tomorrow.")
+    .replace(/\s*(Upgrade|See plans|Choose a plan)[^.]*\./gi, "")
+    .trim();
+  return out || "That isn’t available on your plan.";
+}
+
 /** A web route's error answer, as a mobile error. */
 export function webError(result: { status: number; json: Record<string, unknown> }) {
-  const msg = typeof result.json.error === "string" ? result.json.error : "Something went wrong";
+  const msg = appSafeMessage(typeof result.json.error === "string" ? result.json.error : "Something went wrong");
   // The web's machine-readable code (subscription_required, rate_limited…) lets the app react, not just show text.
   return mobileError(result.status, msg, typeof result.json.code === "string" ? { code: result.json.code } : {});
 }
