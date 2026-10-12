@@ -2013,6 +2013,8 @@ model DeviceToken {
   sessionId  String?
   deviceName String?
   appVersion String?
+  /// The phone's push switches (Settings → Notifications), e.g. { "renderFinished": false }. Null = all on.
+  pushPrefs  Json?
   createdAt  DateTime @default(now())
   lastSeenAt DateTime @default(now())
 

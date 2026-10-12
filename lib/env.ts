@@ -145,6 +145,9 @@ const schema = z.object({
   // Android OAuth client: also accepted as an ID-token audience by
   // /api/mobile/v1/auth/google (the web client ID is the usual one).
   GOOGLE_ANDROID_CLIENT_ID: z.string().optional(),
+  // Expo push service (mobile app notifications). Optional: only needed once
+  // "enhanced push security" is turned on for the Expo project.
+  EXPO_ACCESS_TOKEN: z.string().optional(),
   EMAIL_HOST: z.string().optional(),
   EMAIL_PORT: z.string().optional(),
   EMAIL_USER: z.string().optional(),

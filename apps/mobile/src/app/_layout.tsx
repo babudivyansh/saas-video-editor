@@ -17,6 +17,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ToastProvider } from "@/components";
 import { useAutoClipUpload } from "@/features/create/uploadStore";
+import { configurePushPresentation, openTappedPushes, registerForPush, usePush } from "@/lib/push";
 import { useSession } from "@/state/session";
 import { colors } from "@/theme";
 
@@ -43,7 +44,17 @@ export default function RootLayout() {
   // straight into the tabs and never sees onboarding.
   useEffect(() => {
     useSession.getState().hydrate();
+    configurePushPresentation();
+    void usePush.getState().load();
   }, []);
+
+  // Signed in: keep this phone's push token current with the server (without
+  // asking — the prompt comes when a run starts), and open tapped pushes.
+  useEffect(() => {
+    if (!ready || !signedIn) return;
+    void registerForPush({ ask: false });
+    return openTappedPushes();
+  }, [ready, signedIn]);
 
   // However the session ended (log out, or a refresh the server refused),
   // nothing cached for that account may show to the next one.

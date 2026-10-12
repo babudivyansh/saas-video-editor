@@ -4,18 +4,19 @@ import { mobileJson, parseBody, withMobileAuth } from "@/lib/mobile/http";
 import { prisma } from "@/lib/prisma";
 import { withRateLimit } from "@/lib/with-rate-limit";
 
-// Phones registered for push notifications (sending starts in Phase 7).
+// Phones registered for push notifications (lib/push.ts sends to them).
 
-// POST /api/mobile/v1/devices { token, provider, deviceName?, appVersion? } → { ok }.
-// Call after sign-in and whenever the push token changes. A token is one
+// POST /api/mobile/v1/devices { token, provider, deviceName?, appVersion?, prefs? } → { ok }.
+// Call after sign-in, whenever the push token changes, and when the phone's
+// push switches change (prefs). A token is one
 // phone: if another account registered it (the phone changed hands), it
 // moves to this one. Tied to this session, so logging out removes it.
 export const POST = withRateLimit(
   withMobileAuth(async (req: NextRequest, auth) => {
     const body = await parseBody(req, registerDeviceRequest);
     if (!body.ok) return body.res;
-    const { token, provider, deviceName, appVersion } = body.data;
-    const data = { userId: auth.userId, provider, sessionId: auth.sessionId, deviceName: deviceName ?? null, appVersion: appVersion ?? null, lastSeenAt: new Date() };
+    const { token, provider, deviceName, appVersion, prefs } = body.data;
+    const data = { userId: auth.userId, provider, sessionId: auth.sessionId, deviceName: deviceName ?? null, appVersion: appVersion ?? null, lastSeenAt: new Date(), ...(prefs ? { pushPrefs: prefs } : {}) };
     await prisma.deviceToken.upsert({ where: { token }, create: { token, ...data }, update: data });
     return mobileJson({ ok: true });
   }),

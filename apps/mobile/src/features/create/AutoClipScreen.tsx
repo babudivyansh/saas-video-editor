@@ -26,6 +26,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BottomSheet, Button, CreditsPill, EmptyState, Header, Icon, IconButton, OptionList, ProgressBar, SkeletonCard, StatusBarScrim, Stepper, useToast } from "@/components";
 import { jobs } from "@/lib/api";
 import { apiErrorMessage } from "@/lib/errors";
+import { registerForPush } from "@/lib/push";
 import { sample } from "@/lib/images";
 import { colors, layout, radius, text, type } from "@/theme";
 import { AdvancedSheet, AssetSheet, CaptionSheet, ClipLengthSheet, LinkSheet, RatioSheet, caps, highlightColor } from "./AutoClipSheets";
@@ -39,8 +40,6 @@ type Mime = (typeof AUTOCLIP_FILE_TYPES)[number];
 const MIME_BY_EXT: Record<string, Mime> = { mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime", webm: "video/webm" };
 const mimeOf = (name: string, given?: string | null) => given || MIME_BY_EXT[name.split(".").pop()?.toLowerCase() ?? ""] || "";
 
-/** An AutoClip job id is the project's id behind "run_". */
-const projectOf = (jobId: string) => jobId.replace(/^run_/, "");
 
 /** A run the server refused for minutes, as the sheet shows it; `retry` re-sends it paying the gap in credits. */
 type Shortfall = AutoClipRefusal & { retry: (() => Promise<void>) | null };
@@ -114,7 +113,9 @@ export function AutoClipScreen() {
     toast("AutoClip started. We’ll let you know when your clips are ready.", "success");
     useAutoClipDraft.getState().reset();
     void qc.invalidateQueries({ queryKey: autoClipKeys.context });
-    router.push(`/projects/${projectOf(jobId)}` as Href);
+    router.push(`/create/run/${jobId}` as Href);
+    // The moment a push is worth asking for.
+    void registerForPush({ ask: true });
   };
 
   /** Starts a run from a video the server can already reach (Assets or a link). */

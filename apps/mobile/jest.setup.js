@@ -52,3 +52,16 @@ jest.mock("expo-file-system", () => {
 });
 
 jest.mock("expo-image-picker", () => ({ launchImageLibraryAsync: jest.fn(async () => ({ canceled: true, assets: null })) }));
+
+// expo-notifications (native). Tests set the permission answers they need.
+jest.mock("expo-notifications", () => ({
+  AndroidImportance: { HIGH: 4 },
+  setNotificationHandler: jest.fn(),
+  setNotificationChannelAsync: jest.fn(async () => null),
+  getPermissionsAsync: jest.fn(async () => ({ status: "undetermined", canAskAgain: true })),
+  requestPermissionsAsync: jest.fn(async () => ({ status: "granted", canAskAgain: true })),
+  getExpoPushTokenAsync: jest.fn(async () => ({ type: "expo", data: "ExponentPushToken[test-phone]" })),
+  getLastNotificationResponse: jest.fn(() => null),
+  clearLastNotificationResponse: jest.fn(),
+  addNotificationResponseReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
+}));

@@ -22,6 +22,7 @@ const routes = {
   "create/ai-media": AIMediaScreen,
   "you/credits": () => null,
   "projects/[projectId]": () => null,
+  "create/run/[jobId]": () => null,
   "home/recommended-tools": () => null,
   "projects/assets/ai-assets": () => null,
 };
@@ -90,7 +91,7 @@ describe("AutoClip", () => {
     // The server measures a link when the run starts.
     expect(await screen.findByText("Length unknown · youtu.be")).toBeOnTheScreen();
     await act(async () => press("Generate clips"));
-    await waitFor(() => expect(r.getPathname()).toBe("/projects/p1"));
+    await waitFor(() => expect(r.getPathname()).toBe("/create/run/run_p1"));
     expect(server.to("POST", "/jobs")[0]!.body).toMatchObject({ type: "autoclip", source: { kind: "link", url: "https://youtu.be/abc123" }, allowCreditOverflow: false });
   });
 
@@ -100,7 +101,7 @@ describe("AutoClip", () => {
     fireEvent.press(screen.getByRole("button", { name: /^Founders Pod · Ep. 42/ }));
     expect(screen.getByText("~59 min")).toBeOnTheScreen();
     await act(async () => press("Generate clips"));
-    await waitFor(() => expect(r.getPathname()).toBe("/projects/p1"));
+    await waitFor(() => expect(r.getPathname()).toBe("/create/run/run_p1"));
     expect(server.to("POST", "/jobs")[0]!.body).toMatchObject({ source: { kind: "asset", assetId: "ast_1" }, settings: { clipCount: 8, aspectRatio: "9:16" } });
     expect(useAutoClipDraft.getState().source).toBeNull();
   });
@@ -115,7 +116,7 @@ describe("AutoClip", () => {
     expect(server.to("POST", "/jobs")).toHaveLength(0);
     // 29 minutes short, 3 minutes per credit.
     await act(async () => press("Use 10 AI credits for the rest"));
-    await waitFor(() => expect(r.getPathname()).toBe("/projects/p1"));
+    await waitFor(() => expect(r.getPathname()).toBe("/create/run/run_p1"));
     expect(server.to("POST", "/jobs")[0]!.body).toMatchObject({ allowCreditOverflow: true });
   });
 
@@ -166,7 +167,7 @@ describe("AutoClip", () => {
     expect(await screen.findByText("talk.mov")).toBeOnTheScreen();
     expect(screen.getByText("1 min / video min")).toBeOnTheScreen();
     await act(async () => press("Generate clips"));
-    await waitFor(() => expect(r.getPathname()).toBe("/projects/p1"));
+    await waitFor(() => expect(r.getPathname()).toBe("/create/run/run_p1"));
     expect(server.to("POST", "/uploads")[0]!.body).toEqual({ name: "talk.mov", mimeType: "video/quicktime", sizeBytes: 3 * MB });
     expect(server.to("POST", "/jobs")[0]!.body).toMatchObject({ source: { kind: "asset", assetId: "ast_up" } });
   });
