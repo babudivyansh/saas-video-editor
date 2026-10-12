@@ -13,6 +13,10 @@ const TOOL_TYPES: Record<string, JobType> = {
   voiceover: "voiceover",
   "enhance-speech": "enhance-speech",
   "vocal-remover": "vocal-remover",
+  "voice-changer": "voice-changer",
+  "background-remover": "background-remover",
+  "face-swap": "face-swap",
+  "subtitle-remover": "subtitle-remover",
 };
 
 export const jobIdFor = { generation: (id: string) => `gen_${id}`, run: (id: string) => `run_${id}`, export: (id: string) => `exp_${id}` };

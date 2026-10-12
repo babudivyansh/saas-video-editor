@@ -9,9 +9,23 @@ export const assetKindSchema = z.enum(["video", "audio", "image"]);
 export type AssetKind = z.infer<typeof assetKindSchema>;
 
 /** Where an asset came from. The web's sourceFeature, plus the AI tools that save to Assets from Phase 5. */
-export const assetSourceSchema = z.enum(["upload", "autoclip", "url-import", "editor", "stock", "image-generator", "voiceover", "enhance-speech", "vocal-remover"]);
+export const assetSourceSchema = z.enum([
+  "upload",
+  "autoclip",
+  "url-import",
+  "editor",
+  "stock",
+  "image-generator",
+  "voiceover",
+  "enhance-speech",
+  "vocal-remover",
+  "voice-changer",
+  "background-remover",
+  "face-swap",
+  "subtitle-remover",
+]);
 export type AssetSource = z.infer<typeof assetSourceSchema>;
-export const AI_SOURCES: readonly AssetSource[] = ["image-generator", "voiceover", "enhance-speech", "vocal-remover"];
+export const AI_SOURCES: readonly AssetSource[] = ["image-generator", "voiceover", "enhance-speech", "vocal-remover", "voice-changer", "background-remover", "face-swap", "subtitle-remover"];
 
 export const assetSchema = z.object({
   id: z.string(),

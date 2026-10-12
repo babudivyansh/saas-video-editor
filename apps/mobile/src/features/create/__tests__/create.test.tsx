@@ -2,6 +2,7 @@ import { act, fireEvent, renderRouter, screen, waitFor } from "expo-router/testi
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { getAssets, resetAssetMocks } from "@mocks/assets";
+import { lastToolJob } from "@mocks/jobs";
 import { ApiError, resetMockScenarios, setMockDelay, setMockScenario } from "@mocks/core";
 import { installMockServer, MOCK_ROUTES } from "@/test/mockServer";
 import { accountFixture, installFakeApi, videoAssetFixture } from "@/test/fakeApi";
@@ -9,6 +10,7 @@ import { makeWrapper } from "@/test/providers";
 import { AIMediaScreen } from "../AIMediaScreen";
 import { AutoClipScreen } from "../AutoClipScreen";
 import { CreateHubScreen } from "../CreateHubScreen";
+import { ToolScreen } from "../ToolScreen";
 import { useAutoClipDraft } from "../draft";
 import { setToolUploadIO } from "../toolUpload";
 import { setUploadIO, useAutoClipUpload } from "../uploadStore";
@@ -23,6 +25,7 @@ const routes = {
   "create/index": CreateHubScreen,
   "create/autoclip": AutoClipScreen,
   "create/ai-media": AIMediaScreen,
+  "create/tool/[tool]": ToolScreen,
   "you/credits": () => null,
   "projects/[projectId]": () => null,
   "create/run/[jobId]": () => null,
@@ -50,10 +53,10 @@ describe("Create hub", () => {
     expect(await screen.findByText("Paste a link")).toBeOnTheScreen();
   });
 
-  it("says 'coming soon' for tools without an app screen", async () => {
-    open("/create");
+  it("opens the file tools on their own screen", async () => {
+    const r = open("/create");
     press("Face swap, Pro");
-    expect(await screen.findByText(/Coming to the app soon/)).toBeOnTheScreen();
+    await waitFor(() => expect(r.getPathname()).toBe("/create/tool/face-swap"));
   });
 });
 
@@ -336,5 +339,74 @@ describe("AI Media", () => {
     expect(screen.getByText("1 credit")).toBeOnTheScreen();
     press("Remove vocals");
     expect(await screen.findByText("Instrumental ready. Saved to Assets.")).toBeOnTheScreen();
+  });
+});
+
+describe("File tools", () => {
+  beforeEach(() => {
+    jest.useRealTimers();
+    resetAssetMocks();
+  });
+  const chooseFromAssets = async (name: RegExp, label = /^C/) => {
+    fireEvent.press(await screen.findByRole("button", { name: label }));
+    fireEvent.press(await screen.findByRole("radio", { name }));
+  };
+
+  it("background remover: a photo from the phone, uploaded to Assets, cut out for 1 credit", async () => {
+    setToolUploadIO({ readPart: async () => "file:///cache/part", putPart: async (_p, _u, onBytes) => (onBytes(1), { status: 200, etag: '"e1"' }), fileExists: () => true, load: async () => null, save: async () => {} });
+    pickDocument.mockResolvedValue(picked("me.png", MB, "image/png"));
+    open("/create/tool/background-remover");
+    fireEvent.press(await screen.findByRole("button", { name: /^Choose an image, up to 10 MB/ }));
+    press("From this phone");
+    expect(await screen.findByText("1 MB")).toBeOnTheScreen();
+    expect(screen.getByText("1 credit")).toBeOnTheScreen();
+    press("Background remover");
+    expect(await screen.findByText("Background removed. Saved to Assets.")).toBeOnTheScreen();
+    expect(await screen.findByLabelText(/^Generated image: photo-no-bg-/)).toBeOnTheScreen();
+    expect(lastToolJob()).toMatchObject({ type: "background-remover", assetId: expect.stringMatching(/^up/) });
+  });
+
+  it("face swap: Pro and up; puts the face onto the other photo", async () => {
+    setMockScenario("account", "empty"); // a Free account
+    const { unmount } = open("/create/tool/face-swap");
+    expect(await screen.findByText("Face swap is on Pro and up")).toBeOnTheScreen();
+    unmount();
+    resetMockScenarios();
+    open("/create/tool/face-swap");
+    await screen.findByLabelText("1,171 AI credits left");
+    await chooseFromAssets(/^Guest portrait.png/, /^Face: choose an image/);
+    await chooseFromAssets(/^Summit.jpg/, /^Photo to put it on: choose an image/);
+    expect(screen.getByText("2 credits")).toBeOnTheScreen();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Face swap" })).toBeEnabled());
+    press("Face swap");
+    expect(await screen.findByText("Face swapped. Saved to Assets.")).toBeOnTheScreen();
+    expect(lastToolJob()).toMatchObject({ type: "face-swap", faceAssetId: "a6", targetAssetId: "a4" });
+  });
+
+  it("voice changer: priced by length, in the chosen voice, with its settings", async () => {
+    open("/create/tool/voice-changer");
+    await chooseFromAssets(/^Intro sting — neon/);
+    expect(await screen.findByText("0:06 · 655 KB · in Assets")).toBeOnTheScreen();
+    expect(screen.getByText("1 credit")).toBeOnTheScreen();
+    fireEvent.press(await screen.findByRole("button", { name: /^Voice: Brian/ }));
+    fireEvent.press(screen.getByRole("radio", { name: /^Aria/ }));
+    fireEvent(screen.getByRole("switch", { name: "Remove background noise" }), "valueChange", true);
+    press("Voice changer");
+    expect(await screen.findByText("New voice ready. Saved to Assets.")).toBeOnTheScreen();
+    expect(lastToolJob()).toMatchObject({ type: "voice-changer", assetId: "a5", voiceId: "aria", removeNoise: true, speed: 1 });
+  });
+
+  it("subtitle remover: a video from Assets, priced by its length", async () => {
+    open("/create/tool/subtitle-remover");
+    await chooseFromAssets(/^Intro clip.mp4/);
+    expect(await screen.findByText("5 credits")).toBeOnTheScreen(); // 41 s: 1 credit per started 10 s
+    press("Subtitle remover");
+    expect(await screen.findByText("Captions removed. Saved to Assets.")).toBeOnTheScreen();
+    expect(await screen.findByText(/^subtitle-removed-/)).toBeOnTheScreen();
+  });
+
+  it("says when a tool isn't in the app", async () => {
+    open("/create/tool/youtube-downloader");
+    expect(await screen.findByText("This tool isn’t in the app")).toBeOnTheScreen();
   });
 });

@@ -18,8 +18,6 @@ export const TOOL_ICONS: Record<string, IconName> = {
   "image-generator": "image",
   voiceover: "volume",
   brainstormer: "bulb",
-  "youtube-downloader": "download",
-  "instagram-downloader": "download",
   "video-compressor": "projects",
   "audio-balancer": "waveform",
   "mp3-converter": "music",
@@ -45,6 +43,8 @@ export const TOOL_PHOTOS: Record<string, "travel-summit" | "podcast-mic" | "clap
 };
 
 const aiMedia = (tab: string): Href => ({ pathname: "/create/ai-media", params: { tab } });
+/** The file tools' screen (src/app/(tabs)/create/tool/[tool].tsx). */
+const fileTool = (tool: string) => `/create/tool/${tool}` as Href;
 const ROUTES: Record<string, Href> = {
   autoclip: "/create/autoclip",
   "cut-and-crop": "/editor",
@@ -52,6 +52,10 @@ const ROUTES: Record<string, Href> = {
   voiceover: aiMedia("voiceover"),
   "enhance-speech": aiMedia("enhance"),
   "vocal-remover": aiMedia("vocal"),
+  "voice-changer": fileTool("voice-changer"),
+  "background-remover": fileTool("background-remover"),
+  "face-swap": fileTool("face-swap"),
+  "subtitle-remover": fileTool("subtitle-remover"),
 };
 
 export const hasScreen = (id: string) => id in ROUTES;

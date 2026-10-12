@@ -237,6 +237,28 @@ export const AUDIO_TOOLS = {
 export type AudioToolId = keyof typeof AUDIO_TOOLS;
 
 export const voiceoverCredits = (chars: number) => Math.max(1, Math.ceil(chars / 500));
+/**
+ * The file-in, file-out AI tools (Phase 10.3): what each takes, its limits on
+ * the phone and its plan. Prices are the web routes' own (pinned by
+ * lib/mobile-create-schema.test.ts). The server reads a tool's input from
+ * Assets into memory, so the phone caps any input at 100 MB (the Subtitle
+ * remover takes 500 MB on the web).
+ */
+export const FILE_TOOLS = {
+  "voice-changer": { name: "Voice changer", accepts: "audio", maxBytes: 50 * MB, maxSec: 90, minPlan: "free", output: "Your recording in the new voice (MP3)" },
+  "background-remover": { name: "Background remover", accepts: "image", maxBytes: 10 * MB, maxSec: null, minPlan: "free", output: "The image with a see-through background (PNG)" },
+  "face-swap": { name: "Face swap", accepts: "image", maxBytes: 10 * MB, maxSec: null, minPlan: "pro", output: "The photo with the new face (JPG)" },
+  "subtitle-remover": { name: "Subtitle remover", accepts: "video", maxBytes: 100 * MB, maxSec: null, minPlan: "pro", output: "The video without its burned-in captions (MP4)" },
+} as const satisfies Record<string, { name: string; accepts: "audio" | "image" | "video"; maxBytes: number; maxSec: number | null; minPlan: PlanTier; output: string }>;
+export type FileToolId = keyof typeof FILE_TOOLS;
+
+/** A file tool's price: the voice changer by the minute (as Enhance speech), the subtitle remover by length, the image tools flat. */
+export function fileToolCredits(tool: FileToolId, sec: number): number {
+  if (tool === "voice-changer") return audioToolCredits("enhance", sec);
+  if (tool === "subtitle-remover") return Math.max(2, Math.min(20, Math.ceil(sec / 10)));
+  return tool === "face-swap" ? 2 : 1;
+}
+
 export function audioToolCredits(tool: AudioToolId, sec: number): number {
   const t = AUDIO_TOOLS[tool];
   return Math.max(1, Math.ceil((sec / t.perSec) * t.creditsPer));

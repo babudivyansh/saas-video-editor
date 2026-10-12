@@ -164,5 +164,8 @@ describe("plans and tools", () => {
     expect(by["mp3-converter"]!.cost).toEqual({ kind: "free" });
     expect(by["subtitle-remover"]!.requiredTier).toBe("pro");
     expect(by["face-swap"]).toBeUndefined();
+    // Never listed in the Play app (decision 2026-10-10).
+    expect(by["youtube-downloader"]).toBeUndefined();
+    expect(by["instagram-downloader"]).toBeUndefined();
   });
 });

@@ -1,4 +1,4 @@
-import { CAPTION_TEMPLATE_CATALOG, IMAGE_MODEL_CATALOG, type Account, type PlanTier } from "@clipiro/shared";
+import { CAPTION_TEMPLATE_CATALOG, IMAGE_MODEL_CATALOG, type Account, type AssetKind, type PlanTier } from "@clipiro/shared";
 import { useQuery } from "@tanstack/react-query";
 import { assets, editorTools, me } from "@/lib/api";
 
@@ -10,7 +10,7 @@ export const createKeys = {
   context: ["account"] as const,
   voices: ["voices"] as const,
   /** Under "assets", so anything that changes Assets refreshes them too. */
-  results: (kind: "image" | "audio") => ["assets", "ai-results", kind] as const,
+  results: (kind: AssetKind) => ["assets", "ai-results", kind] as const,
 };
 
 const HOUR = 60 * 60 * 1000;
@@ -21,7 +21,7 @@ export const useCaptionTemplates = () => ({ data: CAPTION_TEMPLATE_CATALOG, isPe
 export const useImageModels = () => ({ data: IMAGE_MODEL_CATALOG, isPending: false as const, isError: false as const, refetch: () => {} });
 export const useVoices = () => useQuery({ queryKey: createKeys.voices, queryFn: editorTools.voices, staleTime: HOUR });
 /** What the AI tools made lately (Assets → AI Assets), newest first. */
-export const useRecentResults = (kind: "image" | "audio") => useQuery({ queryKey: createKeys.results(kind), queryFn: async () => (await assets.list({ ai: true, kind })).assets });
+export const useRecentResults = (kind: AssetKind) => useQuery({ queryKey: createKeys.results(kind), queryFn: async () => (await assets.list({ ai: true, kind })).assets });
 
 /** What the AutoClip screen needs: plan (for limits), balances, and the videos already in Assets. */
 export type CreateContext = {
