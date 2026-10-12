@@ -11,7 +11,7 @@ import {
   type SocialAccount,
 } from "@clipiro/shared";
 import { z } from "zod";
-import { respond } from "./core";
+import { ApiError, respond } from "./core";
 
 // Stand-in for /api/mobile/v1/social (the web's Social Tracker) until Phase 5.
 // Scenarios (core.ts): "social" — "empty" = no accounts connected.
@@ -158,8 +158,14 @@ export async function getPlatformAnalytics(provider: Provider, range: RangeDays)
   return platformAnalyticsSchema.parse({ provider, ...p, growth: series(Math.min(range, 30), Math.round(f * 0.94), f, provider.length) });
 }
 
-/** The web's /api/social/export (CSV). Phase 7 saves the real file. */
-export async function exportContentCsv(): Promise<{ filename: string; rows: number }> {
+/** The provider of a connected account (the API addresses platforms by account). */
+export const providerOf = (accountId: string): Provider | null => ACCOUNTS.find((a) => a.id === accountId)?.provider ?? null;
+
+/** GET /social/export?accountId= — the web's CSV of one account's posts. */
+export async function exportCsv(accountId: string): Promise<{ filename: string; csv: string; rows: number }> {
   await respond("export");
-  return { filename: "clipiro-content-30d.csv", rows: 5 };
+  const a = ACCOUNTS.find((x) => x.id === accountId);
+  if (!a) throw new ApiError("Account not found", 404);
+  const csv = "title,views,likes\nNobody tells you this part,48200,3100\nYou ship and then you wait,21000,1400\n";
+  return { filename: `${a.provider}-${a.handle.replace(/^@/, "")}-posts.csv`, csv, rows: 2 };
 }

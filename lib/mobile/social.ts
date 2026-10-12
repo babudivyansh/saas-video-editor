@@ -7,11 +7,15 @@ import type {
   Kpi,
   PlatformAnalytics,
   Provider,
+  ReportFile,
+  SavedReport,
+  ShareLink,
   SocialAccount,
   WeeklySummary,
 } from "@clipiro/shared";
-import { BLOCK_LABELS, PROVIDERS, RANGE_DAYS } from "@clipiro/shared";
+import { BLOCK_LABELS, PROVIDER_LABEL, PROVIDERS, RANGE_DAYS, REPORT_FORMATS, REPORT_SCHEDULES, REPORT_SECTIONS } from "@clipiro/shared";
 import { prisma } from "@/lib/prisma";
+import { computeEngagementStats } from "@/lib/social/competitors";
 import { aggregateKpis } from "@/lib/social/aggregate-kpis";
 import { comparePlatforms, computeBestTimes, rangeBounds, type MetricDelta } from "@/lib/social/metrics";
 import { loadAccountKpis, loadAccounts, loadAudience, loadSeries, type AccountContext, type AccountKpis } from "@/lib/social/queries";
@@ -328,4 +332,85 @@ export function rangeAndTz(req: { nextUrl: URL }): { ok: true; range: number; tz
   const tz = timezoneSchema.safeParse(q.get("tz") ?? "UTC");
   if (!tz.success) return { ok: false, error: "tz must be a time zone like Asia/Kolkata" };
   return { ok: true, range, tz: tz.data };
+}
+
+// ── Competitors: your own row ─────────────────────────────────────────────
+
+/**
+ * Your Instagram and YouTube accounts measured the way competitors are
+ * (lib/social/competitors.ts computeEngagementStats: (avg likes + avg
+ * comments) / followers, and posts a week) over the last 30 days, so the
+ * "You vs. competitors" table compares like with like.
+ */
+export async function myCompetitorStats(userId: string) {
+  const accounts = await prisma.socialAccount.findMany({
+    where: { userId, provider: { in: ["instagram", "youtube"] }, status: { not: "revoked" } },
+    select: { id: true, provider: true, followers: true },
+  });
+  const since = new Date(Date.now() - 30 * DAY);
+  return Promise.all(
+    accounts.flatMap((a) => {
+      if (!isProvider(a.provider)) return [];
+      const provider = a.provider;
+      return [
+        (async () => {
+          const posts = await prisma.socialPost.findMany({ where: { accountId: a.id, publishedAt: { gte: since } }, select: { likes: true, comments: true, publishedAt: true } });
+          const s = computeEngagementStats(
+            posts.map((p) => ({ likes: p.likes, comments: p.comments, publishedAt: p.publishedAt?.toISOString() ?? null })),
+            a.followers,
+          );
+          return { accountId: a.id, provider, engagementRate: s.engagementRate != null ? round1(s.engagementRate) : null, postsPerWeek: s.postsPerWeek != null ? round1(s.postsPerWeek) : null };
+        })(),
+      ];
+    }),
+  );
+}
+
+// ── Reports and share links ───────────────────────────────────────────────
+
+const SECTION_LABEL: Record<string, string> = Object.fromEntries(REPORT_SECTIONS.map((s) => [s.id, s.label]));
+const shortDay = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+const fileStatus = (s: string): ReportFile["status"] => (s === "done" ? "ready" : s === "failed" ? "failed" : "running");
+
+/** A run as a file: its setup's name and the dates it covers. */
+export function toReportFile(run: { id: string; format: string; status: string; sizeBytes: number | null; createdAt: Date; periodStart: Date; periodEnd: Date }, name: string | null): ReportFile {
+  return {
+    id: run.id,
+    title: `${name ?? "Report"} · ${shortDay(run.periodStart)} – ${shortDay(run.periodEnd)}`,
+    format: (REPORT_FORMATS as readonly string[]).includes(run.format) ? (run.format as ReportFile["format"]) : "pdf",
+    status: fileStatus(run.status),
+    sizeBytes: run.sizeBytes,
+    createdAt: run.createdAt.toISOString(),
+  };
+}
+
+/** What a share link shows, as its name (the web stores no name): "YouTube, Instagram · KPIs, Trends". */
+export function shareLinkName(accountIds: string[], sections: string[], providerOf: Map<string, string>): string {
+  const providers = [...new Set(accountIds.map((id) => providerOf.get(id)).filter((p): p is Provider => !!p && isProvider(p)))].map((p) => PROVIDER_LABEL[p]);
+  return `${providers.join(", ") || "Accounts"} · ${sections.map((s) => SECTION_LABEL[s] ?? s).join(", ")}`;
+}
+
+/** Saved setups, recent files (newest first) and active share links. */
+export async function listReports(userId: string): Promise<{ saved: SavedReport[]; files: ReportFile[]; links: ShareLink[] }> {
+  const [configs, runs, links, accounts] = await Promise.all([
+    prisma.socialReportConfig.findMany({ where: { userId }, orderBy: { createdAt: "asc" } }),
+    prisma.socialReportRun.findMany({ where: { userId }, orderBy: { createdAt: "desc" }, take: 20, select: { id: true, configId: true, format: true, status: true, sizeBytes: true, createdAt: true, periodStart: true, periodEnd: true } }),
+    prisma.socialReportLink.findMany({ where: { userId, revokedAt: null, expiresAt: { gt: new Date() } }, orderBy: { createdAt: "desc" }, select: { id: true, accountIds: true, sections: true, viewCount: true, expiresAt: true } }),
+    prisma.socialAccount.findMany({ where: { userId }, select: { id: true, provider: true } }),
+  ]);
+  const providerOf = new Map(accounts.map((a) => [a.id, a.provider]));
+  const nameOf = new Map(configs.map((c) => [c.id, c.name]));
+  const sections = new Set<string>(REPORT_SECTIONS.map((s) => s.id));
+  return {
+    saved: configs.map((c) => ({
+      id: c.id,
+      name: c.name,
+      accountIds: c.accountIds,
+      sections: c.sections.filter((s): s is SavedReport["sections"][number] => sections.has(s)),
+      format: (REPORT_FORMATS as readonly string[]).includes(c.format) ? (c.format as SavedReport["format"]) : "pdf",
+      schedule: (REPORT_SCHEDULES as readonly string[]).includes(c.schedule) ? (c.schedule as SavedReport["schedule"]) : "none",
+    })),
+    files: runs.map((r) => toReportFile(r, r.configId ? (nameOf.get(r.configId) ?? null) : null)),
+    links: links.map((l) => ({ id: l.id, name: shareLinkName(l.accountIds, l.sections, providerOf), views: l.viewCount, expiresAt: l.expiresAt.toISOString() })),
+  };
 }

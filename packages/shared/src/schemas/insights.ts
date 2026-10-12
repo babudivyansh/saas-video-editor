@@ -153,8 +153,24 @@ export const reportFileSchema = z.object({
   createdAt: z.string(),
 });
 export type ReportFile = z.infer<typeof reportFileSchema>;
+/** A read-only share link; `name` says what it shows (the web stores no name: accounts · sections). */
 export const shareLinkSchema = z.object({ id: z.string(), name: z.string(), views: z.number().int().nonnegative(), expiresAt: z.string() });
 export type ShareLink = z.infer<typeof shareLinkSchema>;
+
+/** GET /social/reports — saved report setups, the files made from them, and active share links. */
+export const reportsResponse = z.object({ saved: z.array(savedReportSchema), files: z.array(reportFileSchema), links: z.array(shareLinkSchema) });
+/** POST /social/reports (reportRequest) → 202: the file being made. */
+export const reportCreatedResponse = z.object({ file: reportFileSchema });
+/** GET /social/reports/:id/download → a short-lived link to a ready file. */
+export const reportDownloadResponse = z.object({ url: z.string(), filename: z.string() });
+/** POST /social/share-links. The link's URL is only ever returned here (the web stores a token id, not the URL). */
+export const shareLinkRequest = z.object({
+  accountIds: z.array(z.string()).min(1, "Pick at least one account").max(10),
+  days: z.number().int().min(1).max(SHARE_LINK_MAX_DAYS),
+});
+export const shareLinkCreatedResponse = z.object({ link: shareLinkSchema, url: z.string() });
+/** GET /social/export?accountId= → one account's posts as CSV (the web's own export, formula-safe). */
+export const csvExportResponse = z.object({ filename: z.string(), csv: z.string(), rows: z.number().int().nonnegative() });
 
 export const competitorSchema = z.object({
   id: z.string(),
@@ -221,6 +237,12 @@ export const competitorsResponse = z.object({
   /** False when competitor tracking isn't set up on the server. */
   enabled: z.boolean(),
   max: z.number().int(),
+  /**
+   * Your own accounts, measured the same way as competitors ((avg likes + avg
+   * comments) / followers, and posts a week, over the last 30 days), for the
+   * "You vs. competitors" table. Null when there's too little to measure.
+   */
+  mine: z.array(z.object({ accountId: z.string(), provider: providerSchema, engagementRate: z.number().nullable(), postsPerWeek: z.number().nullable() })).default([]),
 });
 /** POST /social/competitors */
 export const addCompetitorRequest = z.object({ provider: z.enum(["instagram", "youtube"]), handle: competitorHandleSchema });

@@ -9,6 +9,7 @@ import {
   bestOnline,
   compact,
   type Provider,
+  type WeeklySummary,
 } from "@clipiro/shared";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
@@ -18,6 +19,7 @@ import {
   Avatar,
   BottomSheet,
   Button,
+  OptionList,
   ConfirmSheet,
   EmptyState,
   Icon,
@@ -28,21 +30,22 @@ import {
   useToast,
   type IconName,
 } from "@/components";
+import { social } from "@/lib/api";
+import { apiErrorMessage as errorMessage } from "@/lib/errors";
 import { imageSource } from "@/lib/images";
 import { colors, radius, statusTint, text, type } from "@/theme";
-import { addCompetitor, generateWeeklySummary, getAnalyticsOverview, getAudience, getCompetitors, removeCompetitor } from "@mocks/analytics";
-import { errorMessage } from "@mocks/core";
-import { exportContentCsv } from "@mocks/insights";
 import { useCreateContext } from "../create/queries";
 import { whenEdited } from "../projects/format";
 import { AnalyticsShell } from "./AnalyticsShell";
-import { AreaChart, Heatmap, PercentBars } from "./charts";
+import { AreaChart, describeTrend, Heatmap, PercentBars } from "./charts";
+import { shareAccountCsv } from "./files";
 import { KpiTile, Panel, insightStyles as s } from "./InsightsShell";
 import { useSocialAccounts } from "./queries";
 
 export const analyticsKeys = {
   overview: ["analytics", "overview"] as const,
-  audience: (p: Provider) => ["analytics", "audience", p] as const,
+  summary: (accountId: string) => ["analytics", "summary", accountId] as const,
+  audience: (accountId: string) => ["analytics", "audience", accountId] as const,
   competitors: ["analytics", "competitors"] as const,
   reports: ["analytics", "reports"] as const,
 };
@@ -55,17 +58,26 @@ function Failed({ error, retry }: { error: unknown; retry: () => void }) {
 
 export function AnalyticsOverviewScreen() {
   const toast = useToast();
+  const qc = useQueryClient();
   const accounts = useSocialAccounts();
   const credits = useCreateContext().data?.aiCredits;
-  const q = useQuery({ queryKey: analyticsKeys.overview, queryFn: getAnalyticsOverview });
-  const [summary, setSummary] = useState<string | null>(null);
+  const q = useQuery({ queryKey: analyticsKeys.overview, queryFn: () => social.analytics(30) });
+  // The summary is per account (the web's executive summary): the healthiest first.
+  const list = accounts.data ?? [];
+  const [summaryFor, setSummaryFor] = useState<string | null>(null);
+  const summaryAccount = list.find((a) => a.id === summaryFor) ?? list.find((a) => a.health === "healthy") ?? list[0];
+  const summary = useQuery({ queryKey: analyticsKeys.summary(summaryAccount?.id ?? ""), queryFn: async () => (await social.summary(summaryAccount!.id)).summary, enabled: !!summaryAccount });
   const [generating, setGenerating] = useState(false);
+  const [exportPick, setExportPick] = useState(false);
 
   const generate = async () => {
+    if (!summaryAccount) return;
     if (credits != null && credits < WEEKLY_SUMMARY_CREDITS) return toast(`The summary costs ${WEEKLY_SUMMARY_CREDITS} AI credits; you have ${credits}.`, "info");
     setGenerating(true);
     try {
-      setSummary(await generateWeeklySummary());
+      const { summary: made } = await social.makeSummary({ accountId: summaryAccount.id, period: "weekly" });
+      qc.setQueryData(analyticsKeys.summary(summaryAccount.id), made);
+      void qc.invalidateQueries({ queryKey: ["account"] });
     } catch (e) {
       toast(`${errorMessage(e)} No credits were charged.`, "error");
     } finally {
@@ -73,11 +85,28 @@ export function AnalyticsOverviewScreen() {
     }
   };
 
+  const sync = async () => {
+    toast("Syncing your accounts.", "info");
+    const done = await Promise.allSettled(list.map((a) => social.syncAccount(a.id)));
+    const failed = done.filter((d) => d.status === "rejected").length;
+    await Promise.all([q.refetch(), accounts.refetch()]);
+    if (failed) toast(`${failed} account${failed === 1 ? "" : "s"} couldn’t sync. Try again later.`, "error");
+  };
+  const exportAccount = async (id: string) => {
+    setExportPick(false);
+    try {
+      const r = await shareAccountCsv({ id });
+      toast(`${r.filename}: ${r.rows} post${r.rows === 1 ? "" : "s"}.`, "success");
+    } catch (e) {
+      toast(errorMessage(e), "error");
+    }
+  };
+
   const ACTIONS: { icon: IconName; label: string; onPress: () => void }[] = [
-    { icon: "refresh", label: "Sync now", onPress: () => (q.refetch(), toast("Syncing your accounts.", "info")) },
+    { icon: "refresh", label: "Sync now", onPress: () => void sync() },
     { icon: "file", label: "New report", onPress: () => router.replace("/social/insights/account-analytics/reports") },
     { icon: "link", label: "Share link", onPress: () => router.replace("/social/insights/account-analytics/reports") },
-    { icon: "download", label: "Export CSV", onPress: () => exportContentCsv().then((r) => toast(`${r.filename} saved.`, "success"), (e) => toast(errorMessage(e), "error")) },
+    { icon: "download", label: "Export CSV", onPress: () => (list.length === 1 ? void exportAccount(list[0]!.id) : setExportPick(true)) },
   ];
 
   return (
@@ -97,7 +126,7 @@ export function AnalyticsOverviewScreen() {
               {compact(q.data.totalFollowers.value ?? 0)}{" "}
               <Text style={type(13, "semibold", { color: colors.emeraldBright })}>+{compact(q.data.totalFollowers.gained)}</Text>
             </Text>
-            <AreaChart values={q.data.followerSeries.map((p) => p.value)} height={90} label={`Followers grew by ${compact(q.data.totalFollowers.gained)} in 30 days`} />
+            <AreaChart values={q.data.followerSeries.map((p) => p.value)} height={90} label={`Followers over 30 days, ${describeTrend(q.data.followerSeries.map((p) => p.value), compact)}`} />
           </Panel>
           <View style={s.grid}>
             {(accounts.data ?? []).map((a) => (
@@ -134,10 +163,13 @@ export function AnalyticsOverviewScreen() {
                 Weekly summary
               </Text>
             </View>
-            {summary ? (
-              <Text style={type(14, "regular", { lineHeight: 1.5 })} accessibilityLiveRegion="polite">
-                {summary}
-              </Text>
+            {list.length > 1 && summaryAccount ? (
+              <ProviderSwitch providers={list.map((a) => a.provider)} value={summaryAccount.provider} onChange={(p) => setSummaryFor(list.find((a) => a.provider === p)?.id ?? null)} />
+            ) : null}
+            {summary.isPending && summaryAccount ? (
+              <SkeletonCard lines={2} />
+            ) : summary.data ? (
+              <SummaryBody s={summary.data} />
             ) : (
               <>
                 <Text style={type(13, "regular", { color: colors.fgMuted, lineHeight: 1.45 })}>What moved, what worked, what to try next — from this dashboard’s numbers only.</Text>
@@ -164,7 +196,37 @@ export function AnalyticsOverviewScreen() {
           </View>
         </>
       )}
+      <BottomSheet visible={exportPick} onClose={() => setExportPick(false)} title="Export which account?">
+        <OptionList accessibilityLabel="Account to export" value={null} options={list.map((a) => ({ value: a.id, label: PROVIDER_LABEL[a.provider], detail: a.handle }))} onChange={(id) => void exportAccount(id)} />
+      </BottomSheet>
     </AnalyticsShell>
+  );
+}
+
+/** The AI summary: what happened, then wins, concerns and what to try. */
+function SummaryBody({ s }: { s: WeeklySummary }) {
+  const when = new Date(s.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return (
+    <View style={{ gap: 10 }} accessibilityLiveRegion="polite">
+      <Text style={type(14, "regular", { lineHeight: 1.5 })}>{s.summary}</Text>
+      {s.wins.length ? <Bullets title="Wins" items={s.wins} /> : null}
+      {s.concerns.length ? <Bullets title="Watch" items={s.concerns} /> : null}
+      {s.recommendations.length ? <Bullets title="Try next" items={s.recommendations.map((r) => `${r.title}: ${r.why}`)} /> : null}
+      <Text style={type(11, "regular", { color: colors.fgSubtle })}>Made {when}</Text>
+    </View>
+  );
+}
+
+function Bullets({ title, items }: { title: string; items: string[] }) {
+  return (
+    <View style={{ gap: 4 }}>
+      <Text style={text.label}>{title}</Text>
+      {items.map((t) => (
+        <Text key={t} style={type(13, "regular", { lineHeight: 1.45 })}>
+          • {t}
+        </Text>
+      ))}
+    </View>
   );
 }
 
@@ -175,7 +237,8 @@ export function AudienceScreen() {
   const connected = PROVIDERS.filter((p) => accounts.data?.some((a) => a.provider === p));
   const [picked, setPicked] = useState<Provider>("instagram");
   const provider = connected.includes(picked) ? picked : (connected[0] ?? "instagram");
-  const q = useQuery({ queryKey: analyticsKeys.audience(provider), queryFn: () => getAudience(provider), enabled: connected.length > 0 });
+  const accountId = accounts.data?.find((a) => a.provider === provider)?.id ?? null;
+  const q = useQuery({ queryKey: analyticsKeys.audience(accountId ?? ""), queryFn: () => social.audience(accountId!), enabled: !!accountId });
   const best = q.data ? bestOnline(q.data.online) : null;
   const bestText = best ? `${DAYS_SHORT[best.day]} ${BLOCK_LABELS[best.block]}` : "";
 
@@ -261,7 +324,7 @@ export function CompetitorsScreen() {
   const connected = COMPETITOR_PROVIDERS.filter((p) => accounts.data?.some((a) => a.provider === p));
   const [picked, setPicked] = useState<Provider>("instagram");
   const provider = connected.includes(picked) ? picked : (connected[0] ?? "instagram");
-  const q = useQuery({ queryKey: analyticsKeys.competitors, queryFn: getCompetitors, enabled: connected.length > 0 });
+  const q = useQuery({ queryKey: analyticsKeys.competitors, queryFn: social.competitors, enabled: connected.length > 0 });
   const [adding, setAdding] = useState(false);
   const [handle, setHandle] = useState("");
   const [error, setError] = useState<string>();
@@ -271,13 +334,14 @@ export function CompetitorsScreen() {
   const me = accounts.data?.find((a) => a.provider === provider);
   const rivals = (q.data?.competitors ?? []).filter((c) => c.provider === provider);
   const total = q.data?.competitors.length ?? 0;
-  const mine = q.data?.mine[provider];
+  const max = q.data?.max ?? MAX_COMPETITORS;
+  const mineRow = q.data?.mine.find((m) => m.provider === provider);
+  const mine = mineRow && mineRow.engagementRate != null ? { engagementRate: mineRow.engagementRate, postsPerWeek: mineRow.postsPerWeek ?? 0 } : undefined;
 
   const add = async () => {
     setBusy(true);
     try {
-      await addCompetitor(provider, handle);
-      await qc.invalidateQueries({ queryKey: analyticsKeys.competitors });
+      qc.setQueryData(analyticsKeys.competitors, await social.addCompetitor({ provider: provider as "instagram" | "youtube", handle }));
       setAdding(false);
       setHandle("");
       setError(undefined);
@@ -290,8 +354,7 @@ export function CompetitorsScreen() {
   };
   const remove = async (id: string) => {
     try {
-      await removeCompetitor(id);
-      await qc.invalidateQueries({ queryKey: analyticsKeys.competitors });
+      qc.setQueryData(analyticsKeys.competitors, await social.removeCompetitor(id));
       toast("Stopped tracking.", "success");
     } catch (e) {
       toast(errorMessage(e), "error");
@@ -345,8 +408,9 @@ export function CompetitorsScreen() {
                   <Text style={text.caption}>Add a competitor on {PROVIDER_LABEL[provider]} to compare.</Text>
                 )}
               </Panel>
+              {q.data && !q.data.enabled ? <Text style={text.caption}>Competitor tracking isn’t available right now. Accounts you track keep their history.</Text> : null}
               <Text style={text.label} accessibilityRole="header">
-                Tracked · {total} of {MAX_COMPETITORS}
+                Tracked · {total} of {max}
               </Text>
               {(q.data?.competitors ?? []).map((c) => (
                 <View key={c.id} style={styles.tracked}>
@@ -368,13 +432,13 @@ export function CompetitorsScreen() {
                   </Pressable>
                 </View>
               ))}
-              {total < MAX_COMPETITORS ? (
+              {total < max && q.data?.enabled !== false ? (
                 <Pressable onPress={() => setAdding(true)} accessibilityRole="button" accessibilityLabel="Add competitor" style={({ pressed }) => [styles.add, pressed && { backgroundColor: colors.surface2 }]}>
                   <Icon name="plus" size={16} color={colors.emeraldBright} />
                   <Text style={type(14, "semibold")}>Add competitor</Text>
                 </Pressable>
               ) : null}
-              <Text style={text.caption}>Track up to {MAX_COMPETITORS} public Instagram or YouTube accounts. Public stats only, refreshed daily.</Text>
+              <Text style={text.caption}>Track up to {max} public Instagram or YouTube accounts. Public stats only, refreshed daily.</Text>
             </>
           )}
         </>

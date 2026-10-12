@@ -4,8 +4,9 @@ import { RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { EmptyState, FilterPills, Header, IconButton, SkeletonCard, StatusBarScrim } from "@/components";
 import { useScreenPadding } from "@/navigation/insets";
 import { colors } from "@/theme";
-import { errorMessage } from "@mocks/core";
-import { useSocialAccounts } from "./queries";
+import { apiErrorMessage } from "@/lib/errors";
+import { SocialUpsell } from "./InsightsShell";
+import { isUpsell, useSocialAccounts } from "./queries";
 
 type Tab = "overview" | "content" | "audience" | "competitors" | "reports";
 const TABS = [
@@ -64,7 +65,11 @@ export function AnalyticsShell({ tab, children, onRefresh }: { tab: Tab; childre
             <SkeletonCard lines={2} />
           </>
         ) : accounts.isError ? (
-          <EmptyState tone="error" title="Couldn’t load your accounts" body={errorMessage(accounts.error)} action={{ label: "Try again", onPress: () => accounts.refetch() }} />
+          isUpsell(accounts.error) ? (
+            <SocialUpsell />
+          ) : (
+            <EmptyState tone="error" title="Couldn’t load your accounts" body={apiErrorMessage(accounts.error)} action={{ label: "Try again", onPress: () => accounts.refetch() }} />
+          )
         ) : accounts.data.length === 0 ? (
           <EmptyState icon="social" title="Connect an account first" body="Analytics fill in after YouTube, Instagram or Facebook is connected and synced." action={{ label: "Connect an account", onPress: () => router.navigate("/social") }} />
         ) : (

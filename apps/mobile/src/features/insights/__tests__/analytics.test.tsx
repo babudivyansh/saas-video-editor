@@ -1,6 +1,8 @@
 import { fireEvent, renderRouter, screen, waitFor } from "expo-router/testing-library";
 import { resetAnalyticsMocks } from "@mocks/analytics";
 import { resetMockScenarios, setMockDelay, setMockScenario } from "@mocks/core";
+import * as Sharing from "expo-sharing";
+import { Share } from "react-native";
 import { makeWrapper } from "@/test/providers";
 import { AnalyticsOverviewScreen, AudienceScreen, CompetitorsScreen } from "../analytics";
 import { ReportsScreen } from "../ReportsScreen";
@@ -28,13 +30,15 @@ describe("Analytics overview", () => {
     open("/social/insights/account-analytics");
     expect(await screen.findByRole("button", { name: "Instagram, 5.6k followers, needs reconnecting" })).toBeOnTheScreen();
     expect(screen.getByRole("button", { name: "YouTube, 12.4k followers, healthy" })).toBeOnTheScreen();
-    press("Generate · 5 cr");
+    // The summary is per account: the healthiest one (YouTube) first.
+    fireEvent.press(await screen.findByRole("button", { name: "Generate · 5 cr" }));
     expect(await screen.findByText(/Views rose 18%/)).toBeOnTheScreen();
+    expect(screen.getByText("• Post on Monday evenings: Your audience is most active then")).toBeOnTheScreen();
   });
 
   it("says no credits were charged when the summary fails", async () => {
     open("/social/insights/account-analytics");
-    await screen.findByText("Weekly summary");
+    await screen.findByRole("button", { name: "Generate · 5 cr" });
     setMockScenario("summary", "error");
     press("Generate · 5 cr");
     expect(await screen.findByText(/No credits were charged/)).toBeOnTheScreen();
@@ -98,15 +102,29 @@ describe("Reports", () => {
     expect(screen.getAllByText("Sponsor recap").length).toBeGreaterThan(0);
   });
 
+  it("downloads a finished report to the share sheet", async () => {
+    open("/social/insights/account-analytics/reports");
+    fireEvent.press(await screen.findByRole("button", { name: "Download Monthly performance · Sep" }));
+    await waitFor(() =>
+      expect(Sharing.shareAsync).toHaveBeenCalledWith("file:///cache/clipiro-report-2026-09-30.pdf", { mimeType: "application/pdf", dialogTitle: "clipiro-report-2026-09-30.pdf" }),
+    );
+  });
+
   it("creates a share link and revokes it", async () => {
     open("/social/insights/account-analytics/reports");
     await screen.findByText("Sponsor view · all accounts");
+    const share = jest.spyOn(Share, "share").mockResolvedValue({ action: "sharedAction" });
     fireEvent.press(screen.getByRole("link", { name: "New link" }));
-    fireEvent.changeText(screen.getByLabelText("Name"), "Agency view");
+    // Every account is picked to start with; this link shows YouTube only.
+    fireEvent.press(screen.getAllByRole("button", { name: "Instagram" }).at(-1)!);
+    fireEvent.press(screen.getAllByRole("button", { name: "Facebook" }).at(-1)!);
     press("Create link");
-    expect(await screen.findByText("Agency view")).toBeOnTheScreen();
-    press("Revoke Agency view");
+    const name = "YouTube · KPIs, Trends, Content";
+    expect(await screen.findByText(name)).toBeOnTheScreen();
+    // The URL is shown once, straight into the share sheet.
+    await waitFor(() => expect(share).toHaveBeenCalledWith({ message: expect.stringMatching(/^https:\/\/clipiro\.com\/report\/social\//) }));
+    press(`Revoke ${name}`);
     press("Revoke link");
-    await waitFor(() => expect(screen.queryByText("Agency view")).toBeNull());
+    await waitFor(() => expect(screen.queryByText(name)).toBeNull());
   });
 });

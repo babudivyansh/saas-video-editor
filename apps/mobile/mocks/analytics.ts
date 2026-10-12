@@ -13,6 +13,7 @@ import {
   type ReportRequest,
   type SavedReport,
   type ShareLink,
+  type WeeklySummary,
 } from "@clipiro/shared";
 import { z } from "zod";
 import { ApiError, respond, wait } from "./core";
@@ -38,10 +39,31 @@ export async function getAnalyticsOverview(): Promise<AnalyticsOverview> {
   });
 }
 
-/** The weekly AI summary (5 credits; social-exec-report on the web). */
-export async function generateWeeklySummary(): Promise<string> {
+/** The latest AI summary per account (GET /social/summary); none until one is made. */
+let SUMMARIES: Record<string, WeeklySummary> = {};
+
+export async function getSummary(accountId: string): Promise<WeeklySummary | null> {
   await respond("summary");
-  return "Views rose 18% on YouTube Shorts, led by “Nobody tells you this part”. Instagram engagement dipped slightly while it waited to be reconnected. Try: reconnect Instagram, and post your strongest hook clips on Monday evenings, when your audience is most active.";
+  return SUMMARIES[accountId] ?? null;
+}
+
+/** Makes the weekly AI summary (5 credits; social-exec-report on the web). */
+export async function makeSummary(accountId: string): Promise<WeeklySummary> {
+  await respond("summary");
+  const s: WeeklySummary = {
+    id: `sum_${accountId}`,
+    accountId,
+    period: "weekly",
+    periodStart: ago(7 * day),
+    periodEnd: ago(0),
+    createdAt: new Date().toISOString(),
+    summary: "Views rose 18% on YouTube Shorts, led by “Nobody tells you this part”.",
+    wins: ["Three Shorts passed 10K views"],
+    concerns: ["Instagram stopped syncing four days ago"],
+    recommendations: [{ title: "Post on Monday evenings", why: "Your audience is most active then" }],
+  };
+  SUMMARIES = { ...SUMMARIES, [accountId]: s };
+  return s;
 }
 
 const heat = (bias: number) =>
@@ -137,16 +159,16 @@ const INITIAL_COMPETITORS: Competitor[] = [
 let COMPETITORS = INITIAL_COMPETITORS;
 let seq = 0;
 
-/** Your own account on the same yardsticks, per platform. */
-const MINE: Record<Provider, { engagementRate: number; postsPerWeek: number }> = {
-  instagram: { engagementRate: 6.8, postsPerWeek: 4.2 },
-  youtube: { engagementRate: 7.2, postsPerWeek: 3.5 },
-  facebook: { engagementRate: 4.1, postsPerWeek: 2.0 },
-};
+/** Your own accounts on the same yardsticks (GET /social/competitors `mine`). */
+const MINE = [
+  { accountId: "acc_ig", provider: "instagram" as const, engagementRate: 6.8, postsPerWeek: 4.2 },
+  { accountId: "acc_yt", provider: "youtube" as const, engagementRate: 7.2, postsPerWeek: 3.5 },
+];
 
-export async function getCompetitors(): Promise<{ competitors: Competitor[]; mine: typeof MINE }> {
+/** GET /social/competitors */
+export async function getCompetitors() {
   await respond("competitors");
-  return { competitors: z.array(competitorSchema).parse(COMPETITORS), mine: MINE };
+  return { competitors: z.array(competitorSchema).parse(COMPETITORS), enabled: true, max: MAX_COMPETITORS, mine: MINE };
 }
 
 export async function addCompetitor(provider: Provider, rawHandle: string): Promise<Competitor> {
@@ -182,6 +204,7 @@ let FILES = INITIAL_FILES;
 let LINKS = INITIAL_LINKS;
 
 export function resetAnalyticsMocks() {
+  SUMMARIES = {};
   COMPETITORS = INITIAL_COMPETITORS;
   SAVED = INITIAL_SAVED;
   FILES = INITIAL_FILES;
@@ -193,20 +216,33 @@ export async function getReports(): Promise<{ saved: SavedReport[]; files: Repor
   return { saved: SAVED, files: FILES, links: LINKS };
 }
 
-export async function createReport(input: ReportRequest): Promise<SavedReport> {
+/** POST /social/reports → 202 { file }: the setup is saved and its first file starts. */
+export async function createReport(input: ReportRequest): Promise<{ file: ReportFile }> {
   const r = reportRequest.parse(input);
   await wait();
-  const saved = { ...r, id: `r_new${++seq}` };
-  SAVED = [saved, ...SAVED];
-  FILES = [{ id: `f_new${seq}`, title: r.name, format: r.format, status: "running", sizeBytes: null, createdAt: new Date().toISOString() }, ...FILES];
-  return saved;
+  SAVED = [...SAVED, { ...r, id: `r_new${++seq}` }];
+  const file: ReportFile = { id: `f_new${seq}`, title: `${r.name} · Sep 10 – Oct 10`, format: r.format, status: "running", sizeBytes: null, createdAt: new Date().toISOString() };
+  FILES = [file, ...FILES];
+  return { file };
 }
 
-export async function createShareLink(name: string, days: number): Promise<ShareLink> {
+/** GET /social/reports/:id/download */
+export async function reportDownload(id: string): Promise<{ url: string; filename: string }> {
   await wait();
-  const link = { id: `l_new${++seq}`, name: name.trim() || "Shared view", views: 0, expiresAt: new Date(Date.now() + days * day).toISOString() };
+  const f = FILES.find((x) => x.id === id);
+  if (!f) throw new ApiError("Report not found", 404);
+  if (f.status !== "ready") throw Object.assign(new ApiError("This report isn't ready yet.", 409), { code: "not_ready" });
+  return { url: `https://s3.test/reports/${id}.${f.format}?signed`, filename: `clipiro-report-2026-09-30.${f.format}` };
+}
+
+const LABEL: Record<string, string> = { acc_yt: "YouTube", acc_ig: "Instagram", acc_fb: "Facebook" };
+
+/** POST /social/share-links → { link, url }: the URL is only returned now. */
+export async function createShareLink(accountIds: string[], days: number): Promise<{ link: ShareLink; url: string }> {
+  await wait();
+  const link = { id: `l_new${++seq}`, name: `${accountIds.map((a) => LABEL[a] ?? "Account").join(", ")} · KPIs, Trends, Content`, views: 0, expiresAt: new Date(Date.now() + days * day).toISOString() };
   LINKS = [link, ...LINKS];
-  return link;
+  return { link, url: `https://clipiro.com/report/social/tok_${link.id}` };
 }
 
 export async function revokeShareLink(id: string) {

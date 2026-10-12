@@ -48,6 +48,7 @@ jest.mock("expo-file-system", () => {
       this.size = 0;
     }
     delete() {}
+    write() {}
     static async downloadFileAsync(url, dest) {
       return { uri: dest.uri, exists: true };
     }

@@ -5,6 +5,13 @@ import {
   audienceSchema,
   competitorsResponse,
   contentPerformanceSchema,
+  csvExportResponse,
+  reportCreatedResponse,
+  reportDownloadResponse,
+  reportRequest,
+  reportsResponse,
+  shareLinkCreatedResponse,
+  shareLinkRequest,
   insightsOverviewSchema,
   platformAnalyticsSchema,
   socialAccountsResponse,
@@ -45,6 +52,13 @@ export function socialApi(api: ApiClient) {
     removeCompetitor: (id: string) => api.request(`/social/competitors/${enc(id)}`, { method: "DELETE", schema: competitorsResponse }),
     summary: (accountId: string, period: "weekly" | "monthly" = "weekly") =>
       api.request(`/social/summary?accountId=${enc(accountId)}&period=${period}`, { schema: summaryResponse }),
+    reports: () => api.request("/social/reports", { schema: reportsResponse }),
+    /** Generates a report now (and, with a schedule, again every week or month by email). */
+    createReport: (b: z.input<typeof reportRequest>) => api.request("/social/reports", { method: "POST", body: reportRequest.parse(b), schema: reportCreatedResponse }),
+    reportDownload: (id: string) => api.request(`/social/reports/${enc(id)}/download`, { schema: reportDownloadResponse }),
+    createShareLink: (b: z.input<typeof shareLinkRequest>) => api.request("/social/share-links", { method: "POST", body: shareLinkRequest.parse(b), schema: shareLinkCreatedResponse }),
+    revokeShareLink: (id: string) => api.request(`/social/share-links/${enc(id)}`, { method: "DELETE", schema: z.object({ ok: z.literal(true) }) }),
+    exportCsv: (accountId: string) => api.request(`/social/export?accountId=${enc(accountId)}`, { schema: csvExportResponse }),
     /** Makes a new summary (charged, unless a recent one exists). */
     makeSummary: (b: z.input<typeof summaryRequest>) => api.request("/social/summary", { method: "POST", body: summaryRequest.parse(b), schema: summaryResponse }),
   };

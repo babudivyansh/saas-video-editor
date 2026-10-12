@@ -7,6 +7,16 @@ import { colors, derived, radius, type, withAlpha } from "@/theme";
 // (design/screens/BN-InsOverview.html "Views over time", BN-InsPlatform.html).
 
 /** Filled line chart; `labels` under the x-axis (first / middle / last). */
+/** How a series moved, for a chart's spoken label: "rising from 1.2k to 3.4k", "falling…", "steady around…". */
+export function describeTrend(values: number[], fmt: (n: number) => string): string {
+  if (!values.length) return "no data yet";
+  const first = values[0]!;
+  const last = values[values.length - 1]!;
+  const change = first === 0 ? (last === 0 ? 0 : 1) : (last - first) / Math.abs(first);
+  if (Math.abs(change) < 0.02) return `steady around ${fmt(last)}`;
+  return `${change > 0 ? "rising" : "falling"} from ${fmt(first)} to ${fmt(last)}`;
+}
+
 export function AreaChart({ values, height = 120, labels, label }: { values: number[]; height?: number; labels?: string[]; label: string }) {
   const [w, setW] = useState(0);
   const min = Math.min(...values);
