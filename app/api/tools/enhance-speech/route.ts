@@ -8,6 +8,7 @@ import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationPro
 import { voiceFxCredits } from "@/lib/audio-pricing";
 import { resolveUploadPolicy, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
 import { createJobStatusHandler, createJobCancelHandler, type CancellableJob } from "@/lib/job-routes";
+import { saveToolResult } from "@/lib/tool-results";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -145,6 +146,17 @@ async function handlePOST(req: NextRequest) {
 
       const audioBuffer = Buffer.from(await res.arrayBuffer());
       fs.writeFileSync(outputPath, audioBuffer);
+      // The local file serves the web's download; this keeps the result past a
+      // restart, on the Generation and in the user's Assets.
+      await saveToolResult({
+        userId: job.userId,
+        generationId: job.generationId,
+        toolSlug: "enhance-speech",
+        source: { buffer: audioBuffer },
+        mimeType: "audio/mpeg",
+        name: downloadName,
+        durationMs: Math.round(durationSec * 1000),
+      });
 
       job.progress = 100;
       job.status = "done";
@@ -168,7 +180,8 @@ async function handlePOST(req: NextRequest) {
     }
   })();
 
-  return NextResponse.json({ jobId }, { status: 202 });
+  // generationId: the durable record a client can read after a restart.
+  return NextResponse.json({ jobId, generationId: charge.generationId }, { status: 202 });
 }
 
 export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy: "user", name: "tools:enhance-speech" });

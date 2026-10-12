@@ -106,3 +106,13 @@ export function webError(result: { status: number; json: Record<string, unknown>
   const msg = typeof result.json.error === "string" ? result.json.error : "Something went wrong";
   return mobileError(result.status, msg);
 }
+
+/** callWeb for a web route that takes a multipart upload (the audio tools). */
+export async function callWebForm(handler: WebHandler, req: NextRequest, form: FormData): Promise<{ status: number; json: Record<string, unknown> }> {
+  const headers = new Headers(req.headers);
+  for (const h of ["content-length", "content-type", "cookie"]) headers.delete(h); // fetch sets the multipart boundary
+  const inner = new NextRequest(req.url, { method: "POST", headers, body: form });
+  const res = await handler(inner);
+  const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  return { status: res.status, json };
+}

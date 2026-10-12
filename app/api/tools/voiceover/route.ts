@@ -11,6 +11,7 @@ import { withRateLimit } from "@/lib/with-rate-limit";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
 import { createJobStatusHandler, createJobCancelHandler, type CancellableJob } from "@/lib/job-routes";
+import { saveToolResult } from "@/lib/tool-results";
 
 export const maxDuration = 120;
 
@@ -133,6 +134,18 @@ async function handlePOST(req: NextRequest) {
 
       if ((job.status as string) === "cancelled") return;
 
+      // Kept on the Generation and in the user's Assets (lib/tool-results.ts).
+      await saveToolResult({
+        userId: auth.userId,
+        generationId: job.generationId,
+        toolSlug: "voiceover",
+        source: { s3Url: audioUrl },
+        mimeType: "audio/mpeg",
+        name: downloadName,
+        durationMs,
+        meta: { characters: text.length, voiceId: voiceSlug },
+      });
+
       job.progress = 100;
       job.status = "done";
       job.meta = {
@@ -162,7 +175,8 @@ async function handlePOST(req: NextRequest) {
     }
   })();
 
-  return NextResponse.json({ jobId }, { status: 202 });
+  // generationId: the durable record a client can read after a restart.
+  return NextResponse.json({ jobId, generationId: charge.generationId }, { status: 202 });
 }
 
 export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy: "user", name: "tools:voiceover" });
