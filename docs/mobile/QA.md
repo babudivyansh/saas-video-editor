@@ -1,8 +1,9 @@
 # Android app — quality pass (mobile Phase 14)
 
-Status: **14.1 done** (code audits and fixes, 2026-10-12). **14.2 in progress**:
-tests, Maestro flows, and the checks that need a device (TalkBack, large
-fonts on screen, startup and scrolling numbers).
+Status: **Phase 14 done in code** (2026-10-12): the audits, fixes, tests and
+Maestro flows below. **The device run was skipped by decision on 2026-10-12**
+(§6): TalkBack, large fonts on screen, startup and scrolling numbers, and
+running the Maestro flows are still owed before release.
 
 Decisions (Q1–Q4 all A): a device run on the dev build that you start; the
 Maestro CLI installed here; everything critical or major fixed now, minor
@@ -82,9 +83,9 @@ No security fixes were needed in 14.1.
   - **`edit-export.yaml`:** log in, open a project's top clip in the editor, go to Export.
   - **Spending steps are off by default.** Starting AutoClip spends minutes and calls paid transcription; exporting uploads to S3. They run only with `RUN_AUTOCLIP=true` / `RUN_EXPORT=true`, against a server with its own bucket.
 
-## 6. Owed: needs the dev build on the emulator
+## 6. Owed before release: the device run (skipped 2026-10-12)
 
-The app has to be built and installed first (`npx expo run:android` in `apps/mobile`, run by you; building from this session isn't allowed).
+Skipped by decision to keep moving; it needs the dev build on an emulator or phone (`npx expo run:android` in `apps/mobile`, run by you; building from this session isn't allowed). The Maestro CLI was not installed: its download is 315 MB (cli-2.11.0), more than first estimated, and it waits for this run.
 
 | Check | Status |
 |---|---|
