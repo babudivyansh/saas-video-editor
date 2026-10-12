@@ -1,15 +1,16 @@
-import { SCORE_BUCKETS, scoreSpread, type Clip, type ProjectDetail } from "@clipiro/shared";
+import { ApiError, SCORE_BUCKETS, scoreSpread, type Clip, type ProjectDetail } from "@clipiro/shared";
 import { Image } from "expo-image";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, type Href } from "expo-router";
 import { useState } from "react";
-import { Pressable, ScrollView, Share, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import { Button, EmptyState, FilterPills, Header, Icon, IconButton, ScoreBadge, ScoreRing, SkeletonCard, StatusBadge, StatusBarScrim, useToast } from "@/components";
 import { imageSource } from "@/lib/images";
 import { useScreenPadding } from "@/navigation/insets";
 import { colors, derived, radius, text, type } from "@/theme";
-import { ApiError, errorMessage } from "@mocks/core";
-import { ClipSheet } from "./ClipSheet";
+import { apiErrorMessage } from "@/lib/errors";
+import { saveClipsToGallery, shareClip } from "./clipFiles";
+import { ClipSheet, fileErrorMessage } from "./ClipSheet";
 import { mmss } from "./format";
 import { useProject } from "./queries";
 
@@ -33,11 +34,42 @@ export function ProjectScreen() {
   const [openId, setOpenId] = useState<string | null>(null);
 
   const back = () => (router.canGoBack() ? router.back() : router.replace("/projects"));
+  const [saving, setSaving] = useState<string | null>(null);
+  const [sharing, setSharing] = useState(false);
+
   const p = project.data;
-  const clips = p?.clips ?? [];
+  // Ranked: highest virality first, unscored after, then generation order.
+  const clips = [...(p?.clips ?? [])].sort((a, b) => (b.score ?? -1) - (a.score ?? -1) || a.rank - b.rank);
   const open = clips.find((c) => c.id === openId) ?? null;
   const ready = clips.filter((c) => c.status === "ready");
-  const top = [...ready].sort((a, b) => (b.score ?? 0) - (a.score ?? 0))[0];
+  const top = ready[0];
+
+  const saveAll = async () => {
+    setSaving(`Saving 0 of ${ready.length}…`);
+    try {
+      await saveClipsToGallery(
+        ready.map((c) => c.id),
+        (n) => setSaving(`Saving ${n} of ${ready.length}…`),
+      );
+      toast(`Saved ${ready.length} clip${ready.length === 1 ? "" : "s"} to your gallery.`, "success");
+    } catch (e) {
+      toast(fileErrorMessage(e), "error");
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const shareTop = async () => {
+    if (!top) return;
+    setSharing(true);
+    try {
+      await shareClip(top.id, top.title);
+    } catch (e) {
+      toast(fileErrorMessage(e), "error");
+    } finally {
+      setSharing(false);
+    }
+  };
   const created = p ? new Date(p.updatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "";
 
   return (
@@ -53,10 +85,24 @@ export function ProjectScreen() {
           project.error instanceof ApiError && project.error.status === 404 ? (
             <EmptyState icon="folder" title="Project not found" body="It may have been deleted." action={{ label: "Back to Projects", onPress: () => router.replace("/projects") }} />
           ) : (
-            <EmptyState tone="error" title="Couldn’t load this project" body={errorMessage(project.error)} action={{ label: "Try again", onPress: () => project.refetch() }} />
+            <EmptyState tone="error" title="Couldn’t load this project" body={apiErrorMessage(project.error)} action={{ label: "Try again", onPress: () => project.refetch() }} />
           )
         ) : clips.length === 0 ? (
-          <EmptyState icon="clock" title={p?.status === "failed" ? "This run didn't finish" : "Clips on the way"} body={p?.status === "failed" ? "Your Clip Minutes were refunded. Try the video again." : "We'll notify you when they're ready."} />
+          p?.status === "failed" ? (
+            <EmptyState
+              icon="alert"
+              title="This run didn’t finish"
+              body="Anything you were charged has been refunded. Try the video again."
+              action={{ label: "Try again", onPress: () => router.push("/create/autoclip") }}
+            />
+          ) : (
+            <EmptyState
+              icon="clock"
+              title="Clips on the way"
+              body="We’ll notify you when they’re ready."
+              action={p?.kind === "autoclip" ? { label: "See progress", onPress: () => router.push(`/create/run/run_${p.id}` as Href) } : undefined}
+            />
+          )
         ) : (
           <>
             <View style={styles.row}>
@@ -68,12 +114,13 @@ export function ProjectScreen() {
             </View>
             <View style={styles.actions}>
               <Button
-                label="Download all ready"
-                onPress={() => toast(`Saving ${ready.length} clips to your gallery.`, "success")}
-                disabled={!ready.length}
+                label={saving ?? "Download all ready"}
+                onPress={saveAll}
+                loading={!!saving}
+                disabled={!ready.length || !!saving}
                 style={{ flex: 1 }}
               />
-              <IconButton icon="social" accessibilityLabel="Share project" size={54} onPress={() => Share.share({ message: `${p?.title} — made with Clipiro` }).catch(() => {})} />
+              <IconButton icon="social" accessibilityLabel="Share the top clip" size={54} disabled={!top || sharing} onPress={shareTop} />
             </View>
             <FilterPills accessibilityLabel="Show clips" options={FILTERS} value={filter} onChange={setFilter} />
             <ClipGrid clips={clips.filter((c) => keep(c, filter))} onOpen={(c) => setOpenId(c.id)} empty={filter === "starred" ? "Star clips to find them here." : "Nothing here right now."} />

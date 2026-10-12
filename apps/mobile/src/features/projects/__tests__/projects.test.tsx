@@ -1,6 +1,10 @@
-import { fireEvent, renderRouter, screen, waitFor } from "expo-router/testing-library";
+import type { ProjectDetail } from "@clipiro/shared";
+import { act, fireEvent, renderRouter, screen, waitFor } from "expo-router/testing-library";
+import * as MediaLibrary from "expo-media-library";
+import * as Sharing from "expo-sharing";
 import { resetMockScenarios, setMockDelay, setMockScenario } from "@mocks/core";
-import { resetProjectMocks } from "@mocks/projects";
+import { getProject, resetProjectMocks } from "@mocks/projects";
+import { installFakeApi } from "@/test/fakeApi";
 import { makeWrapper } from "@/test/providers";
 import { ClipsScreen } from "../ClipsScreen";
 import { DraftsScreen } from "../DraftsScreen";
@@ -126,22 +130,89 @@ describe("Project detail", () => {
   // The detail screen draws a gradient per clip; with the sheet open that is slow under Jest.
   jest.setTimeout(30000);
 
-  it("shows the top clip, counts and score spread", async () => {
+  // The real API client over a fake server that answers from the mock fixtures.
+  let server: ReturnType<typeof installFakeApi>;
+  let detail: ProjectDetail;
+  const clipOf = (url: URL) => detail.clips.find((c) => url.pathname.includes(c.id));
+  beforeEach(async () => {
+    jest.useRealTimers(); // the fixture fetcher waits on a timer
+    detail = await getProject("founders-pod-ep-42");
+    server = installFakeApi({
+      "GET /projects/:id": (_b, url) => (url.pathname.endsWith("/founders-pod-ep-42") ? [200, detail] : [404, { error: "Project not found" }]),
+      "GET /clips/:id": (_b, url) => {
+        const c = clipOf(url)!;
+        return [200, { ...c, projectTitle: detail.title, startSec: 0, endSec: c.durationSec, videoUrl: c.status === "ready" ? "https://cdn.test/clip.mp4" : null, breakdown: null, reasoning: "Strong hook in the first second.", hookExplanation: null }];
+      },
+      "PATCH /clips/:id": (b, url) => [200, { ...clipOf(url)!, ...b, projectTitle: "", startSec: 0, endSec: 1, videoUrl: null, breakdown: null, reasoning: null, hookExplanation: null }],
+      "POST /clips/:id/retry": (_b, url) => [200, { ...clipOf(url)!, status: "rendering", failureReason: null, projectTitle: "", startSec: 0, endSec: 1, videoUrl: null, breakdown: null, reasoning: null, hookExplanation: null }],
+      "GET /clips/:id/download": (_b, url) => [200, { url: `https://cdn.test/${url.pathname.split("/")[2]}.mp4`, fileName: "clip.mp4", expiresAt: "2026-10-09T10:00:00.000Z" }],
+    });
+  });
+  afterEach(() => server.restore());
+
+  it("shows the top clip, counts and score spread, ranked by score", async () => {
     open("/projects/founders-pod-ep-42");
     expect(await screen.findByRole("button", { name: /^Top clip: Nobody tells you this part, score 92/ })).toBeOnTheScreen();
     expect(screen.getByText("10 ready · 1 rendering · 1 failed")).toBeOnTheScreen();
     expect(screen.getByLabelText("Score spread: 90+ 1, 80s 4, 70s 3, 60s 3, <60 1")).toBeOnTheScreen();
+    const scores = screen.getAllByRole("button", { name: /, score \d+,/ }).map((b) => Number(/score (\d+)/.exec(b.props.accessibilityLabel)![1]));
+    expect(scores).toEqual([...scores].sort((a, b) => b - a));
   });
 
-  it("filters to starred clips and stars from the clip sheet", async () => {
+  it("plays a ready clip and stars it at once", async () => {
     open("/projects/founders-pod-ep-42");
     await screen.findByText("10 ready · 1 rendering · 1 failed");
-    fireEvent.press(screen.getByRole("button", { name: "Starred" }));
-    expect(screen.getAllByRole("button", { name: /starred$/ })).toHaveLength(1);
-    fireEvent.press(screen.getByRole("button", { name: "All" }));
     fireEvent.press(screen.getByRole("button", { name: /^The exact cold-email script/ }));
-    press("Star");
+    expect(await screen.findByTestId("video-view")).toBeOnTheScreen();
+    expect(screen.getByText("Strong hook in the first second.")).toBeOnTheScreen();
+    await act(async () => press("Star"));
     await waitFor(() => expect(screen.getAllByRole("button", { name: /starred$/ })).toHaveLength(2));
+    expect(server.to("PATCH", `/clips/${detail.clips.find((c) => c.title.startsWith("The exact cold-email script"))!.id}`)[0]!.body).toEqual({ favorite: true });
+  });
+
+  it("puts the star back if the server says no", async () => {
+    server.restore();
+    server = installFakeApi({
+      "GET /projects/:id": () => [200, detail],
+      "GET /clips/:id": () => [404, { error: "Clip not found" }],
+      "PATCH /clips/:id": () => [500, { error: "Something went wrong on our side. Try again." }],
+    });
+    open("/projects/founders-pod-ep-42");
+    await screen.findByText("10 ready · 1 rendering · 1 failed");
+    fireEvent.press(screen.getByRole("button", { name: /^The exact cold-email script/ }));
+    await act(async () => press("Star"));
+    expect(await screen.findByText("Something went wrong on our side. Try again.")).toBeOnTheScreen();
+    await waitFor(() => expect(screen.getAllByRole("button", { name: /starred$/ })).toHaveLength(1));
+    expect(screen.getAllByRole("button", { name: /starred$/ })).toHaveLength(1);
+  });
+
+  it("saves a clip to the gallery and shares one", async () => {
+    open("/projects/founders-pod-ep-42");
+    await screen.findByText("10 ready · 1 rendering · 1 failed");
+    fireEvent.press(screen.getByRole("button", { name: /^The exact cold-email script/ }));
+    await act(async () => press("Download"));
+    expect(await screen.findByText("Saved to your gallery.")).toBeOnTheScreen();
+    expect(MediaLibrary.requestPermissionsAsync).toHaveBeenCalledWith(true, ["video"]);
+    expect(MediaLibrary.Asset.create).toHaveBeenCalledWith(expect.stringMatching(/clip-.*\.mp4$/));
+    expect(MediaLibrary.Album.create).toHaveBeenCalledWith("Clipiro", expect.any(Array), true);
+    await act(async () => press("Share"));
+    expect(Sharing.shareAsync).toHaveBeenCalledWith(expect.stringMatching(/\.mp4$/), expect.objectContaining({ mimeType: "video/mp4" }));
+  });
+
+  it("explains a refused gallery permission", async () => {
+    (MediaLibrary.requestPermissionsAsync as jest.Mock).mockResolvedValueOnce({ status: "denied" });
+    open("/projects/founders-pod-ep-42");
+    await screen.findByText("10 ready · 1 rendering · 1 failed");
+    await act(async () => press(/^Saving|^Download all ready/));
+    expect(await screen.findByText(/Allow it under Photos and videos/)).toBeOnTheScreen();
+  });
+
+  it("downloads every ready clip, counting as it goes", async () => {
+    open("/projects/founders-pod-ep-42");
+    await screen.findByText("10 ready · 1 rendering · 1 failed");
+    await act(async () => press("Download all ready"));
+    expect(await screen.findByText("Saved 10 clips to your gallery.")).toBeOnTheScreen();
+    expect(server.calls.filter((c) => c.path.endsWith("/download"))).toHaveLength(10);
   });
 
   it("a failed clip explains why and can retry", async () => {
@@ -149,7 +220,7 @@ describe("Project detail", () => {
     fireEvent.press(await screen.findByRole("button", { name: /^The pricing mistake, score 61, failed/ }));
     expect(screen.getByText(/ran out of time/)).toBeOnTheScreen();
     expect(screen.getByRole("button", { name: "Download" })).toBeDisabled();
-    press("Retry render");
+    await act(async () => press("Retry render"));
     expect(await screen.findByText("Rendering again.")).toBeOnTheScreen();
     expect(screen.getByText("10 ready · 2 rendering")).toBeOnTheScreen();
   });
@@ -159,4 +230,3 @@ describe("Project detail", () => {
     expect(await screen.findByText("Project not found")).toBeOnTheScreen();
   });
 });
-
