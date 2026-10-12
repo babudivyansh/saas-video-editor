@@ -26,6 +26,7 @@ SystemUI.setBackgroundColorAsync(colors.bg);
 export default function RootLayout() {
   const [queryClient] = useState(() => new QueryClient());
   const signedIn = useSession((s) => s.signedIn);
+  const ready = useSession((s) => s.ready);
   const [loaded, error] = useFonts({
     Geist_400Regular,
     Geist_500Medium,
@@ -37,12 +38,24 @@ export default function RootLayout() {
     GeistMono_600SemiBold,
   });
 
+  // Read the saved session behind the splash, so a signed-in user opens
+  // straight into the tabs and never sees onboarding.
   useEffect(() => {
-    if (loaded || error) SplashScreen.hideAsync();
-  }, [loaded, error]);
+    useSession.getState().hydrate();
+  }, []);
+
+  // However the session ended (log out, or a refresh the server refused),
+  // nothing cached for that account may show to the next one.
+  useEffect(() => {
+    if (!signedIn) queryClient.clear();
+  }, [signedIn, queryClient]);
+
+  useEffect(() => {
+    if ((loaded || error) && ready) SplashScreen.hideAsync();
+  }, [loaded, error, ready]);
 
   // On a font error, render anyway with the system font rather than hang on the splash.
-  if (!loaded && !error) return null;
+  if ((!loaded && !error) || !ready) return null;
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.bg }}>

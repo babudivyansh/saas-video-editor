@@ -24,7 +24,7 @@ import { ApiError, respond, wait } from "./core";
 // /brand-kits, /notifications, /notification-preferences, /account/deactivate,
 // /billing/cancel. Scenarios (core.ts): "account", "activity", "voices",
 // "brandKit", "notifications", "settings", "clone".
-//   password "wrong-password" → 401 on delete account (as in mocks/auth.ts)
+//   password "wrong-password" → 401 on delete account (as the auth fake server does)
 
 const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
 const daysAgo = (d: number) => ago(d * 24 * 60);

@@ -1,35 +1,46 @@
-import { fieldErrors, loginRequest } from "@clipiro/shared";
+import { ApiError, fieldErrors, loginRequest } from "@clipiro/shared";
 import { router } from "expo-router";
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { Button, ErrorBanner, GoogleButton, OrDivider, TextField, useToast } from "@/components";
-import { useSession } from "@/state/session";
+import { Button, ConfirmSheet, ErrorBanner, GoogleButton, OrDivider, TextField } from "@/components";
+import { auth } from "@/lib/api";
 import { colors, type } from "@/theme";
-import { login } from "@mocks/auth";
 import { AuthScaffold, FooterLink } from "./AuthScaffold";
+import { continueWithGoogle, finishSignIn } from "./finish";
 import { useSubmit } from "./useSubmit";
 
-// design/screens/E-Login.html
+// design/screens/E-Login.html. A deactivated account (within its 30 days)
+// gets a "reactivate?" sheet — the design has none; it reuses ConfirmSheet.
 export function LoginScreen() {
-  const toast = useToast();
-  const signIn = useSession((s) => s.signIn);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const { pending, banner, run } = useSubmit();
+  const [deactivated, setDeactivated] = useState(false);
+  const { pending, banner, serverField, run } = useSubmit();
+  const google = useSubmit();
 
   const submit = () => {
     const parsed = loginRequest.safeParse({ email, password });
     if (!parsed.success) return setErrors(fieldErrors(parsed.error));
     setErrors({});
-    run(async () => {
-      const res = await login(parsed.data);
-      if ("token" in res) signIn();
-      else if ("requiresEmailVerification" in res) router.push({ pathname: "/otp", params: { email: res.email, mode: "login" } });
-      else toast("Two-step verification arrives with real sign-in", "info");
-    });
+    run(
+      async () => finishSignIn(await auth.login(parsed.data)),
+      (e) => {
+        if (!(e instanceof ApiError && e.body.deactivated)) return false;
+        setDeactivated(true);
+        return true;
+      },
+    );
   };
+
+  const reactivate = () =>
+    run(async () => {
+      setDeactivated(false);
+      await finishSignIn(await auth.reactivate({ email, password }));
+    });
+
+  const shown = banner ?? google.banner;
 
   return (
     <AuthScaffold
@@ -43,7 +54,7 @@ export function LoginScreen() {
         </Text>
         <Text style={type(14, "regular", { color: colors.fgMuted })}>Your clips are waiting.</Text>
       </View>
-      {banner ? <ErrorBanner message={banner.message} onRetry={banner.retry ? submit : undefined} /> : null}
+      {shown ? <ErrorBanner message={shown.message} onRetry={shown.retry ? (banner ? submit : () => google.run(continueWithGoogle)) : undefined} /> : null}
       <TextField
         label="Email"
         leadingIcon="mail"
@@ -55,7 +66,7 @@ export function LoginScreen() {
         autoComplete="email"
         textContentType="emailAddress"
         returnKeyType="next"
-        error={errors.email}
+        error={errors.email ?? serverField.email}
       />
       <TextField
         label="Password"
@@ -68,7 +79,7 @@ export function LoginScreen() {
         textContentType="password"
         returnKeyType="go"
         onSubmitEditing={submit}
-        error={errors.password}
+        error={errors.password ?? serverField.password}
         trailingAction={{ icon: showPw ? "eyeOff" : "eye", accessibilityLabel: showPw ? "Hide password" : "Show password", onPress: () => setShowPw((v) => !v) }}
       />
       <Pressable onPress={() => router.push("/forgot-password")} accessibilityRole="link" accessibilityLabel="Forgot password?" style={styles.forgot}>
@@ -76,7 +87,15 @@ export function LoginScreen() {
       </Pressable>
       <Button label="Log in" icon="arrowRight" fullWidth loading={pending} onPress={submit} />
       <OrDivider />
-      <GoogleButton onPress={() => toast("Google sign-in is coming soon", "info")} />
+      <GoogleButton onPress={() => google.run(continueWithGoogle)} loading={google.pending} />
+      <ConfirmSheet
+        visible={deactivated}
+        title="Reactivate your account?"
+        body="This account was deactivated. Reactivate it to restore everything in it — your projects, clips and plan."
+        confirmLabel="Reactivate"
+        onClose={() => setDeactivated(false)}
+        onConfirm={reactivate}
+      />
     </AuthScaffold>
   );
 }
