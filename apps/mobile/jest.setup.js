@@ -94,6 +94,8 @@ jest.mock("expo-media-library", () => {
   };
 });
 jest.mock("expo-sharing", () => ({ shareAsync: jest.fn(async () => {}) }));
+// expo-web-browser (native): tests set how the sign-in session ends.
+jest.mock("expo-web-browser", () => ({ openAuthSessionAsync: jest.fn(async () => ({ type: "cancel" })) }));
 
 // FlashList measures native views; in Jest every list is 400x900 and each
 // item 100x100 (from its own jestSetup, which in 2.0.2 also swaps FlashList

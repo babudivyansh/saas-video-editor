@@ -30,6 +30,15 @@ describe("isPublicApiRoute", () => {
     expect(isPublicApiRoute("/api/webhooks/resend")).toBe(true);
   });
 
+  // A connect started in the phone app comes back through a browser tab with
+  // no clipiro.com cookie; the signed state is the credential.
+  it("un-gates the social OAuth return, and only that", () => {
+    expect(isPublicApiRoute("/api/social/callback/youtube")).toBe(true);
+    expect(isPublicApiRoute("/api/social/callback/meta")).toBe(true);
+    expect(isPublicApiRoute("/api/social/connect/youtube")).toBe(false);
+    expect(isPublicApiRoute("/api/social/accounts")).toBe(false);
+  });
+
   it("still gates authenticated routes", () => {
     expect(isPublicApiRoute("/api/projects")).toBe(false);
     expect(isPublicApiRoute("/api/billing/subscription")).toBe(false);

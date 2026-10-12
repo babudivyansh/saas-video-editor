@@ -24,7 +24,7 @@ vi.mock("@/lib/redis", () => ({
   },
 }));
 
-const { createState, consumeState, makePkce } = await import("./oauth");
+const { createState, consumeState, makePkce, stateClient } = await import("./oauth");
 
 beforeEach(() => {
   store = new Map();
@@ -44,7 +44,21 @@ describe("state round-trip", () => {
     const { verifier } = makePkce();
     const state = await createState("user-1", "instagram", verifier);
     const out = await consumeState(state);
-    expect(out).toEqual({ userId: "user-1", provider: "instagram", verifier });
+    expect(out).toEqual({ userId: "user-1", provider: "instagram", verifier, client: "web" });
+  });
+
+  it("remembers a connect started in the phone app", async () => {
+    const { verifier } = makePkce();
+    const state = await createState("user-1", "youtube", verifier, "app");
+    expect(stateClient(state)).toBe("app");
+    expect(await consumeState(state)).toMatchObject({ userId: "user-1", client: "app" });
+  });
+
+  it("only a validly signed state can send the browser to the app", async () => {
+    expect(stateClient(null)).toBe("web");
+    expect(stateClient(jwt.sign({ userId: "u", provider: "youtube", nonce: "n", client: "app" }, "wrong-secret"))).toBe("web");
+    const { verifier } = makePkce();
+    expect(stateClient(await createState("user-1", "youtube", verifier))).toBe("web");
   });
 
   it("is single-use: a replayed state is rejected", async () => {

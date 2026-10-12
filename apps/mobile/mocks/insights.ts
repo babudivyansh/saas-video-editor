@@ -16,11 +16,20 @@ import { ApiError, respond } from "./core";
 // Stand-in for /api/mobile/v1/social (the web's Social Tracker) until Phase 5.
 // Scenarios (core.ts): "social" — "empty" = no accounts connected.
 
-const ACCOUNTS: SocialAccount[] = [
+const INITIAL_ACCOUNTS: SocialAccount[] = [
   { id: "acc_yt", provider: "youtube", name: "Maya Okafor", handle: "@mayaokafor", avatarUrl: "asset:creator-golden", followers: 12_400, health: "healthy", lastSyncedAt: new Date(Date.now() - 3 * 3600_000).toISOString() },
   { id: "acc_fb", provider: "facebook", name: "Maya Creates", handle: "mayacreates", avatarUrl: "asset:founder-portrait", followers: 8_100, health: "healthy", lastSyncedAt: new Date(Date.now() - 5 * 3600_000).toISOString() },
   { id: "acc_ig", provider: "instagram", name: "maya.okafor", handle: "@maya.okafor", avatarUrl: "asset:creator-violet", followers: 5_600, health: "reconnect", lastSyncedAt: new Date(Date.now() - 4 * 86_400_000).toISOString() },
 ];
+let ACCOUNTS = INITIAL_ACCOUNTS;
+export function resetInsightsMocks() {
+  ACCOUNTS = INITIAL_ACCOUNTS;
+}
+/** DELETE /social/accounts/:id */
+export async function disconnectAccount(id: string) {
+  if (!ACCOUNTS.some((a) => a.id === id)) throw new ApiError("Account not found", 404);
+  ACCOUNTS = ACCOUNTS.filter((a) => a.id !== id);
+}
 
 export async function getSocialAccounts(): Promise<SocialAccount[]> {
   const s = await respond("social");

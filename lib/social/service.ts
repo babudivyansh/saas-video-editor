@@ -2,7 +2,7 @@ import { Prisma, type SocialAccount } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { encryptSecret, decryptSecret } from "@/lib/encryption";
-import { createState, makePkce } from "./oauth";
+import { createState, makePkce, type OAuthClient } from "./oauth";
 import * as google from "./google";
 import * as meta from "./meta";
 import { PROVIDERS } from "./providers";
@@ -20,9 +20,9 @@ export function oauthProviderFor(provider: ProviderId): OAuthProvider {
 }
 
 // ── Connect: build the provider authorize URL ────────────────────────────────
-export async function buildAuthUrl(userId: string, provider: ProviderId): Promise<string> {
+export async function buildAuthUrl(userId: string, provider: ProviderId, client: OAuthClient = "web"): Promise<string> {
   const { verifier, challenge } = makePkce();
-  const state = await createState(userId, provider, verifier);
+  const state = await createState(userId, provider, verifier, client);
   return PROVIDERS[provider].getAuthUrl(state, challenge);
 }
 

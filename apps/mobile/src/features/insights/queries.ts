@@ -19,7 +19,10 @@ export const useRange = create<{ range: RangeDays; setRange: (r: RangeDays) => v
 /** True for the paid-plan refusal (Social Tracker is on paid plans, as on the web). */
 export const isUpsell = (e: unknown) => e instanceof ApiError && e.status === 402 && e.code === "subscription_required";
 
-export const useSocialAccounts = () => useQuery({ queryKey: insightKeys.accounts, queryFn: async () => (await social.accounts()).accounts, retry: (n, e) => !isUpsell(e) && n < 2 });
+const accountsQuery = { queryKey: insightKeys.accounts, queryFn: social.accounts, retry: (n: number, e: unknown) => !isUpsell(e) && n < 2 };
+export const useSocialAccounts = () => useQuery({ ...accountsQuery, select: (r) => r.accounts });
+/** The platforms this server can connect right now (the same request as the accounts). */
+export const useConnectable = () => useQuery({ ...accountsQuery, select: (r) => r.connectable });
 export const useOverview = (r: RangeDays, enabled: boolean) => useQuery({ queryKey: insightKeys.overview(r), queryFn: () => social.overview(r), enabled });
 export const useContent = (r: RangeDays, enabled: boolean) => useQuery({ queryKey: insightKeys.content(r), queryFn: () => social.content(r), enabled });
 export const usePlatform = (accountId: string | null, r: RangeDays) =>

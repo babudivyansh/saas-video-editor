@@ -16,8 +16,11 @@ async function handleGET(req: NextRequest, { params }: { params: Promise<{ provi
   if (!availableProviders().includes(provider as ProviderId)) {
     return NextResponse.json({ error: "Unknown provider" }, { status: 400 });
   }
+  // ?client=app (the phone, via /api/mobile/v1/social/connect): the callback
+  // sends the browser back into the app instead of to this dashboard.
+  const client = req.nextUrl.searchParams.get("client") === "app" ? "app" : "web";
   try {
-    const url = await buildAuthUrl(auth.userId, provider as ProviderId);
+    const url = await buildAuthUrl(auth.userId, provider as ProviderId, client);
     return NextResponse.json({ url });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 400 });
