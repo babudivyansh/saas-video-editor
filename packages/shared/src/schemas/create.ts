@@ -204,6 +204,10 @@ export const imageGenerateRequest = z.object({
 });
 export type ImageGenerateRequest = z.infer<typeof imageGenerateRequest>;
 
+/** POST /tools/enhance-prompt — the AI Media "Prompt generator" (free, rate-limited). */
+export const enhancePromptRequest = z.object({ prompt: z.string().trim().min(3, "Write a few words first, then improve them.").max(MAX_PROMPT_CHARS) });
+export const enhancePromptResponse = z.object({ prompt: z.string() });
+
 export const generatedMediaSchema = z.object({
   id: z.string(),
   kind: z.enum(["image", "audio"]),

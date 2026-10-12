@@ -1,7 +1,9 @@
 import { act, fireEvent, renderRouter, screen, waitFor } from "expo-router/testing-library";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
-import { resetMockScenarios, setMockDelay, setMockScenario } from "@mocks/core";
+import { getAssets, resetAssetMocks } from "@mocks/assets";
+import { ApiError, resetMockScenarios, setMockDelay, setMockScenario } from "@mocks/core";
+import { installMockServer, MOCK_ROUTES } from "@/test/mockServer";
 import { accountFixture, installFakeApi, videoAssetFixture } from "@/test/fakeApi";
 import { makeWrapper } from "@/test/providers";
 import { AIMediaScreen } from "../AIMediaScreen";
@@ -198,6 +200,11 @@ describe("AutoClip", () => {
 });
 
 describe("AI Media", () => {
+  beforeEach(() => {
+    jest.useRealTimers();
+    resetAssetMocks();
+  });
+
   it("opens on the tab it was asked for", async () => {
     open("/create/ai-media?tab=voiceover");
     expect(await screen.findByLabelText("Script")).toBeOnTheScreen();
@@ -205,8 +212,9 @@ describe("AI Media", () => {
   });
 
   it("locks models above the plan", async () => {
-    setMockScenario("create", "empty"); // Free plan
+    setMockScenario("account", "empty"); // a Free account
     open("/create/ai-media");
+    await screen.findByLabelText("10 AI credits left");
     fireEvent.press(await screen.findByTestId("model-seedream-5.0"));
     expect(await screen.findByText("Seedream 5.0 needs the Creator plan.")).toBeOnTheScreen();
     expect(screen.getByText("2 credits")).toBeOnTheScreen(); // still on the free default
@@ -220,14 +228,54 @@ describe("AI Media", () => {
     expect(screen.getByLabelText("Prompt").props.value).toBe("A red bicycle, cinematic lighting, anamorphic, film grain");
   });
 
-  it("generates an image into the results", async () => {
+  it("the prompt generator rewrites the prompt", async () => {
+    open("/create/ai-media");
+    fireEvent.changeText(await screen.findByLabelText("Prompt"), "A lighthouse");
+    press("Prompt generator");
+    await waitFor(() => expect(screen.getByLabelText("Prompt").props.value).toBe("A lighthouse, golden hour light, shallow depth of field, rich colour"));
+  });
+
+  it("generates an image into the results and Assets, and stars it", async () => {
     open("/create/ai-media");
     await screen.findAllByLabelText(/^Generated image/);
     const before = screen.getAllByLabelText(/^Generated image/).length;
     fireEvent.changeText(screen.getByLabelText("Prompt"), "A lighthouse in a storm");
     press("Generate image");
-    await waitFor(() => expect(screen.getAllByLabelText(/^Generated image/).length).toBe(before + 1));
+    expect(await screen.findByText(/^Generating with/)).toBeOnTheScreen();
+    expect(await screen.findByText("Image ready. Saved to Assets.")).toBeOnTheScreen();
+    await waitFor(() => expect(screen.getAllByLabelText(/^Generated image/).length).toBe(Math.min(6, before + 1)));
     expect(screen.getByLabelText("Generated image: A lighthouse in a storm")).toBeOnTheScreen();
+    jest.useRealTimers(); // renderRouter turned fake timers on; the mock store waits on real ones
+    const saved = (await getAssets()).find((a) => a.name === "A lighthouse in a storm")!;
+    expect(saved).toMatchObject({ kind: "image", source: "image-generator", madeWith: "Gemini 2.5 Flash Image" });
+    fireEvent.press(screen.getAllByRole("button", { name: "Add to favourites" })[0]!);
+    await screen.findByRole("button", { name: "Remove from favourites" });
+    // The star shows at once; the PATCH lands a moment later.
+    let favorite = false;
+    for (let i = 0; i < 50 && !favorite; i++) favorite = !!(await getAssets()).find((a) => a.id === saved.id)?.favorite;
+    expect(favorite).toBe(true);
+  });
+
+  it("explains a failed generation, refunded", async () => {
+    setMockScenario("tools", "error");
+    open("/create/ai-media");
+    fireEvent.changeText(await screen.findByLabelText("Prompt"), "A lighthouse in a storm");
+    press("Generate image");
+    expect(await screen.findByText("The model didn’t return an image. Your credits were refunded.")).toBeOnTheScreen();
+  });
+
+  it("offers more credits when there aren't enough", async () => {
+    const restore = installMockServer({ ...MOCK_ROUTES, "POST /jobs": async () => { throw new ApiError("Insufficient credits", 402); } });
+    try {
+      open("/create/ai-media");
+      fireEvent.changeText(await screen.findByLabelText("Prompt"), "A lighthouse in a storm");
+      await screen.findByLabelText("1,171 AI credits left");
+      press("Generate image");
+      expect(await screen.findByText("This needs 2 AI credits and you have 1171. Top up, or upgrade for more each month.")).toBeOnTheScreen();
+      expect(screen.getByRole("button", { name: "Get AI credits" })).toBeOnTheScreen();
+    } finally {
+      restore();
+    }
   });
 
   it("prices a voiceover by length", async () => {
@@ -235,6 +283,20 @@ describe("AI Media", () => {
     expect(await screen.findByText("1 credit")).toBeOnTheScreen();
     await act(async () => fireEvent.changeText(screen.getByLabelText("Script"), "x".repeat(501)));
     expect(screen.getByText("2 credits")).toBeOnTheScreen();
+  });
+
+  it("plays a voice's sample, then reads the script in it into Assets", async () => {
+    const player = (jest.requireMock("expo-audio") as { __player: { replace: jest.Mock } }).__player;
+    open("/create/ai-media?tab=voiceover");
+    fireEvent.press(await screen.findByRole("button", { name: /^Voice: Brian/ }));
+    fireEvent.press(screen.getByRole("radio", { name: /^Aria/ }));
+    press("Play a sample of Aria");
+    expect(player.replace).toHaveBeenCalledWith({ uri: "https://cdn.test/voices/aria.mp3" });
+    fireEvent.changeText(screen.getByLabelText("Script"), "Nobody tells you this part.");
+    press("Generate voiceover");
+    expect(await screen.findByText("Voiceover ready. Saved to Assets.")).toBeOnTheScreen();
+    expect(await screen.findByText("Voiceover · Aria")).toBeOnTheScreen();
+    expect(screen.getByLabelText("Script").props.value).toBe("");
   });
 
   it("rejects audio files over 50 MB", async () => {

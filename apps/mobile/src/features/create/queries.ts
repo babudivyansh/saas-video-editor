@@ -1,23 +1,27 @@
-import type { GeneratedMedia, PlanTier } from "@clipiro/shared";
+import { CAPTION_TEMPLATE_CATALOG, IMAGE_MODEL_CATALOG, type Account, type PlanTier } from "@clipiro/shared";
 import { useQuery } from "@tanstack/react-query";
-import { assets, me } from "@/lib/api";
-import { getCaptionTemplates, getCreateContext, getImageModels, getRecentResults, getVoices } from "@mocks/create";
+import { assets, editorTools, me } from "@/lib/api";
 
-// The Create tab's data. Phase 5 swaps the mock fetchers for the API client.
+// The Create tab's data, from the API. The caption styles and image models
+// are the web's own catalogues, copied into @clipiro/shared (pinned by
+// lib/mobile-create-schema.test.ts), so they need no request.
 export const createKeys = {
-  context: ["create", "context"] as const,
-  captions: ["caption-templates"] as const,
-  imageModels: ["image-models"] as const,
+  /** The account (plan and balances) — the same query as Assets' plan check. */
+  context: ["account"] as const,
   voices: ["voices"] as const,
-  results: (kind: GeneratedMedia["kind"]) => ["ai-results", kind] as const,
+  /** Under "assets", so anything that changes Assets refreshes them too. */
+  results: (kind: "image" | "audio") => ["assets", "ai-results", kind] as const,
 };
 
 const HOUR = 60 * 60 * 1000;
-export const useCreateContext = () => useQuery({ queryKey: createKeys.context, queryFn: getCreateContext });
-export const useCaptionTemplates = () => useQuery({ queryKey: createKeys.captions, queryFn: getCaptionTemplates, staleTime: HOUR });
-export const useImageModels = () => useQuery({ queryKey: createKeys.imageModels, queryFn: getImageModels, staleTime: HOUR });
-export const useVoices = () => useQuery({ queryKey: createKeys.voices, queryFn: getVoices, staleTime: HOUR });
-export const useRecentResults = (kind: GeneratedMedia["kind"]) => useQuery({ queryKey: createKeys.results(kind), queryFn: () => getRecentResults(kind) });
+const toContext = (a: Account) => ({ plan: a.plan.tier, clipMinutes: a.clipMinutes.remaining, aiCredits: a.aiCredits.remaining });
+/** Plan and balances, for prices, locks and the credit pill. */
+export const useCreateContext = () => useQuery({ queryKey: createKeys.context, queryFn: me.account, select: toContext });
+export const useCaptionTemplates = () => ({ data: CAPTION_TEMPLATE_CATALOG, isPending: false as const, isError: false as const, refetch: () => {} });
+export const useImageModels = () => ({ data: IMAGE_MODEL_CATALOG, isPending: false as const, isError: false as const, refetch: () => {} });
+export const useVoices = () => useQuery({ queryKey: createKeys.voices, queryFn: editorTools.voices, staleTime: HOUR });
+/** What the AI tools made lately (Assets → AI Assets), newest first. */
+export const useRecentResults = (kind: "image" | "audio") => useQuery({ queryKey: createKeys.results(kind), queryFn: async () => (await assets.list({ ai: true, kind })).assets });
 
 /** What the AutoClip screen needs: plan (for limits), balances, and the videos already in Assets. */
 export type CreateContext = {

@@ -10,7 +10,7 @@ import * as DocumentPicker from "expo-document-picker";
 import { setQueueIO } from "../../assets/uploadQueue";
 import { addText } from "../docOps";
 import { EditorScreen } from "../EditorScreen";
-import { ExportScreen, exportPoll } from "../ExportScreen";
+import { ExportScreen } from "../ExportScreen";
 import { AiToolsPanel, AudioPanel, CaptionsPanel, EffectsPanel, MediaPanel, TextPanel } from "../panels";
 import { durationOf, useEditor } from "../store";
 
@@ -313,7 +313,6 @@ describe("Panels", () => {
 describe("Export", () => {
   beforeEach(async () => {
     jest.useRealTimers();
-    exportPoll.ms = 5;
     resetExportMock();
     await useEditor.getState().open(EDIT_ID);
   });
@@ -326,7 +325,7 @@ describe("Export", () => {
   });
 
   it("Free plans get 720p with a watermark", async () => {
-    setMockScenario("create", "empty");
+    setMockScenario("account", "empty"); // a Free account
     open("/editor/export");
     expect(await screen.findByText("Free plan: 720p with a Clipiro watermark")).toBeOnTheScreen();
     expect(screen.getByText("720×1280")).toBeOnTheScreen();

@@ -2,7 +2,8 @@ import { ApiError, NetworkError } from "@mocks/core";
 import { AI_SOURCES, maxFileBytes, sortAssets, sortProjects, storageLimitBytes, type AiTextOperationId, type Asset, type AssetSort, type Clip, type ClipAspect, type ProjectSort, type StockItem, type TimelineDoc } from "@clipiro/shared";
 import { getAccount } from "@mocks/account";
 import { addUpload, createFolder, deleteAsset, getAssets, getFolders, updateAsset } from "@mocks/assets";
-import { EDIT_ID, exportAsset, getEdit, getVoices, renderJob, startRender, runAiText, saveEdit, searchStock, stockAsset, transcribe, voiceoverAsset } from "@mocks/editor";
+import { EDIT_ID, exportAsset, getEdit, getVoices, renderJob, startRender, runAiText, saveEdit, searchStock, stockAsset, transcribe } from "@mocks/editor";
+import { enhancePrompt, startToolJob, toolJob } from "@mocks/jobs";
 import { getHomeSummary, getTools } from "@mocks/home";
 import { deleteClips, deleteProjects, getClips, getProject, getProjects, renameProject, retryClip, setClipFavorite } from "@mocks/projects";
 
@@ -26,7 +27,6 @@ function page<T extends { id: string }>(list: T[], url: URL, key: string, size =
   return { [key]: items, nextCursor: from + size < list.length ? (items.at(-1)?.id ?? null) : null, total: list.length };
 }
 const PAGE = 30;
-let lastVoice = "brian";
 const idOf = (url: URL) => url.pathname.split("/")[5]!; // /api/mobile/v1/<area>/<id>
 const clipDetail = (c: Clip) => ({ ...c, projectTitle: "", startSec: 0, endSec: c.durationSec, videoUrl: null, breakdown: null, reasoning: null, hookExplanation: null });
 /** The API signs every file link; the fixtures have none. */
@@ -131,18 +131,12 @@ export const MOCK_ROUTES: Record<string, Route> = {
   // AI tool jobs finish at once; a voiceover is saved into Assets.
   "POST /jobs": async (_url, body) => {
     if (body.type === "export") return [202, { jobId: await startRender(String(body.projectId)) }];
-    if (body.type === "voiceover") lastVoice = String(body.voiceId);
-    return [201, { jobId: `job_${String(body.type)}` }];
+    return [202, { jobId: startToolJob(body) }];
   },
-  "GET /jobs/:id": async (url) => {
-    if (idOf(url).startsWith("exp_")) return ok(await renderJob(idOf(url)));
-    const type = idOf(url).replace(/^job_/, "");
-    const asset = type === "voiceover" ? voiceoverAsset(lastVoice) : null;
-    return ok({ id: idOf(url), type, status: "done", progress: 100, stage: null, error: null, createdAt: "2026-10-10T09:00:00.000Z", result: { assetId: asset?.id ?? null, url: asset?.url ?? null, projectId: null, clipCount: null } });
-  },
+  "GET /jobs/:id": async (url) => ok(idOf(url).startsWith("exp_") ? await renderJob(idOf(url)) : await toolJob(idOf(url))),
+  "POST /tools/enhance-prompt": async (_url, body) => ok({ prompt: await enhancePrompt(String(body.prompt)) }),
   "GET /assets/:id": async (url) => {
     const id = idOf(url);
-    if (id === "vo_1") return ok(voiceoverAsset(lastVoice));
     const a = (await getAssets()).find((x) => x.id === id);
     if (!a) throw new ApiError("Asset not found", 404);
     return ok(signed(a));
