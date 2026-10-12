@@ -159,6 +159,11 @@ model User {
   // flow (DELETE /api/auth/profile) runs. Login is blocked while deactivatedAt is set.
   deactivatedAt                DateTime?
   deactivationScheduledPurgeAt DateTime?
+  // Set when the account was deleted but the row had to stay because it owns
+  // billing records (Purchase/Invoice are onDelete: Restrict and must be kept
+  // by law). Everything else is gone and the row is an anonymised tombstone —
+  // see lib/account-deletion.ts. Never cleared.
+  purgedAt                     DateTime?
 
   notificationPreference NotificationPreference?
 

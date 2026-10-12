@@ -426,12 +426,8 @@
       "typeToConfirmSuffix": "para confirmar.",
       "continue": "Continuar",
       "deleting": "Eliminando…",
-      "permanentlyDelete": "Eliminar permanentemente"
-    },
-    "deleteBlockedModal": {
-      "title": "Aún no puedes eliminar tu cuenta",
-      "body": "Tu cuenta tiene historial de facturación que debe conservarse. Contacta con soporte y nos encargaremos por ti.",
-      "gotIt": "Entendido"
+      "permanentlyDelete": "Eliminar permanentemente",
+      "billingNote": "Tus facturas y registros de pago, incluidos el nombre y la dirección de facturación que figuran en ellos, se conservan durante el tiempo que exige la ley fiscal. Todo lo demás se elimina."
     },
     "confirmPasswordPlaceholder": "Confirma tu contraseña",
     "cancel": "Cancelar",

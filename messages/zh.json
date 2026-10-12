@@ -426,12 +426,8 @@
       "typeToConfirmSuffix": "以确认。",
       "continue": "继续",
       "deleting": "删除中…",
-      "permanentlyDelete": "永久删除"
-    },
-    "deleteBlockedModal": {
-      "title": "暂时无法删除您的账户",
-      "body": "您的账户有需要保留的账单记录。请联系支持团队，我们会为您处理。",
-      "gotIt": "知道了"
+      "permanentlyDelete": "永久删除",
+      "billingNote": "你的发票和付款记录（包括其上的开票姓名和地址）会按税法要求的期限保留。其他所有数据都会被删除。"
     },
     "confirmPasswordPlaceholder": "确认您的密码",
     "cancel": "取消",

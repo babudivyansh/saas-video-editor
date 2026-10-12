@@ -426,12 +426,8 @@
       "typeToConfirmSuffix": "para confirmar.",
       "continue": "Continuar",
       "deleting": "Excluindo…",
-      "permanentlyDelete": "Excluir permanentemente"
-    },
-    "deleteBlockedModal": {
-      "title": "Ainda não é possível excluir sua conta",
-      "body": "Sua conta tem histórico de cobrança que precisa ser mantido. Entre em contato com o suporte e cuidaremos disso para você.",
-      "gotIt": "Entendi"
+      "permanentlyDelete": "Excluir permanentemente",
+      "billingNote": "Suas faturas e registros de pagamento, incluindo o nome e o endereço de cobrança que constam neles, são mantidos pelo tempo que a lei tributária exige. Todo o resto é excluído."
     },
     "confirmPasswordPlaceholder": "Confirme sua senha",
     "cancel": "Cancelar",

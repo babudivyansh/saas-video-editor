@@ -10,6 +10,8 @@ export function emailFromBody(body: { identifier?: unknown; email?: unknown }): 
   return normalizeEmail(body.email ?? body.identifier);
 }
 
+// A purged account (lib/account-deletion.ts) is a tombstone kept only for its
+// invoices — no sign-in, reactivation or reset path may ever reach it.
 export async function findUserByEmail(email: string) {
-  return prisma.user.findUnique({ where: { email } });
+  return prisma.user.findUnique({ where: { email, purgedAt: null } });
 }

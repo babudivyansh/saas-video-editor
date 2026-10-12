@@ -6,12 +6,12 @@ import { cronSecretMatches } from "@/lib/cron-auth";
 import { logger } from "@/lib/logger";
 import { withCronTracking } from "@/lib/cron-tracking";
 
-// Daily cron — hard-deletes accounts whose 30-day deactivation recovery
-// window (app/api/account/deactivate) has passed. Uses the same
+// Daily cron — deletes accounts whose 30-day deactivation recovery window
+// (app/api/account/deactivate) has passed. Uses the same
 // hardDeleteUserAccount core the user-initiated DELETE /api/auth/profile
-// route calls — including its billing-history safeguard, which here just
-// means "leave it deactivated and let support follow up" instead of a 409
-// nobody's around to see.
+// route calls. An account with billing history is purged too: its invoices
+// and payment records stay, everything else is deleted and the User row is
+// anonymised (mode "anonymised"), which also takes it out of this query.
 //
 //   GET /api/cron/account-purge
 //   Authorization: Bearer <CRON_SECRET>
@@ -23,40 +23,37 @@ async function handleGET(req: NextRequest) {
   }
 
   const due = await prisma.user.findMany({
-    where: { deactivatedAt: { not: null }, deactivationScheduledPurgeAt: { lte: new Date() } },
+    where: { deactivatedAt: { not: null }, deactivationScheduledPurgeAt: { lte: new Date() }, purgedAt: null },
     select: { id: true },
   });
 
   let purged = 0;
-  let blocked = 0;
-  const blockedIds: string[] = [];
+  let anonymised = 0;
+  const failedIds: string[] = [];
   for (const u of due) {
     try {
       const result = await hardDeleteUserAccount(u.id);
-      if (result.ok) purged++;
-      else {
-        // A blocked purge (billing-history safeguard) leaves the account
-        // deactivated-but-undeletable past its scheduled purge date with no
-        // one else able to reach it — this used to be logger.warn, which
-        // this codebase's alerting (Sentry, via logger.error) never surfaces.
-        // Without an error-level log, these could sit unnoticed indefinitely.
-        blocked++;
-        blockedIds.push(u.id);
-        logger.error("cron/account-purge", `purge blocked for ${u.id}`, { reason: result.reason });
+      if (result.ok) {
+        purged++;
+        if (result.mode === "anonymised") anonymised++;
+      } else {
+        failedIds.push(u.id);
+        logger.error("cron/account-purge", `purge refused for ${u.id}`, { reason: result.reason });
       }
     } catch (e) {
+      failedIds.push(u.id);
       logger.error("cron/account-purge", `purge failed for ${u.id}`, e);
     }
   }
 
-  // One additional summary line when anything was blocked, so a run with
-  // several blocked accounts still shows up as a single, easy-to-triage
-  // alert rather than only N separate per-account entries.
-  if (blocked > 0) {
-    logger.error("cron/account-purge", `${blocked} account(s) past their purge date are blocked on billing history`, { userIds: blockedIds });
+  // One summary line on top of the per-account entries, so a bad run is a
+  // single easy-to-triage alert. A failed account stays due and is retried
+  // on the next run.
+  if (failedIds.length > 0) {
+    logger.error("cron/account-purge", `${failedIds.length} account(s) past their purge date could not be purged`, { userIds: failedIds });
   }
 
-  return NextResponse.json({ ok: true, purged, blocked, checked: due.length, at: new Date().toISOString() });
+  return NextResponse.json({ ok: true, purged, anonymised, failed: failedIds.length, checked: due.length, at: new Date().toISOString() });
 }
 
 // Records when the run finished and whether it succeeded (lib/cron-tracking.ts).

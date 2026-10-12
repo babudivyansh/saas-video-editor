@@ -426,12 +426,8 @@
       "typeToConfirmSuffix": "pour confirmer.",
       "continue": "Continuer",
       "deleting": "Suppression…",
-      "permanentlyDelete": "Supprimer définitivement"
-    },
-    "deleteBlockedModal": {
-      "title": "Impossible de supprimer votre compte pour l'instant",
-      "body": "Votre compte a un historique de facturation qui doit être conservé. Contactez le support, nous nous en occuperons.",
-      "gotIt": "Compris"
+      "permanentlyDelete": "Supprimer définitivement",
+      "billingNote": "Vos factures et justificatifs de paiement, y compris le nom et l'adresse de facturation qui y figurent, sont conservés aussi longtemps que la loi fiscale l'exige. Tout le reste est supprimé."
     },
     "confirmPasswordPlaceholder": "Confirmez votre mot de passe",
     "cancel": "Annuler",
