@@ -39,6 +39,7 @@ export type DeleteAccountResult =
 // here, or a paying customer's copy of it would outlive their deletion.
 export const PURGED_USER_MODELS = [
   "Project", // cascades Clip, ClipDub, CaptionRenderJob and the rest of a project
+  "ClipPublish", // posts made from an asset outlive the project cascade (assetId is SetNull)
   "Asset",
   "AssetFolder",
   "Tag",
@@ -69,6 +70,8 @@ export const PURGED_USER_MODELS = [
   "SubscriptionEvent",
   "LoginEvent",
   "TwoFactorRecoveryCode",
+  "DeviceToken",
+  "AssistantMessage",
 ] as const;
 
 export const RETAINED_USER_MODELS = [
@@ -157,6 +160,7 @@ function anonymiseOps(
   const where = { userId };
   const now = new Date();
   return [
+    prisma.clipPublish.deleteMany({ where }),
     prisma.project.deleteMany({ where }),
     prisma.asset.deleteMany({ where }),
     prisma.assetFolder.deleteMany({ where }),
@@ -188,6 +192,8 @@ function anonymiseOps(
     prisma.subscriptionEvent.deleteMany({ where }),
     prisma.loginEvent.deleteMany({ where }),
     prisma.twoFactorRecoveryCode.deleteMany({ where }),
+    prisma.deviceToken.deleteMany({ where }),
+    prisma.assistantMessage.deleteMany({ where }),
     deleteEmailLogs(userId, email),
     // Kept rows, stripped of what identifies a person: the sign-up IP on the
     // referral, and a still-redeemable code on the user's own affiliate row.
