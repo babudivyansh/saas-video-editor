@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import Svg, { Defs, LinearGradient, Path, Stop } from "react-native-svg";
-import { colors, derived, radius, type } from "@/theme";
+import { colors, derived, radius, type, withAlpha } from "@/theme";
 
 // Small, dependency-free charts drawn with react-native-svg
 // (design/screens/BN-InsOverview.html "Views over time", BN-InsPlatform.html).
@@ -68,12 +68,22 @@ export function ShareBar({ parts }: { parts: { label: string; percent: number; c
 }
 
 /** Labelled horizontal % bars (audience age), or plain rows (top countries). */
-export function PercentBars({ rows, bars = true }: { rows: { label: string; percent: number }[]; bars?: boolean }) {
+export function PercentBars({ rows, bars = true, stacked = false }: { rows: { label: string; percent: number }[]; bars?: boolean; stacked?: boolean }) {
   const max = Math.max(1, ...rows.map((r) => r.percent));
   return (
     <View style={{ gap: bars ? 10 : 0 }}>
       {rows.map((r, i) =>
-        bars ? (
+        stacked ? (
+          <View key={r.label} style={{ gap: 6 }} accessible accessibilityLabel={`${r.label}: ${r.percent}%`}>
+            <View style={styles.stackHead}>
+              <Text style={[type(12, "regular"), { flex: 1 }]}>{r.label}</Text>
+              <Text style={type(11, "regular", { mono: true, color: colors.fgMuted })}>{r.percent}%</Text>
+            </View>
+            <View style={styles.track}>
+              <View style={[styles.fill, { width: `${(r.percent / max) * 100}%` }]} />
+            </View>
+          </View>
+        ) : bars ? (
           <View key={r.label} style={styles.barRow} accessible accessibilityLabel={`${r.label}: ${r.percent}%`}>
             <Text style={[type(12, "regular", { color: colors.fgMuted }), { width: 48 }]}>{r.label}</Text>
             <View style={styles.track}>
@@ -105,4 +115,43 @@ const styles = StyleSheet.create({
   fill: { height: "100%", borderRadius: radius.pill, backgroundColor: colors.emeraldBright },
   listRow: { flexDirection: "row", alignItems: "center", minHeight: 40 },
   divider: { borderTopWidth: 1, borderTopColor: colors.line },
+  stackHead: { flexDirection: "row", alignItems: "center" },
+  heatRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  heatCell: { flex: 1 },
+  heatBox: { height: 22, borderRadius: 5 },
+  heatBest: { borderWidth: 2, borderColor: colors.fg },
 });
+
+/** 7 days × 6 four-hour blocks, darker = more followers online (BN-SocialAudience "When they're online"). */
+export function Heatmap({ grid, best, label }: { grid: number[][]; best: { day: number; block: number }; label: string }) {
+  const DAYS = ["M", "T", "W", "T", "F", "S", "S"];
+  const COLS = ["12a", "4a", "8a", "12p", "4p", "8p"];
+  return (
+    <View accessible accessibilityRole="image" accessibilityLabel={label} style={{ gap: 4 }}>
+      <View style={styles.heatRow}>
+        <View style={{ width: 16 }} />
+        {COLS.map((c) => (
+          <Text key={c} style={[type(10, "regular", { color: colors.fgSubtle }), styles.heatCell, { textAlign: "center" }]}>
+            {c}
+          </Text>
+        ))}
+      </View>
+      {grid.map((row, d) => (
+        <View key={d} style={styles.heatRow}>
+          <Text style={[type(10, "regular", { color: colors.fgSubtle }), { width: 16 }]}>{DAYS[d]}</Text>
+          {row.map((v, b) => (
+            <View
+              key={b}
+              style={[
+                styles.heatCell,
+                styles.heatBox,
+                { backgroundColor: v < 8 ? derived.chartTrack : withAlpha(colors.emeraldBright, 0.12 + (v / 100) * 0.78) },
+                d === best.day && b === best.block && styles.heatBest,
+              ]}
+            />
+          ))}
+        </View>
+      ))}
+    </View>
+  );
+}

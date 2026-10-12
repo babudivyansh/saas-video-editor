@@ -1,5 +1,4 @@
-import { Placeholder } from "@/navigation/Placeholder";
+// screen: BN-SocialCompetitors
+import { CompetitorsScreen } from "@/features/insights/analytics";
 
-export default function Screen() {
-  return <Placeholder id="BN-SocialCompetitors" />;
-}
+export default CompetitorsScreen;

@@ -32,3 +32,13 @@ describe("mobile Insights rules match the web", () => {
     expect([compact(412_000), compact(26_100), compact(1_200), compact(980), compact(1_260_000)]).toEqual(["412k", "26.1k", "1.2k", "980", "1.3M"]);
   });
 });
+
+describe("mobile report options match the web", () => {
+  it("sections, formats and schedules", async () => {
+    const { reportConfigSchema, reportSectionSchema, reportFormatSchema } = await import("./social/schemas");
+    const { REPORT_SECTIONS, REPORT_FORMATS, REPORT_SCHEDULES } = await import("@clipiro/shared");
+    expect(REPORT_SECTIONS.map((s) => s.id)).toEqual(reportSectionSchema.options);
+    expect([...REPORT_FORMATS]).toEqual(reportFormatSchema.options);
+    expect([...REPORT_SCHEDULES]).toEqual(reportConfigSchema.shape.schedule.unwrap().options);
+  });
+});

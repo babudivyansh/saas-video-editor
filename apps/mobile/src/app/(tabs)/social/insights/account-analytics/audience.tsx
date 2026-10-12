@@ -1,5 +1,4 @@
-import { Placeholder } from "@/navigation/Placeholder";
+// screen: BN-SocialAudience
+import { AudienceScreen } from "@/features/insights/analytics";
 
-export default function Screen() {
-  return <Placeholder id="BN-SocialAudience" />;
-}
+export default AudienceScreen;
