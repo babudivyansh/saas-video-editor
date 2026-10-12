@@ -357,7 +357,9 @@ const doc: LegalDoc = {
             </li>
             <li>
               <strong>Deletion:</strong> Request that we delete your account and associated personal data, subject to
-              legal retention obligations. <a href="/delete-account">How to delete your account</a>.
+              legal retention obligations. If you have made a purchase, we keep your invoices and payment records
+              (including the billing name, email, address, and GSTIN on each invoice) for as long as Indian tax law
+              requires; everything else is deleted. <a href="/delete-account">How to delete your account</a>.
             </li>
             <li>
               <strong>Portability:</strong> Request your data in a structured, machine-readable format.

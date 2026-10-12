@@ -61,10 +61,10 @@ const doc: LegalDoc = {
             uploads and generated files, voices, posts, AI Assistant chats, and the data from accounts you connected.
           </li>
           <li>
-            <strong>If you’ve ever bought a plan or credits:</strong> we’re required by law to keep invoices
-            and payment records, so our team completes the deletion of the rest of your account after the 30 days. To
-            ask about it, email <a href="mailto:support@clipiro.com">support@clipiro.com</a>. See the{" "}
-            <a href="/privacy">Privacy Policy</a>.
+            <strong>If you’ve ever bought a plan or credits:</strong> the law requires us to keep your invoices
+            and payment records, including the billing name, email, and address printed on them. Everything else is
+            still deleted automatically after the 30 days, and what remains of your account can’t be signed in to.
+            See the <a href="/privacy">Privacy Policy</a>.
           </li>
           <li>
             <strong>Posts already published</strong> to YouTube, Instagram, or Facebook stay there: delete them on those
