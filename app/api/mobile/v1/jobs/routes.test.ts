@@ -68,6 +68,17 @@ describe("autoclip", () => {
     expect(web.deleteProject).toHaveBeenCalledOnce();
   });
 
+  it("turns the web's insufficient-minutes refusal into a sentence, a code and the numbers", async () => {
+    assetFindFirst.mockResolvedValue({ name: "Ep42.mp4", url: "https://b.s3.amazonaws.com/uploads/u1/ep42.mp4" });
+    web.autoClip.mockResolvedValue(json({ error: "insufficient_minutes", required: 45, balance: 30, overflowCredits: 5 }, 402));
+    const res = await POST(req({ type: "autoclip", source: { kind: "asset", assetId: "a1" }, settings }));
+    expect([res.status, await res.json()]).toEqual([
+      402,
+      { error: "This video needs 45 Clip Minutes and you have 30.", code: "insufficient_minutes", required: 45, balance: 30, overflowCredits: 5 },
+    ]);
+    expect(web.deleteProject).toHaveBeenCalledOnce();
+  });
+
   it("refuses someone else's (or a missing) video before creating anything", async () => {
     assetFindFirst.mockResolvedValue(null);
     expect((await POST(req({ type: "autoclip", source: { kind: "asset", assetId: "theirs" }, settings }))).status).toBe(404);

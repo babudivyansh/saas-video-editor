@@ -63,6 +63,10 @@ export const autoClipSourceSchema = z.discriminatedUnion("kind", [
     mimeType: z.enum(AUTOCLIP_FILE_TYPES),
     /** Known once the file is probed; null until then. */
     durationSec: z.number().positive().nullable(),
+    /** Where the file is on the phone (file:// in the app cache). */
+    uri: z.string().optional(),
+    width: z.number().int().positive().optional(),
+    height: z.number().int().positive().optional(),
   }),
   z.object({ kind: z.literal("link"), url: sourceLinkSchema, title: z.string().nullable(), durationSec: z.number().positive().nullable() }),
   z.object({ kind: z.literal("asset"), assetId: z.string(), title: z.string(), durationSec: z.number().positive() }),
@@ -70,10 +74,11 @@ export const autoClipSourceSchema = z.discriminatedUnion("kind", [
 export type AutoClipSource = z.infer<typeof autoClipSourceSchema>;
 
 /** Why a picked file can't be used on this plan, or null. */
-export function uploadProblem(file: { sizeBytes: number; mimeType: string }, plan: PlanTier): string | null {
+export function uploadProblem(file: { sizeBytes: number; mimeType: string; durationSec?: number | null }, plan: PlanTier): string | null {
   if (!(AUTOCLIP_FILE_TYPES as readonly string[]).includes(file.mimeType)) return "Use an MP4, MOV or WebM video";
-  const { maxBytes } = AUTOCLIP_LIMITS[plan];
+  const { maxBytes, maxSourceSec } = AUTOCLIP_LIMITS[plan];
   if (file.sizeBytes > maxBytes) return `That file is over your ${PLAN_LABEL[plan]} plan's ${formatBytes(maxBytes)} limit`;
+  if (file.durationSec != null && file.durationSec > maxSourceSec) return `That video is over your ${PLAN_LABEL[plan]} plan's ${formatHours(maxSourceSec)} limit`;
   return null;
 }
 
@@ -127,6 +132,10 @@ export const autoClipStartResponse = z.object({ projectId: z.string(), minutesCh
 /** 1 Clip Minute per started minute of source, at least 1 (autoclip-pricing.ts). */
 export const autoClipMinutes = (sourceSec: number) => Math.max(1, Math.ceil(sourceSec / 60));
 
+/** lib/plans/tiers.ts: a Clip Minutes shortfall can be paid in AI credits, 3 minutes per credit. */
+export const OVERFLOW_MINUTES_PER_CREDIT = 3;
+export const overflowCreditsFor = (minutesShort: number) => (minutesShort > 0 ? Math.ceil(minutesShort / OVERFLOW_MINUTES_PER_CREDIT) : 0);
+
 export const captionTemplateSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -137,6 +146,25 @@ export const captionTemplateSchema = z.object({
   look: z.object({ highlight: z.string().nullable(), uppercase: z.boolean() }),
 });
 export type CaptionTemplate = z.infer<typeof captionTemplateSchema>;
+
+/** The web's AutoClip caption templates (the ids the web sends as captionTemplateId); the look is the app's preview hint. */
+export const CAPTION_TEMPLATE_CATALOG: CaptionTemplate[] = [
+  { id: "clean", name: "Clean", category: "minimal", premium: false, look: { highlight: null, uppercase: false } },
+  { id: "hormozi", name: "Bold Impact", category: "viral", premium: false, look: { highlight: "emerald", uppercase: true } },
+  { id: "podcast", name: "Podcast", category: "podcast", premium: false, look: { highlight: "warning", uppercase: false } },
+  { id: "minimal", name: "Minimal", category: "minimal", premium: false, look: { highlight: null, uppercase: false } },
+  { id: "neon", name: "Neon", category: "creator", premium: false, look: { highlight: "info", uppercase: true } },
+  { id: "news", name: "Headline", category: "professional", premium: false, look: { highlight: "error", uppercase: true } },
+  { id: "viral-bold-01", name: "Hormozi 1", category: "viral", premium: true, look: { highlight: "warning", uppercase: true } },
+  { id: "viral-bold-02", name: "Hormozi 2", category: "viral", premium: true, look: { highlight: "emerald", uppercase: true } },
+  { id: "viral-punch", name: "Hormozi 3", category: "viral", premium: true, look: { highlight: "error", uppercase: true } },
+  { id: "viral-beast", name: "Beast", category: "viral", premium: true, look: { highlight: "warning", uppercase: true } },
+  { id: "creator-modern", name: "Ali", category: "creator", premium: true, look: { highlight: "info", uppercase: false } },
+  { id: "creator-pop", name: "Maya", category: "creator", premium: true, look: { highlight: "emerald", uppercase: false } },
+  { id: "podcast-bold", name: "Carlos", category: "podcast", premium: true, look: { highlight: "warning", uppercase: true } },
+  { id: "clean-minimal", name: "Sara", category: "minimal", premium: true, look: { highlight: null, uppercase: false } },
+  { id: "professional-01", name: "David", category: "professional", premium: true, look: { highlight: "info", uppercase: false } },
+];
 
 // ── AI Media ──────────────────────────────────────────────────────────────
 export const imageRatioSchema = z.enum(["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3", "21:9"]);

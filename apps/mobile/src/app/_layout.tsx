@@ -16,6 +16,7 @@ import { useEffect, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ToastProvider } from "@/components";
+import { useAutoClipUpload } from "@/features/create/uploadStore";
 import { useSession } from "@/state/session";
 import { colors } from "@/theme";
 
@@ -47,7 +48,11 @@ export default function RootLayout() {
   // However the session ended (log out, or a refresh the server refused),
   // nothing cached for that account may show to the next one.
   useEffect(() => {
-    if (!signedIn) queryClient.clear();
+    if (!signedIn) {
+      queryClient.clear();
+      // An unfinished upload belongs to the account that started it.
+      if (useAutoClipUpload.getState().status !== "idle") void useAutoClipUpload.getState().cancel();
+    }
   }, [signedIn, queryClient]);
 
   useEffect(() => {

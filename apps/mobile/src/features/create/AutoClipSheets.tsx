@@ -1,4 +1,5 @@
 import {
+  CAPTION_TEMPLATE_CATALOG,
   CLIP_LENGTHS,
   MAX_INSTRUCTIONS_CHARS,
   sourceLinkSchema,
@@ -14,9 +15,8 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDime
 import { BottomSheet, Button, FilterPills, Icon, OptionList, SegmentedControl, Stepper, TextField, Toggle } from "@/components";
 import { imageSource } from "@/lib/images";
 import { colors, radius, text, type } from "@/theme";
-import { errorMessage } from "@mocks/core";
-import { CAPTION_TEMPLATES, probeLink, type CreateContext } from "@mocks/create";
 import { useAutoClipDraft } from "./draft";
+import type { CreateContext } from "./queries";
 
 // The sheets behind AutoClip's tiles. None are drawn in the designs; they're
 // composed from the system (BottomSheet, OptionList, Toggle, Stepper).
@@ -45,22 +45,15 @@ function SheetBody({ children }: { children: React.ReactNode }) {
 export function LinkSheet({ visible, onClose, onPick }: { visible: boolean; onClose: () => void; onPick: (s: AutoClipSource) => void }) {
   const [url, setUrl] = useState("");
   const [error, setError] = useState<string>();
-  const [checking, setChecking] = useState(false);
 
-  const submit = async () => {
+  // The server reads the title and length when the run starts (and checks
+  // minutes then), so the phone only validates the link.
+  const submit = () => {
     const parsed = sourceLinkSchema.safeParse(url);
     if (!parsed.success) return setError(parsed.error.issues[0]?.message);
     setError(undefined);
-    setChecking(true);
-    try {
-      const info = await probeLink(parsed.data);
-      onPick({ kind: "link", url: parsed.data, title: info.title, durationSec: info.durationSec });
-      setUrl("");
-    } catch (e) {
-      setError(errorMessage(e));
-    } finally {
-      setChecking(false);
-    }
+    onPick({ kind: "link", url: parsed.data, title: null, durationSec: null });
+    setUrl("");
   };
 
   const close = () => {
@@ -89,7 +82,7 @@ export function LinkSheet({ visible, onClose, onPick }: { visible: boolean; onCl
         error={error}
         helper="YouTube, Vimeo, Loom, Google Drive or Dropbox. Live streams can't be clipped."
       />
-      <Button label="Use this link" variant="secondary" size="sm" fullWidth loading={checking} onPress={submit} />
+      <Button label="Use this link" variant="secondary" size="sm" fullWidth onPress={submit} />
     </BottomSheet>
   );
 }
@@ -119,7 +112,13 @@ export function AssetSheet({
               accessibilityLabel={`${a.title}, ${formatHours(a.durationSec)}`}
               style={({ pressed }) => [styles.assetRow, pressed && { backgroundColor: colors.surface3 }]}
             >
-              <Image source={imageSource(a.thumbnailUrl)} style={styles.assetThumb} contentFit="cover" />
+              {a.thumbnailUrl ? (
+                <Image source={imageSource(a.thumbnailUrl)} style={styles.assetThumb} contentFit="cover" />
+              ) : (
+                <View style={[styles.assetThumb, { alignItems: "center", justifyContent: "center", backgroundColor: colors.tint }]}>
+                  <Icon name="film" size={18} color={colors.emeraldBright} />
+                </View>
+              )}
               <View style={{ flex: 1 }}>
                 <Text style={type(14, "semibold")} numberOfLines={1}>
                   {a.title}
@@ -197,7 +196,7 @@ export function CaptionSheet({
   const [lastOn, setLastOn] = useState(value ?? "clean");
   const on = value !== null;
   const rows: CaptionTemplate[][] = [];
-  for (let i = 0; i < CAPTION_TEMPLATES.length; i += 2) rows.push(CAPTION_TEMPLATES.slice(i, i + 2));
+  for (let i = 0; i < CAPTION_TEMPLATE_CATALOG.length; i += 2) rows.push(CAPTION_TEMPLATE_CATALOG.slice(i, i + 2));
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Captions">
       <View style={styles.toggleRow}>

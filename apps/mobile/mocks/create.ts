@@ -1,4 +1,5 @@
 import {
+  CAPTION_TEMPLATE_CATALOG,
   IMAGE_MODEL_CATALOG,
   autoClipMinutes,
   autoClipStartRequest,
@@ -53,23 +54,7 @@ export async function getCreateContext(): Promise<CreateContext> {
 }
 
 // lib/caption-templates.ts: the native (free) styles and the verified premium ones.
-export const CAPTION_TEMPLATES: CaptionTemplate[] = [
-  { id: "clean", name: "Clean", category: "minimal", premium: false, look: { highlight: null, uppercase: false } },
-  { id: "hormozi", name: "Bold Impact", category: "viral", premium: false, look: { highlight: "emerald", uppercase: true } },
-  { id: "podcast", name: "Podcast", category: "podcast", premium: false, look: { highlight: "warning", uppercase: false } },
-  { id: "minimal", name: "Minimal", category: "minimal", premium: false, look: { highlight: null, uppercase: false } },
-  { id: "neon", name: "Neon", category: "creator", premium: false, look: { highlight: "info", uppercase: true } },
-  { id: "news", name: "Headline", category: "professional", premium: false, look: { highlight: "error", uppercase: true } },
-  { id: "viral-bold-01", name: "Hormozi 1", category: "viral", premium: true, look: { highlight: "warning", uppercase: true } },
-  { id: "viral-bold-02", name: "Hormozi 2", category: "viral", premium: true, look: { highlight: "emerald", uppercase: true } },
-  { id: "viral-punch", name: "Hormozi 3", category: "viral", premium: true, look: { highlight: "error", uppercase: true } },
-  { id: "viral-beast", name: "Beast", category: "viral", premium: true, look: { highlight: "warning", uppercase: true } },
-  { id: "creator-modern", name: "Ali", category: "creator", premium: true, look: { highlight: "info", uppercase: false } },
-  { id: "creator-pop", name: "Maya", category: "creator", premium: true, look: { highlight: "emerald", uppercase: false } },
-  { id: "podcast-bold", name: "Carlos", category: "podcast", premium: true, look: { highlight: "warning", uppercase: true } },
-  { id: "clean-minimal", name: "Sara", category: "minimal", premium: true, look: { highlight: null, uppercase: false } },
-  { id: "professional-01", name: "David", category: "professional", premium: true, look: { highlight: "info", uppercase: false } },
-];
+export const CAPTION_TEMPLATES: CaptionTemplate[] = CAPTION_TEMPLATE_CATALOG;
 
 export async function getCaptionTemplates(): Promise<CaptionTemplate[]> {
   await wait();
