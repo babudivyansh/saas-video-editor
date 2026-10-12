@@ -205,3 +205,11 @@ export async function getS3ObjectSize(key: string): Promise<number> {
 export async function copyS3Object(fromKey: string, toKey: string): Promise<void> {
   await s3.send(new CopyObjectCommand({ Bucket: BUCKET, Key: toKey, CopySource: `${BUCKET}/${fromKey.split("/").map(encodeURIComponent).join("/")}` }));
 }
+
+/** An S3 object as a stream plus its byte length, for passing straight on to
+ * another service (the YouTube upload) without a temp file or a buffer. */
+export async function openS3ObjectStream(key: string): Promise<{ stream: NodeJS.ReadableStream; size: number }> {
+  const res = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }));
+  if (!res.Body || res.ContentLength == null) throw new Error(`S3 object ${key} has no body`);
+  return { stream: res.Body as NodeJS.ReadableStream, size: res.ContentLength };
+}

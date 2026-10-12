@@ -1,75 +1,70 @@
 // @vitest-environment node
 //
-// The scheduled-publish cron must upload each row exactly once.
-//
-// Nothing claimed a row before uploading it, so a run that outlasted the
-// 10-minute cron interval was still holding "pending" rows when the next run
-// selected them — and both uploaded the same clip to YouTube.
+// The scheduled-publish cron: each due post goes through runPost (which
+// claims it, so a run that outlasts the 10-minute interval can't upload a
+// clip twice — see lib/social/publish.test.ts), and posts that can never
+// finish are closed with a reason the person is told.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { claim, upload, staleClaims } = vi.hoisted(() => ({
-  staleClaims: vi.fn(async (_a: unknown) => ({ count: 0 })),
-  claim: vi.fn(async (_a: unknown) => ({ count: 1 })),
-  upload: vi.fn(async (..._a: unknown[]) => ({ videoId: "yt1" })),
+const h = vi.hoisted(() => ({
+  findMany: vi.fn(),
+  updateMany: vi.fn(async (_a: unknown) => ({ count: 1 })),
+  runPost: vi.fn(async (_id: string) => "published"),
+  notifyPost: vi.fn(async (..._a: unknown[]) => {}),
 }));
 
-const dueRow = {
-  id: "pub_1",
-  clip: { id: "c1", title: "Hook", videoUrl: "https://s3/c1.mp4", status: "ready" },
-  socialAccount: { id: "acc1", provider: "youtube", status: "active" },
-};
-
-vi.mock("@/lib/prisma", () => ({
-  prisma: {
-    clipPublish: {
-      findMany: vi.fn(async () => [dueRow]),
-      updateMany: vi.fn(async (a: { where: { id?: string; status?: string } }) =>
-        a.where.id ? claim(a) : a.where.status === "publishing" ? staleClaims(a) : { count: 0 }),
-      update: vi.fn(async () => ({})),
-    },
-  },
-}));
+vi.mock("@/lib/prisma", () => ({ prisma: { clipPublish: { findMany: h.findMany, updateMany: h.updateMany } } }));
 vi.mock("@/lib/logger", () => ({ logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
-vi.mock("@/lib/social/service", () => ({ getValidAccessToken: vi.fn(async () => "tok") }));
-vi.mock("@/lib/social/google", () => ({
-  uploadVideo: (...a: unknown[]) => upload(...a),
-  NeedsReauthError: class NeedsReauthError extends Error {},
+vi.mock("@/lib/social/publish", () => ({
+  AUTO_PUBLISH_PROVIDERS: new Set(["youtube"]),
+  POST_INCLUDE: {},
+  runPost: h.runPost,
+  notifyPost: h.notifyPost,
 }));
-vi.mock("@/utils/download", () => ({ downloadFile: vi.fn(async (_u: string, dest: string) => {
-  (await import("fs")).writeFileSync(dest, "x");
-}) }));
 
 const { publishDueClips } = await import("./clip-scheduler");
 
+/** findMany answers by what it's asked for: due, stuck claims, missed. */
+function rows({ due = [] as string[], stuck = [] as string[], missed = [] as string[] }) {
+  h.findMany.mockImplementation(async (a: { where: { status: string; OR?: unknown; scheduledFor?: { lte?: Date } } }) => {
+    if (a.where.status === "publishing") return stuck.map((id) => ({ id }));
+    if (a.where.scheduledFor?.lte) return due.map((id) => ({ id }));
+    return missed.map((id) => ({ id }));
+  });
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
-  claim.mockResolvedValue({ count: 1 });
+  h.runPost.mockResolvedValue("published");
 });
 
 describe("publishDueClips", () => {
-  it("claims a row (pending -> publishing) before uploading it", async () => {
-    const result = await publishDueClips();
-    expect(claim).toHaveBeenCalledWith({ where: { id: "pub_1", status: "pending" }, data: { status: "publishing" } });
-    expect(upload).toHaveBeenCalledTimes(1);
-    expect(result.published).toBe(1);
-  });
-
-  it("skips a row another run already claimed, without uploading it again", async () => {
-    claim.mockResolvedValueOnce({ count: 0 });
-    const result = await publishDueClips();
-    expect(upload).not.toHaveBeenCalled();
-    expect(result.skipped).toBe(1);
+  it("posts each due post and counts the outcomes", async () => {
+    rows({ due: ["p1", "p2", "p3", "p4"] });
+    h.runPost.mockResolvedValueOnce("published").mockResolvedValueOnce("reminded").mockResolvedValueOnce("failed").mockResolvedValueOnce("busy");
+    expect(await publishDueClips()).toEqual({ published: 1, reminded: 1, failed: 1, skipped: 1 });
+    expect(h.runPost.mock.calls.map((c) => c[0])).toEqual(["p1", "p2", "p3", "p4"]);
   });
 });
 
-describe("publishDueClips — abandoned claims", () => {
-  it("fails a publish claim held long past its start, instead of leaving it forever", async () => {
+describe("publishDueClips — posts that can't finish", () => {
+  it("fails a publish claim held long past its start, and says to check the channel", async () => {
     // Put back to pending instead, a clip that DID reach YouTube before the
     // crash would be uploaded twice. Failed, with the reason saying to check.
+    rows({ stuck: ["p9"] });
     await publishDueClips();
-    const args = staleClaims.mock.calls[0][0] as { where: { status: string }; data: { status: string; failureReason: string } };
-    expect(args.where.status).toBe("publishing");
+    const args = h.updateMany.mock.calls[0]![0] as { where: { id: { in: string[] }; status: string }; data: { status: string; failureReason: string } };
+    expect(args.where).toEqual({ id: { in: ["p9"] }, status: "publishing" });
     expect(args.data.status).toBe("failed");
     expect(args.data.failureReason).toMatch(/Check your YouTube channel/);
+    expect(h.notifyPost).toHaveBeenCalledWith({ id: "p9" }, "social_post_failed", args.data.failureReason);
+  });
+
+  it("marks a post missed after a day, with a reason, and tells the person", async () => {
+    rows({ missed: ["p7"] });
+    await publishDueClips();
+    const args = h.updateMany.mock.calls[0]![0] as { data: { status: string; failureReason: string } };
+    expect(args.data).toEqual({ status: "expired", failureReason: expect.stringMatching(/within a day/) });
+    expect(h.notifyPost).toHaveBeenCalledWith({ id: "p7" }, "social_post_failed", args.data.failureReason);
   });
 });

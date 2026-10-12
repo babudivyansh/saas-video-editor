@@ -41,15 +41,14 @@ vi.mock("@/lib/prisma", () => {
     },
   };
 });
-vi.mock("@/lib/social/service", () => ({ getValidAccessToken: vi.fn(async () => "tok") }));
-vi.mock("@/lib/social/google", () => ({
-  uploadVideo: (...a: unknown[]) => upload(...a),
-  NeedsReauthError: class NeedsReauthError extends Error {},
+vi.mock("@/lib/social/google", () => ({ NeedsReauthError: class NeedsReauthError extends Error {} }));
+// The upload itself (streamed from S3) is lib/social/publish.ts's, tested there.
+vi.mock("@/lib/social/publish", () => ({
+  AUTO_PUBLISH_PROVIDERS: new Set(["youtube"]),
+  POST_INCLUDE: {},
+  uploadPost: (...a: unknown[]) => upload(...a),
 }));
 vi.mock("@/lib/autoclip-publish", () => ({ resolveProviderPostId: vi.fn(async () => null) }));
-vi.mock("@/utils/download", () => ({ downloadFile: vi.fn(async (_u: string, dest: string) => {
-  (await import("fs")).writeFileSync(dest, "x");
-}) }));
 
 const { POST } = await import("./route");
 
@@ -69,7 +68,10 @@ describe("POST .../publish (YouTube auto-publish)", () => {
   it("claims, uploads once, and turns the claim into the published row", async () => {
     const res = await post();
     expect(res.status).toBe(201);
-    expect(publishCreate).toHaveBeenCalledWith({ data: { clipId: "c1", socialAccountId: "acc1", status: "publishing" } });
+    expect(publishCreate).toHaveBeenCalledWith({
+      data: { userId: "u1", clipId: "c1", socialAccountId: "acc1", status: "publishing", privacy: "unlisted" },
+      include: {},
+    });
     expect(upload).toHaveBeenCalledTimes(1);
     expect(publishUpdate).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "pub_1" }, data: expect.objectContaining({ status: "linked" }) }));
   });

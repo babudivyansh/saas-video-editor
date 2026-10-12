@@ -78,6 +78,10 @@ export async function register() {
   createRenderQueue("asset-moderation", assetModerationJob);
   createRenderQueue("asset-zip", assetZipJob);
   createRenderQueue("account-export", accountExportJob);
+  // Social Studio "post now" (lib/social/publish-queue.ts; the clip-publish
+  // cron is the fallback when an enqueue is lost).
+  const { socialPublishJob } = await import("./lib/social/publish-queue");
+  createRenderQueue("social-publish", socialPublishJob);
   // Created at that module's top level (like video-compressor below); it was
   // the one name in KNOWN_RENDER_QUEUE_NAMES never started at boot, so a scan
   // enqueued from a process that hadn't loaded it sat in "waiting" forever.

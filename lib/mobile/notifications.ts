@@ -33,6 +33,8 @@ export function appHref(href: string | null): string | null {
   const q = url.searchParams;
   if (p === "/dashboard/create/auto-clip") return q.get("project") ? `/projects/${encodeURIComponent(q.get("project")!)}` : "/create/autoclip";
   if (p === "/dashboard/editor" && q.get("projectId")) return `/editor/export?projectId=${encodeURIComponent(q.get("projectId")!)}`;
+  // A post notification (lib/social/publish.ts postHref) opens the post.
+  if (p === "/dashboard/social-tracker" && q.get("post")) return `/social/scheduled-posts?post=${encodeURIComponent(q.get("post")!)}`;
   if (p.startsWith("/dashboard/social-tracker")) return "/social/insights";
   if (p === "/dashboard" && q.get("billing")) return q.get("tab") === "topup" ? "/you/credits" : "/you/subscription";
   if (p === "/dashboard/tools/voiceover") return "/create/ai-media?tab=voiceover";

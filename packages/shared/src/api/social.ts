@@ -20,6 +20,17 @@ import {
   summaryResponse,
   type RangeDays,
 } from "../schemas/insights";
+import {
+  captionIdeasRequest,
+  captionIdeasResponse,
+  createPostsRequest,
+  createPostsResponse,
+  linkPostRequest,
+  postResponse,
+  postsResponse,
+  updatePostRequest,
+  type PostStatus,
+} from "../schemas/social";
 import type { ApiClient } from "./client";
 
 const enc = encodeURIComponent;
@@ -63,6 +74,24 @@ export function socialApi(api: ApiClient) {
     createShareLink: (b: z.input<typeof shareLinkRequest>) => api.request("/social/share-links", { method: "POST", body: shareLinkRequest.parse(b), schema: shareLinkCreatedResponse }),
     revokeShareLink: (id: string) => api.request(`/social/share-links/${enc(id)}`, { method: "DELETE", schema: z.object({ ok: z.literal(true) }) }),
     exportCsv: (accountId: string) => api.request(`/social/export?accountId=${enc(accountId)}`, { schema: csvExportResponse }),
+    /** Posts with their time in [from, to] (ISO), earliest first; one status optional. */
+    posts: (p: { from?: string; to?: string; status?: PostStatus; cursor?: string | null } = {}) => {
+      const qs = new URLSearchParams();
+      for (const [k, v] of Object.entries(p)) if (v) qs.set(k, v);
+      const s = qs.toString();
+      return api.request(`/social/posts${s ? `?${s}` : ""}`, { schema: postsResponse });
+    },
+    post: (id: string) => api.request(`/social/posts/${enc(id)}`, { schema: postResponse }),
+    /** One post per account; "now" starts posting straight away. */
+    createPosts: (b: z.input<typeof createPostsRequest>) => api.request("/social/posts", { method: "POST", body: createPostsRequest.parse(b), schema: createPostsResponse }),
+    updatePost: (id: string, b: z.input<typeof updatePostRequest>) => api.request(`/social/posts/${enc(id)}`, { method: "PATCH", body: updatePostRequest.parse(b), schema: postResponse }),
+    /** Cancels a scheduled post, or removes a finished one from Clipiro. */
+    deletePost: (id: string) => api.request(`/social/posts/${enc(id)}`, { method: "DELETE", schema: z.object({ ok: z.literal(true) }) }),
+    retryPost: (id: string) => api.request(`/social/posts/${enc(id)}/retry`, { method: "POST", body: {}, schema: postResponse }),
+    /** "I posted it": the live post's link. */
+    linkPost: (id: string, permalink: string) => api.request(`/social/posts/${enc(id)}/link`, { method: "POST", body: linkPostRequest.parse({ permalink }), schema: postResponse }),
+    /** AI caption ideas for an account (charged). */
+    captionIdeas: (b: z.input<typeof captionIdeasRequest>) => api.request(`/social/captions?tz=${enc(localTz())}`, { method: "POST", body: captionIdeasRequest.parse(b), schema: captionIdeasResponse }),
     /** Makes a new summary (charged, unless a recent one exists). */
     makeSummary: (b: z.input<typeof summaryRequest>) => api.request("/social/summary", { method: "POST", body: summaryRequest.parse(b), schema: summaryResponse }),
   };

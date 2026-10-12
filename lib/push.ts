@@ -25,6 +25,10 @@ export const PUSHED: Partial<Record<NotificationType, { pref: keyof PushPrefs | 
   autoclip_render_failed: { pref: "renderFinished", channel: "clips" },
   editor_export_complete: { pref: "renderFinished", channel: "clips" },
   editor_export_failed: { pref: "renderFinished", channel: "clips" },
+  social_post_published: { pref: "postPublished", channel: "posts" },
+  social_post_failed: { pref: "postPublished", channel: "posts" },
+  social_post_needs_reconnect: { pref: "postPublished", channel: "posts" },
+  social_post_your_turn: { pref: "postPublished", channel: "posts" },
   billing_payment_failed: { pref: null, channel: "account" },
   billing_subscription_halted: { pref: null, channel: "account" },
 };

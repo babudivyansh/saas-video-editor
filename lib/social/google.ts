@@ -1,3 +1,4 @@
+import { Readable } from "node:stream";
 import { redirectUri } from "./oauth";
 import { ProviderApiError } from "./errors";
 import { fetchAudienceBreakdowns, fetchDailyMetrics, fetchVideoReport } from "./google-analytics";
@@ -237,22 +238,25 @@ export class NeedsReauthError extends Error {
   constructor() { super("This YouTube account was connected before publish access existed — reconnect it to enable publishing."); }
 }
 
-// Publishes a rendered clip to YouTube (Shorts, since AutoClip output is
-// vertical) via the resumable-upload protocol. Single-shot PUT rather than
-// chunked — AutoClip clips are short/small enough (seconds, low-res) that
-// this is well within what a single request handles; chunking only matters
-// for large long-form uploads.
+/** What to upload: bytes in memory, or a stream of known length (an S3 object
+ * passed straight through, so a large export never sits in memory). */
+export type UploadBody = { buffer: Buffer } | { stream: NodeJS.ReadableStream; size: number };
+
+// Publishes a video to YouTube via the resumable-upload protocol. Single-shot
+// PUT rather than chunked: one request carries the whole file, streamed when a
+// stream is given. Chunking would only matter for resuming a long upload.
 export async function uploadVideo(
   accessToken: string,
-  params: { buffer: Buffer; title: string; description?: string; privacyStatus?: "public" | "unlisted" | "private" },
+  params: UploadBody & { title: string; description?: string; privacyStatus?: "public" | "unlisted" | "private" },
 ): Promise<{ videoId: string; permalink: string }> {
+  const size = "buffer" in params ? params.buffer.length : params.size;
   const initRes = await fetch(`${UPLOAD_API}?uploadType=resumable&part=snippet,status`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json; charset=UTF-8",
       "X-Upload-Content-Type": "video/mp4",
-      "X-Upload-Content-Length": String(params.buffer.length),
+      "X-Upload-Content-Length": String(size),
     },
     body: JSON.stringify({
       snippet: { title: params.title.slice(0, 100), description: params.description?.slice(0, 5000) ?? "" },
@@ -272,9 +276,11 @@ export async function uploadVideo(
 
   const putRes = await fetch(uploadUrl, {
     method: "PUT",
-    headers: { "Content-Type": "video/mp4", "Content-Length": String(params.buffer.length) },
-    body: new Uint8Array(params.buffer),
-  });
+    headers: { "Content-Type": "video/mp4", "Content-Length": String(size) },
+    ...("buffer" in params
+      ? { body: new Uint8Array(params.buffer) }
+      : { body: Readable.toWeb(Readable.from(params.stream)) as ReadableStream, duplex: "half" as const }),
+  } as RequestInit);
   if (!putRes.ok) throw new Error(`youtube upload failed: ${putRes.status} ${await putRes.text()}`);
 
   const video = (await putRes.json()) as { id: string };

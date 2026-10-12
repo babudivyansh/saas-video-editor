@@ -14,6 +14,7 @@ describe("appHref", () => {
     ["https://clipiro.com/dashboard/create/auto-clip?project=p42", "/projects/p42"],
     ["/dashboard/create/auto-clip", "/create/autoclip"],
     ["/dashboard/social-tracker/overview", "/social/insights"],
+    ["/dashboard/social-tracker?post=p_1", "/social/scheduled-posts?post=p_1"],
     ["/dashboard?billing=1&view=manage", "/you/subscription"],
     ["/dashboard?billing=1&tab=topup", "/you/credits"],
     ["/dashboard/tools/voiceover", "/create/ai-media?tab=voiceover"],

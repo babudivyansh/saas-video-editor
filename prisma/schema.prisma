@@ -197,6 +197,8 @@ model User {
   loginEvents         LoginEvent[]
   apiKeys             ApiKey[]
   brandKits           BrandKit[]
+  // Posts to social accounts (Social Studio, mobile Phase 11.3).
+  socialPosts         ClipPublish[]
   clonedVoices        ClonedVoice[]
   assetFolders        AssetFolder[]
   tags                Tag[]
@@ -856,10 +858,26 @@ model CaptionRenderJob {
 // (user pastes the permalink after manually publishing) so the existing
 // social-refresh sync can pull real performance data back onto the clip,
 // closing the analytics loop without requiring new OAuth scopes.
+// One post of a video to one social account. Named for where it started
+// (AutoClip clips); since mobile Phase 11.3 (docs/mobile/SCHEDULING.md) it is
+// also every post the Social Studio schedules, from a clip or from a video in
+// Assets, with its own title, caption, hashtags and visibility.
 model ClipPublish {
   id              String        @id @default(cuid())
-  clipId          String
-  clip            Clip          @relation(fields: [clipId], references: [id], onDelete: Cascade)
+  /// Owner. Was implied through clip -> project; a post of an Asset has no clip.
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // At most one of clipId / assetId (a CHECK in the migration); new posts set
+  // exactly one. assetId is SetNull, so a finished post outlives its video.
+  clipId          String?
+  clip            Clip?         @relation(fields: [clipId], references: [id], onDelete: Cascade)
+  assetId         String?
+  asset           Asset?        @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  title           String? // YouTube title; null = the clip title
+  caption         String? // description / caption text
+  hashtags        String[]      @default([])
+  privacy         String        @default("public") // public | unlisted | private
+  source          String        @default("web") // web | app: which client created it
   socialAccountId String
   socialAccount   SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
   providerPostId  String? // set once the user links the live post/permalink
@@ -887,6 +905,8 @@ model ClipPublish {
 
   @@index([clipId])
   @@index([socialAccountId])
+  @@index([userId, scheduledFor])
+  @@index([assetId])
 }
 
 model RazorpayEvent {
@@ -1042,6 +1062,7 @@ model Asset {
   projectsUsingAsSource Project[] @relation("ProjectSourceAsset")
   clipsUsingAsSource    Clip[]    @relation("ClipSourceAsset")
   generationResults     Generation[] @relation("GenerationResult")
+  socialPosts           ClipPublish[]
 
   @@unique([userId, checksum])
   @@index([userId, createdAt])

@@ -187,7 +187,8 @@ describe("Paging", () => {
     await waitFor(() => expect(result.current.items).toHaveLength(30), { timeout: 10000 });
     expect(result.current.total).toBe(32);
     await act(async () => void (await result.current.fetchNextPage()));
-    expect(result.current.items).toHaveLength(32);
+    // The hook re-renders with the new page a tick after the fetch resolves.
+    await waitFor(() => expect(result.current.items).toHaveLength(32));
     expect(result.current.hasNextPage).toBe(false);
     expect(server.calls.map((c) => c.path + new URL(`http://x${c.path}`).search)).toHaveLength(2);
     server.restore();
