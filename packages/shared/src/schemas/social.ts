@@ -1,50 +1,20 @@
 import { z } from "zod";
 import { providerSchema } from "./insights";
 
-// Social Studio: scheduled posts and the composer. Posting itself is Phase 11
-// (backend designed in docs/mobile/SCHEDULING.md, pending approval); these
-// shapes are what that API returns.
+// Social Studio: posting a video to connected accounts. The API
+// (/api/mobile/v1/social/posts) is below; docs/mobile/SCHEDULING.md.
 
-/** Where a post can go. v1 posts to YouTube Shorts only; the rest are "Soon". */
-export const POST_TARGETS = [
-  { id: "youtube", label: "YouTube Shorts", available: true },
-  { id: "instagram", label: "Reels", available: false },
-  { id: "facebook", label: "Facebook", available: false },
+/** Where a post can go. YouTube is posted by Clipiro; Instagram and Facebook are "your turn" posts the person makes themselves (SCHEDULING.md D1). */
+export const POST_PLATFORMS = [
+  { id: "youtube", label: "YouTube", auto: true },
+  { id: "instagram", label: "Instagram", auto: false },
+  { id: "facebook", label: "Facebook", auto: false },
 ] as const;
-export type PostTarget = (typeof POST_TARGETS)[number]["id"];
+export type PostPlatform = (typeof POST_PLATFORMS)[number]["id"];
+export const isAutoPost = (provider: string) => POST_PLATFORMS.some((p) => p.id === provider && p.auto);
 
-/** Caption limit: Instagram's 2,200 (the tightest of the three). */
+/** Caption limit on Instagram and Facebook: Instagram's 2,200. */
 export const CAPTION_MAX = 2200;
-export const MAX_HASHTAGS = 15;
-
-export const scheduledPostSchema = z.object({
-  id: z.string(),
-  clipId: z.string(),
-  title: z.string(),
-  thumbnailUrl: z.string(),
-  provider: providerSchema,
-  caption: z.string(),
-  hashtags: z.array(z.string()),
-  scheduledAt: z.string(),
-  status: z.enum(["scheduled", "posted", "failed"]),
-  failureReason: z.string().nullable(),
-});
-export type ScheduledPost = z.infer<typeof scheduledPostSchema>;
-
-export const composeRequest = z
-  .object({
-    clipId: z.string().min(1, "Choose a clip"),
-    targets: z.array(z.enum(["youtube", "instagram", "facebook"])).min(1, "Pick where to post"),
-    caption: z.string().max(CAPTION_MAX, `Keep it under ${CAPTION_MAX.toLocaleString("en-US")} characters`),
-    hashtags: z.array(z.string().regex(/^#[\p{L}\p{N}_]{1,60}$/u, "Hashtags are # plus letters, numbers or _")).max(MAX_HASHTAGS),
-    when: z.enum(["now", "schedule"]),
-    scheduledAt: z.string().nullable(),
-  })
-  .refine((r) => r.when === "now" || (r.scheduledAt != null && new Date(r.scheduledAt).getTime() > Date.now() + 60_000), {
-    message: "Pick a time in the future",
-    path: ["scheduledAt"],
-  });
-export type ComposeRequest = z.infer<typeof composeRequest>;
 
 /** "#Founders, startup" → ["#founders", "#startup"], de-duplicated. */
 export function parseHashtags(raw: string): string[] {
@@ -65,8 +35,7 @@ export function monthGrid(year: number, month: number): (number | null)[] {
 }
 
 // ── Posts API (/api/mobile/v1/social/posts, mobile Phase 11.3) ───────────────
-// docs/mobile/SCHEDULING.md. scheduledPostSchema / composeRequest above are
-// the design-time shapes the app's mocks still use until Phase 11.4.
+// docs/mobile/SCHEDULING.md.
 
 /** What the app shows for a post. "your_turn": an Instagram/Facebook post the person posts themselves, then links. */
 export const POST_STATUSES = ["scheduled", "posting", "posted", "failed", "your_turn", "missed"] as const;
@@ -111,6 +80,9 @@ export const postResponse = z.object({ post: socialPostSchema });
 
 /** "not_short": YouTube will post it as a regular video (over 3 min, or not vertical). "uploads_busy": today's YouTube uploads are used up, so it goes out when they free up. */
 export const POST_WARNINGS = ["not_short", "uploads_busy"] as const;
+/** The caption limit for these platforms: 2,200 once Instagram or Facebook is in, else YouTube's 5,000. */
+export const captionLimit = (providers: readonly string[]) => (providers.some((p) => !isAutoPost(p)) ? CAPTION_MAX : POST_CAPTION_MAX);
+
 export const createPostsResponse = z.object({ posts: z.array(socialPostSchema), warnings: z.array(z.enum(POST_WARNINGS)) });
 
 export const createPostsRequest = z.object({

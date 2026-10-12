@@ -1,12 +1,13 @@
 import { ApiError, NetworkError, scenarioOf } from "@mocks/core";
 import { addCompetitor, createReport, createShareLink, getAnalyticsOverview, getAudience, getCompetitors, getReports, getSummary, makeSummary, removeCompetitor, reportDownload, revokeShareLink } from "@mocks/analytics";
 import { disconnectAccount, exportCsv, getContentPerformance, getInsightsOverview, getPlatformAnalytics, getSocialAccounts, providerOf } from "@mocks/insights";
-import { AI_SOURCES, maxFileBytes, sortAssets, sortProjects, storageLimitBytes, type AiTextOperationId, type Asset, type AssetSort, type Clip, type ClipAspect, type ProjectSort, type Provider, type RangeDays, type ReportRequest, type StockItem, type TimelineDoc } from "@clipiro/shared";
+import { AI_SOURCES, maxFileBytes, sortAssets, sortProjects, storageLimitBytes, type AiTextOperationId, type Asset, type AssetSort, type Clip, type ClipAspect, type CreatePostsRequest, type ProjectSort, type Provider, type RangeDays, type ReportRequest, type StockItem, type TimelineDoc } from "@clipiro/shared";
 import { getAccount } from "@mocks/account";
 import { addUpload, createFolder, deleteAsset, getAssets, getFolders, updateAsset } from "@mocks/assets";
 import { EDIT_ID, exportAsset, getEdit, getVoices, renderJob, startRender, runAiText, saveEdit, searchStock, stockAsset, transcribe } from "@mocks/editor";
 import { enhancePrompt, startToolJob, toolJob } from "@mocks/jobs";
 import { getHomeSummary, getTools } from "@mocks/home";
+import { captionIdeas, createPosts, deletePost, getPost, linkPost, listPosts, retryPost, updatePost } from "@mocks/social";
 import { deleteClips, deleteProjects, getClips, getProject, getProjects, renameProject, retryClip, setClipFavorite } from "@mocks/projects";
 
 // The mock fixtures answering as /api/mobile/v1, behind the app's real API
@@ -225,6 +226,17 @@ export const MOCK_ROUTES: Record<string, Route> = {
       return ok({ ok: true });
     },
     "GET /social/export": async (url) => ok(await exportCsv(url.searchParams.get("accountId") ?? "")),
+    "GET /social/posts": async (url) => ok(await listPosts(url)),
+    "POST /social/posts": async (_url, body) => [201, await createPosts(body as unknown as CreatePostsRequest)],
+    "GET /social/posts/:id": async (url) => ok(await getPost(socialIdOf(url))),
+    "PATCH /social/posts/:id": async (url, body) => ok(await updatePost(socialIdOf(url), body)),
+    "DELETE /social/posts/:id": async (url) => {
+      await deletePost(socialIdOf(url));
+      return ok({ ok: true });
+    },
+    "POST /social/posts/:id/retry": async (url) => ok(await retryPost(socialIdOf(url))),
+    "POST /social/posts/:id/link": async (url, body) => ok(await linkPost(socialIdOf(url), String(body.permalink))),
+    "POST /social/captions": async (_url, body) => ok(await captionIdeas(String(body.brief))),
   }),
 };
 

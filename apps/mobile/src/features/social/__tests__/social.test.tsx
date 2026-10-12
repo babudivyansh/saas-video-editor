@@ -1,8 +1,10 @@
 import { fireEvent, renderRouter, screen, waitFor } from "expo-router/testing-library";
 import { resetMockScenarios, setMockDelay, setMockScenario } from "@mocks/core";
 import { resetProjectMocks } from "@mocks/projects";
-import { resetSocialMocks } from "@mocks/social";
+import { lastCreateRequest, resetSocialMocks } from "@mocks/social";
 import { resetInsightsMocks } from "@mocks/insights";
+import * as Clipboard from "expo-clipboard";
+import * as Sharing from "expo-sharing";
 import * as WebBrowser from "expo-web-browser";
 import { makeWrapper } from "@/test/providers";
 import { ComposerScreen } from "../ComposerScreen";
@@ -96,6 +98,12 @@ describe("Calendar", () => {
     await waitFor(() => expect(r.getPathname()).toBe("/composer"));
     expect(new Date(useComposerSeed.getState().date!).getHours()).toBe(18);
   });
+
+  it("asks a Free account to upgrade", async () => {
+    setMockScenario("subscription", "empty");
+    open("/social/content-calendar");
+    expect(await screen.findByText("Insights are on paid plans")).toBeOnTheScreen();
+  });
 });
 
 describe("Scheduled", () => {
@@ -105,7 +113,8 @@ describe("Scheduled", () => {
     expect(screen.getByLabelText("1 failed")).toBeOnTheScreen();
     press("Retry Why we ignored investors");
     expect(await screen.findByLabelText("0 failed")).toBeOnTheScreen();
-    expect(screen.getByLabelText("6 scheduled")).toBeOnTheScreen();
+    expect(await screen.findByText("Posting now")).toBeOnTheScreen();
+    expect(screen.getByText("Posting to YouTube again.")).toBeOnTheScreen();
   });
 
   it("deletes a scheduled post after confirming", async () => {
@@ -115,11 +124,48 @@ describe("Scheduled", () => {
     press("Delete");
     expect(await screen.findByLabelText("4 scheduled")).toBeOnTheScreen();
   });
+
+  it("opens a scheduled post in the composer to edit it", async () => {
+    const r = open("/social/scheduled-posts");
+    fireEvent.press(await screen.findByRole("button", { name: "Edit Hiring your first 10" }));
+    press("Edit post");
+    await waitFor(() => expect(r.getPathname()).toBe("/composer"));
+    expect(useComposerSeed.getState().editId).toBe("p6");
+  });
+
+  it("helps post an Instagram post yourself: share with the caption copied, then link it", async () => {
+    open("/social/scheduled-posts");
+    expect(await screen.findByRole("header", { name: "Your turn" })).toBeOnTheScreen();
+    press("Post it Ship before you're ready");
+    press("Share to Instagram");
+    await waitFor(() => expect(Sharing.shareAsync).toHaveBeenCalled());
+    expect(Clipboard.setStringAsync).toHaveBeenCalledWith("Ship it.\n\n#startup");
+    expect(await screen.findByText("Caption copied. Paste it in Instagram.")).toBeOnTheScreen();
+    fireEvent.changeText(screen.getByLabelText("Post link"), "not a link");
+    press("Save link");
+    expect(await screen.findByText("Paste the post's link")).toBeOnTheScreen();
+    fireEvent.changeText(screen.getByLabelText("Post link"), "https://www.instagram.com/reel/abc/");
+    press("Save link");
+    expect(await screen.findByText("Linked. Its numbers show up in Insights after the next sync.")).toBeOnTheScreen();
+    await waitFor(() => expect(screen.queryByRole("header", { name: "Your turn" })).toBeNull());
+  });
+
+  it("opens the post a notification points at", async () => {
+    open("/social/scheduled-posts?post=p5");
+    expect(await screen.findByRole("button", { name: "Retry now" })).toBeOnTheScreen();
+    expect(screen.getAllByText("Reconnect your YouTube account to allow uploads, then retry this post.").length).toBeGreaterThan(0);
+  });
+
+  it("asks a Free account to upgrade", async () => {
+    setMockScenario("subscription", "empty");
+    open("/social/scheduled-posts");
+    expect(await screen.findByText("Insights are on paid plans")).toBeOnTheScreen();
+  });
 });
 
 describe("Composer", () => {
   // Buttons stay disabled until the ready clips have loaded.
-  const ready = () => screen.findByRole("button", { name: "Change clip" });
+  const ready = () => screen.findByRole("button", { name: "Change video" });
 
   it("writes a caption with AI and schedules the post", async () => {
     open("/composer");
@@ -128,30 +174,72 @@ describe("Composer", () => {
     fireEvent.press(await screen.findByRole("radio", { name: /^Most founders/ }));
     expect(screen.getByLabelText("Caption").props.value).toMatch(/^Most founders/);
     expect(screen.getByRole("button", { name: "Remove #founders" })).toBeOnTheScreen();
+    fireEvent.press(screen.getByRole("tab", { name: "Schedule" }));
     press("Schedule post");
     expect(await screen.findByText(/^Scheduled for /)).toBeOnTheScreen();
+    expect(lastCreateRequest()).toMatchObject({ accountIds: ["acc_yt"], privacy: "public", hashtags: expect.arrayContaining(["#founders"]) });
+    expect(lastCreateRequest()!.when).not.toBe("now");
   });
 
-  it("keeps Reels and Facebook as coming soon", async () => {
+  it("posts now to YouTube, and to Facebook as your turn", async () => {
     open("/composer");
-    expect(await screen.findByRole("checkbox", { name: "Reels, coming soon" })).toBeDisabled();
-    expect(screen.getByRole("checkbox", { name: "Facebook, coming soon" })).toBeDisabled();
+    await ready();
+    fireEvent.press(screen.getByRole("checkbox", { name: "Facebook, Maya Creates, you post it" }));
+    expect(screen.getByText(/Clipiro can’t post to Instagram or Facebook for you yet/)).toBeOnTheScreen();
+    press("Post now");
+    expect(await screen.findByText("Posting to YouTube. Your turn on Facebook: it’s in Scheduled.")).toBeOnTheScreen();
+    expect(lastCreateRequest()).toMatchObject({ accountIds: ["acc_yt", "acc_fb"], when: "now" });
   });
 
-  it("refuses a time in the past", async () => {
+  it("won't pick an account that needs reconnecting", async () => {
+    open("/composer");
+    await ready();
+    fireEvent.press(screen.getByRole("checkbox", { name: "Instagram, maya.okafor, needs reconnecting" }));
+    expect(await screen.findByText("Reconnect Instagram on the Accounts tab first.")).toBeOnTheScreen();
+    expect(screen.getByRole("checkbox", { name: "Instagram, maya.okafor, needs reconnecting" })).not.toBeChecked();
+  });
+
+  it("holds Instagram and Facebook to 2,200 characters", async () => {
+    open("/composer");
+    await ready();
+    fireEvent.press(screen.getByRole("checkbox", { name: "Facebook, Maya Creates, you post it" }));
+    fireEvent.changeText(screen.getByLabelText("Caption"), "x".repeat(2201));
+    press("Post now");
+    expect(await screen.findByText("Keep the caption under 2,200 characters for Instagram and Facebook")).toBeOnTheScreen();
+    expect(lastCreateRequest()).toBeNull();
+  });
+
+  it("refuses a time too soon", async () => {
     useComposerSeed.getState().seed({ date: new Date(Date.now() - 3600_000).toISOString() });
     open("/composer");
     await ready();
     fireEvent.press(screen.getByRole("button", { name: "Schedule post" }));
-    expect(await screen.findByText("Pick a time in the future")).toBeOnTheScreen();
+    expect(await screen.findByText("Pick a time at least 5 minutes from now")).toBeOnTheScreen();
   });
 
-  it("posts now", async () => {
+  it("posts an Assets video, and says when YouTube won't make it a Short", async () => {
+    useComposerSeed.getState().seed({ assetId: "a1" });
     open("/composer");
-    await ready();
-    fireEvent.press(screen.getByRole("tab", { name: "Now" }));
+    expect(await screen.findByText("Founders Pod · Ep. 42")).toBeOnTheScreen();
     press("Post now");
-    expect(await screen.findByText("Posting to YouTube Shorts.")).toBeOnTheScreen();
+    expect(await screen.findByText(/YouTube will post this as a regular video/)).toBeOnTheScreen();
+    expect(lastCreateRequest()!.source).toEqual({ assetId: "a1" });
+  });
+
+  it("edits a scheduled post in place", async () => {
+    useComposerSeed.getState().seed({ editId: "p6" });
+    open("/composer");
+    expect(await screen.findByText("Edit post")).toBeOnTheScreen();
+    await waitFor(() => expect(screen.getByLabelText("Caption").props.value).toBe("Hiring is the job."));
+    fireEvent.changeText(screen.getByLabelText("Caption"), "Hiring is the whole job.");
+    press("Save changes");
+    expect(await screen.findByText(/^Changes saved\./)).toBeOnTheScreen();
+  });
+
+  it("asks a Free account to upgrade", async () => {
+    setMockScenario("subscription", "empty");
+    open("/composer");
+    expect(await screen.findByText("Insights are on paid plans")).toBeOnTheScreen();
   });
 
   it("says when AI captions fail", async () => {

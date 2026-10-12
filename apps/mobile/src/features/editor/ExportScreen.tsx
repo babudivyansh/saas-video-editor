@@ -7,6 +7,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button, Header, Icon, ProgressBar, useToast, type IconName } from "@/components";
 import { editor, jobs } from "@/lib/api";
+import { useComposerSeed } from "../social/queries";
 import { apiErrorMessage } from "@/lib/errors";
 import { imageSource } from "@/lib/images";
 import { pollMs } from "@/lib/poll";
@@ -54,6 +55,9 @@ export function ExportScreen() {
   const [run, setRun] = useState<Run | null>(null);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState<Dest | null>(null);
+  // The Assets copy of this export, once made: posting needs one, and a second
+  // "Post" shouldn't make another.
+  const [assetId, setAssetId] = useState<string | null>(null);
   const abort = useRef<AbortController | null>(null);
   const projectId = fromLink ?? storeId;
   const ready = !!projectId && storeId === projectId && !loading;
@@ -103,6 +107,7 @@ export function ExportScreen() {
   const exportVideo = async () => {
     if (!projectId) return;
     setSaved(null);
+    setAssetId(null);
     setRun({ stage: "saving" });
     // The server renders what's saved, so the latest changes go up first.
     if (!(await useEditor.getState().flush())) {
@@ -123,14 +128,21 @@ export function ExportScreen() {
 
   const finish = async () => {
     if (run?.stage !== "done" || !projectId) return;
-    if (dest === "post") return router.push({ pathname: "/composer", params: { projectId } });
     setBusy(true);
     try {
+      if (dest === "post") {
+        // A post is of a video in Assets (docs/mobile/SCHEDULING.md D2), so the export is saved there first.
+        const id = assetId ?? (await editor.saveExport(projectId)).id;
+        setAssetId(id);
+        void qc.invalidateQueries({ queryKey: assetKeys.all });
+        useComposerSeed.getState().seed({ assetId: id });
+        return router.push("/composer");
+      }
       if (dest === "device") {
         await saveVideoToGallery(run.url, `export-${projectId}.mp4`);
         toast("Saved to your gallery.", "success");
       } else {
-        await editor.saveExport(projectId);
+        setAssetId((await editor.saveExport(projectId)).id);
         void qc.invalidateQueries({ queryKey: assetKeys.all });
         toast("Saved to Assets.", "success");
       }
@@ -207,7 +219,7 @@ export function ExportScreen() {
             {DESTS.map((d) => {
               const on = d.id === dest;
               return (
-                <Pressable key={d.id} onPress={() => setDest(d.id)} accessibilityRole="radio" aria-checked={on} accessibilityLabel={d.id === "post" ? "Post to YouTube Shorts" : d.label} style={[styles.dest, on && styles.destOn]}>
+                <Pressable key={d.id} onPress={() => setDest(d.id)} accessibilityRole="radio" aria-checked={on} accessibilityLabel={d.id === "post" ? "Post to social" : d.label} style={[styles.dest, on && styles.destOn]}>
                   <Icon name={saved === d.id ? "check" : d.icon} size={20} color={on ? colors.emeraldBright : colors.fgMuted} />
                   <Text style={type(12, on ? "semibold" : "medium", { color: on ? colors.fg : colors.fgMuted })}>{d.label}</Text>
                 </Pressable>

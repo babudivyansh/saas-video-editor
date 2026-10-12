@@ -94,6 +94,11 @@ jest.mock("expo-media-library", () => {
   };
 });
 jest.mock("expo-sharing", () => ({ shareAsync: jest.fn(async () => {}) }));
+// expo-clipboard (native): remembers the last copied text.
+jest.mock("expo-clipboard", () => {
+  const state = { text: "" };
+  return { __state: state, setStringAsync: jest.fn(async (t) => ((state.text = t), true)), getStringAsync: jest.fn(async () => state.text) };
+});
 // expo-web-browser (native): tests set how the sign-in session ends.
 jest.mock("expo-web-browser", () => ({ openAuthSessionAsync: jest.fn(async () => ({ type: "cancel" })) }));
 

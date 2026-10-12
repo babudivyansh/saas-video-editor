@@ -17,6 +17,7 @@ import { fileErrorMessage } from "./ClipSheet";
 import { mmss } from "./format";
 import { ProjectChips } from "./ProjectChips";
 import { deleteInBatches, projectKeys, useClipList } from "./queries";
+import { useComposerSeed } from "../social/queries";
 
 const SHAPES = { vertical: "Shorts & Reels", wide: "Videos", square: "Square" } as const;
 type Shape = keyof typeof SHAPES;
@@ -85,7 +86,7 @@ export function ClipsScreen() {
           return `Saved ${ok.length} clip${ok.length === 1 ? "" : "s"} to your gallery.`;
         }),
     },
-    { icon: "calendar", label: "Schedule", onPress: () => router.push("/composer") },
+    { icon: "calendar", label: "Schedule", onPress: () => (useComposerSeed.getState().seed({}), router.push("/composer")) },
     {
       icon: "social",
       label: "Share",
