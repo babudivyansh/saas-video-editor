@@ -40,8 +40,9 @@ describe("navigation", () => {
     await waitFor(() => expect(r.getPathname()).toBe("/home"));
     // OTP → Home reset the history: nothing behind the tabs for back to reach.
     expect(rootHistory(r)).toEqual(["(tabs)"]);
-    // Walks every launch screen into the real Home; on a cold transform cache (CI) that is slow.
-  }, 120000);
+    // Walks every launch screen into the real Home and loads the whole route tree (all 50
+    // screens); on a cold transform cache (CI) that is slow.
+  }, 240000);
 
   it("switches tabs with the floating tab bar and keeps each tab's history", async () => {
     const r = renderRouter(APP, { initialUrl: "/projects" });
@@ -93,15 +94,20 @@ describe("navigation", () => {
   });
 
   it("sends a cross-tab link to the tab that owns the screen", async () => {
+    setMockDelay(0);
     const r = renderRouter(APP, { initialUrl: "/you" });
-    await press("My Assets");
+    // The real You screen loads the account first (Phase 4.9).
+    await act(async () => fireEvent.press(await screen.findByRole("button", { name: "My Assets" })));
     expect(r.getPathname()).toBe("/projects/assets");
     expect(screen.getByRole("tab", { name: "Projects" })).toBeSelected();
   });
 
   it("logs out to the splash screen", async () => {
+    setMockDelay(0);
     const r = renderRouter(APP, { initialUrl: "/you" });
-    await press("Log out");
+    await act(async () => fireEvent.press(await screen.findByRole("button", { name: "Log out" })));
+    // Confirm in the sheet.
+    await act(async () => fireEvent.press(screen.getAllByRole("button", { name: "Log out" }).at(-1)!));
     await waitFor(() => expect(r.getPathname()).toBe("/"));
     expect(rootHistory(r)).toEqual(["index"]);
   });

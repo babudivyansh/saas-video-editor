@@ -1,5 +1,4 @@
-import { Placeholder } from "@/navigation/Placeholder";
+// screen: BN-Settings
+import { SettingsScreen } from "@/features/you/SettingsScreen";
 
-export default function Screen() {
-  return <Placeholder id="BN-Settings" />;
-}
+export default SettingsScreen;

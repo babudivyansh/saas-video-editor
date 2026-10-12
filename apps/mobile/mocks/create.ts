@@ -13,6 +13,7 @@ import {
   type Voice,
   type VoiceoverRequest,
 } from "@clipiro/shared";
+import { VOICE_LIBRARY } from "./account";
 import { ApiError, respond, wait } from "./core";
 
 // Stand-in for the Create tab's API until Phase 5 (AutoClip start, caption
@@ -82,17 +83,8 @@ export async function getImageModels(): Promise<ImageModel[]> {
   return IMAGE_MODELS;
 }
 
-// Active voices from lib/voices/catalog.ts (retired slugs like "william" left out).
-export const VOICES: Voice[] = [
-  { id: "brian", name: "Brian", description: "Deep, Resonant and Comforting" },
-  { id: "george", name: "George", description: "Warm, Captivating Storyteller" },
-  { id: "sarah", name: "Sarah", description: "Mature, Reassuring, Confident" },
-  { id: "liam", name: "Liam", description: "Energetic, Social Media Creator" },
-  { id: "alice", name: "Alice", description: "Clear, Engaging Educator" },
-  { id: "jessica", name: "Jessica", description: "Playful, Bright, Warm" },
-  { id: "daniel", name: "Daniel", description: "Steady Broadcaster" },
-  { id: "river", name: "River", description: "Relaxed, Neutral, Informative" },
-];
+// The web's active voice catalogue (mocks/account.ts holds the full entries).
+export const VOICES: Voice[] = VOICE_LIBRARY.map(({ id, name, description }) => ({ id, name, description }));
 
 export async function getVoices(): Promise<Voice[]> {
   await wait();

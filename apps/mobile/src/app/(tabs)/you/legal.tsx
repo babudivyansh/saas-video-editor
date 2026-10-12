@@ -1,5 +1,4 @@
-import { Placeholder } from "@/navigation/Placeholder";
+// screen: BN-Legal
+import { LegalScreen } from "@/features/you/SupportScreens";
 
-export default function Screen() {
-  return <Placeholder id="BN-Legal" />;
-}
+export default LegalScreen;

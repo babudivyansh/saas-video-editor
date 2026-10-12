@@ -1,5 +1,4 @@
-import { Placeholder } from "@/navigation/Placeholder";
+// screen: BN-Profile
+import { ProfileScreen } from "@/features/you/ProfileScreen";
 
-export default function Screen() {
-  return <Placeholder id="BN-Profile" />;
-}
+export default ProfileScreen;

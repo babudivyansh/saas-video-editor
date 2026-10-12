@@ -16,6 +16,8 @@ const ASSETS = {
   "podcast-mic": require("../../assets/images/podcast-mic.jpg"),
   "studio-mic": require("../../assets/images/studio-mic.jpg"),
   "travel-summit": require("../../assets/images/travel-summit.jpg"),
+  /** Sample brand-kit logo (the Clipiro mark). */
+  "logo-sample": require("../../assets/brand/mark.png"),
 } as const;
 
 export type SampleImage = keyof typeof ASSETS;

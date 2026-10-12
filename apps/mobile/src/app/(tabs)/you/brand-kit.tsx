@@ -1,5 +1,4 @@
-import { Placeholder } from "@/navigation/Placeholder";
+// screen: BN-BrandKit
+import { BrandKitScreen } from "@/features/you/BrandKitScreen";
 
-export default function Screen() {
-  return <Placeholder id="BN-BrandKit" />;
-}
+export default BrandKitScreen;

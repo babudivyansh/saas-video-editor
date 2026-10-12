@@ -1,5 +1,4 @@
-import { Placeholder } from "@/navigation/Placeholder";
+// screen: BN-Voices
+import { VoicesScreen } from "@/features/you/VoicesScreen";
 
-export default function Screen() {
-  return <Placeholder id="BN-Voices" />;
-}
+export default VoicesScreen;

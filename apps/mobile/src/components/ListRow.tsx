@@ -45,7 +45,8 @@ export function ListRow({
   if (!onPress) {
     // Group the row into one TalkBack stop only when nothing inside is
     // interactive — an accessible parent would hide a trailing Toggle/Button.
-    const group = !trailing;
+    // A caller-supplied label means the trailing part is just text (an amount).
+    const group = !trailing || !!accessibilityLabel;
     return (
       <View
         style={rowStyle}
