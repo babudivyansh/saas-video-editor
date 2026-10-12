@@ -5,6 +5,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { isTombstoneEmail } from "@/lib/account-tombstone";
 
 export type SuppressionReason = "hard_bounce" | "complaint" | "manual";
 
@@ -16,6 +17,9 @@ export type SuppressionReason = "hard_bounce" | "complaint" | "manual";
  * have skipped, and the next webhook will re-assert the suppression anyway.
  */
 export async function isSuppressed(email: string): Promise<boolean> {
+  // A purged account's placeholder address — every cron that walks the User
+  // table would otherwise keep "emailing" it.
+  if (isTombstoneEmail(email)) return true;
   try {
     const row = await prisma.emailSuppression.findUnique({ where: { email }, select: { email: true } });
     return row !== null;

@@ -242,9 +242,10 @@ export const DELETE = withAdmin<{ id: string }>(async (req, { admin, params }) =
   const { allowed } = await rateLimit(`admin-user-delete:${admin.userId}`, 10, 900);
   if (!allowed) return NextResponse.json({ error: "Too many requests — try again shortly." }, { status: 429 });
 
-  // The same core the user's own delete and the purge cron use: refuses an
-  // account with billing history (Purchase is onDelete: Restrict), cancels any
-  // live Razorpay mandate, clears the affiliate rows that don't cascade, and —
+  // The same core the user's own delete and the purge cron use: anonymises an
+  // account with billing history instead of deleting the row (Purchase and
+  // Invoice are onDelete: Restrict and kept by law), cancels any live Razorpay
+  // mandate, clears the affiliate rows that don't cascade, and —
   // unlike the hand-rolled transaction this replaced — deletes the account's
   // stored media from S3 instead of leaving it in the bucket forever.
   let result: Awaited<ReturnType<typeof hardDeleteUserAccount>>;

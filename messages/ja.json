@@ -426,12 +426,8 @@
       "typeToConfirmSuffix": "と入力してください。",
       "continue": "続ける",
       "deleting": "削除中…",
-      "permanentlyDelete": "完全に削除"
-    },
-    "deleteBlockedModal": {
-      "title": "現在アカウントを削除できません",
-      "body": "このアカウントには保持が必要な請求履歴があります。サポートまでご連絡いただければ対応いたします。",
-      "gotIt": "了解"
+      "permanentlyDelete": "完全に削除",
+      "billingNote": "請求書と支払い記録（記載された請求先の氏名・住所を含む）は、税法で定められた期間保管されます。それ以外はすべて削除されます。"
     },
     "confirmPasswordPlaceholder": "パスワードを確認してください",
     "cancel": "キャンセル",

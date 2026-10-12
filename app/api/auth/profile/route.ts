@@ -118,13 +118,10 @@ async function handlePATCH(req: NextRequest) {
   return res;
 }
 
-// Permanently delete the caller's own account. Requires the current password as
-// confirmation. Affiliate/Referral/Commission rows have no onDelete: Cascade in
-// the schema, so they must be cleared before the User row can be deleted, or
-// Postgres throws a foreign-key violation. Purchase is onDelete: Restrict (it's
-// a financial record, never silently destroyed) — handled by the purchase-count
-// check below. Everything else (Project + Clip, Asset, UserQuest, SocialAccount
-// + its children) cascades automatically.
+// Permanently delete the caller's own account. Requires a step-up (password,
+// or an emailed code). The work is lib/account-deletion.ts's, shared with the
+// purge cron and the admin routes: an account with billing history keeps its
+// invoices and payment records and is anonymised; any other is deleted.
 async function handleDELETE(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

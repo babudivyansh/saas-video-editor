@@ -47,13 +47,11 @@ export default function DangerZoneSettingsPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Checked once on mount so "Delete account" can route a paying customer to
-  // an upfront explanation instead of letting them fill in a password just to
-  // hit the server's 409 (billing history must be retained — see
-  // lib/account-deletion.ts). null = not resolved yet; treated as "unknown",
-  // never blocks the button, just skips the pre-check banner.
+  // Checked once on mount so the delete dialog can tell a paying customer, up
+  // front, that their invoices and payment records are kept (the law requires
+  // it — lib/account-deletion.ts anonymises the account instead of deleting
+  // the row). null = not resolved yet; the note is simply not shown.
   const [hasPurchaseHistory, setHasPurchaseHistory] = useState<boolean | null>(null);
-  const [blockedOpen, setBlockedOpen] = useState(false);
   // Type-to-confirm gate before the password field appears, in addition to
   // it — a second, harder-to-fat-finger barrier on the one action in this
   // page that can never be undone.
@@ -70,10 +68,6 @@ export default function DangerZoneSettingsPage() {
   }, [token]);
 
   function openDeleteFlow() {
-    if (hasPurchaseHistory) {
-      setBlockedOpen(true);
-      return;
-    }
     setDeleteConfirmText("");
     setDeleteStage("confirm");
     setDeleteOpen(true);
@@ -167,6 +161,7 @@ export default function DangerZoneSettingsPage() {
         {deleteStage === "confirm" ? (
           <div className="space-y-4">
             <p className="text-sm text-ink-soft">{t("deleteModal.body")}</p>
+            {hasPurchaseHistory && <p className="text-sm text-ink-soft">{t("deleteModal.billingNote")}</p>}
             <div>
               <p className="text-sm text-ink-soft mb-2">
                 {t("deleteModal.typeToConfirmPrefix")} <strong className="text-error">{DELETE_CONFIRM_WORD}</strong> {t("deleteModal.typeToConfirmSuffix")}
@@ -201,20 +196,6 @@ export default function DangerZoneSettingsPage() {
             </div>
           </form>
         )}
-      </Modal>
-
-      {/* Purchase-history pre-check: hardDeleteUserAccount refuses any account
-          with a Purchase row (financial records are never silently destroyed —
-          see lib/account-deletion.ts). Surfacing that BEFORE the password
-          modal means a paying customer never fills in a password only to hit
-          the 409 after the fact. */}
-      <Modal open={blockedOpen} onClose={() => setBlockedOpen(false)} title={t("deleteBlockedModal.title")} maxWidth="max-w-sm">
-        <div className="space-y-4">
-          <p className="text-sm text-ink-soft">{t("deleteBlockedModal.body")}</p>
-          <div className="flex justify-end gap-2">
-            <Button type="button" size="sm" onClick={() => setBlockedOpen(false)}>{t("deleteBlockedModal.gotIt")}</Button>
-          </div>
-        </div>
       </Modal>
     </div>
   );

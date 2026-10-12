@@ -534,7 +534,7 @@ export default function AdminUsersPage() {
       <ConfirmDialog
         open={deleteConfirmId !== null}
         title="Delete user"
-        message={`Permanently delete "${users.find(u => u.id === deleteConfirmId)?.email ?? ""}" — the account, their projects, clips and library, including the stored files? Accounts with billing history are refused. This cannot be undone.`}
+        message={`Permanently delete "${users.find(u => u.id === deleteConfirmId)?.email ?? ""}" — the account, their projects, clips and library, including the stored files? Accounts with billing history keep their invoices and payment records; everything else is deleted and the account is anonymised. This cannot be undone.`}
         confirmLabel="Delete"
         danger
         confirmPhrase={users.find(u => u.id === deleteConfirmId)?.email}

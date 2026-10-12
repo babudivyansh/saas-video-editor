@@ -426,12 +426,8 @@
       "typeToConfirmSuffix": "ein, um zu bestätigen.",
       "continue": "Weiter",
       "deleting": "Wird gelöscht…",
-      "permanentlyDelete": "Endgültig löschen"
-    },
-    "deleteBlockedModal": {
-      "title": "Ihr Konto kann noch nicht gelöscht werden",
-      "body": "Ihr Konto hat eine Abrechnungshistorie, die aufbewahrt werden muss. Kontaktieren Sie den Support, wir kümmern uns darum.",
-      "gotIt": "Verstanden"
+      "permanentlyDelete": "Endgültig löschen",
+      "billingNote": "Deine Rechnungen und Zahlungsbelege, einschließlich des Rechnungsnamens und der Anschrift darauf, werden so lange aufbewahrt, wie das Steuerrecht es verlangt. Alles andere wird gelöscht."
     },
     "confirmPasswordPlaceholder": "Bestätigen Sie Ihr Passwort",
     "cancel": "Abbrechen",
