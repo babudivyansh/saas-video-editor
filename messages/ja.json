@@ -25,8 +25,7 @@
     "freeTools": "無料ツール",
     "createItems": {
       "autoClip": { "title": "Clipiro AutoClip", "desc": "長い動画 → バイラルクリップ、自動で" },
-      "editor": { "title": "動画エディター", "desc": "マルチトラックタイムラインエディター" },
-      "cutCrop": { "title": "カット＆クロップ", "desc": "クリップをトリム・結合して編集可能に" }
+      "editor": { "title": "動画エディター", "desc": "マルチトラックタイムラインエディター" }
     },
     "rail": {
       "home": "ホーム",
@@ -42,7 +41,7 @@
       "groupGrow": "成長",
       "autoClip": "AutoClip",
       "editor": "エディター",
-      "allTools": "すべてのツール",
+      "aiTools": "AIツール",
       "myClips": "マイクリップ"
     },
     "planCard": { "manage": "管理", "clipMinutes": "クリップ分数", "aiCredits": "AIクレジット", "minutesValue": "{count}分" },
@@ -67,8 +66,6 @@
     "aiClipStudio": "AIクリップスタジオ",
     "heroTitle": "長い動画をバイラルクリップに変換",
     "heroSubtitle": "配信、ポッドキャスト、インタビューをアップロード — AutoClipが見どころを見つけ、字幕を付け、各プラットフォーム向けにカットします。",
-    "startAutoClipping": "AutoClippingを開始",
-    "openEditor": "エディターを開く",
     "continueWhereYouLeftOff": "前回の続きから再開",
     "viewAllClips": "すべてのクリップを見る",
     "totalClips": "合計クリップ数",
@@ -115,45 +112,9 @@
       "trackAccount": { "title": "最初のアカウントを追跡", "desc": "Social Tracker でソーシャルアカウントを接続しましょう。" },
       "referFriend": { "title": "友達を紹介", "desc": "紹介リンクから登録する友達を招待しましょう。" }
     },
-    "freeToolsCard": { "title": "<em>無料</em>ツールを試す", "desc": "オーディオバランサー、動画圧縮ツールなど" },
     "editorCard": { "title": "<em>エディター</em>を開く", "desc": "ブラウザで使えるマルチトラックタイムラインエディター" },
     "stillWantTo": "まだ {goal} をしたいですか？",
-    "tryItNow": "今すぐ試す",
-    "tryNow": "今すぐ試す",
-    "startCreating": "作成を始める",
-    "clipiroTools": "Clipiroツール",
-    "viewAllTools": "すべてのツールを見る",
-    "tools": {
-      "autoClip": { "title": "Clipiro AutoClip", "desc": "長い動画を自動でバイラルクリップに変換" },
-      "cutCrop": { "title": "カット＆クロップ", "desc": "動画をトリム・結合して編集可能な1本のクリップに" },
-      "voiceChanger": { "title": "ボイスチェンジャー", "desc": "音声や動画ファイルの声を変更" },
-      "subtitleRemover": { "title": "字幕リムーバー", "desc": "AIで数分で字幕を削除" }
-    },
-    "miniTools": {
-      "imageGenerator": "画像ジェネレーター",
-      "aiFaceSwap": "AIフェイススワップ",
-      "voiceoverGenerator": "ボイスオーバージェネレーター",
-      "backgroundRemover": "背景リムーバー",
-      "youtubeDownloader": "YouTubeダウンローダー"
-    }
-  },
-  "Tools": {
-    "pageTitle": "Clipiroツール",
-    "pageSubtitle": "作成、変換、クリップに必要なものすべてを、ひとつの場所に。",
-    "getStarted": "始める",
-    "credits": "{count, plural, other {#クレジット}}",
-    "topCards": {
-      "freeTools": { "title": "無料ツール", "desc": "オーディオバランサー、動画圧縮ツールなど" },
-      "youtubeDownloader": { "title": "YouTubeダウンローダー", "desc": "YouTube動画をダウンロード" },
-      "instagramDownloader": { "title": "Instagramダウンローダー", "desc": "リール、投稿、IGTVをダウンロード" }
-    },
-    "items": {
-      "imageGenerator": { "title": "AI画像ジェネレーター", "desc": "AIで数秒で高品質な画像を生成します。" },
-      "voiceover": { "title": "AIボイスオーバージェネレーター", "desc": "50以上のナレーターで数秒で高品質なボイスオーバーを作成します。" },
-      "speechEnhancer": { "title": "AI音声エンハンサー", "desc": "AIで音声・動画ファイルの品質を向上させます。" },
-      "vocalRemover": { "title": "AIボーカルリムーバー", "desc": "AIで音声・動画ファイルからボーカルを除去します。" },
-      "brainstormer": { "title": "AIブレインストーマー", "desc": "ニッチに基づいてバイラルコンテンツのアイデアを生成します。" }
-    }
+    "tryItNow": "今すぐ試す"
   },
   "SettingsNav": {
     "heading": "アカウントと設定",

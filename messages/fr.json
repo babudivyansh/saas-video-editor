@@ -25,8 +25,7 @@
     "freeTools": "Outils gratuits",
     "createItems": {
       "autoClip": { "title": "Clipiro AutoClip", "desc": "Vidéo longue → clips viraux, automatiquement" },
-      "editor": { "title": "Éditeur vidéo", "desc": "Éditeur de chronologie multipiste" },
-      "cutCrop": { "title": "Couper et recadrer", "desc": "Découpez et assemblez des clips prêts à monter" }
+      "editor": { "title": "Éditeur vidéo", "desc": "Éditeur de chronologie multipiste" }
     },
     "rail": {
       "home": "Accueil",
@@ -42,7 +41,7 @@
       "groupGrow": "Croissance",
       "autoClip": "AutoClip",
       "editor": "Éditeur",
-      "allTools": "Tous les outils",
+      "aiTools": "Outils IA",
       "myClips": "Mes clips"
     },
     "planCard": { "manage": "Gérer", "clipMinutes": "Minutes de clip", "aiCredits": "Crédits IA", "minutesValue": "{count} min" },
@@ -67,8 +66,6 @@
     "aiClipStudio": "AI Clip Studio",
     "heroTitle": "Transformez des vidéos longues en clips viraux",
     "heroSubtitle": "Déposez un stream, un podcast ou une interview — AutoClip trouve les meilleurs moments, ajoute des sous-titres et les découpe pour chaque plateforme.",
-    "startAutoClipping": "Démarrer l'AutoClipping",
-    "openEditor": "Ouvrir l'éditeur",
     "continueWhereYouLeftOff": "Reprendre là où vous en étiez",
     "viewAllClips": "Voir tous les clips",
     "totalClips": "Clips au total",
@@ -115,45 +112,9 @@
       "trackAccount": { "title": "Suivez votre premier compte", "desc": "Connectez un compte social dans le Social Tracker." },
       "referFriend": { "title": "Parrainez un ami", "desc": "Invitez un ami qui s'abonne via votre lien de parrainage." }
     },
-    "freeToolsCard": { "title": "Essayez nos outils <em>GRATUITS</em>", "desc": "Égaliseur audio, compresseur vidéo, et plus" },
     "editorCard": { "title": "Ouvrir l'<em>éditeur</em>", "desc": "Éditeur de chronologie multipiste dans votre navigateur" },
     "stillWantTo": "Vous voulez toujours {goal} ?",
-    "tryItNow": "Essayer maintenant",
-    "tryNow": "Essayer maintenant",
-    "startCreating": "Commencer à créer",
-    "clipiroTools": "Outils Clipiro",
-    "viewAllTools": "Voir tous les outils",
-    "tools": {
-      "autoClip": { "title": "Clipiro AutoClip", "desc": "Transformez des vidéos longues en clips viraux automatiquement" },
-      "cutCrop": { "title": "Couper et recadrer", "desc": "Découpez et assemblez vos vidéos en un clip prêt à monter" },
-      "voiceChanger": { "title": "Modificateur de voix", "desc": "Modifiez la voix de n'importe quel fichier audio ou vidéo" },
-      "subtitleRemover": { "title": "Suppresseur de sous-titres", "desc": "Supprimez les sous-titres avec l'IA en quelques minutes" }
-    },
-    "miniTools": {
-      "imageGenerator": "Générateur d'images",
-      "aiFaceSwap": "Échange de visage IA",
-      "voiceoverGenerator": "Générateur de voix off",
-      "backgroundRemover": "Suppresseur d'arrière-plan",
-      "youtubeDownloader": "Téléchargeur YouTube"
-    }
-  },
-  "Tools": {
-    "pageTitle": "Outils Clipiro",
-    "pageSubtitle": "Tout ce dont vous avez besoin pour créer, convertir et découper — au même endroit.",
-    "getStarted": "Commencer",
-    "credits": "{count, plural, one {# crédit} other {# crédits}}",
-    "topCards": {
-      "freeTools": { "title": "Outils gratuits", "desc": "Égaliseur audio, compresseur vidéo, et plus" },
-      "youtubeDownloader": { "title": "Téléchargeur YouTube", "desc": "Téléchargez des vidéos YouTube" },
-      "instagramDownloader": { "title": "Téléchargeur Instagram", "desc": "Téléchargez des reels, publications et IGTV" }
-    },
-    "items": {
-      "imageGenerator": { "title": "Générateur d'images IA", "desc": "Générez des images de haute qualité avec l'IA en quelques secondes." },
-      "voiceover": { "title": "Générateur de voix off IA", "desc": "Créez des voix off de haute qualité en quelques secondes avec plus de 50 narrateurs." },
-      "speechEnhancer": { "title": "Amélioreur vocal IA", "desc": "Améliorez la qualité de tout fichier audio ou vidéo avec l'IA." },
-      "vocalRemover": { "title": "Suppresseur de voix IA", "desc": "Supprimez les voix de tout fichier audio ou vidéo avec l'IA." },
-      "brainstormer": { "title": "Générateur d'idées IA", "desc": "Générez des idées de contenu viral selon votre niche." }
-    }
+    "tryItNow": "Essayer maintenant"
   },
   "SettingsNav": {
     "heading": "Compte et paramètres",

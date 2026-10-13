@@ -57,7 +57,7 @@ export function useDashboardNavItems(): { groups: ToolsSidebarNavGroup[]; bottom
       items: [
         { id: "autoclip", icon: <IcScissors />, label: t("autoClip"), href: "/dashboard/create/auto-clip" },
         { id: "editor", icon: <IcEditor />, label: t("editor"), href: "/dashboard/editor" },
-        { id: "create", icon: <IcGrid />, label: t("allTools"), href: "/dashboard/tools" },
+        { id: "create", icon: <IcGrid />, label: t("aiTools"), href: "/dashboard/tools" },
       ],
     },
     {

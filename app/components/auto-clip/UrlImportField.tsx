@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/app/components/ui/Button";
 
 // Paste-a-link import, as an alternative to uploading.
@@ -14,6 +14,8 @@ import { Button } from "@/app/components/ui/Button";
 export interface UrlImportFieldProps {
   onImported: (info: { url: string; title: string; durationSec: number }) => void;
   disabled?: boolean;
+  /** Pre-fills the field and probes it once on mount (the Home launch box). */
+  initialUrl?: string;
 }
 
 interface Probe { title: string; durationSec: number; isLive: boolean }
@@ -24,8 +26,8 @@ function fmtDuration(sec: number): string {
   return h > 0 ? `${h}h ${m}m` : `${m}m ${sec % 60}s`;
 }
 
-export function UrlImportField({ onImported, disabled }: UrlImportFieldProps) {
-  const [url, setUrl] = useState("");
+export function UrlImportField({ onImported, disabled, initialUrl }: UrlImportFieldProps) {
+  const [url, setUrl] = useState(initialUrl ?? "");
   const [probe, setProbe] = useState<Probe | null>(null);
   const [checking, setChecking] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -58,6 +60,16 @@ export function UrlImportField({ onImported, disabled }: UrlImportFieldProps) {
       setChecking(false);
     }
   }
+
+  // Probe a handed-in link straight away, so arriving from Home lands on the
+  // video's title and length rather than an unchecked text box.
+  const autoChecked = useRef(false);
+  useEffect(() => {
+    if (!initialUrl || autoChecked.current) return;
+    autoChecked.current = true;
+    void check();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on mount
+  }, [initialUrl]);
 
   function useThis() {
     if (!probe) return;

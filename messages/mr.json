@@ -25,8 +25,7 @@
     "freeTools": "मोफत टूल्स",
     "createItems": {
       "autoClip": { "title": "Clipiro AutoClip", "desc": "लांब व्हिडिओ → व्हायरल क्लिप्स, आपोआप" },
-      "editor": { "title": "व्हिडिओ एडिटर", "desc": "मल्टी-ट्रॅक टाइमलाइन एडिटर" },
-      "cutCrop": { "title": "कट आणि क्रॉप", "desc": "क्लिप्स ट्रिम करून जोडा आणि एडिटसाठी तयार करा" }
+      "editor": { "title": "व्हिडिओ एडिटर", "desc": "मल्टी-ट्रॅक टाइमलाइन एडिटर" }
     },
     "rail": {
       "home": "होम",
@@ -42,7 +41,7 @@
       "groupGrow": "वाढ",
       "autoClip": "AutoClip",
       "editor": "एडिटर",
-      "allTools": "सर्व टूल्स",
+      "aiTools": "AI टूल्स",
       "myClips": "माझ्या क्लिप्स"
     },
     "planCard": { "manage": "व्यवस्थापित करा", "clipMinutes": "क्लिप मिनिटे", "aiCredits": "AI क्रेडिट्स", "minutesValue": "{count} मिनिटे" },
@@ -67,8 +66,6 @@
     "aiClipStudio": "AI क्लिप स्टुडिओ",
     "heroTitle": "लांब व्हिडिओ व्हायरल क्लिप्समध्ये बदला",
     "heroSubtitle": "एखादा स्ट्रीम, पॉडकास्ट किंवा मुलाखत टाका — AutoClip क्षण शोधतो, कॅप्शन जोडतो, आणि प्रत्येक प्लॅटफॉर्मसाठी कापतो.",
-    "startAutoClipping": "AutoClipping सुरू करा",
-    "openEditor": "एडिटर उघडा",
     "continueWhereYouLeftOff": "जिथे थांबला होता तिथून सुरू ठेवा",
     "viewAllClips": "सर्व क्लिप्स पहा",
     "totalClips": "एकूण क्लिप्स",
@@ -115,45 +112,9 @@
       "trackAccount": { "title": "तुमचे पहिले खाते ट्रॅक करा", "desc": "Social Tracker मध्ये एक सोशल खाते कनेक्ट करा." },
       "referFriend": { "title": "मित्राला रेफर करा", "desc": "तुमच्या रेफरल लिंकद्वारे सदस्यता घेणाऱ्या मित्राला आमंत्रित करा." }
     },
-    "freeToolsCard": { "title": "आमचे <em>मोफत</em> टूल्स वापरून पहा", "desc": "ऑडिओ बॅलन्सर, व्हिडिओ कंप्रेसर, आणि बरेच काही" },
     "editorCard": { "title": "<em>एडिटर</em> उघडा", "desc": "तुमच्या ब्राउझरमध्ये मल्टी-ट्रॅक टाइमलाइन एडिटर" },
     "stillWantTo": "अजूनही {goal} करायचे आहे का?",
-    "tryItNow": "आत्ता वापरून पहा",
-    "tryNow": "आत्ता वापरून पहा",
-    "startCreating": "तयार करणे सुरू करा",
-    "clipiroTools": "Clipiro टूल्स",
-    "viewAllTools": "सर्व टूल्स पहा",
-    "tools": {
-      "autoClip": { "title": "Clipiro AutoClip", "desc": "लांब व्हिडिओ आपोआप व्हायरल क्लिप्समध्ये बदला" },
-      "cutCrop": { "title": "कट आणि क्रॉप", "desc": "तुमचे व्हिडिओ ट्रिम करून एका क्लिपमध्ये जोडा, एडिटसाठी तयार" },
-      "voiceChanger": { "title": "व्हॉइस चेंजर", "desc": "कोणत्याही ऑडिओ किंवा व्हिडिओ फाइलचा आवाज बदला" },
-      "subtitleRemover": { "title": "सबटायटल रिमूव्हर", "desc": "मिनिटांत AI ने सबटायटल्स काढा" }
-    },
-    "miniTools": {
-      "imageGenerator": "इमेज जनरेटर",
-      "aiFaceSwap": "AI फेस स्वॅप",
-      "voiceoverGenerator": "व्हॉइसओव्हर जनरेटर",
-      "backgroundRemover": "बॅकग्राउंड रिमूव्हर",
-      "youtubeDownloader": "YouTube डाउनलोडर"
-    }
-  },
-  "Tools": {
-    "pageTitle": "Clipiro टूल्स",
-    "pageSubtitle": "तयार करणे, बदलणे आणि क्लिप करण्यासाठी लागणारे सर्व काही — एकाच ठिकाणी.",
-    "getStarted": "सुरू करा",
-    "credits": "{count, plural, one {# क्रेडिट} other {# क्रेडिट्स}}",
-    "topCards": {
-      "freeTools": { "title": "मोफत टूल्स", "desc": "ऑडिओ बॅलन्सर, व्हिडिओ कंप्रेसर, आणि बरेच काही" },
-      "youtubeDownloader": { "title": "YouTube डाउनलोडर", "desc": "YouTube व्हिडिओ डाउनलोड करा" },
-      "instagramDownloader": { "title": "Instagram डाउनलोडर", "desc": "रील्स, पोस्ट्स आणि IGTV डाउनलोड करा" }
-    },
-    "items": {
-      "imageGenerator": { "title": "AI इमेज जनरेटर", "desc": "सेकंदांत AI ने उच्च दर्जाच्या इमेजेस तयार करा." },
-      "voiceover": { "title": "AI व्हॉइसओव्हर जनरेटर", "desc": "50+ निवेदकांसह सेकंदांत उच्च दर्जाचे व्हॉइसओव्हर तयार करा." },
-      "speechEnhancer": { "title": "AI स्पीच एन्हान्सर", "desc": "AI ने कोणत्याही ऑडिओ किंवा व्हिडिओ फाइलचा दर्जा सुधारा." },
-      "vocalRemover": { "title": "AI व्होकल रिमूव्हर", "desc": "AI ने कोणत्याही ऑडिओ किंवा व्हिडिओ फाइलमधून व्होकल्स काढा." },
-      "brainstormer": { "title": "AI ब्रेनस्टॉर्मर", "desc": "तुमच्या niche नुसार व्हायरल कंटेंट कल्पना तयार करा." }
-    }
+    "tryItNow": "आत्ता वापरून पहा"
   },
   "SettingsNav": {
     "heading": "खाते आणि सेटिंग्ज",
