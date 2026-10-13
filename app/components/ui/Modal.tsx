@@ -20,7 +20,9 @@ interface ModalProps {
    * answer and dismiss. Everything else (focus trap, ESC, scroll lock, focus
    * restore, portal) is identical, so a drawer is never a second-class dialog.
    */
-  variant?: "center" | "drawer";
+  variant?: "center" | "drawer" | "fullscreen";
+  // "fullscreen": covers the viewport (an upgrade page, not a prompt) — the
+  // title becomes a centered page heading and Close a round button top-right.
   /**
    * When set, a back arrow appears before the title. For dialogs that swap
    * between views in place rather than stacking a second dialog on top.
@@ -94,13 +96,14 @@ export function Modal({ open, onClose, title, children, maxWidth = "max-w-lg", v
   if (typeof document === "undefined") return null;
 
   const isDrawer = variant === "drawer";
+  const isFull = variant === "fullscreen";
 
   return createPortal(
     <AnimatePresence>
       {open && (
         <motion.div
-          className={`fixed inset-0 z-[100] flex bg-black/70 backdrop-blur-sm ${
-            isDrawer ? "justify-end" : "items-center justify-center p-4"
+          className={`fixed inset-0 z-[100] flex ${
+            isFull ? "bg-bg" : `bg-black/70 backdrop-blur-sm ${isDrawer ? "justify-end" : "items-center justify-center p-4"}`
           }`}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -116,16 +119,47 @@ export function Modal({ open, onClose, title, children, maxWidth = "max-w-lg", v
             aria-label={title ? undefined : ariaLabel ?? "Dialog"}
             tabIndex={-1}
             className={
-              isDrawer
+              isFull
+                ? `relative w-full h-full bg-bg outline-none overflow-y-auto ${panelClassName}`
+                : isDrawer
                 ? `w-full ${maxWidth} h-full bg-panel shadow-xl border-l border-card-border outline-none overflow-y-auto`
                 : `w-full ${maxWidth} bg-panel rounded-[var(--radius-card)] shadow-xl border border-card-border outline-none max-h-[90vh] overflow-y-auto ${panelClassName}`
             }
-            initial={isDrawer ? { x: "100%" } : { opacity: 0, scale: 0.96, y: 8 }}
-            animate={isDrawer ? { x: 0 } : { opacity: 1, scale: 1, y: 0 }}
-            exit={isDrawer ? { x: "100%" } : { opacity: 0, scale: 0.96, y: 8 }}
+            initial={isDrawer ? { x: "100%" } : isFull ? { opacity: 0, y: 12 } : { opacity: 0, scale: 0.96, y: 8 }}
+            animate={isDrawer ? { x: 0 } : isFull ? { opacity: 1, y: 0 } : { opacity: 1, scale: 1, y: 0 }}
+            exit={isDrawer ? { x: "100%" } : isFull ? { opacity: 0, y: 12 } : { opacity: 0, scale: 0.96, y: 8 }}
             transition={isDrawer ? { type: "tween", duration: 0.25, ease: "easeOut" } : { duration: 0.18, ease: "easeOut" }}
           >
-            {title && (
+            {isFull && (
+              <>
+                <div className="sticky top-0 z-10 flex justify-between px-4 sm:px-8 pt-5 pointer-events-none">
+                  {onBack ? (
+                    <button
+                      onClick={onBack}
+                      aria-label="Back"
+                      className="pointer-events-auto w-10 h-10 rounded-full border border-line bg-surface-2 flex items-center justify-center text-fg-muted hover:text-fg transition-colors cursor-pointer"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
+                        <path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </button>
+                  ) : <span />}
+                  <button
+                    onClick={onClose}
+                    aria-label="Close"
+                    className="pointer-events-auto w-10 h-10 rounded-full border border-line bg-surface-2 flex items-center justify-center text-fg-muted hover:text-fg transition-colors cursor-pointer"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
+                      <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                </div>
+                {title && (
+                  <h2 id={titleId} className="-mt-4 px-16 text-center text-2xl sm:text-[28px] font-bold tracking-tight text-fg">{title}</h2>
+                )}
+              </>
+            )}
+            {title && !isFull && (
               <div className={`flex items-center justify-between px-5 py-4 border-b border-card-border ${
                 isDrawer ? "sticky top-0 bg-panel z-10" : ""
               }`}>
@@ -154,7 +188,7 @@ export function Modal({ open, onClose, title, children, maxWidth = "max-w-lg", v
                 </button>
               </div>
             )}
-            {bare ? children : <div className="p-5">{children}</div>}
+            {bare || isFull ? children : <div className="p-5">{children}</div>}
           </motion.div>
         </motion.div>
       )}

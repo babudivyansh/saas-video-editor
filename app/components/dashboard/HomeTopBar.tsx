@@ -47,7 +47,7 @@ export function HomeTopBar({ quests }: {
             {t("home.upgradeBanner")}
             <button
               type="button"
-              onClick={() => openBilling({ tab: "overview" })}
+              onClick={() => openBilling({ view: "plans" })}
               className="h-8 rounded-lg border border-line bg-surface-3 px-3.5 text-sm font-semibold text-fg hover:border-fg/20 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
             >
               {t("home.upgrade")}

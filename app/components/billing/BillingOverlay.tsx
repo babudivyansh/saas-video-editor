@@ -29,7 +29,7 @@ interface Purchase {
 const TITLES: Record<BillingView, string> = {
   billing: "Billing",
   manage: "Manage subscription",
-  plans: "Plans & top-ups",
+  plans: "Upgrade your plan",
 };
 
 export function BillingOverlay({ state, onClose }: { state: BillingOverlayState; onClose: () => void }) {
@@ -55,6 +55,9 @@ export function BillingOverlay({ state, onClose }: { state: BillingOverlayState;
   const [resumeFromPeriodEnd, setResumeFromPeriodEnd] = useState(false);
 
   const view = viewOverride ?? state.view ?? "billing";
+  // Opened straight onto the plans page (Home's Upgrade banner): there is no
+  // billing view behind it to go back to, only Close.
+  const plansDirect = state.view === "plans" && viewOverride === null;
   const tab = tabOverride ?? state.tab ?? "overview";
   const success = successOverride || !!state.success;
 
@@ -125,9 +128,9 @@ export function BillingOverlay({ state, onClose }: { state: BillingOverlayState;
       open={state.open}
       onClose={onClose}
       title={TITLES[view]}
-      variant="center"
+      variant={view === "plans" ? "fullscreen" : "center"}
       maxWidth="max-w-4xl"
-      onBack={view === "billing" ? undefined : () => setView("billing")}
+      onBack={view === "billing" || (view === "plans" && plansDirect) ? undefined : () => setView("billing")}
     >
       {view === "billing" && (
         <BillingPanel

@@ -165,29 +165,23 @@ function BrowseStep({ plansLoading, subs, packs, minutePacks, term, onTermChange
   const savePct = yearlySavePct(subs, currency);
 
   return (
-    <div className="overflow-y-auto flex-1 min-h-0 p-8">
-      <div className="text-center mb-6">
-        <h2 className="text-2xl font-extrabold text-fg">Plans &amp; top-ups</h2>
-        <p className="text-sm text-fg-muted mt-1">Every AI tool, one credit at a time.</p>
-      </div>
-
-      <div className="flex justify-center items-center gap-3 mb-8 flex-wrap">
-        <div className="inline-flex bg-surface-3 rounded-full p-1">
+    // The overlay renders this full screen under its "Upgrade your plan"
+    // heading, so the page supplies no title of its own.
+    <div className="mx-auto w-full max-w-[1180px] px-4 sm:px-8 pt-6 pb-16">
+      <div className="flex justify-center items-center gap-3 mb-10 flex-wrap">
+        <div className="inline-flex rounded-full border border-line bg-surface-2 p-1" role="group" aria-label="Billing period">
           {TERMS.map(t => (
             <button
               key={t.months}
               onClick={() => onTermChange(t.months)}
-              className={`relative px-5 sm:px-7 py-2 rounded-full text-sm font-semibold transition-all ${
-                term === t.months ? "bg-brand text-on-primary shadow" : "text-fg-muted hover:text-fg"
+              aria-pressed={term === t.months}
+              className={`relative px-5 sm:px-6 py-2 rounded-full text-sm font-semibold transition-colors ${
+                term === t.months ? "bg-surface-3 text-fg shadow-sm" : "text-fg-muted hover:text-fg"
               }`}
             >
               {t.label}
               {t.months === 12 && savePct != null && (
-                <span className={`ml-2 text-[10px] font-black px-1.5 py-0.5 rounded-full ${
-                  term === 12 ? "bg-success text-bg" : "bg-tint-emerald text-success"
-                }`}>
-                  SAVE {savePct}%
-                </span>
+                <span className="ml-1.5 font-semibold text-success">(save {savePct}%)</span>
               )}
             </button>
           ))}
@@ -225,6 +219,7 @@ function BrowseStep({ plansLoading, subs, packs, minutePacks, term, onTermChange
               isCurrent={currentPlanSlug === plan.slug}
               onSelect={onSelectPlan}
               size="compact"
+              look="upgrade"
             />
           ))}
         </div>

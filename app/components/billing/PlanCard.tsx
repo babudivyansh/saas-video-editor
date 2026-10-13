@@ -59,11 +59,15 @@ interface PlanCardProps {
   className?: string;
   /** One short line under the CTA (the trial terms on Pro, "Cancel anytime"). */
   footer?: React.ReactNode;
+  /** "upgrade": the in-app upgrade page — white outline and white button on
+   *  the recommended plan, green price, badge inside the card. Copy is shared. */
+  look?: "default" | "upgrade";
 }
 
 export function PlanCard({
-  plan, subs, currency, highlighted, isCurrent, onSelect, size = "default", ctaLabel, footer, className = "",
+  plan, subs, currency, highlighted, isCurrent, onSelect, size = "default", ctaLabel, footer, className = "", look = "default",
 }: PlanCardProps) {
+  const upgrade = look === "upgrade";
   const total = minorUnits(plan, currency);
   const months = plan.intervalMonths ?? 1;
   const perMonth = Math.round(total / months);
@@ -77,12 +81,19 @@ export function PlanCard({
   return (
     <div
       className={`relative row-span-4 grid grid-rows-subgrid gap-y-5 rounded-[var(--radius-card)] border ${compact ? "p-6" : "p-7"} ${className} ${
-        highlighted
+        upgrade
+          ? highlighted ? "border-2 border-fg bg-surface-1" : "border-line-strong bg-surface-1"
+          : highlighted
           ? "border-primary bg-gradient-to-b from-[color-mix(in_oklab,var(--primary)_9%,var(--surface-2))] to-surface-2 to-60% shadow-[0_0_0_4px_color-mix(in_oklab,var(--primary)_8%,transparent),0_24px_64px_-24px_color-mix(in_oklab,var(--primary)_35%,transparent)]"
           : "border-line bg-surface-2"
       }`}
     >
-      {highlighted && (
+      {highlighted && upgrade && (
+        <span className="absolute right-5 top-5 whitespace-nowrap rounded-md bg-fg px-2 py-0.5 text-xs font-semibold text-bg">
+          Most popular
+        </span>
+      )}
+      {highlighted && !upgrade && (
         // whitespace-nowrap is load-bearing: at card widths this narrow the
         // pill wrapped onto two lines and hung off the top of the card.
         <span className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-primary px-3 py-1 font-mono text-[11px] font-medium uppercase leading-[14px] tracking-[0.08em] text-on-primary">
@@ -92,7 +103,7 @@ export function PlanCard({
 
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center gap-2">
-          <p className="text-[15px] font-semibold text-fg">{baseTier}</p>
+          <p className={upgrade ? "text-2xl font-bold text-fg" : "text-[15px] font-semibold text-fg"}>{baseTier}</p>
           {isCurrent && (
             <span className="rounded-full bg-tint-emerald px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-success">
               Current
@@ -111,7 +122,7 @@ export function PlanCard({
               {formatMoney(wasPerMonth, currency)}
             </s>
           )}
-          <span className={`${compact || price.digits.includes(".") ? "text-4xl" : "text-5xl"} font-semibold leading-none tracking-tight text-fg`}>
+          <span className={`${compact || price.digits.includes(".") ? "text-4xl" : "text-5xl"} font-semibold leading-none tracking-tight ${upgrade ? "text-success" : "text-fg"}`}>
             <span className="text-[0.6em] align-top">{price.symbol}</span>
             {price.digits}
           </span>
@@ -133,8 +144,10 @@ export function PlanCard({
         <button
           type="button"
           onClick={() => onSelect(plan)}
-          className={`min-h-12 w-full rounded-full text-[15px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg ${
-            highlighted
+          className={`min-h-12 w-full ${upgrade ? "rounded-lg" : "rounded-full"} text-[15px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg ${
+            upgrade
+              ? highlighted ? "bg-fg text-bg hover:bg-fg/90" : "bg-surface-3 text-fg hover:bg-panel-raised"
+              : highlighted
               ? "bg-primary text-on-primary hover:bg-primary-hover active:bg-primary-press"
               : "bg-surface-3 text-fg ring-1 ring-inset ring-line-strong hover:bg-panel-raised hover:ring-fg-subtle"
           }`}
@@ -177,7 +190,7 @@ export function PlanCard({
               <ul className="space-y-3">
                 {bullets.map((b) => (
                   <li key={b} className="flex items-start gap-2.5 text-sm text-fg-muted">
-                    <CheckIcon className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" />
+                    <CheckIcon className={`mt-0.5 h-4 w-4 flex-shrink-0 ${upgrade ? "text-fg-muted" : "text-primary"}`} />
                     <span>{b}</span>
                   </li>
                 ))}
