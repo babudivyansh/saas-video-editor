@@ -25,8 +25,7 @@
     "freeTools": "Ferramentas gratuitas",
     "createItems": {
       "autoClip": { "title": "Clipiro AutoClip", "desc": "Vídeo longo → clipes virais, automaticamente" },
-      "editor": { "title": "Editor de vídeo", "desc": "Editor de linha do tempo multipista" },
-      "cutCrop": { "title": "Cortar e recortar", "desc": "Corte e una clipes prontos para editar" }
+      "editor": { "title": "Editor de vídeo", "desc": "Editor de linha do tempo multipista" }
     },
     "rail": {
       "home": "Início",
@@ -42,7 +41,7 @@
       "groupGrow": "Crescer",
       "autoClip": "AutoClip",
       "editor": "Editor",
-      "allTools": "Todas as ferramentas",
+      "aiTools": "Ferramentas de IA",
       "myClips": "Meus clipes"
     },
     "planCard": { "manage": "Gerenciar", "clipMinutes": "Minutos de clipe", "aiCredits": "Créditos de IA", "minutesValue": "{count} min" },
@@ -67,8 +66,6 @@
     "aiClipStudio": "AI Clip Studio",
     "heroTitle": "Transforme vídeos longos em clipes virais",
     "heroSubtitle": "Envie uma transmissão, podcast ou entrevista — o AutoClip encontra os melhores momentos, adiciona legendas e corta para cada plataforma.",
-    "startAutoClipping": "Iniciar AutoClipping",
-    "openEditor": "Abrir editor",
     "continueWhereYouLeftOff": "Continue de onde parou",
     "viewAllClips": "Ver todos os clipes",
     "totalClips": "Total de clipes",
@@ -115,45 +112,9 @@
       "trackAccount": { "title": "Acompanhe sua primeira conta", "desc": "Conecte uma conta social no Social Tracker." },
       "referFriend": { "title": "Indique um amigo", "desc": "Convide um amigo que assine com seu link de indicação." }
     },
-    "freeToolsCard": { "title": "Experimente nossas ferramentas <em>GRATUITAS</em>", "desc": "Equalizador de áudio, compressor de vídeo e mais" },
     "editorCard": { "title": "Abrir o <em>editor</em>", "desc": "Editor de linha do tempo multipista no seu navegador" },
     "stillWantTo": "Ainda quer {goal}?",
-    "tryItNow": "Experimente agora",
-    "tryNow": "Experimentar agora",
-    "startCreating": "Comece a criar",
-    "clipiroTools": "Ferramentas Clipiro",
-    "viewAllTools": "Ver todas as ferramentas",
-    "tools": {
-      "autoClip": { "title": "Clipiro AutoClip", "desc": "Transforme vídeos longos em clipes virais automaticamente" },
-      "cutCrop": { "title": "Cortar e recortar", "desc": "Corte e una seus vídeos em um clipe pronto para editar" },
-      "voiceChanger": { "title": "Modificador de voz", "desc": "Altere a voz de qualquer arquivo de áudio ou vídeo" },
-      "subtitleRemover": { "title": "Removedor de legendas", "desc": "Remova legendas com IA em minutos" }
-    },
-    "miniTools": {
-      "imageGenerator": "Gerador de imagens",
-      "aiFaceSwap": "Troca de rosto com IA",
-      "voiceoverGenerator": "Gerador de locução",
-      "backgroundRemover": "Removedor de fundo",
-      "youtubeDownloader": "Downloader do YouTube"
-    }
-  },
-  "Tools": {
-    "pageTitle": "Ferramentas Clipiro",
-    "pageSubtitle": "Tudo o que você precisa para criar, converter e cortar — em um só lugar.",
-    "getStarted": "Começar",
-    "credits": "{count, plural, one {# crédito} other {# créditos}}",
-    "topCards": {
-      "freeTools": { "title": "Ferramentas gratuitas", "desc": "Equalizador de áudio, compressor de vídeo e mais" },
-      "youtubeDownloader": { "title": "Downloader do YouTube", "desc": "Baixe vídeos do YouTube" },
-      "instagramDownloader": { "title": "Downloader do Instagram", "desc": "Baixe reels, postagens e IGTV" }
-    },
-    "items": {
-      "imageGenerator": { "title": "Gerador de imagens com IA", "desc": "Gere imagens de alta qualidade com IA em segundos." },
-      "voiceover": { "title": "Gerador de locução com IA", "desc": "Crie locuções de alta qualidade em segundos com mais de 50 narradores." },
-      "speechEnhancer": { "title": "Aprimorador de fala com IA", "desc": "Melhore a qualidade de qualquer arquivo de áudio ou vídeo com IA." },
-      "vocalRemover": { "title": "Removedor de vocais com IA", "desc": "Remova vocais de qualquer arquivo de áudio ou vídeo com IA." },
-      "brainstormer": { "title": "Gerador de ideias com IA", "desc": "Gere ideias de conteúdo viral com base no seu nicho." }
-    }
+    "tryItNow": "Experimente agora"
   },
   "SettingsNav": {
     "heading": "Conta e configurações",

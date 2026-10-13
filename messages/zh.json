@@ -25,8 +25,7 @@
     "freeTools": "免费工具",
     "createItems": {
       "autoClip": { "title": "Clipiro AutoClip", "desc": "长视频 → 病毒式短片，自动完成" },
-      "editor": { "title": "视频编辑器", "desc": "多轨时间线编辑器" },
-      "cutCrop": { "title": "剪切与裁剪", "desc": "修剪并拼接片段，准备编辑" }
+      "editor": { "title": "视频编辑器", "desc": "多轨时间线编辑器" }
     },
     "rail": {
       "home": "主页",
@@ -42,7 +41,7 @@
       "groupGrow": "增长",
       "autoClip": "AutoClip",
       "editor": "编辑器",
-      "allTools": "全部工具",
+      "aiTools": "AI 工具",
       "myClips": "我的剪辑"
     },
     "planCard": { "manage": "管理", "clipMinutes": "剪辑分钟数", "aiCredits": "AI 积分", "minutesValue": "{count} 分钟" },
@@ -67,8 +66,6 @@
     "aiClipStudio": "AI 剪辑工作室",
     "heroTitle": "将长视频转换为病毒式传播的短片",
     "heroSubtitle": "上传直播、播客或采访 — AutoClip 会找到精彩瞬间，添加字幕，并为每个平台裁剪。",
-    "startAutoClipping": "开始 AutoClipping",
-    "openEditor": "打开编辑器",
     "continueWhereYouLeftOff": "从上次离开的地方继续",
     "viewAllClips": "查看所有片段",
     "totalClips": "总片段数",
@@ -115,45 +112,9 @@
       "trackAccount": { "title": "追踪您的第一个账户", "desc": "在 Social Tracker 中连接一个社交账户。" },
       "referFriend": { "title": "推荐好友", "desc": "邀请通过您的推荐链接订阅的好友。" }
     },
-    "freeToolsCard": { "title": "试用我们的<em>免费</em>工具", "desc": "音频均衡器、视频压缩器等" },
     "editorCard": { "title": "打开<em>编辑器</em>", "desc": "在浏览器中使用多轨时间线编辑器" },
     "stillWantTo": "仍然想要{goal}吗？",
-    "tryItNow": "立即试用",
-    "tryNow": "立即试用",
-    "startCreating": "开始创作",
-    "clipiroTools": "Clipiro 工具",
-    "viewAllTools": "查看所有工具",
-    "tools": {
-      "autoClip": { "title": "Clipiro AutoClip", "desc": "自动将长视频转换为病毒式传播的短片" },
-      "cutCrop": { "title": "剪切与裁剪", "desc": "修剪并拼接您的视频为一个可编辑的片段" },
-      "voiceChanger": { "title": "变声器", "desc": "更改任何音频或视频文件的声音" },
-      "subtitleRemover": { "title": "字幕移除工具", "desc": "使用AI在几分钟内移除字幕" }
-    },
-    "miniTools": {
-      "imageGenerator": "图片生成器",
-      "aiFaceSwap": "AI 换脸",
-      "voiceoverGenerator": "配音生成器",
-      "backgroundRemover": "背景移除工具",
-      "youtubeDownloader": "YouTube 下载器"
-    }
-  },
-  "Tools": {
-    "pageTitle": "Clipiro 工具",
-    "pageSubtitle": "创建、转换和剪辑所需的一切 — 尽在一处。",
-    "getStarted": "开始使用",
-    "credits": "{count, plural, other {# 积分}}",
-    "topCards": {
-      "freeTools": { "title": "免费工具", "desc": "音频均衡器、视频压缩器等" },
-      "youtubeDownloader": { "title": "YouTube 下载器", "desc": "下载 YouTube 视频" },
-      "instagramDownloader": { "title": "Instagram 下载器", "desc": "下载 Reels、帖子和 IGTV" }
-    },
-    "items": {
-      "imageGenerator": { "title": "AI 图片生成器", "desc": "使用AI在几秒钟内生成高质量图片。" },
-      "voiceover": { "title": "AI 配音生成器", "desc": "使用50多种配音，几秒钟内制作高质量配音。" },
-      "speechEnhancer": { "title": "AI 语音增强器", "desc": "使用AI提升任何音频或视频文件的质量。" },
-      "vocalRemover": { "title": "AI 人声移除工具", "desc": "使用AI从任何音频或视频文件中移除人声。" },
-      "brainstormer": { "title": "AI 创意生成器", "desc": "根据您的细分领域生成病毒式内容创意。" }
-    }
+    "tryItNow": "立即试用"
   },
   "SettingsNav": {
     "heading": "账户与设置",

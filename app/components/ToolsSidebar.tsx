@@ -1,4 +1,5 @@
 "use client";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import ClipiroLogo from "@/app/components/ClipiroLogo";
@@ -24,6 +25,7 @@ function IcFilm() { return <svg {...svg}><rect x="3" y="3" width="18" height="18
 function IcAssets() { return <svg {...svg}><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2" /></svg>; }
 function IcSocial() { return <svg {...svg}><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98" /></svg>; }
 function IcGift() { return <svg {...svg}><path d="M20 12v10H4V12M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z" /></svg>; }
+function IcPanel() { return <svg {...svg}><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16" /></svg>; }
 function IcSettings() { return <svg {...svg}><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" /></svg>; }
 
 export interface ToolsSidebarNavItem {
@@ -57,7 +59,7 @@ export function useDashboardNavItems(): { groups: ToolsSidebarNavGroup[]; bottom
       items: [
         { id: "autoclip", icon: <IcScissors />, label: t("autoClip"), href: "/dashboard/create/auto-clip" },
         { id: "editor", icon: <IcEditor />, label: t("editor"), href: "/dashboard/editor" },
-        { id: "create", icon: <IcGrid />, label: t("allTools"), href: "/dashboard/tools" },
+        { id: "create", icon: <IcGrid />, label: t("aiTools"), href: "/dashboard/tools" },
       ],
     },
     {
@@ -86,9 +88,11 @@ export function useDashboardNavItems(): { groups: ToolsSidebarNavGroup[]; bottom
   return { groups, bottomNav };
 }
 
-function NavLink({ id, icon, label, href, onSelect, active }: ToolsSidebarNavItem & { active: string }) {
+function NavLink({ id, icon, label, href, onSelect, active, collapsed = false }: ToolsSidebarNavItem & { active: string; collapsed?: boolean }) {
   const isActive = active === id;
-  const className = `relative w-full h-10 flex items-center gap-3 px-3 rounded-xl text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/70 ${
+  const className = `relative w-full h-10 flex items-center gap-3 rounded-xl text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/70 ${
+    collapsed ? "justify-center px-0" : "px-3"
+  } ${
     isActive
       ? "bg-surface-2 text-fg font-medium ring-1 ring-inset ring-primary/20"
       : "text-fg-muted hover:bg-surface-2 hover:text-fg"
@@ -96,20 +100,49 @@ function NavLink({ id, icon, label, href, onSelect, active }: ToolsSidebarNavIte
   const inner = (
     <>
       <span className={`flex-shrink-0 ${isActive ? "text-primary" : ""}`}>{icon}</span>
-      <span className="truncate">{label}</span>
+      {collapsed ? <span className="sr-only">{label}</span> : <span className="truncate">{label}</span>}
     </>
   );
+  // Collapsed, the label is screen-reader only; `title` gives sighted users
+  // the name on hover (a Tooltip would be clipped by the nav's scroll box).
+  const title = collapsed ? label : undefined;
   if (onSelect) {
-    return <button type="button" onClick={onSelect} data-tour={`nav-${id}`} className={className}>{inner}</button>;
+    return <button type="button" onClick={onSelect} title={title} data-tour={`nav-${id}`} className={className}>{inner}</button>;
   }
-  return <Link href={href!} data-tour={`nav-${id}`} aria-current={isActive ? "page" : undefined} className={className}>{inner}</Link>;
+  return <Link href={href!} title={title} data-tour={`nav-${id}`} aria-current={isActive ? "page" : undefined} className={className}>{inner}</Link>;
 }
 
-function PlanCard() {
+function PlanCard({ collapsed = false }: { collapsed?: boolean }) {
   const t = useTranslations("Nav");
   const { openBilling } = useBillingOverlay();
   const { user, hasActivePlan, planName, minutes, minutesAllowance, minutesPct, minutesLow, credits } = usePlanSummary();
   if (!user) return null;
+
+  // Collapsed: minutes left as a ring, one click into billing.
+  if (collapsed) {
+    const r = 15, c = 2 * Math.PI * r;
+    return (
+      <button
+        type="button"
+        onClick={() => openBilling({ tab: hasActivePlan ? "topup" : "overview" })}
+        title={`${planName} · ${t("planCard.clipMinutes")}: ${t("planCard.minutesValue", { count: minutes })} · ${t("planCard.aiCredits")}: ${credits.toLocaleString()}`}
+        data-tour="credits-pill"
+        className="relative mx-auto w-11 h-11 flex items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+      >
+        <svg viewBox="0 0 36 36" className="absolute inset-0 w-full h-full -rotate-90" aria-hidden="true">
+          <circle cx="18" cy="18" r={r} fill="none" strokeWidth="3" className="stroke-surface-3" />
+          {minutesAllowance > 0 && (
+            <circle
+              cx="18" cy="18" r={r} fill="none" strokeWidth="3" strokeLinecap="round"
+              strokeDasharray={c} strokeDashoffset={c * (1 - minutesPct / 100)}
+              className={minutesLow ? "stroke-warning" : "stroke-primary"}
+            />
+          )}
+        </svg>
+        <span className={`text-[10px] font-bold tabular-nums ${minutesLow ? "text-warning" : "text-fg"}`}>{minutes}</span>
+      </button>
+    );
+  }
 
   return (
     <div className="rounded-2xl border border-line bg-surface-2 p-3.5 space-y-3">
@@ -161,36 +194,95 @@ function PlanCard() {
   );
 }
 
+// Per-browser preference — a convenience, so storage failures (private
+// windows, blocked site data) just mean "expanded".
+const COLLAPSED_KEY = "clipiro:sidebarCollapsed";
+
+function useCollapsed(): [boolean, () => void, boolean] {
+  const [collapsed, setCollapsed] = useState(false);
+  // Only animate a toggle the user made — restoring the saved state on load
+  // should snap, not slide shut on every page view.
+  const [animate, setAnimate] = useState(false);
+  // Read after mount: localStorage isn't there during SSR, and reading it in
+  // render would mismatch the server HTML.
+  useEffect(() => {
+    try {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time sync from storage
+      setCollapsed(localStorage.getItem(COLLAPSED_KEY) === "1");
+    } catch { /* stays expanded */ }
+  }, []);
+  const toggle = () => {
+    setAnimate(true);
+    setCollapsed((c) => {
+      try { localStorage.setItem(COLLAPSED_KEY, c ? "0" : "1"); } catch { /* not persisted */ }
+      return !c;
+    });
+  };
+  return [collapsed, toggle, animate];
+}
+
 export default function ToolsSidebar({ active = "home" }: { active?: string }) {
   const t = useTranslations("Nav");
   const { groups, bottomNav } = useDashboardNavItems();
+  const [collapsed, toggle, animate] = useCollapsed();
+
+  // Ctrl/Cmd+B, as in most editors — skipped while typing in a field.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "b" || e.altKey || e.shiftKey) return;
+      const el = e.target as HTMLElement | null;
+      if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
+      e.preventDefault();
+      toggle();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
+  const toggleLabel = collapsed ? t("expandSidebar") : t("collapseSidebar");
 
   return (
-    <aside className="hidden xl:flex flex-col w-[260px] flex-shrink-0 border-r border-line bg-surface-1">
+    <aside
+      className={`hidden xl:flex flex-col flex-shrink-0 border-r border-line bg-surface-1 ${animate ? "transition-[width] duration-200 ease-out" : ""} ${
+        collapsed ? "w-[72px]" : "w-[260px]"
+      }`}
+    >
       {/* Same height as the header beside it, so the two read as one bar. */}
-      <div className="h-16 flex items-center px-5 flex-shrink-0">
-        <Link href="/dashboard" aria-label={t("dashboardHome")} className="flex items-center">
-          <ClipiroLogo className="h-8" />
-        </Link>
+      <div className={`h-16 flex items-center flex-shrink-0 ${collapsed ? "justify-center" : "justify-between pl-5 pr-3"}`}>
+        {!collapsed && (
+          <Link href="/dashboard" aria-label={t("dashboardHome")} className="flex items-center">
+            <ClipiroLogo className="h-8" />
+          </Link>
+        )}
+        <button
+          type="button"
+          onClick={toggle}
+          aria-label={toggleLabel}
+          aria-expanded={!collapsed}
+          title={`${toggleLabel} (Ctrl+B)`}
+          className="w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-lg text-fg-subtle hover:text-fg hover:bg-surface-2 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+        >
+          <IcPanel />
+        </button>
       </div>
 
-      <nav aria-label={t("dashboardHome")} className="flex-1 min-h-0 overflow-y-auto px-3 pb-3">
+      <nav aria-label={t("dashboardHome")} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-3 pb-3">
         {groups.map((group, i) => (
-          <div key={group.label ?? i} className={group.label ? "mt-5" : "mt-1"}>
-            {group.label && (
+          <div key={group.label ?? i} className={group.label ? (collapsed ? "mt-3 pt-3 border-t border-line" : "mt-5") : "mt-1"}>
+            {group.label && !collapsed && (
               <p className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-subtle">{group.label}</p>
             )}
             <div className="flex flex-col gap-0.5">
-              {group.items.map((item) => <NavLink key={item.id} {...item} active={active} />)}
+              {group.items.map((item) => <NavLink key={item.id} {...item} active={active} collapsed={collapsed} />)}
             </div>
           </div>
         ))}
       </nav>
 
       <div className="flex-shrink-0 px-3 pb-4 space-y-2">
-        <PlanCard />
+        <PlanCard collapsed={collapsed} />
         {bottomNav.filter((item) => item.id !== "billing").map((item) => (
-          <NavLink key={item.id} {...item} active={active} />
+          <NavLink key={item.id} {...item} active={active} collapsed={collapsed} />
         ))}
       </div>
     </aside>

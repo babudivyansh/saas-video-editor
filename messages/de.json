@@ -25,8 +25,7 @@
     "freeTools": "Kostenlose Tools",
     "createItems": {
       "autoClip": { "title": "Clipiro AutoClip", "desc": "Langes Video → virale Clips, automatisch" },
-      "editor": { "title": "Video-Editor", "desc": "Multi-Track-Timeline-Editor" },
-      "cutCrop": { "title": "Schneiden & Zuschneiden", "desc": "Clips trimmen und zusammenfügen, bereit zum Bearbeiten" }
+      "editor": { "title": "Video-Editor", "desc": "Multi-Track-Timeline-Editor" }
     },
     "rail": {
       "home": "Start",
@@ -42,7 +41,7 @@
       "groupGrow": "Wachsen",
       "autoClip": "AutoClip",
       "editor": "Editor",
-      "allTools": "Alle Tools",
+      "aiTools": "KI-Tools",
       "myClips": "Meine Clips"
     },
     "planCard": { "manage": "Verwalten", "clipMinutes": "Clip-Minuten", "aiCredits": "KI-Credits", "minutesValue": "{count} Min." },
@@ -67,8 +66,6 @@
     "aiClipStudio": "AI Clip Studio",
     "heroTitle": "Verwandeln Sie lange Videos in virale Clips",
     "heroSubtitle": "Laden Sie einen Stream, Podcast oder ein Interview hoch — AutoClip findet die besten Momente, fügt Untertitel hinzu und schneidet sie für jede Plattform zu.",
-    "startAutoClipping": "AutoClipping starten",
-    "openEditor": "Editor öffnen",
     "continueWhereYouLeftOff": "Dort weitermachen, wo Sie aufgehört haben",
     "viewAllClips": "Alle Clips ansehen",
     "totalClips": "Clips insgesamt",
@@ -115,45 +112,9 @@
       "trackAccount": { "title": "Verfolge dein erstes Konto", "desc": "Verbinde ein Social-Konto im Social Tracker." },
       "referFriend": { "title": "Freund werben", "desc": "Lade einen Freund ein, der über deinen Empfehlungslink abonniert." }
     },
-    "freeToolsCard": { "title": "Probieren Sie unsere <em>KOSTENLOSEN</em> Tools", "desc": "Audio-Balancer, Video-Kompressor und mehr" },
     "editorCard": { "title": "<em>Editor</em> öffnen", "desc": "Multi-Track-Timeline-Editor in Ihrem Browser" },
     "stillWantTo": "Möchten Sie immer noch {goal}?",
-    "tryItNow": "Jetzt ausprobieren",
-    "tryNow": "Jetzt ausprobieren",
-    "startCreating": "Mit dem Erstellen beginnen",
-    "clipiroTools": "Clipiro-Tools",
-    "viewAllTools": "Alle Tools ansehen",
-    "tools": {
-      "autoClip": { "title": "Clipiro AutoClip", "desc": "Verwandeln Sie lange Videos automatisch in virale Clips" },
-      "cutCrop": { "title": "Schneiden & Zuschneiden", "desc": "Trimmen und fügen Sie Ihre Videos zu einem bearbeitungsfertigen Clip zusammen" },
-      "voiceChanger": { "title": "Stimmenverzerrer", "desc": "Ändern Sie die Stimme einer beliebigen Audio- oder Videodatei" },
-      "subtitleRemover": { "title": "Untertitel-Entferner", "desc": "Entfernen Sie Untertitel in Minuten mit KI" }
-    },
-    "miniTools": {
-      "imageGenerator": "Bildgenerator",
-      "aiFaceSwap": "KI-Gesichtstausch",
-      "voiceoverGenerator": "Voiceover-Generator",
-      "backgroundRemover": "Hintergrund-Entferner",
-      "youtubeDownloader": "YouTube-Downloader"
-    }
-  },
-  "Tools": {
-    "pageTitle": "Clipiro-Tools",
-    "pageSubtitle": "Alles, was Sie zum Erstellen, Konvertieren und Schneiden brauchen — an einem Ort.",
-    "getStarted": "Loslegen",
-    "credits": "{count, plural, one {# Credit} other {# Credits}}",
-    "topCards": {
-      "freeTools": { "title": "Kostenlose Tools", "desc": "Audio-Balancer, Video-Kompressor und mehr" },
-      "youtubeDownloader": { "title": "YouTube-Downloader", "desc": "YouTube-Videos herunterladen" },
-      "instagramDownloader": { "title": "Instagram-Downloader", "desc": "Reels, Beiträge & IGTV herunterladen" }
-    },
-    "items": {
-      "imageGenerator": { "title": "KI-Bildgenerator", "desc": "Erstellen Sie in Sekunden hochwertige Bilder mit KI." },
-      "voiceover": { "title": "KI-Voiceover-Generator", "desc": "Erstellen Sie in Sekunden hochwertige Voiceovers mit über 50 Sprechern." },
-      "speechEnhancer": { "title": "KI-Sprachverbesserer", "desc": "Verbessern Sie die Qualität einer beliebigen Audio- oder Videodatei mit KI." },
-      "vocalRemover": { "title": "KI-Gesangsentferner", "desc": "Entfernen Sie Gesang aus einer beliebigen Audio- oder Videodatei mit KI." },
-      "brainstormer": { "title": "KI-Ideengenerator", "desc": "Generieren Sie virale Content-Ideen basierend auf Ihrer Nische." }
-    }
+    "tryItNow": "Jetzt ausprobieren"
   },
   "SettingsNav": {
     "heading": "Konto & Einstellungen",

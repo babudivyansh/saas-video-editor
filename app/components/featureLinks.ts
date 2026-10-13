@@ -19,8 +19,31 @@ export interface FeatureLink {
   /** Public marketing page → /tools/<slug>. Slugs are unique across all three lists. */
   slug: string;
   category: ToolCategory;
+  /** Glyph name, resolved to an SVG by app/components/toolIcons.tsx. A string,
+   * not JSX, because proxy.ts imports this file. */
+  icon: ToolIcon;
+  /** Section on the in-app AI Tools hub (/dashboard/tools). Omitted = not on
+   * the hub: AutoClip and the Editor are first-class nav items instead. */
+  appGroup?: AppToolGroup;
+  /** Key into TOOL_COSTS (lib/tool-costs.ts) for the hub's credit badge, where
+   * it differs from the slug. The image generator has no key: its price is
+   * per-model (IMAGE_GENERATOR_STARTING_CREDIT_COST). */
+  costKey?: string;
+  /** Position in Home's AI Tools strip (lower first). Omitted = not shown. */
+  homeRank?: number;
   external?: boolean;
 }
+
+export type ToolIcon =
+  | "scissors" | "editor" | "crop" | "image" | "mic" | "face" | "eraser" | "wave"
+  | "music" | "sparkle" | "subs" | "bulb" | "balance" | "compress" | "note"
+  | "youtube" | "instagram";
+
+/** In-app grouping, finer than the public ToolCategory (video/ai/free). */
+export type AppToolGroup = "video" | "audio" | "image" | "writing" | "free";
+
+/** Hub section order. */
+export const APP_TOOL_GROUPS: AppToolGroup[] = ["video", "audio", "image", "writing", "free"];
 
 export type ToolCategory = "video" | "ai" | "free";
 
@@ -32,31 +55,31 @@ export const CATEGORY_LABELS: Record<ToolCategory, string> = {
 
 // Free tools + downloaders (no credits required).
 export const FREE_FEATURES: FeatureLink[] = [
-  { title: "Audio Balancer", desc: "Balance left & right audio channels", href: "/dashboard/tools/free/audio-balancer", slug: "audio-balancer", category: "free" },
-  { title: "Video Compressor", desc: "Shrink video size without quality loss", href: "/dashboard/tools/free/video-compressor", slug: "video-compressor", category: "free" },
-  { title: "MP3 Converter", desc: "Convert any media file to MP3", href: "/dashboard/tools/free/mp3-converter", slug: "mp3-converter", category: "free" },
-  { title: "YouTube Downloader", desc: "Download YouTube videos in a click", href: "/dashboard/tools/youtube-downloader", slug: "youtube-downloader", category: "free" },
-  { title: "Instagram Downloader", desc: "Save Reels, posts & IGTV", href: "/dashboard/tools/instagram-downloader", slug: "instagram-downloader", category: "free" },
+  { title: "Audio Balancer", desc: "Balance left & right audio channels", href: "/dashboard/tools/free/audio-balancer", slug: "audio-balancer", icon: "balance", appGroup: "free", category: "free" },
+  { title: "Video Compressor", desc: "Shrink video size without quality loss", href: "/dashboard/tools/free/video-compressor", slug: "video-compressor", icon: "compress", appGroup: "free", category: "free" },
+  { title: "MP3 Converter", desc: "Convert any media file to MP3", href: "/dashboard/tools/free/mp3-converter", slug: "mp3-converter", icon: "note", appGroup: "free", category: "free" },
+  { title: "YouTube Downloader", desc: "Download YouTube videos in a click", href: "/dashboard/tools/youtube-downloader", slug: "youtube-downloader", icon: "youtube", appGroup: "free", category: "free" },
+  { title: "Instagram Downloader", desc: "Save Reels, posts & IGTV", href: "/dashboard/tools/instagram-downloader", slug: "instagram-downloader", icon: "instagram", appGroup: "free", category: "free" },
 ];
 
 // Video creation workflows (faceless videos, clipping, editing).
 export const VIDEO_TOOLS: FeatureLink[] = [
-  { title: "Video Editor", desc: "Multi-track timeline editor in your browser", href: "/dashboard/editor", slug: "video-editor", category: "video" },
-  { title: "Clipiro AutoClip", desc: "Long videos into viral clips, automatically", href: "/dashboard/create/auto-clip", slug: "auto-clip", category: "video" },
-  { title: "Cut & Crop", desc: "Trim & stitch clips ready to edit", href: "/dashboard/cut-and-crop", slug: "cut-and-crop", category: "video" },
+  { title: "Video Editor", desc: "Multi-track timeline editor in your browser", href: "/dashboard/editor", slug: "video-editor", icon: "editor", category: "video" },
+  { title: "Clipiro AutoClip", desc: "Long videos into viral clips, automatically", href: "/dashboard/create/auto-clip", slug: "auto-clip", icon: "scissors", category: "video" },
+  { title: "Cut & Crop", desc: "Trim & stitch clips ready to edit", href: "/dashboard/cut-and-crop", slug: "cut-and-crop", icon: "crop", appGroup: "video", homeRank: 1, category: "video" },
 ];
 
 // AI tools (single-purpose generators / enhancers).
 export const AI_TOOLS: FeatureLink[] = [
-  { title: "AI Image Generator", desc: "High-quality AI images in seconds", href: "/dashboard/tools/image-generator", slug: "ai-image-generator", category: "ai" },
-  { title: "AI Voiceover", desc: "Lifelike voiceovers · 50+ narrators", href: "/dashboard/tools/voiceover", slug: "ai-voiceover", category: "ai" },
-  { title: "AI Face Swap", desc: "Swap faces in photos & videos", href: "/dashboard/tools/face-swap", slug: "ai-face-swap", category: "ai" },
-  { title: "Background Remover", desc: "Remove image / video backgrounds", href: "/dashboard/tools/background-remover", slug: "background-remover", category: "ai" },
-  { title: "AI Voice Changer", desc: "Change any voice with AI", href: "/dashboard/tools/voice-changer", slug: "ai-voice-changer", category: "ai" },
-  { title: "AI Vocal Remover", desc: "Strip vocals from audio or video", href: "/dashboard/tools/vocal-remover", slug: "ai-vocal-remover", category: "ai" },
-  { title: "AI Speech Enhancer", desc: "Clean up & enhance any audio", href: "/dashboard/tools/enhance-speech", slug: "ai-speech-enhancer", category: "ai" },
-  { title: "Subtitle Remover", desc: "Remove burned-in subtitles with AI", href: "/dashboard/tools/subtitle-remover", slug: "subtitle-remover", category: "ai" },
-  { title: "AI Brainstormer", desc: "Viral content ideas for your niche", href: "/dashboard/tools/brainstormer", slug: "ai-brainstormer", category: "ai" },
+  { title: "AI Image Generator", desc: "High-quality AI images in seconds", href: "/dashboard/tools/image-generator", slug: "ai-image-generator", icon: "image", appGroup: "image", homeRank: 5, category: "ai" },
+  { title: "AI Voiceover", desc: "Lifelike voiceovers · 50+ narrators", href: "/dashboard/tools/voiceover", slug: "ai-voiceover", icon: "mic", appGroup: "audio", costKey: "voiceover", homeRank: 4, category: "ai" },
+  { title: "AI Face Swap", desc: "Swap faces in photos & videos", href: "/dashboard/tools/face-swap", slug: "ai-face-swap", icon: "face", appGroup: "video", costKey: "face-swap", category: "ai" },
+  { title: "Background Remover", desc: "Remove image / video backgrounds", href: "/dashboard/tools/background-remover", slug: "background-remover", icon: "eraser", appGroup: "image", homeRank: 6, category: "ai" },
+  { title: "AI Voice Changer", desc: "Change any voice with AI", href: "/dashboard/tools/voice-changer", slug: "ai-voice-changer", icon: "wave", appGroup: "audio", costKey: "voice-changer", homeRank: 2, category: "ai" },
+  { title: "AI Vocal Remover", desc: "Strip vocals from audio or video", href: "/dashboard/tools/vocal-remover", slug: "ai-vocal-remover", icon: "music", appGroup: "audio", costKey: "vocal-remover", category: "ai" },
+  { title: "AI Speech Enhancer", desc: "Clean up & enhance any audio", href: "/dashboard/tools/enhance-speech", slug: "ai-speech-enhancer", icon: "sparkle", appGroup: "audio", costKey: "enhance-speech", category: "ai" },
+  { title: "Subtitle Remover", desc: "Remove burned-in subtitles with AI", href: "/dashboard/tools/subtitle-remover", slug: "subtitle-remover", icon: "subs", appGroup: "video", homeRank: 3, category: "ai" },
+  { title: "AI Brainstormer", desc: "Viral content ideas for your niche", href: "/dashboard/tools/brainstormer", slug: "ai-brainstormer", icon: "bulb", appGroup: "writing", costKey: "brainstormer", category: "ai" },
 ];
 
 /**
@@ -85,6 +108,14 @@ export const TOOLS_BY_CATEGORY: Record<ToolCategory, FeatureLink[]> = {
   ai: AI_TOOLS,
   free: FREE_FEATURES,
 };
+
+/** Tools on the in-app AI Tools hub, in registry order. */
+export const HUB_TOOLS: FeatureLink[] = ALL_TOOLS.filter((tool) => tool.appGroup);
+
+/** Home's AI Tools strip. */
+export const HOME_TOOLS: FeatureLink[] = ALL_TOOLS
+  .filter((tool) => tool.homeRank != null)
+  .sort((a, b) => a.homeRank! - b.homeRank!);
 
 export function getToolBySlug(slug: string): FeatureLink | undefined {
   return ALL_TOOLS.find((tool) => tool.slug === slug);

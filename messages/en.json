@@ -32,7 +32,7 @@
     "createItems": {
       "autoClip": { "title": "Clipiro AutoClip", "desc": "Long video → viral clips, automatically" },
       "editor": { "title": "Video Editor", "desc": "Multi-track timeline editor" },
-      "cutCrop": { "title": "Cut & Crop", "desc": "Trim & stitch clips ready to edit" }
+      "aiTools": { "title": "AI Tools", "desc": "Voice, image & video tools in one place" }
     },
     "rail": {
       "home": "Home",
@@ -48,7 +48,7 @@
       "groupGrow": "Grow",
       "autoClip": "AutoClip",
       "editor": "Editor",
-      "allTools": "All tools",
+      "aiTools": "AI Tools",
       "myClips": "My Clips"
     },
     "planCard": { "manage": "Manage", "clipMinutes": "Clip minutes", "aiCredits": "AI credits", "minutesValue": "{count} min" },
@@ -66,15 +66,15 @@
       "messages": { "title": "Messages", "desc": "Account notifications" },
       "preferences": { "title": "Preferences", "desc": "Language & display preferences" },
       "myVideos": { "title": "My Videos", "desc": "All your generated videos" }
-    }
+    },
+    "collapseSidebar": "Collapse sidebar",
+    "expandSidebar": "Expand sidebar"
   },
   "Dashboard": {
     "welcomeBack": "Welcome back, {name} · AI Clip Studio",
     "aiClipStudio": "AI Clip Studio",
     "heroTitle": "Turn long videos into viral clips",
     "heroSubtitle": "Drop in a stream, podcast, or interview — AutoClip finds the moments, captions them, and cuts them for every platform.",
-    "startAutoClipping": "Start AutoClipping",
-    "openEditor": "Open Editor",
     "continueWhereYouLeftOff": "Continue where you left off",
     "viewAllClips": "View All Clips",
     "totalClips": "Total clips",
@@ -124,45 +124,52 @@
       "trackAccount": { "title": "Track your first account", "desc": "Connect a social account in the Social Tracker." },
       "referFriend": { "title": "Refer a friend", "desc": "Invite a friend who subscribes with your referral link." }
     },
-    "freeToolsCard": { "title": "Try our <em>FREE</em> Tools", "desc": "Audio balancer, video compressor, and more" },
     "editorCard": { "title": "Open the <em>Editor</em>", "desc": "Multi-track timeline editor in your browser" },
     "stillWantTo": "Still want to {goal}?",
     "tryItNow": "Try it now",
-    "tryNow": "Try Now",
-    "startCreating": "Start creating",
-    "clipiroTools": "Clipiro Tools",
-    "viewAllTools": "View All Tools",
-    "tools": {
-      "autoClip": { "title": "Clipiro AutoClip", "desc": "Transform long videos into viral clips automatically" },
-      "cutCrop": { "title": "Cut & Crop", "desc": "Trim and stitch your video(s) into one clip ready to edit" },
-      "voiceChanger": { "title": "Voice Changer", "desc": "Change the voice of any audio or video file" },
-      "subtitleRemover": { "title": "Subtitle Remover", "desc": "Remove subtitles with AI in minutes" }
-    },
-    "miniTools": {
-      "imageGenerator": "Image Generator",
-      "aiFaceSwap": "AI Face Swap",
-      "voiceoverGenerator": "Voiceover Generator",
-      "backgroundRemover": "Background Remover",
-      "youtubeDownloader": "YouTube Downloader"
+    "home": {
+      "urlLabel": "Video link",
+      "urlPlaceholder": "Paste a YouTube, Vimeo, Loom, Drive or Dropbox link",
+      "invalidUrl": "Paste a full link, starting with https://",
+      "upload": "Upload",
+      "getClips": "Get clips",
+      "length": "Length",
+      "ratio": "Ratio",
+      "captions": "Captions",
+      "recentProjects": "Recent projects",
+      "topClips": "Your top clips",
+      "viewAll": "View all",
+      "untitledClip": "Clip {n}",
+      "downloadClip": "Download {title}",
+      "aiTools": "AI Tools",
+      "exploreTools": "Explore all AI Tools",
+      "emptyTitle": "Your clips will show up here",
+      "emptySubtitle": "Paste a link above — AutoClip finds the best moments, captions them and scores each clip for virality."
     }
   },
   "Tools": {
-    "pageTitle": "Clipiro Tools",
-    "pageSubtitle": "Everything you need to create, convert, and clip — in one place.",
-    "getStarted": "Get Started",
-    "credits": "{count, plural, one {# credit} other {# credits}}",
-    "topCards": {
-      "freeTools": { "title": "Free Tools", "desc": "Audio balancer, video compressor, and more" },
-      "youtubeDownloader": { "title": "Youtube Downloader", "desc": "Download Youtube videos" },
-      "instagramDownloader": { "title": "Instagram Downloader", "desc": "Download Reels, posts & IGTV" }
-    },
-    "items": {
-      "imageGenerator": { "title": "AI Image Generator", "desc": "Generate high quality images with AI in seconds." },
-      "voiceover": { "title": "AI Voiceover Generator", "desc": "Make high quality voiceovers in seconds with 50+ narrators." },
-      "speechEnhancer": { "title": "AI Speech Enhancer", "desc": "Enhance the quality of any audio or video file with AI." },
-      "vocalRemover": { "title": "AI Vocal Remover", "desc": "Remove vocals from any audio or video file with AI." },
-      "brainstormer": { "title": "AI Brainstormer", "desc": "Generate viral content ideas based on your niche." }
+    "hub": {
+      "title": "AI Tools",
+      "subtitle": "Voice, image and video tools for everything around your clips.",
+      "searchLabel": "Search AI tools",
+      "searchPlaceholder": "Search tools…",
+      "filterLabel": "Filter tools by type",
+      "all": "All",
+      "groups": {
+        "video": "Video",
+        "audio": "Audio & Voice",
+        "image": "Image",
+        "writing": "Writing",
+        "free": "Free utilities"
+      },
+      "recentlyUsed": "Recently used",
+      "freeBadge": "Free",
+      "proBadge": "Pro",
+      "fromCredits": "{count, plural, one {From # credit} other {From # credits}}",
+      "noResults": "No tools match that search",
+      "noResultsHint": "Try a different word, or clear the search to see every tool."
     }
+    
   },
   "SettingsNav": {
     "heading": "Account & Settings",

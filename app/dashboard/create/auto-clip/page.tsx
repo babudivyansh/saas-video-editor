@@ -42,6 +42,11 @@ function AutoClipFlow() {
   const resumeProjectId = params.get("project");
   // Set by Related Content links from the Assets library.
   const deepLinkClipId = params.get("clip");
+  // Set by the Home launch box: a pasted link plus the presets picked beside
+  // it. Read once as initial state — the form owns them after that.
+  const launchUrl = params.get("url");
+  const launchLength = LENGTH_PRESETS.find((p) => p.id === params.get("length"));
+  const launchRatio = params.get("ratio");
 
   const [file, setFile] = useState<File | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
@@ -53,12 +58,14 @@ function AutoClipFlow() {
   // to download) this only needs a project created with its URL, no import step.
   const [pickedAsset, setPickedAsset] = useState<PickerAsset | null>(null);
 
-  const [minDuration, setMinDuration] = useState(15);
-  const [maxDuration, setMaxDuration] = useState(60);
+  const [minDuration, setMinDuration] = useState(launchLength?.min ?? 15);
+  const [maxDuration, setMaxDuration] = useState(launchLength?.max ?? 60);
   const [clipCount, setClipCount] = useState(8);
-  const [aspectRatio, setAspectRatio] = useState<"9:16" | "16:9" | "1:1">("9:16");
+  const [aspectRatio, setAspectRatio] = useState<"9:16" | "16:9" | "1:1">(
+    launchRatio === "16:9" || launchRatio === "1:1" ? launchRatio : "9:16",
+  );
   const [instructions, setInstructions] = useState("");
-  const [captionsOn, setCaptionsOn] = useState(true);
+  const [captionsOn, setCaptionsOn] = useState(params.get("captions") !== "0");
   // The caption style is now a TEMPLATE SLUG, not an index into a colour table.
   // captionStyleIndex is still derived from it on the wire (see the create
   // bodies below) purely to keep the public v1 API contract working.
@@ -381,7 +388,7 @@ function AutoClipFlow() {
               <span className="text-xs font-semibold text-ink-soft/70 uppercase tracking-widest">or</span>
               <div className="flex-1 h-px bg-card-border" />
             </div>
-            <UrlImportField onImported={(info) => { setImportedUrl(info.url); setImportedTitle(info.title); }} />
+            <UrlImportField initialUrl={launchUrl ?? undefined} onImported={(info) => { setImportedUrl(info.url); setImportedTitle(info.title); }} />
           </>
         )}
 
