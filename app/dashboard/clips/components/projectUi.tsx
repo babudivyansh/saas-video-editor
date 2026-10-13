@@ -13,6 +13,8 @@ export interface ProjectRow {
   coverUrl?: string | null;
   /** The uploaded source video, signed. Only with ?cover=1. */
   sourceUrl?: string | null;
+  /** Highest clip virality score in the run. Only with ?cover=1. */
+  bestScore?: number | null;
   _count: { clips: number };
 }
 

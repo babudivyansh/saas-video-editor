@@ -129,22 +129,45 @@
     "tryItNow": "Try it now",
     "home": {
       "urlLabel": "Video link",
-      "urlPlaceholder": "Paste a YouTube, Vimeo, Loom, Drive or Dropbox link",
+      "urlPlaceholder": "Drop a YouTube, Vimeo, Loom or Drive link",
       "invalidUrl": "Paste a full link, starting with https://",
       "upload": "Upload",
-      "getClips": "Get clips",
+      "getClips": "Get clips in 1 click",
       "length": "Length",
       "ratio": "Ratio",
-      "captions": "Captions",
       "recentProjects": "Recent projects",
       "topClips": "Your top clips",
       "viewAll": "View all",
       "untitledClip": "Clip {n}",
       "downloadClip": "Download {title}",
       "aiTools": "AI Tools",
-      "exploreTools": "Explore all AI Tools",
       "emptyTitle": "Your clips will show up here",
-      "emptySubtitle": "Paste a link above — AutoClip finds the best moments, captions them and scores each clip for virality."
+      "emptySubtitle": "Paste a link above — AutoClip finds the best moments, captions them and scores each clip for virality.",
+      "welcome": "Welcome back, <b>{name}</b>",
+      "questsLeft": "{count, plural, one {# quest left} other {# quests left}}",
+      "topUp": "Top up",
+      "upgrade": "Upgrade",
+      "captionsOn": "Captions on",
+      "captionsOff": "Captions off",
+      "allTools": "All AI Tools",
+      "failed": "Failed",
+      "bestScore": "Best {score}",
+      "whatsNew": "What's new",
+      "newBadge": "New",
+      "news": {
+        "aiTools": {
+          "title": "AI Tools hub",
+          "desc": "Every voice, image and video tool in one place"
+        },
+        "dubbing": {
+          "title": "Dub any clip",
+          "desc": "Translate a finished clip into another language, same voice"
+        },
+        "socialTracker": {
+          "title": "Social Tracker",
+          "desc": "See how every clip performs once it's posted"
+        }
+      }
     }
   },
   "Tools": {

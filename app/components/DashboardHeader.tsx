@@ -275,7 +275,7 @@ function usePageTitle(groups: ToolsSidebarNavGroup[]): string {
 
 // ── Header ─────────────────────────────────────────────────────────────────
 
-export default function DashboardHeader() {
+export default function DashboardHeader({ desktopHidden = false }: { desktopHidden?: boolean }) {
   const { user, isLoading, openAuthModal } = useAuth();
   const { openBilling } = useBillingOverlay();
   const t = useTranslations("Nav");
@@ -300,7 +300,7 @@ export default function DashboardHeader() {
 
   return (
     <>
-    <header className="flex items-center gap-2 sm:gap-4 px-3 sm:px-5 h-16 flex-shrink-0 border-b border-line bg-panel z-40">
+    <header className={`flex items-center gap-2 sm:gap-4 px-3 sm:px-5 h-16 flex-shrink-0 border-b border-line bg-panel z-40 ${desktopHidden ? "xl:hidden" : ""}`}>
       {user && (
         <button
           className="xl:hidden p-2 -ml-2 rounded-md text-ink-soft hover:text-ink flex-shrink-0"

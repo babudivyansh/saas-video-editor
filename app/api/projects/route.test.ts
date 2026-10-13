@@ -19,13 +19,21 @@ const findMany = vi.fn(async (args: typeof lastArgs) => {
   return rows;
 });
 const create = vi.fn(async (a: { data: Record<string, unknown> }) => ({ id: "new", ...a.data }));
-vi.mock("@/lib/prisma", () => ({ prisma: { project: { findMany: (a: never) => findMany(a), create: (a: never) => create(a) } } }));
+let bestRows: { projectId: string; _max: { score: number | null } }[] = [];
+const groupBy = vi.fn(async (_a: unknown) => bestRows);
+vi.mock("@/lib/prisma", () => ({
+  prisma: {
+    project: { findMany: (a: never) => findMany(a), create: (a: never) => create(a) },
+    clip: { groupBy: (a: never) => groupBy(a) },
+  },
+}));
 
 const { GET, POST } = await import("./route");
 const req = (qs = "") => new NextRequest(`http://localhost/api/projects${qs}`);
 
 beforeEach(() => {
   lastArgs = {};
+  bestRows = [];
   rows = [{ id: "p1", title: "Run", uploadedVideoUrl: `${S3}/uploads/u1/src.mp4`, _count: { clips: 2 }, clips: [{ thumbnailUrl: `${S3}/renders/p1/clip-0.jpg` }] }];
   vi.clearAllMocks();
 });
@@ -45,11 +53,25 @@ describe("GET /api/projects", () => {
     expect(body.projects[0]).not.toHaveProperty("clips");
   });
 
+  it("with ?cover=1 adds each run's best clip score in one grouped query", async () => {
+    bestRows = [{ projectId: "p1", _max: { score: 92 } }];
+    const body = await (await GET(req("?cover=1"))).json();
+    expect(body.projects[0].bestScore).toBe(92);
+    expect(groupBy).toHaveBeenCalledTimes(1);
+    expect(groupBy.mock.calls[0][0]).toMatchObject({ where: { projectId: { in: ["p1"] } } });
+  });
+
+  it("does not query scores unless asked", async () => {
+    await GET(req("?productType=auto-clip"));
+    expect(groupBy).not.toHaveBeenCalled();
+  });
+
   it("gives a null cover to a run with no rendered clip", async () => {
     rows = [{ id: "p2", title: "Draft", uploadedVideoUrl: null, _count: { clips: 0 }, clips: [] }];
     const body = await (await GET(req("?cover=1"))).json();
     expect(body.projects[0].coverUrl).toBeNull();
     expect(body.projects[0].sourceUrl).toBeNull();
+    expect(body.projects[0].bestScore).toBeNull();
   });
 });
 

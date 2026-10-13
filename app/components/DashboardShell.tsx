@@ -61,7 +61,9 @@ function ShellChrome({ children }: { children: React.ReactNode }) {
       <SkipLink />
       <ToolsSidebar active={isBillingOpen ? "billing" : isSettingsOpen ? "settings" : activeIdFor(pathname)} />
       <div className="flex flex-1 min-w-0 flex-col overflow-hidden">
-        <DashboardHeader />
+        {/* Home (design B) has no header from xl up — it renders its own
+            top bar (HomeTopBar). Below xl the header stays: it holds the menu. */}
+        <DashboardHeader desktopHidden={pathname === "/dashboard"} />
         {/*
           `relative` is not cosmetic — it makes this pane the containing block
           for the absolutely-positioned boxes inside it, and `sr-only` is

@@ -62,6 +62,17 @@ export async function GET(req: NextRequest) {
 
   if (!withCover) return NextResponse.json({ projects, nextCursor });
 
+  // Each run's best virality score, for Home's project cards — one grouped
+  // query for the page rather than one per project.
+  const best = projects.length
+    ? await prisma.clip.groupBy({
+        by: ["projectId"],
+        where: { projectId: { in: projects.map((p) => p.id) }, score: { not: null } },
+        _max: { score: true },
+      })
+    : [];
+  const bestByProject = new Map(best.map((b) => [b.projectId, b._max.score]));
+
   const withMedia = await Promise.all(
     projects.map(async (p) => {
       const { clips, ...rest } = p as typeof p & { clips?: { thumbnailUrl: string | null }[] };
@@ -69,6 +80,7 @@ export async function GET(req: NextRequest) {
         ...rest,
         coverUrl: await resign(clips?.[0]?.thumbnailUrl ?? null),
         sourceUrl: await resign(p.uploadedVideoUrl),
+        bestScore: bestByProject.get(p.id) ?? null,
       };
     }),
   );
