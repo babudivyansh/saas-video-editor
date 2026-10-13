@@ -25,8 +25,7 @@
     "freeTools": "ফ্রি টুল",
     "createItems": {
       "autoClip": { "title": "Clipiro AutoClip", "desc": "লম্বা ভিডিও → ভাইরাল ক্লিপ, স্বয়ংক্রিয়ভাবে" },
-      "editor": { "title": "ভিডিও এডিটর", "desc": "মাল্টি-ট্র্যাক টাইমলাইন এডিটর" },
-      "cutCrop": { "title": "কাট ও ক্রপ", "desc": "ক্লিপ ট্রিম ও জোড়া দিয়ে এডিটের জন্য প্রস্তুত করুন" }
+      "editor": { "title": "ভিডিও এডিটর", "desc": "মাল্টি-ট্র্যাক টাইমলাইন এডিটর" }
     },
     "rail": {
       "home": "হোম",
@@ -42,7 +41,7 @@
       "groupGrow": "বৃদ্ধি",
       "autoClip": "AutoClip",
       "editor": "এডিটর",
-      "allTools": "সব টুল",
+      "aiTools": "AI টুল",
       "myClips": "আমার ক্লিপ"
     },
     "planCard": { "manage": "পরিচালনা", "clipMinutes": "ক্লিপ মিনিট", "aiCredits": "AI ক্রেডিট", "minutesValue": "{count} মিনিট" },
@@ -67,8 +66,6 @@
     "aiClipStudio": "AI ক্লিপ স্টুডিও",
     "heroTitle": "লম্বা ভিডিওকে ভাইরাল ক্লিপে রূপান্তর করুন",
     "heroSubtitle": "একটি স্ট্রিম, পডকাস্ট বা ইন্টারভিউ দিন — AutoClip মুহূর্তগুলো খুঁজে বের করে, ক্যাপশন যোগ করে, এবং প্রতিটি প্ল্যাটফর্মের জন্য কেটে দেয়।",
-    "startAutoClipping": "AutoClipping শুরু করুন",
-    "openEditor": "এডিটর খুলুন",
     "continueWhereYouLeftOff": "যেখানে রেখেছিলেন সেখান থেকে চালিয়ে যান",
     "viewAllClips": "সব ক্লিপ দেখুন",
     "totalClips": "মোট ক্লিপ",
@@ -115,45 +112,9 @@
       "trackAccount": { "title": "আপনার প্রথম অ্যাকাউন্ট ট্র্যাক করুন", "desc": "Social Tracker-এ একটি সোশ্যাল অ্যাকাউন্ট সংযুক্ত করুন।" },
       "referFriend": { "title": "বন্ধুকে রেফার করুন", "desc": "আপনার রেফারেল লিঙ্ক দিয়ে সাবস্ক্রাইব করা বন্ধুকে আমন্ত্রণ জানান।" }
     },
-    "freeToolsCard": { "title": "আমাদের <em>ফ্রি</em> টুল চেষ্টা করুন", "desc": "অডিও ব্যালেন্সার, ভিডিও কম্প্রেসার, এবং আরও" },
     "editorCard": { "title": "<em>এডিটর</em> খুলুন", "desc": "আপনার ব্রাউজারে মাল্টি-ট্র্যাক টাইমলাইন এডিটর" },
     "stillWantTo": "এখনও কি {goal} করতে চান?",
-    "tryItNow": "এখনই চেষ্টা করুন",
-    "tryNow": "এখনই চেষ্টা করুন",
-    "startCreating": "তৈরি করা শুরু করুন",
-    "clipiroTools": "Clipiro টুল",
-    "viewAllTools": "সব টুল দেখুন",
-    "tools": {
-      "autoClip": { "title": "Clipiro AutoClip", "desc": "লম্বা ভিডিওকে স্বয়ংক্রিয়ভাবে ভাইরাল ক্লিপে রূপান্তর করুন" },
-      "cutCrop": { "title": "কাট ও ক্রপ", "desc": "আপনার ভিডিও(গুলো) ট্রিম ও জোড়া দিয়ে এডিটের জন্য প্রস্তুত একটি ক্লিপ তৈরি করুন" },
-      "voiceChanger": { "title": "ভয়েস চেঞ্জার", "desc": "যেকোনো অডিও বা ভিডিও ফাইলের ভয়েস পরিবর্তন করুন" },
-      "subtitleRemover": { "title": "সাবটাইটেল রিমুভার", "desc": "মিনিটের মধ্যে AI দিয়ে সাবটাইটেল সরিয়ে ফেলুন" }
-    },
-    "miniTools": {
-      "imageGenerator": "ইমেজ জেনারেটর",
-      "aiFaceSwap": "AI ফেস সোয়াপ",
-      "voiceoverGenerator": "ভয়েসওভার জেনারেটর",
-      "backgroundRemover": "ব্যাকগ্রাউন্ড রিমুভার",
-      "youtubeDownloader": "YouTube ডাউনলোডার"
-    }
-  },
-  "Tools": {
-    "pageTitle": "Clipiro টুল",
-    "pageSubtitle": "তৈরি, রূপান্তর, এবং ক্লিপ করার জন্য যা কিছু দরকার — এক জায়গায়।",
-    "getStarted": "শুরু করুন",
-    "credits": "{count, plural, one {# ক্রেডিট} other {# ক্রেডিট}}",
-    "topCards": {
-      "freeTools": { "title": "ফ্রি টুল", "desc": "অডিও ব্যালেন্সার, ভিডিও কম্প্রেসার, এবং আরও" },
-      "youtubeDownloader": { "title": "YouTube ডাউনলোডার", "desc": "YouTube ভিডিও ডাউনলোড করুন" },
-      "instagramDownloader": { "title": "Instagram ডাউনলোডার", "desc": "রিল, পোস্ট ও IGTV ডাউনলোড করুন" }
-    },
-    "items": {
-      "imageGenerator": { "title": "AI ইমেজ জেনারেটর", "desc": "সেকেন্ডের মধ্যে AI দিয়ে উচ্চমানের ছবি তৈরি করুন।" },
-      "voiceover": { "title": "AI ভয়েসওভার জেনারেটর", "desc": "50+ ন্যারেটর নিয়ে সেকেন্ডের মধ্যে উচ্চমানের ভয়েসওভার তৈরি করুন।" },
-      "speechEnhancer": { "title": "AI স্পিচ এনহ্যান্সার", "desc": "AI দিয়ে যেকোনো অডিও বা ভিডিও ফাইলের মান উন্নত করুন।" },
-      "vocalRemover": { "title": "AI ভোকাল রিমুভার", "desc": "AI দিয়ে যেকোনো অডিও বা ভিডিও ফাইল থেকে ভোকাল সরিয়ে ফেলুন।" },
-      "brainstormer": { "title": "AI ব্রেইনস্টর্মার", "desc": "আপনার নিশ অনুযায়ী ভাইরাল কনটেন্ট আইডিয়া তৈরি করুন।" }
-    }
+    "tryItNow": "এখনই চেষ্টা করুন"
   },
   "SettingsNav": {
     "heading": "অ্যাকাউন্ট ও সেটিংস",

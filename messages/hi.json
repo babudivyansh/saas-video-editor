@@ -25,8 +25,7 @@
     "freeTools": "फ्री टूल्स",
     "createItems": {
       "autoClip": { "title": "Clipiro AutoClip", "desc": "लंबा वीडियो → वायरल क्लिप्स, अपने आप" },
-      "editor": { "title": "वीडियो एडिटर", "desc": "मल्टी-ट्रैक टाइमलाइन एडिटर" },
-      "cutCrop": { "title": "कट और क्रॉप", "desc": "क्लिप्स ट्रिम और जोड़कर एडिट के लिए तैयार करें" }
+      "editor": { "title": "वीडियो एडिटर", "desc": "मल्टी-ट्रैक टाइमलाइन एडिटर" }
     },
     "rail": {
       "home": "होम",
@@ -42,7 +41,7 @@
       "groupGrow": "बढ़ें",
       "autoClip": "AutoClip",
       "editor": "एडिटर",
-      "allTools": "सभी टूल",
+      "aiTools": "AI टूल्स",
       "myClips": "मेरी क्लिप"
     },
     "planCard": { "manage": "प्रबंधित करें", "clipMinutes": "क्लिप मिनट", "aiCredits": "AI क्रेडिट", "minutesValue": "{count} मिनट" },
@@ -67,8 +66,6 @@
     "aiClipStudio": "AI क्लिप स्टूडियो",
     "heroTitle": "लंबे वीडियो को वायरल क्लिप्स में बदलें",
     "heroSubtitle": "कोई स्ट्रीम, पॉडकास्ट या इंटरव्यू डालें — AutoClip पल ढूंढता है, कैप्शन लगाता है, और हर प्लेटफ़ॉर्म के लिए काटता है।",
-    "startAutoClipping": "AutoClipping शुरू करें",
-    "openEditor": "एडिटर खोलें",
     "continueWhereYouLeftOff": "जहां छोड़ा था वहीं से जारी रखें",
     "viewAllClips": "सभी क्लिप्स देखें",
     "totalClips": "कुल क्लिप्स",
@@ -115,45 +112,9 @@
       "trackAccount": { "title": "अपना पहला अकाउंट ट्रैक करें", "desc": "Social Tracker में एक सोशल अकाउंट कनेक्ट करें।" },
       "referFriend": { "title": "किसी मित्र को रेफर करें", "desc": "अपने रेफ़रल लिंक से सब्सक्राइब करने वाले मित्र को आमंत्रित करें।" }
     },
-    "freeToolsCard": { "title": "हमारे <em>फ्री</em> टूल्स आज़माएं", "desc": "ऑडियो बैलेंसर, वीडियो कंप्रेसर, और अधिक" },
     "editorCard": { "title": "<em>एडिटर</em> खोलें", "desc": "आपके ब्राउज़र में मल्टी-ट्रैक टाइमलाइन एडिटर" },
     "stillWantTo": "क्या अब भी {goal} करना चाहते हैं?",
-    "tryItNow": "अभी आज़माएं",
-    "tryNow": "अभी आज़माएं",
-    "startCreating": "बनाना शुरू करें",
-    "clipiroTools": "Clipiro टूल्स",
-    "viewAllTools": "सभी टूल देखें",
-    "tools": {
-      "autoClip": { "title": "Clipiro AutoClip", "desc": "लंबे वीडियो को अपने आप वायरल क्लिप्स में बदलें" },
-      "cutCrop": { "title": "कट और क्रॉप", "desc": "अपने वीडियो को ट्रिम और जोड़कर एडिट के लिए तैयार एक क्लिप बनाएं" },
-      "voiceChanger": { "title": "वॉइस चेंजर", "desc": "किसी भी ऑडियो या वीडियो फ़ाइल की आवाज़ बदलें" },
-      "subtitleRemover": { "title": "सबटाइटल रिमूवर", "desc": "मिनटों में AI से सबटाइटल हटाएं" }
-    },
-    "miniTools": {
-      "imageGenerator": "इमेज जनरेटर",
-      "aiFaceSwap": "AI फेस स्वैप",
-      "voiceoverGenerator": "वॉइसओवर जनरेटर",
-      "backgroundRemover": "बैकग्राउंड रिमूवर",
-      "youtubeDownloader": "YouTube डाउनलोडर"
-    }
-  },
-  "Tools": {
-    "pageTitle": "Clipiro टूल्स",
-    "pageSubtitle": "बनाने, बदलने और क्लिप करने के लिए जो कुछ भी चाहिए — एक ही जगह।",
-    "getStarted": "शुरू करें",
-    "credits": "{count, plural, one {# क्रेडिट} other {# क्रेडिट}}",
-    "topCards": {
-      "freeTools": { "title": "फ्री टूल्स", "desc": "ऑडियो बैलेंसर, वीडियो कंप्रेसर, और अधिक" },
-      "youtubeDownloader": { "title": "YouTube डाउनलोडर", "desc": "YouTube वीडियो डाउनलोड करें" },
-      "instagramDownloader": { "title": "Instagram डाउनलोडर", "desc": "रील्स, पोस्ट और IGTV डाउनलोड करें" }
-    },
-    "items": {
-      "imageGenerator": { "title": "AI इमेज जनरेटर", "desc": "सेकंडों में AI से हाई क्वालिटी इमेज जनरेट करें।" },
-      "voiceover": { "title": "AI वॉइसओवर जनरेटर", "desc": "50+ नैरेटर्स के साथ सेकंडों में हाई क्वालिटी वॉइसओवर बनाएं।" },
-      "speechEnhancer": { "title": "AI स्पीच एन्हांसर", "desc": "AI से किसी भी ऑडियो या वीडियो फ़ाइल की क्वालिटी बेहतर बनाएं।" },
-      "vocalRemover": { "title": "AI वोकल रिमूवर", "desc": "AI से किसी भी ऑडियो या वीडियो फ़ाइल से वोकल हटाएं।" },
-      "brainstormer": { "title": "AI ब्रेनस्टॉर्मर", "desc": "अपने niche के अनुसार वायरल कंटेंट आइडिया जनरेट करें।" }
-    }
+    "tryItNow": "अभी आज़माएं"
   },
   "SettingsNav": {
     "heading": "अकाउंट और सेटिंग्स",

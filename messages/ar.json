@@ -25,8 +25,7 @@
     "freeTools": "أدوات مجانية",
     "createItems": {
       "autoClip": { "title": "Clipiro AutoClip", "desc": "فيديو طويل ← مقاطع فيروسية، تلقائيًا" },
-      "editor": { "title": "محرر الفيديو", "desc": "محرر جدول زمني متعدد المسارات" },
-      "cutCrop": { "title": "قص وتقطيع", "desc": "قص المقاطع ودمجها لتصبح جاهزة للتحرير" }
+      "editor": { "title": "محرر الفيديو", "desc": "محرر جدول زمني متعدد المسارات" }
     },
     "rail": {
       "home": "الرئيسية",
@@ -42,7 +41,7 @@
       "groupGrow": "النمو",
       "autoClip": "AutoClip",
       "editor": "المحرر",
-      "allTools": "كل الأدوات",
+      "aiTools": "أدوات الذكاء الاصطناعي",
       "myClips": "مقاطعي"
     },
     "planCard": { "manage": "إدارة", "clipMinutes": "دقائق المقاطع", "aiCredits": "أرصدة الذكاء الاصطناعي", "minutesValue": "{count} دقيقة" },
@@ -67,8 +66,6 @@
     "aiClipStudio": "استوديو AI Clip",
     "heroTitle": "حوّل الفيديوهات الطويلة إلى مقاطع فيروسية",
     "heroSubtitle": "أدرج بثًا مباشرًا أو بودكاست أو مقابلة — يجد AutoClip اللحظات المميزة، ويضيف الترجمة، ويقصها لكل منصة.",
-    "startAutoClipping": "ابدأ AutoClipping",
-    "openEditor": "افتح المحرر",
     "continueWhereYouLeftOff": "تابع من حيث توقفت",
     "viewAllClips": "عرض جميع المقاطع",
     "totalClips": "إجمالي المقاطع",
@@ -115,45 +112,9 @@
       "trackAccount": { "title": "تتبّع حسابك الأول", "desc": "اربط حسابًا اجتماعيًا في Social Tracker." },
       "referFriend": { "title": "أحل صديقًا", "desc": "ادعُ صديقًا يشترك عبر رابط الإحالة الخاص بك." }
     },
-    "freeToolsCard": { "title": "جرّب أدواتنا <em>المجانية</em>", "desc": "موازن الصوت، ضاغط الفيديو، والمزيد" },
     "editorCard": { "title": "افتح <em>المحرر</em>", "desc": "محرر جدول زمني متعدد المسارات في متصفحك" },
     "stillWantTo": "هل ما زلت تريد {goal}؟",
-    "tryItNow": "جرّب الآن",
-    "tryNow": "جرّب الآن",
-    "startCreating": "ابدأ الإنشاء",
-    "clipiroTools": "أدوات Clipiro",
-    "viewAllTools": "عرض كل الأدوات",
-    "tools": {
-      "autoClip": { "title": "Clipiro AutoClip", "desc": "حوّل الفيديوهات الطويلة إلى مقاطع فيروسية تلقائيًا" },
-      "cutCrop": { "title": "قص وتقطيع", "desc": "قص فيديوهاتك ودمجها في مقطع واحد جاهز للتحرير" },
-      "voiceChanger": { "title": "مغيّر الصوت", "desc": "غيّر صوت أي ملف صوتي أو فيديو" },
-      "subtitleRemover": { "title": "إزالة الترجمة", "desc": "أزل الترجمة بالذكاء الاصطناعي خلال دقائق" }
-    },
-    "miniTools": {
-      "imageGenerator": "مولد الصور",
-      "aiFaceSwap": "تبديل الوجه بالذكاء الاصطناعي",
-      "voiceoverGenerator": "مولد التعليق الصوتي",
-      "backgroundRemover": "إزالة الخلفية",
-      "youtubeDownloader": "تنزيل فيديوهات YouTube"
-    }
-  },
-  "Tools": {
-    "pageTitle": "أدوات Clipiro",
-    "pageSubtitle": "كل ما تحتاجه للإنشاء والتحويل والقص — في مكان واحد.",
-    "getStarted": "ابدأ الآن",
-    "credits": "{count, plural, other {# رصيد}}",
-    "topCards": {
-      "freeTools": { "title": "أدوات مجانية", "desc": "موازن الصوت، ضاغط الفيديو، والمزيد" },
-      "youtubeDownloader": { "title": "تنزيل فيديوهات YouTube", "desc": "نزّل فيديوهات YouTube" },
-      "instagramDownloader": { "title": "تنزيل من Instagram", "desc": "نزّل الريلز والمنشورات وIGTV" }
-    },
-    "items": {
-      "imageGenerator": { "title": "مولد الصور بالذكاء الاصطناعي", "desc": "أنشئ صورًا عالية الجودة بالذكاء الاصطناعي في ثوانٍ." },
-      "voiceover": { "title": "مولد التعليق الصوتي بالذكاء الاصطناعي", "desc": "أنشئ تعليقات صوتية عالية الجودة في ثوانٍ مع أكثر من 50 راويًا." },
-      "speechEnhancer": { "title": "محسّن الصوت بالذكاء الاصطناعي", "desc": "حسّن جودة أي ملف صوتي أو فيديو بالذكاء الاصطناعي." },
-      "vocalRemover": { "title": "إزالة الصوت البشري بالذكاء الاصطناعي", "desc": "أزل الصوت البشري من أي ملف صوتي أو فيديو بالذكاء الاصطناعي." },
-      "brainstormer": { "title": "مولد الأفكار بالذكاء الاصطناعي", "desc": "أنشئ أفكار محتوى فيروسي بناءً على مجالك." }
-    }
+    "tryItNow": "جرّب الآن"
   },
   "SettingsNav": {
     "heading": "الحساب والإعدادات",

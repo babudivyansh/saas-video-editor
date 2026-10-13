@@ -5,9 +5,9 @@ import { signToken, SESSION_COOKIE_NAME } from "@/lib/auth";
 // below AutoClip, and remembers the user's toggle.
 //
 // The complaint this encodes: expanded, the quest card is the tallest block on
-// the page, and it used to render *above* "Start creating" — pushing the
-// AutoClip card, the product's headline feature, a screen and a half below the
-// fold (two on mobile). Fully hermetic: every API the page calls is mocked, so
+// the page, and it used to render *above* the AutoClip entry point — pushing
+// the product's headline feature a screen and a half below the fold (two on
+// mobile). Home's AutoClip entry is now the launch box's "Get clips" button. Fully hermetic: every API the page calls is mocked, so
 // there is no real DB user, Redis, or network dependency.
 
 const QUEST_IDS = [
@@ -87,7 +87,9 @@ async function setupDashboard(page: Page, baseURL: string | undefined, opts: { a
   ]);
 }
 
-const questToggle = (page: Page) => page.locator("[aria-expanded]").first();
+// By its label, not just [aria-expanded]: the collapsible sidebar's toggle
+// carries aria-expanded too, and comes first in the DOM.
+const questToggle = (page: Page) => page.getByRole("button", { name: "Show or hide onboarding quests" }).first();
 
 // The dashboard is a heavy client route; a cold dev-server compile alone can
 // eat the default budget, and `load` additionally waits on subresources this
@@ -99,7 +101,7 @@ test("AutoClip is above the fold and the quest card is a collapsed bar that does
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
 
-  const autoClip = page.getByRole("link", { name: /auto ?clip/i }).last();
+  const autoClip = page.getByRole("button", { name: /get clips/i });
   await expect(autoClip).toBeVisible();
 
   const toggle = questToggle(page);
@@ -120,7 +122,7 @@ test("AutoClip is above the fold and the quest card is a collapsed bar that does
   expect(autoClipBox!.y).toBeLessThan(900);
 
   // Collapsed, the card is a bar — not the ~550px block it used to be.
-  const card = page.locator("[aria-expanded]").first().locator("xpath=ancestor::div[contains(@class,'rounded-')][1]");
+  const card = questToggle(page).locator("xpath=ancestor::div[contains(@class,'rounded-')][1]");
   const cardBox = await card.boundingBox();
   expect(cardBox!.height).toBeLessThan(220);
 });
@@ -157,7 +159,7 @@ test("a finished user gets a trophy bar rather than a permanent wall of struck-t
   await expect(questToggle(page)).toContainText("All quests complete!");
   await expect(questToggle(page)).toHaveAttribute("aria-expanded", "false");
 
-  const card = page.locator("[aria-expanded]").first().locator("xpath=ancestor::div[contains(@class,'rounded-')][1]");
+  const card = questToggle(page).locator("xpath=ancestor::div[contains(@class,'rounded-')][1]");
   const cardBox = await card.boundingBox();
   expect(cardBox!.height).toBeLessThan(220);
 });

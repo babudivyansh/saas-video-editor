@@ -1,89 +1,151 @@
 "use client";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { Card, type CardTint } from "@/app/components/ui/Card";
-import { ToolCard } from "@/app/components/ui/ToolCard";
-import {
-  ImageGenPreview,
-  VoiceoverPreview,
-  SpeechEnhancerPreview,
-  VocalRemoverPreview,
-  BrainstormerPreview,
-} from "@/app/components/dashboard/toolPreviews";
-import {
-  TOOL_COSTS,
-  IMAGE_GENERATOR_STARTING_CREDIT_COST,
-} from "@/lib/tool-costs";
+import { APP_TOOL_GROUPS, HUB_TOOLS, type AppToolGroup, type FeatureLink } from "@/app/components/featureLinks";
+import { ToolIcon } from "@/app/components/toolIcons";
+import { EmptyState } from "@/app/components/ui/EmptyState";
+import { readRecentTools, recordRecentTool } from "@/app/components/dashboard/recentTools";
+import { TOOL_COSTS, IMAGE_GENERATOR_STARTING_CREDIT_COST } from "@/lib/tool-costs";
 
-function IcArrow() {
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M5 12h14M12 5l7 7-7 7"/></svg>;
-}
+// The AI Tools hub: every single-purpose tool, rendered from the registry
+// (featureLinks.ts) so a new tool appears here, in search and on the public
+// site at once. AutoClip and the Editor are not here — they are the product,
+// and own their own nav items.
 
-// ── Top-row card icons ─────────────────────────────────────────────────────────
-function IcSmile() {
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>;
-}
-function IcYoutube() {
-  return <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M23.5 6.2a3 3 0 00-2.1-2.1C19.5 3.6 12 3.6 12 3.6s-7.5 0-9.4.5A3 3 0 00.5 6.2 31 31 0 000 12a31 31 0 00.5 5.8 3 3 0 002.1 2.1c1.9.5 9.4.5 9.4.5s7.5 0 9.4-.5a3 3 0 002.1-2.1A31 31 0 0024 12a31 31 0 00-.5-5.8zM9.6 15.6V8.4l6.3 3.6-6.3 3.6z"/></svg>;
-}
-function IcInstagram() {
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>;
+type Filter = "all" | AppToolGroup;
+
+function useBadge() {
+  const t = useTranslations("Tools.hub");
+  return (tool: FeatureLink): { label: string; tone: "free" | "pro" | "credits" } => {
+    // Badges read the billing registries rather than restating numbers here: the
+    // old hardcoded copies drifted from what users were actually charged. The
+    // multi-model image tool shows its cheapest model's price.
+    const cost = TOOL_COSTS[tool.costKey ?? tool.slug];
+    if (cost?.requiredTier) return { label: t("proBadge"), tone: "pro" };
+    const credits = tool.slug === "ai-image-generator" ? IMAGE_GENERATOR_STARTING_CREDIT_COST : (cost?.creditCost ?? 0);
+    if (credits === 0) return { label: t("freeBadge"), tone: "free" };
+    return { label: t("fromCredits", { count: credits }), tone: "credits" };
+  };
 }
 
-// ── Page ───────────────────────────────────────────────────────────────────────
+function HubTile({ tool, badge }: { tool: FeatureLink; badge: ReturnType<ReturnType<typeof useBadge>> }) {
+  const tone =
+    badge.tone === "free" ? "text-success bg-success/10 border-success/25"
+    : badge.tone === "pro" ? "text-warning bg-warning/10 border-warning/25"
+    : "text-fg-muted bg-surface-3 border-line";
+  return (
+    <Link
+      href={tool.href}
+      onClick={() => recordRecentTool(tool.slug)}
+      className="group flex items-start gap-3.5 rounded-[var(--radius-panel)] border border-line bg-surface-1 p-4 hover:border-primary/40 hover:bg-surface-2 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+    >
+      <span className="w-10 h-10 rounded-xl bg-surface-3 border border-line text-primary flex items-center justify-center flex-shrink-0 group-hover:border-primary/40 transition-colors">
+        <ToolIcon name={tool.icon} className="w-5 h-5" />
+      </span>
+      <span className="flex-1 min-w-0">
+        <span className="flex items-center gap-2">
+          <span className="text-sm font-semibold text-fg truncate">{tool.title}</span>
+          <span className={`ml-auto flex-shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${tone}`}>{badge.label}</span>
+        </span>
+        <span className="block mt-1 text-[13px] text-fg-muted leading-snug">{tool.desc}</span>
+      </span>
+    </Link>
+  );
+}
+
 export default function ToolsPage() {
-  const t = useTranslations("Tools");
+  const t = useTranslations("Tools.hub");
+  const badgeFor = useBadge();
+  const [filter, setFilter] = useState<Filter>("all");
+  const [query, setQuery] = useState("");
+  // Read after mount: localStorage isn't there during SSR, and reading it in
+  // render would mismatch the server HTML.
+  const [recent, setRecent] = useState<FeatureLink[]>([]);
+  useEffect(() => {
+    const bySlug = new Map(HUB_TOOLS.map((tool) => [tool.slug, tool]));
+    setRecent(readRecentTools().map((slug) => bySlug.get(slug)).filter((tool): tool is FeatureLink => !!tool));
+  }, []);
 
-  const topCards: { icon: React.ReactNode; title: string; desc: string; color: string; tint: CardTint; href: string }[] = [
-    { icon: <IcSmile />, title: t("topCards.freeTools.title"), desc: t("topCards.freeTools.desc"), color: "text-warning", tint: "amber", href: "/dashboard/tools/free" },
-    { icon: <IcYoutube />, title: t("topCards.youtubeDownloader.title"), desc: t("topCards.youtubeDownloader.desc"), color: "text-error", tint: "rose", href: "/dashboard/tools/youtube-downloader" },
-    { icon: <IcInstagram />, title: t("topCards.instagramDownloader.title"), desc: t("topCards.instagramDownloader.desc"), color: "text-accent-pink", tint: "fuchsia", href: "/dashboard/tools/instagram-downloader" },
-  ];
+  const q = query.trim().toLowerCase();
+  const sections = useMemo(
+    () =>
+      APP_TOOL_GROUPS.filter((group) => filter === "all" || filter === group)
+        .map((group) => ({
+          group,
+          tools: HUB_TOOLS.filter(
+            (tool) => tool.appGroup === group && (!q || `${tool.title} ${tool.desc}`.toLowerCase().includes(q)),
+          ),
+        }))
+        .filter((section) => section.tools.length > 0),
+    [filter, q],
+  );
 
-  // Badges read the billing registries rather than restating numbers here: the
-  // hardcoded copies had drifted to 1/1/3/20/2/1 while users were charged
-  // 2/2/6/…/3/1. The multi-model image tool shows its cheapest model's price.
-  const badge = (count: number) => t("credits", { count });
-  const tools = [
-    { title: t("items.imageGenerator.title"), desc: t("items.imageGenerator.desc"), preview: <ImageGenPreview />, badge: badge(IMAGE_GENERATOR_STARTING_CREDIT_COST), href: "/dashboard/tools/image-generator" },
-    { title: t("items.voiceover.title"), desc: t("items.voiceover.desc"), preview: <VoiceoverPreview />, badge: badge(TOOL_COSTS.voiceover.creditCost), href: "/dashboard/tools/voiceover" },
-    { title: t("items.speechEnhancer.title"), desc: t("items.speechEnhancer.desc"), preview: <SpeechEnhancerPreview />, badge: badge(TOOL_COSTS["enhance-speech"].creditCost), href: "/dashboard/tools/enhance-speech" },
-    { title: t("items.vocalRemover.title"), desc: t("items.vocalRemover.desc"), preview: <VocalRemoverPreview />, badge: badge(TOOL_COSTS["vocal-remover"].creditCost), href: "/dashboard/tools/vocal-remover" },
-    { title: t("items.brainstormer.title"), desc: t("items.brainstormer.desc"), preview: <BrainstormerPreview />, badge: badge(TOOL_COSTS.brainstormer.creditCost), href: "/dashboard/tools/brainstormer" },
-  ];
+  const chips: Filter[] = ["all", ...APP_TOOL_GROUPS];
 
   return (
-    <>
-        <div className="mx-auto w-full max-w-7xl px-4 sm:px-8 pt-6 pb-12 space-y-6">
-
-          {/* ── Page header ── */}
-          <div className="pt-2">
-            <h1 className="text-2xl font-extrabold grad-text inline-block">{t("pageTitle")}</h1>
-            <p className="text-sm text-ink-soft mt-1">{t("pageSubtitle")}</p>
-          </div>
-
-          {/* ── Top row cards ── */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {topCards.map((c, i) => (
-              <Card key={i} tint={c.tint} href={c.href} className="flex items-center gap-3 px-5 py-3.5">
-                <div className={`w-9 h-9 rounded-xl bg-panel shadow-sm flex items-center justify-center flex-shrink-0 ${c.color}`}>
-                  {c.icon}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-ink font-bold text-sm leading-tight">{c.title}</p>
-                  <p className="text-ink-soft text-xs mt-0.5 truncate">{c.desc}</p>
-                </div>
-                <span className="text-ink-soft/40 flex-shrink-0"><IcArrow /></span>
-              </Card>
-            ))}
-          </div>
-
-          {/* ── Tools grid ── */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {tools.map((tool, i) => (
-              <ToolCard key={i} size="md" cta={t("getStarted")} {...tool} />
-            ))}
-          </div>
+    <div className="mx-auto w-full max-w-7xl px-4 sm:px-8 pt-6 pb-12 space-y-7">
+      {/* ── Header ── */}
+      <div className="flex flex-col lg:flex-row lg:items-end gap-4 pt-2">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-2xl sm:text-[28px] font-semibold tracking-tight text-fg">{t("title")}</h1>
+          <p className="text-sm text-fg-muted mt-1">{t("subtitle")}</p>
         </div>
-    </>
+        <label className="relative w-full lg:w-80">
+          <span className="sr-only">{t("searchLabel")}</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-fg-subtle" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></svg>
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t("searchPlaceholder")}
+            className="w-full h-10 rounded-xl border border-line bg-surface-1 pl-9 pr-3 text-sm text-fg placeholder:text-fg-subtle outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+          />
+        </label>
+      </div>
+
+      {/* ── Filter chips ── */}
+      <div className="flex gap-2 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 pb-1" role="group" aria-label={t("filterLabel")}>
+        {chips.map((chip) => (
+          <button
+            key={chip}
+            type="button"
+            aria-pressed={filter === chip}
+            onClick={() => setFilter(chip)}
+            className={`flex-shrink-0 h-8 rounded-full border px-3.5 text-[13px] font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/70 ${
+              filter === chip
+                ? "border-primary/50 bg-primary/15 text-fg"
+                : "border-line bg-surface-1 text-fg-muted hover:text-fg hover:bg-surface-2"
+            }`}
+          >
+            {chip === "all" ? t("all") : t(`groups.${chip}`)}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Recently used ── */}
+      {recent.length > 0 && filter === "all" && !q && (
+        <section className="space-y-3" aria-labelledby="hub-recent">
+          <h2 id="hub-recent" className="text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-subtle">{t("recentlyUsed")}</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {recent.map((tool) => <HubTile key={tool.slug} tool={tool} badge={badgeFor(tool)} />)}
+          </div>
+        </section>
+      )}
+
+      {/* ── Sections ── */}
+      {sections.length === 0 ? (
+        <EmptyState icon={<ToolIcon name="sparkle" className="w-6 h-6" />} title={t("noResults")} subtitle={t("noResultsHint")} />
+      ) : (
+        sections.map(({ group, tools }) => (
+          <section key={group} className="space-y-3" aria-labelledby={`hub-${group}`}>
+            <h2 id={`hub-${group}`} className="text-base font-semibold text-fg">{t(`groups.${group}`)}</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {tools.map((tool) => <HubTile key={tool.slug} tool={tool} badge={badgeFor(tool)} />)}
+            </div>
+          </section>
+        ))
+      )}
+    </div>
   );
 }
