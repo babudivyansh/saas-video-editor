@@ -79,7 +79,7 @@ test("the billing plans modal shows the same corrected cards as /pricing", async
   await expect(page.getByRole("dialog", { name: "Manage subscription" })).toBeVisible();
   await page.getByRole("button", { name: "Change plan" }).click();
 
-  const modal = page.getByRole("dialog", { name: "Plans & top-ups" });
+  const modal = page.getByRole("dialog", { name: "Upgrade your plan" });
   await expect(modal).toBeVisible();
 
   // The cumulative framing from /pricing, which the modal never had. Generous

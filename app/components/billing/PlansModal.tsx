@@ -1,11 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useAuth } from "@/app/components/AuthContext";
 import { useRazorpayCheckout } from "@/app/components/useRazorpayCheckout";
 import { PURCHASABLE_TIER_ORDER } from "@/lib/plans/tiers";
 import { formatMoney, inferCurrencyFromLocale, type Currency } from "@/lib/currency-shared";
 import { PlanCard } from "@/app/components/billing/PlanCard";
+import { ConfirmPlanDialog } from "@/app/components/billing/ConfirmPlanDialog";
 import {
   minorUnits, yearlySavePct, type DisplayPlan,
 } from "@/lib/plans/display";
@@ -18,14 +18,6 @@ const TERMS = [
   { months: 1, label: "Monthly" },
   { months: 12, label: "Yearly" },
 ];
-
-function XIcon({ className = "" }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
 
 interface PlansModalProps {
   /** Called the moment a purchase is confirmed server-side. */
@@ -60,7 +52,6 @@ export function PlansModal({ onPurchaseSuccess, resumeFromPeriodEnd = false }: P
   }, []);
 
   const [checkoutPlan, setCheckoutPlan] = useState<DbPlan | null>(null);
-  const [renewalWarningDismissed, setRenewalWarningDismissed] = useState(false);
 
   useEffect(() => {
     fetch("/api/plans")
@@ -79,7 +70,6 @@ export function PlansModal({ onPurchaseSuccess, resumeFromPeriodEnd = false }: P
 
   function openCheckout(plan: DbPlan) {
     setCheckoutPlan(plan);
-    setRenewalWarningDismissed(false);
   }
 
   function backToBrowse() {
@@ -109,20 +99,22 @@ export function PlansModal({ onPurchaseSuccess, resumeFromPeriodEnd = false }: P
   // inherits all three.
   return (
     <div className="flex flex-col min-h-0">
-        {checkoutPlan ? (
-          <CheckoutStep
+        {/* Picking a plan opens a compact confirm dialog over the plans,
+            rather than swapping the page for an order summary. */}
+        {checkoutPlan && (
+          <ConfirmPlanDialog
             plan={checkoutPlan}
+            plans={subs}
             currency={currency}
-            onBack={backToBrowse}
             hasActivePlan={hasActivePlan}
             subscriptionEndsAt={user?.subscriptionEndsAt ?? null}
             resumeFromPeriodEnd={resumeFromPeriodEnd}
-            renewalWarningDismissed={renewalWarningDismissed}
-            onDismissRenewalWarning={() => setRenewalWarningDismissed(true)}
-            checkoutLoading={checkoutLoading}
-            onPay={handlePay}
+            loading={checkoutLoading}
+            onChangePlan={setCheckoutPlan}
+            onClose={backToBrowse}
+            onProceed={handlePay}
           />
-        ) : (
+        )}
           <BrowseStep
             plansLoading={plansLoading}
             subs={subs}
@@ -137,7 +129,6 @@ export function PlansModal({ onPurchaseSuccess, resumeFromPeriodEnd = false }: P
             onSelectPlan={openCheckout}
             currentPlanSlug={user?.plan?.slug ?? null}
           />
-        )}
     </div>
   );
 }
@@ -165,29 +156,23 @@ function BrowseStep({ plansLoading, subs, packs, minutePacks, term, onTermChange
   const savePct = yearlySavePct(subs, currency);
 
   return (
-    <div className="overflow-y-auto flex-1 min-h-0 p-8">
-      <div className="text-center mb-6">
-        <h2 className="text-2xl font-extrabold text-fg">Plans &amp; top-ups</h2>
-        <p className="text-sm text-fg-muted mt-1">Every AI tool, one credit at a time.</p>
-      </div>
-
-      <div className="flex justify-center items-center gap-3 mb-8 flex-wrap">
-        <div className="inline-flex bg-surface-3 rounded-full p-1">
+    // The overlay renders this full screen under its "Upgrade your plan"
+    // heading, so the page supplies no title of its own.
+    <div className="mx-auto w-full max-w-[1180px] px-4 sm:px-8 pt-6 pb-16">
+      <div className="flex justify-center items-center gap-3 mb-10 flex-wrap">
+        <div className="inline-flex rounded-full border border-line bg-surface-2 p-1" role="group" aria-label="Billing period">
           {TERMS.map(t => (
             <button
               key={t.months}
               onClick={() => onTermChange(t.months)}
-              className={`relative px-5 sm:px-7 py-2 rounded-full text-sm font-semibold transition-all ${
-                term === t.months ? "bg-brand text-on-primary shadow" : "text-fg-muted hover:text-fg"
+              aria-pressed={term === t.months}
+              className={`relative px-5 sm:px-6 py-2 rounded-full text-sm font-semibold transition-colors ${
+                term === t.months ? "bg-surface-3 text-fg shadow-sm" : "text-fg-muted hover:text-fg"
               }`}
             >
               {t.label}
               {t.months === 12 && savePct != null && (
-                <span className={`ml-2 text-[10px] font-black px-1.5 py-0.5 rounded-full ${
-                  term === 12 ? "bg-success text-bg" : "bg-tint-emerald text-success"
-                }`}>
-                  SAVE {savePct}%
-                </span>
+                <span className="ml-1.5 font-semibold text-success">(save {savePct}%)</span>
               )}
             </button>
           ))}
@@ -225,6 +210,7 @@ function BrowseStep({ plansLoading, subs, packs, minutePacks, term, onTermChange
               isCurrent={currentPlanSlug === plan.slug}
               onSelect={onSelectPlan}
               size="compact"
+              look="upgrade"
             />
           ))}
         </div>
@@ -296,129 +282,6 @@ function PackGrid({ title, blurb, packs, amount, currency, buyingPack, onBuyPack
             </div>
           );
         })}
-      </div>
-    </div>
-  );
-}
-
-// ── Checkout step ────────────────────────────────────────────────────────────
-function CheckoutStep({
-  plan, currency, onBack, hasActivePlan, subscriptionEndsAt,
-  resumeFromPeriodEnd, renewalWarningDismissed, onDismissRenewalWarning, checkoutLoading, onPay,
-}: {
-  plan: DbPlan;
-  currency: Currency;
-  onBack: () => void;
-  hasActivePlan: boolean;
-  subscriptionEndsAt: string | null;
-  resumeFromPeriodEnd: boolean;
-  renewalWarningDismissed: boolean;
-  onDismissRenewalWarning: () => void;
-  checkoutLoading: boolean;
-  onPay: () => void;
-}) {
-  const priceMinor = minorUnits(plan, currency);
-  return (
-    <div className="flex flex-col md:flex-row overflow-y-auto flex-1 min-h-0">
-      <div className="flex-1 p-8 bg-surface-2 overflow-y-auto">
-        <button onClick={onBack} className="inline-flex items-center gap-1.5 text-xs font-semibold text-fg-muted hover:text-fg mb-5 transition-colors">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5"><path d="M19 12H5M12 5l-7 7 7 7" strokeLinecap="round" strokeLinejoin="round" /></svg>
-          Back to plans
-        </button>
-
-        <div className="mb-6 p-4 bg-panel rounded-xl border border-line shadow-sm">
-          <p className="text-xs font-bold text-fg-subtle uppercase tracking-widest mb-1">Selected Plan</p>
-          <p className="font-extrabold text-fg text-lg leading-snug">{plan.name}</p>
-          <p className="text-sm text-fg-muted mt-0.5">{plan.monthlyCredits} credits / month</p>
-          <p className="text-2xl font-black text-fg mt-2">
-            {formatMoney(minorUnits(plan, currency), currency)}
-            <span className="text-sm font-normal text-fg-subtle ml-1">
-              {plan.intervalMonths && plan.intervalMonths > 1 ? `/ ${plan.intervalMonths} months` : "/ month"}
-            </span>
-          </p>
-        </div>
-
-        {hasActivePlan && !renewalWarningDismissed && subscriptionEndsAt && (
-          resumeFromPeriodEnd ? (
-            // Reached via the dunning banner's "View plans", not a normal
-            // upgrade — the new subscription starts at subscriptionEndsAt (see
-            // /api/billing/checkout's resumeFromPeriodEnd), so framing this as
-            // a "reset" that forfeits paid time would be wrong here.
-            <div className="mb-6 bg-warning/10 border border-warning/30 rounded-xl p-4 flex items-start gap-3">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-warning flex-shrink-0 mt-0.5">
-                <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-warning">This will start after your current period ends</p>
-                <p className="text-xs text-warning mt-0.5">
-                  You&apos;ve already paid through {new Date(subscriptionEndsAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })} — this plan begins right after, so you won&apos;t be charged for time you already have.
-                </p>
-              </div>
-              <button aria-label="Dismiss" onClick={onDismissRenewalWarning} className="text-warning hover:text-warning flex-shrink-0 ml-1">
-                <XIcon className="w-4 h-4" />
-              </button>
-            </div>
-          ) : (
-            <div className="mb-6 bg-warning/10 border border-warning/30 rounded-xl p-4 flex items-start gap-3">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-warning flex-shrink-0 mt-0.5">
-                <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-warning">You already have an active plan</p>
-                <p className="text-xs text-warning mt-0.5">
-                  Buying now will <strong>reset</strong> your subscription to {plan.intervalMonths && plan.intervalMonths > 1 ? `${plan.intervalMonths} months` : "1 month"} from today — not extend your current plan (active until {new Date(subscriptionEndsAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}).
-                </p>
-              </div>
-              <button aria-label="Dismiss" onClick={onDismissRenewalWarning} className="text-warning hover:text-warning flex-shrink-0 ml-1">
-                <XIcon className="w-4 h-4" />
-              </button>
-            </div>
-          )
-        )}
-
-        <p className="text-xs text-fg-subtle">
-          Need extra credits? Credit packs never expire and have their own Buy buttons on the plans screen.
-        </p>
-      </div>
-
-      <div className="w-full md:w-72 p-8 flex flex-col border-t md:border-t-0 md:border-l border-line flex-shrink-0">
-        <h3 className="font-bold text-fg text-lg mb-5">Order Summary</h3>
-        <div className="flex-1 space-y-4 min-h-0">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-fg truncate">{plan.name}</p>
-              <p className="text-xs text-fg-subtle">Subscription plan</p>
-            </div>
-            <p className="text-sm font-semibold text-fg whitespace-nowrap">{formatMoney(priceMinor, currency)}</p>
-          </div>
-
-          <div className="border-t border-line pt-4 mt-2">
-            <div className="flex items-center justify-between mt-2">
-              <p className="font-bold text-fg">Total Due</p>
-              <p className="text-xl font-black text-fg">{formatMoney(priceMinor, currency)}</p>
-            </div>
-            <p className="text-xs text-fg-subtle mt-1">Secure payment via Razorpay</p>
-          </div>
-        </div>
-
-        <button
-          onClick={onPay}
-          disabled={checkoutLoading}
-          className="mt-6 w-full bg-brand text-on-primary font-bold py-3.5 rounded-full hover:bg-brand-dark transition-colors disabled:opacity-60 flex items-center justify-center gap-2 text-sm"
-        >
-          {checkoutLoading ? (
-            <>
-              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              Processing...
-            </>
-          ) : "Pay with Razorpay →"}
-        </button>
-        <p className="text-xs text-fg-subtle text-center mt-3">
-          By continuing, you agree to our <Link href="/terms" className="underline hover:text-fg-muted">Terms of Service</Link>
-        </p>
-        <p className="text-xs text-fg-subtle text-center mt-1">
-          3-day money-back guarantee · <Link href="/refund" className="underline hover:text-fg-muted">Refund Policy</Link>
-        </p>
       </div>
     </div>
   );

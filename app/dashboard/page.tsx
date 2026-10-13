@@ -1,7 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/app/components/AuthContext";
@@ -27,9 +26,14 @@ import { ContinueSection } from "@/app/components/dashboard/ContinueSection";
 import type { ClipRow } from "@/app/dashboard/clips/hooks/useClipsLibrary";
 import type { ProjectRow } from "@/app/dashboard/clips/components/projectUi";
 import { AutoClipLaunchBox } from "@/app/components/dashboard/AutoClipLaunchBox";
-import { AiToolsStrip, HomeEmptyState, RecentProjects, TopClipsRow } from "@/app/components/dashboard/HomeSections";
+import { HomeEmptyState, RecentProjects, ToolChips, TopClips, WhatsNew } from "@/app/components/dashboard/HomeSections";
+import { HomeTopBar } from "@/app/components/dashboard/HomeTopBar";
 
 const HAS_PROJECTS_STORAGE_KEY = "clipiro:hasAnyProjects";
+
+// Onboarding quests sit inline, as a strip under the tools, until a user has
+// finished this many; after that they shrink to a pill in the top bar.
+const NEW_USER_QUESTS = 3;
 
 interface InProgressProject {
   id: string;
@@ -55,13 +59,6 @@ function inProgressHref(p: InProgressProject): string {
   return `/dashboard/create/auto-clip?project=${p.id}`;
 }
 
-// ── Icons ──────────────────────────────────────────────────────────────────────
-const svg = {
-  viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.75,
-  strokeLinecap: "round", strokeLinejoin: "round",
-} as const;
-function IcGift() { return <svg {...svg} className="w-5 h-5"><path d="M20 12v10H4V12M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z" /></svg>; }
-
 // ── Page ───────────────────────────────────────────────────────────────────────
 // ToastProvider is not mounted globally in this app (see the note in
 // app/dashboard/social-tracker/layout.tsx) — each page that needs toasts wraps
@@ -78,7 +75,6 @@ function DashboardPageInner() {
   const { user, token } = useAuth();
   const t = useTranslations("Dashboard");
   const { showToast } = useToast();
-  const tNav = useTranslations("Nav");
   const { shouldShowWelcome, shouldResumeTour, tourStep, advanceTour, finishTour } = useOnboarding();
   const [showTour, setShowTour] = useState(false);
   // Lazy initializer runs once at mount — a stable snapshot rather than
@@ -219,7 +215,6 @@ function DashboardPageInner() {
     staleTime: 60_000,
   });
   const topClips = (heroQuery.data ?? []).filter((c) => c.thumbnailUrl);
-  const heroClips = topClips.slice(0, 3);
 
   // Recent AutoClip runs, as pictures (each run's first rendered thumbnail).
   const projectsQuery = useQuery({
@@ -235,6 +230,15 @@ function DashboardPageInner() {
     staleTime: 60_000,
   });
   const recentProjects = projectsQuery.data ?? [];
+
+  // null while quests load (nothing shown, so no strip-then-pill flash).
+  const questMode: "strip" | "pill" | "done" | null = !questData
+    ? null
+    : questData.allComplete
+      ? "done"
+      : (questData.quests?.filter((q) => q.completedAt).length ?? 0) < NEW_USER_QUESTS
+        ? "strip"
+        : "pill";
 
 
   // Gated on summary having loaded so existing users with real projects never
@@ -301,99 +305,79 @@ function DashboardPageInner() {
             onSkip={handleTourFinish}
           />
         )}
-        <div className="mx-auto w-full max-w-[1600px] px-4 sm:px-8 pt-6 pb-12">
-          <div className="grid xl:grid-cols-[minmax(0,1fr)_340px] gap-6 items-start">
-            <div className="min-w-0 space-y-8">
+        {/* Full width, Opus-style: no shell header from xl up (the page's own
+            top bar stands in), no right rail. Only the hero is centered; the
+            rows run the width of the page. */}
+        <div className="w-full px-4 sm:px-8 xl:px-12 pt-4 pb-16">
+          <HomeTopBar quests={questMode === "pill" && questData ? { data: questData, onDiscordQuest: handleDiscordQuest } : null} />
 
-              {/* ── AutoClip launch box ── */}
-              <AutoClipLaunchBox
-                eyebrow={firstName ? t("welcomeBack", { name: firstName }) : t("aiClipStudio")}
-                clips={heroClips}
-              />
+          <div className="mt-8 xl:mt-14">
+            <AutoClipLaunchBox />
+          </div>
 
-              {/* ── Continue where you left off ── */}
-              {summary === null && summaryFailed && (
-                <div role="alert" className="flex items-center justify-between gap-3 rounded-2xl border border-error/30 bg-error/10 px-4 py-3">
-                  <p className="text-sm text-fg">{t("summaryLoadFailed")}</p>
-                  <button
-                    type="button"
-                    onClick={() => setSummaryAttempt((n) => n + 1)}
-                    className="rounded-full border border-line bg-surface-2 px-3.5 py-1.5 text-xs font-semibold text-fg hover:bg-surface-3 outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
-                  >
-                    {t("retry")}
-                  </button>
-                </div>
-              )}
-              {summary === null && !summaryFailed && optimisticReturning && (
-                <div className="space-y-2">
-                  {Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-[68px] rounded-2xl bg-surface-2 animate-pulse" />)}
-                </div>
-              )}
-              {summary?.hasAnyProjects && (
-                <ContinueSection
-                  projects={summary.inProgress}
-                  total={summary.inProgressTotal}
-                  hrefFor={inProgressHref}
-                  onRename={(p) => projectActions.startRename({ id: p.id, title: p.title })}
-                  onDelete={(p) => projectActions.startDelete({ id: p.id, title: p.title })}
-                  onMenu={(e, p) => projectActions.openMenu(e, { id: p.id, title: p.title })}
-                />
-              )}
+          <div className="mt-9">
+            <ToolChips />
+          </div>
 
-              {showGoalHint && goalDef && goalHintId && (
-                <FeatureHint
-                  hintId={goalHintId}
-                  title={t("stillWantTo", { goal: goalDef.label.toLowerCase() })}
-                  body={goalDef.description}
-                  cta={{ label: t("tryItNow"), href: goalDef.href }}
-                />
-              )}
-
-              {summary !== null && !summary.hasAnyProjects ? (
-                <HomeEmptyState />
-              ) : (
-                <>
-                  <RecentProjects projects={recentProjects} />
-                  <TopClipsRow clips={topClips} />
-                </>
-              )}
-
-              {/* Every other tool lives on the AI Tools hub; Home keeps a strip. */}
-              <AiToolsStrip />
+          {/* Onboarding quests, inline. Brand-new users only; past that they
+              live in the top bar's pill — which phones don't have, so below
+              xl the strip stays. */}
+          {(questMode === "strip" || questMode === "pill") && (
+            <div className={`mx-auto mt-8 max-w-[820px] ${questMode === "pill" ? "xl:hidden" : ""}`}>
+              <QuestCard questData={questData} hasUser={!!user} onDiscordQuest={handleDiscordQuest} variant="strip" />
             </div>
+          )}
 
-            {/* ── Right rail ── */}
-            <aside className="space-y-4 xl:sticky xl:top-6">
-              {summary?.hasAnyProjects && (
-                <div className="grid grid-cols-2 gap-3">
-                  {[
-                    [t("totalClips"), summary.stats.totalClips],
-                    [t("activeProjects"), summary.stats.activeProjects],
-                    [t("minutesRemaining"), user?.minutes ?? 0],
-                    [t("creditsRemaining"), user?.credits ?? 0],
-                  ].map(([label, value], i) => (
-                    <div key={i} className="rounded-2xl border border-line bg-surface-1 px-4 py-3.5">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-fg-subtle">{label}</p>
-                      <p className={`mt-1.5 text-2xl font-semibold tabular-nums ${i >= 2 ? "text-primary" : "text-fg"}`}>{value}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
+          <div className="mt-16 space-y-11 sm:space-y-14">
+            {summary === null && summaryFailed && (
+              <div role="alert" className="flex items-center justify-between gap-3 rounded-2xl border border-error/30 bg-error/10 px-4 py-3">
+                <p className="text-sm text-fg">{t("summaryLoadFailed")}</p>
+                <button
+                  type="button"
+                  onClick={() => setSummaryAttempt((n) => n + 1)}
+                  className="rounded-full border border-line bg-surface-2 px-3.5 py-1.5 text-xs font-semibold text-fg hover:bg-surface-3 outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+                >
+                  {t("retry")}
+                </button>
+              </div>
+            )}
+            {summary === null && !summaryFailed && optimisticReturning && (
+              <div className="space-y-2">
+                {Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-[68px] rounded-2xl bg-surface-2 animate-pulse" />)}
+              </div>
+            )}
 
-              {/* Onboarding quests. Collapsed to a header by default; expanded
-                  it is the tallest block on the page, which is why it lives in
-                  the rail rather than in the main column. */}
-              <QuestCard questData={questData} hasUser={!!user} onDiscordQuest={handleDiscordQuest} variant="rail" />
+            {/* In-progress runs, with rename/delete — how users clear drafts. */}
+            {summary?.hasAnyProjects && (
+              <ContinueSection
+                projects={summary.inProgress}
+                total={summary.inProgressTotal}
+                hrefFor={inProgressHref}
+                onRename={(p) => projectActions.startRename({ id: p.id, title: p.title })}
+                onDelete={(p) => projectActions.startDelete({ id: p.id, title: p.title })}
+                onMenu={(e, p) => projectActions.openMenu(e, { id: p.id, title: p.title })}
+              />
+            )}
 
-              <Link
-                href="/dashboard/referral"
-                className="block rounded-[var(--radius-panel)] border border-line bg-surface-1 p-4 hover:border-primary/40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
-              >
-                <span className="w-10 h-10 rounded-xl bg-surface-3 border border-line text-primary flex items-center justify-center"><IcGift /></span>
-                <span className="block mt-3 text-[15px] font-semibold text-fg">{tNav("rail.earnCredits")}</span>
-                <span className="block mt-1 text-[13px] text-fg-muted leading-relaxed">{tNav("affiliateDesc")}</span>
-              </Link>
-            </aside>
+            {showGoalHint && goalDef && goalHintId && (
+              <FeatureHint
+                hintId={goalHintId}
+                title={t("stillWantTo", { goal: goalDef.label.toLowerCase() })}
+                body={goalDef.description}
+                cta={{ label: t("tryItNow"), href: goalDef.href }}
+              />
+            )}
+
+            {summary !== null && !summary.hasAnyProjects ? (
+              <HomeEmptyState />
+            ) : (
+              <>
+                <RecentProjects projects={recentProjects} />
+                <TopClips clips={topClips} />
+              </>
+            )}
+
+            <WhatsNew />
           </div>
         </div>
     </>

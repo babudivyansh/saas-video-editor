@@ -7,6 +7,8 @@ import { useBillingOverlay } from "@/app/components/billing/BillingOverlayContex
 import { useSettingsOverlay } from "@/app/components/settings/SettingsOverlayContext";
 import { usePlanSummary } from "@/app/components/usePlanSummary";
 import { Button } from "@/app/components/ui/Button";
+import SidebarAccount from "@/app/components/SidebarAccount";
+import { useAuth } from "@/app/components/AuthContext";
 
 // The "Studio workspace" sidebar: full height, grouped by what you're doing
 // (Create / Library / Grow), with the plan and usage pinned at the bottom so
@@ -199,7 +201,9 @@ function PlanCard({ collapsed = false }: { collapsed?: boolean }) {
 const COLLAPSED_KEY = "clipiro:sidebarCollapsed";
 
 function useCollapsed(): [boolean, () => void, boolean] {
-  const [collapsed, setCollapsed] = useState(false);
+  // An icon rail until the user expands it (the Opus-style default); the
+  // choice is remembered once made.
+  const [collapsed, setCollapsed] = useState(true);
   // Only animate a toggle the user made — restoring the saved state on load
   // should snap, not slide shut on every page view.
   const [animate, setAnimate] = useState(false);
@@ -208,7 +212,7 @@ function useCollapsed(): [boolean, () => void, boolean] {
   useEffect(() => {
     try {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time sync from storage
-      setCollapsed(localStorage.getItem(COLLAPSED_KEY) === "1");
+      setCollapsed(localStorage.getItem(COLLAPSED_KEY) !== "0");
     } catch { /* stays expanded */ }
   }, []);
   const toggle = () => {
@@ -225,6 +229,7 @@ export default function ToolsSidebar({ active = "home" }: { active?: string }) {
   const t = useTranslations("Nav");
   const { groups, bottomNav } = useDashboardNavItems();
   const [collapsed, toggle, animate] = useCollapsed();
+  const { user } = useAuth();
 
   // Ctrl/Cmd+B, as in most editors — skipped while typing in a field.
   useEffect(() => {
@@ -265,6 +270,21 @@ export default function ToolsSidebar({ active = "home" }: { active?: string }) {
           <IcPanel />
         </button>
       </div>
+
+      {/* Account, Opus-style: the avatar heads the rail. */}
+      {user && (
+        <div className={`flex-shrink-0 px-3 pb-3 ${collapsed ? "flex justify-center" : ""}`}>
+          <div data-tour="account-menu" className={`flex items-center gap-3 ${collapsed ? "" : "rounded-xl px-2 py-1.5"}`}>
+            <SidebarAccount placement="rail" />
+            {!collapsed && (
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-semibold text-fg">{user.name || user.email}</span>
+                {user.name && <span className="block truncate text-xs text-fg-subtle">{user.email}</span>}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       <nav aria-label={t("dashboardHome")} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-3 pb-3">
         {groups.map((group, i) => (

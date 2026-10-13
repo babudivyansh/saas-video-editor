@@ -31,7 +31,10 @@ function MenuLink({ href, onClick, icon, children }: { href: string; onClick: ()
   );
 }
 
-export default function SidebarAccount() {
+export default function SidebarAccount({ placement = "header" }: {
+  /** "rail": sits in the left sidebar, so the menu opens to its right. */
+  placement?: "header" | "rail";
+} = {}) {
   const { user, signOut } = useAuth();
   const t = useTranslations("Account");
   const [open, setOpen] = useState(false);
@@ -85,7 +88,9 @@ export default function SidebarAccount() {
       {/* Always mounted so both open and close animate, instead of the
           previous instant conditional-render mount/unmount. */}
       <div
-        className={`absolute top-full right-0 mt-2 w-64 bg-panel rounded-2xl border border-card-border shadow-xl z-50 overflow-hidden origin-top-right transition-all duration-200 ease-out ${
+        className={`absolute w-64 bg-panel rounded-2xl border border-card-border shadow-xl z-50 overflow-hidden transition-all duration-200 ease-out ${
+          placement === "rail" ? "left-full top-0 ml-3 origin-top-left" : "top-full right-0 mt-2 origin-top-right"
+        } ${
           open ? "opacity-100 scale-100 translate-y-0 visible" : "opacity-0 scale-95 -translate-y-1 invisible pointer-events-none"
         }`}
       >

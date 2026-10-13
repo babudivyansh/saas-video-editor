@@ -56,5 +56,7 @@ test("dashboard header shows a loading state, not the Login button, while auth i
   await page.reload();
 
   await expect(page.getByRole("button", { name: "Login" })).not.toBeVisible();
-  await expect(page.getByRole("button", { name: /upgrade|top up/i })).toBeVisible({ timeout: 5_000 });
+  // .first(): on Home both the sidebar plan card and the page's own top bar
+  // carry an Upgrade / Top up button.
+  await expect(page.getByRole("button", { name: /upgrade|top up/i }).first()).toBeVisible({ timeout: 5_000 });
 });
