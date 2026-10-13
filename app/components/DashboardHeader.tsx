@@ -363,7 +363,8 @@ export default function DashboardHeader({ desktopHidden = false }: { desktopHidd
 
             <NotificationBell className="hidden xl:flex" />
 
-            <div data-tour="account-menu" className="flex items-center">
+            {/* From xl up the account menu sits at the top of the sidebar rail. */}
+            <div data-tour="account-menu" className="flex items-center xl:hidden">
               <SidebarAccount />
             </div>
           </>

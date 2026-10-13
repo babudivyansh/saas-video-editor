@@ -7,7 +7,7 @@
 
 import Link from "next/link";
 import { useFormatter, useTranslations } from "next-intl";
-import { HOME_TOOLS } from "@/app/components/featureLinks";
+import { HOME_TOOLS, type AppToolGroup } from "@/app/components/featureLinks";
 import { ToolIcon } from "@/app/components/toolIcons";
 import { recordRecentTool } from "@/app/components/dashboard/recentTools";
 import type { ProjectRow } from "@/app/dashboard/clips/components/projectUi";
@@ -43,6 +43,14 @@ function RowHeader({ title, href, linkLabel }: { title: string; href?: string; l
 
 // ── Tool chips ───────────────────────────────────────────────────────────────
 
+const GROUP_TINT: Record<AppToolGroup, string> = {
+  video: "text-primary",
+  audio: "text-info",
+  image: "text-warning",
+  writing: "text-success",
+  free: "text-fg-muted",
+};
+
 export function ToolChips() {
   const t = useTranslations("Dashboard");
   return (
@@ -54,7 +62,7 @@ export function ToolChips() {
           onClick={() => recordRecentTool(tool.slug)}
           className="inline-flex h-[38px] items-center gap-2 rounded-xl border border-fg/12 px-3.5 text-sm font-medium text-fg hover:border-primary/40 hover:bg-surface-2 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
         >
-          <span className="text-primary"><ToolIcon name={tool.icon} className="w-4 h-4" /></span>
+          <span className={GROUP_TINT[tool.appGroup ?? "free"]}><ToolIcon name={tool.icon} className="w-4 h-4" /></span>
           {tool.title}
         </Link>
       ))}
@@ -77,33 +85,31 @@ export function RecentProjects({ projects }: { projects: ProjectRow[] }) {
   return (
     <section>
       <RowHeader title={t("home.recentProjects")} href="/dashboard/clips" linkLabel={t("home.viewAll")} />
-      <div className="grid grid-cols-2 md:grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 min-[480px]:grid-cols-2 md:grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-3 sm:gap-4">
         {projects.map((p) => (
           <Link
             key={p.id}
             href={`/dashboard/create/auto-clip?project=${p.id}`}
-            className="group overflow-hidden rounded-2xl border border-line bg-surface-2 hover:border-primary/40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+            className="group relative block aspect-[16/8.4] overflow-hidden rounded-2xl border border-line bg-surface-3 hover:border-primary/40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
           >
-            <div className="relative aspect-video bg-surface-3">
-              {p.coverUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={p.coverUrl} alt="" className="h-full w-full object-cover group-hover:scale-[1.02] transition-transform" />
-              ) : (
-                <span className="absolute inset-0 flex items-center justify-center text-fg-subtle"><IcFilm /></span>
-              )}
-              <span className="absolute bottom-2.5 left-2.5 rounded-lg bg-bg/80 px-2 py-0.5 text-[11px] sm:text-xs font-semibold text-fg">
-                {t("clipCount", { count: p._count.clips })}
+            {p.coverUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={p.coverUrl} alt="" className="h-full w-full object-cover group-hover:scale-[1.02] transition-transform" />
+            ) : (
+              <span className="absolute inset-0 flex items-center justify-center pb-10 text-fg-subtle"><IcFilm /></span>
+            )}
+            <span className="pointer-events-none absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-bg/95 via-bg/50 to-transparent" />
+            {p.status === "failed" ? (
+              <span className="absolute right-3 top-3 rounded-lg bg-error/25 px-2 py-0.5 text-xs font-semibold text-error">{t("home.failed")}</span>
+            ) : typeof p.bestScore === "number" ? (
+              <span className="absolute right-3 top-3 rounded-lg bg-bg/80 px-2 py-0.5 text-xs font-bold text-primary">{t("home.bestScore", { score: p.bestScore })}</span>
+            ) : null}
+            <span className="absolute inset-x-4 bottom-3.5">
+              <span className="block truncate text-sm font-semibold text-fg">{p.title}</span>
+              <span className="mt-0.5 block text-xs text-fg-muted">
+                {t("clipCount", { count: p._count.clips })} · {format.dateTime(new Date(p.createdAt), { day: "numeric", month: "short" })}
               </span>
-              {p.status === "failed" ? (
-                <span className="absolute bottom-2.5 right-2.5 rounded-lg bg-error/20 px-2 py-0.5 text-[11px] sm:text-xs font-semibold text-error">{t("home.failed")}</span>
-              ) : typeof p.bestScore === "number" ? (
-                <span className="absolute bottom-2.5 right-2.5 rounded-lg bg-bg/80 px-2 py-0.5 text-[11px] sm:text-xs font-bold text-primary">{t("home.bestScore", { score: p.bestScore })}</span>
-              ) : null}
-            </div>
-            <div className="px-3.5 py-3">
-              <p className="truncate text-sm font-semibold text-fg">{p.title}</p>
-              <p className="text-xs text-fg-subtle">{format.dateTime(new Date(p.createdAt), { day: "numeric", month: "short" })}</p>
-            </div>
+            </span>
           </Link>
         ))}
       </div>
@@ -120,7 +126,7 @@ export function TopClips({ clips }: { clips: ClipRow[] }) {
     <section>
       <RowHeader title={t("home.topClips")} href="/dashboard/clips" linkLabel={t("home.viewAll")} />
       {/* A scroll row on phones, a wrapping grid from sm up. */}
-      <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 snap-x sm:mx-0 sm:grid sm:grid-cols-[repeat(auto-fill,minmax(150px,1fr))] sm:gap-3.5 sm:overflow-visible sm:px-0 sm:pb-0">
+      <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 snap-x sm:mx-0 sm:grid sm:grid-cols-[repeat(auto-fill,minmax(168px,1fr))] sm:gap-3.5 sm:overflow-visible sm:px-0 sm:pb-0">
         {clips.map((c) => {
           const duration = fmtDuration(c.durationSec);
           const title = c.title ?? t("home.untitledClip", { n: c.index + 1 });
@@ -178,12 +184,12 @@ export function WhatsNew() {
   return (
     <section>
       <RowHeader title={t("home.whatsNew")} />
-      <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-3 sm:gap-4">
         {WHATS_NEW.map((item) => (
           <Link
             key={item.key}
             href={item.href}
-            className={`relative flex min-h-[132px] flex-col justify-end overflow-hidden rounded-2xl border border-line ${item.tone} p-4 sm:p-[18px] hover:border-primary/40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/70`}
+            className={`relative flex aspect-[16/7] sm:aspect-[16/8.4] flex-col justify-end overflow-hidden rounded-2xl border border-line ${item.tone} p-4 sm:p-[18px] hover:border-primary/40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/70`}
           >
             {item.badge && (
               <span className="absolute right-3 top-3 rounded-lg bg-bg/75 px-2.5 py-0.5 text-xs font-semibold text-fg">{t("home.newBadge")}</span>

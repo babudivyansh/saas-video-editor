@@ -91,6 +91,17 @@ async function setupDashboard(page: Page, baseURL: string | undefined, opts: { a
 // carries aria-expanded too, and comes first in the DOM.
 const questToggle = (page: Page) => page.getByRole("button", { name: "Show or hide onboarding quests" }).first();
 
+// The toggle is in the server-rendered HTML before React hydrates, and a
+// click that lands first does nothing. Click until the state flips; once
+// hydrated, a single click does it.
+async function setQuestsExpanded(page: Page, expanded: boolean) {
+  await expect(async () => {
+    const toggle = questToggle(page);
+    if ((await toggle.getAttribute("aria-expanded")) !== String(expanded)) await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-expanded", String(expanded), { timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+}
+
 // The dashboard is a heavy client route; a cold dev-server compile alone can
 // eat the default budget, and `load` additionally waits on subresources this
 // page keeps open. Navigate on domcontentloaded and assert on elements.
@@ -134,8 +145,7 @@ test("expanding the quest card reveals all 11 quests and the choice survives a r
   const toggle = questToggle(page);
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
 
-  await toggle.click();
-  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await setQuestsExpanded(page, true);
   await expect(page.getByText("Create your first clip")).toBeVisible();
   await expect(page.getByText("Refer a friend")).toBeVisible();
 
@@ -143,7 +153,7 @@ test("expanding the quest card reveals all 11 quests and the choice survives a r
   await expect(questToggle(page)).toHaveAttribute("aria-expanded", "true");
 
   // And collapsing again sticks too.
-  await questToggle(page).click();
+  await setQuestsExpanded(page, false);
   await page.reload();
   await expect(questToggle(page)).toHaveAttribute("aria-expanded", "false");
 });
@@ -172,6 +182,6 @@ test("collapsed quest links are not reachable by keyboard", async ({ page, baseU
   const body = page.getByTestId("quest-body");
   await expect(body).toHaveAttribute("inert", /.*/);
 
-  await questToggle(page).click();
+  await setQuestsExpanded(page, true);
   await expect(body).not.toHaveAttribute("inert", /.*/);
 });

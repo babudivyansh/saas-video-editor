@@ -143,9 +143,6 @@
       "aiTools": "AI Tools",
       "emptyTitle": "Your clips will show up here",
       "emptySubtitle": "Paste a link above — AutoClip finds the best moments, captions them and scores each clip for virality.",
-      "welcome": "Welcome back, <b>{name}</b>",
-      "questsLeft": "{count, plural, one {# quest left} other {# quests left}}",
-      "topUp": "Top up",
       "upgrade": "Upgrade",
       "captionsOn": "Captions on",
       "captionsOff": "Captions off",
@@ -167,7 +164,9 @@
           "title": "Social Tracker",
           "desc": "See how every clip performs once it's posted"
         }
-      }
+      },
+      "addCredits": "Add credits",
+      "upgradeBanner": "Get more clip minutes, premium captions and the Pro tools."
     }
   },
   "Tools": {

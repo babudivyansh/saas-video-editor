@@ -227,12 +227,6 @@ function DashboardPageInner() {
   });
   const recentProjects = projectsQuery.data ?? [];
 
-  const questsRef = useRef<HTMLDivElement>(null);
-  const questsLeft = questData ? (questData.allComplete ? 0 : (questData.remaining ?? 0)) : null;
-  function scrollToQuests() {
-    questsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-
 
   // Gated on summary having loaded so existing users with real projects never
   // flash the welcome screen before it's suppressed — every pre-existing user
@@ -298,12 +292,13 @@ function DashboardPageInner() {
             onSkip={handleTourFinish}
           />
         )}
-        {/* One centered column (design B): no shell header from xl up — the
-            page's own top bar stands in — and no right rail. */}
-        <div className="mx-auto w-full max-w-[1304px] px-4 sm:px-8 pt-5 pb-16">
-          <HomeTopBar firstName={firstName} questsLeft={questsLeft} onQuests={scrollToQuests} />
+        {/* Full width, Opus-style: no shell header from xl up (the page's own
+            top bar stands in), no right rail. Only the hero is centered; the
+            rows run the width of the page. */}
+        <div className="w-full px-4 sm:px-8 xl:px-12 pt-4 pb-16">
+          <HomeTopBar />
 
-          <div className="mt-8 xl:mt-16">
+          <div className="mt-8 xl:mt-14">
             <AutoClipLaunchBox />
           </div>
 
@@ -311,7 +306,7 @@ function DashboardPageInner() {
             <ToolChips />
           </div>
 
-          <div className="mt-14 space-y-10 sm:space-y-12">
+          <div className="mt-16 space-y-11 sm:space-y-14">
             {summary === null && summaryFailed && (
               <div role="alert" className="flex items-center justify-between gap-3 rounded-2xl border border-error/30 bg-error/10 px-4 py-3">
                 <p className="text-sm text-fg">{t("summaryLoadFailed")}</p>
@@ -363,8 +358,8 @@ function DashboardPageInner() {
             <WhatsNew />
 
             {/* Onboarding quests: collapsed to a bar by default, at the foot of
-                the page; the top bar's "N quests left" chip scrolls here. */}
-            <div id="home-quests" ref={questsRef} className="mx-auto max-w-[720px] scroll-mt-6">
+                the page. */}
+            <div className="mx-auto max-w-[720px]">
               <QuestCard questData={questData} hasUser={!!user} onDiscordQuest={handleDiscordQuest} variant="rail" />
             </div>
           </div>
