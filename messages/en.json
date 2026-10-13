@@ -66,7 +66,9 @@
       "messages": { "title": "Messages", "desc": "Account notifications" },
       "preferences": { "title": "Preferences", "desc": "Language & display preferences" },
       "myVideos": { "title": "My Videos", "desc": "All your generated videos" }
-    }
+    },
+    "collapseSidebar": "Collapse sidebar",
+    "expandSidebar": "Expand sidebar"
   },
   "Dashboard": {
     "welcomeBack": "Welcome back, {name} · AI Clip Studio",
