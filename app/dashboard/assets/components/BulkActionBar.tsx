@@ -34,7 +34,7 @@ export function BulkActionBar({
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 40 }}
           transition={{ duration: 0.18, ease: "easeOut" }}
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex flex-wrap items-center gap-1.5 bg-ink text-white rounded-full shadow-xl px-2 py-2 max-w-[95vw]"
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex flex-wrap items-center gap-1.5 bg-surface-3 text-fg border border-line rounded-full shadow-xl px-2 py-2 max-w-[95vw]"
         >
           <span className="text-xs font-bold px-3 whitespace-nowrap">{count} selected</span>
 

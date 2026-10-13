@@ -1000,11 +1000,12 @@ function TopupTab({ hasActivePlan, packs, minutePacks, addons, activeId, onBuy, 
             <div className="inline-flex bg-surface-3 rounded-full p-1 float-right ml-3" role="group" aria-label="Currency">
               {(["INR", "USD"] as const).map((c) => (
                 <button
+                  type="button"
                   key={c}
                   onClick={() => onCurrencyChange(c)}
                   aria-pressed={currency === c}
                   className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${
-                    currency === c ? "bg-ink text-white shadow" : "text-ink-soft hover:text-ink"
+                    currency === c ? "bg-fg text-bg shadow" : "text-fg-muted hover:text-fg"
                   }`}
                 >
                   {c === "INR" ? "₹ INR" : "$ USD"}
