@@ -166,7 +166,8 @@
         }
       },
       "addCredits": "Add credits",
-      "upgradeBanner": "Get more clip minutes, premium captions and the Pro tools."
+      "upgradeBanner": "Get more clip minutes, premium captions and the Pro tools.",
+      "questsLeft": "{count, plural, one {# quest left} other {# quests left}}"
     }
   },
   "Tools": {

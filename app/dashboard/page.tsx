@@ -31,6 +31,10 @@ import { HomeTopBar } from "@/app/components/dashboard/HomeTopBar";
 
 const HAS_PROJECTS_STORAGE_KEY = "clipiro:hasAnyProjects";
 
+// Onboarding quests sit inline, as a strip under the tools, until a user has
+// finished this many; after that they shrink to a pill in the top bar.
+const NEW_USER_QUESTS = 3;
+
 interface InProgressProject {
   id: string;
   title: string;
@@ -227,6 +231,15 @@ function DashboardPageInner() {
   });
   const recentProjects = projectsQuery.data ?? [];
 
+  // null while quests load (nothing shown, so no strip-then-pill flash).
+  const questMode: "strip" | "pill" | "done" | null = !questData
+    ? null
+    : questData.allComplete
+      ? "done"
+      : (questData.quests?.filter((q) => q.completedAt).length ?? 0) < NEW_USER_QUESTS
+        ? "strip"
+        : "pill";
+
 
   // Gated on summary having loaded so existing users with real projects never
   // flash the welcome screen before it's suppressed — every pre-existing user
@@ -296,7 +309,7 @@ function DashboardPageInner() {
             top bar stands in), no right rail. Only the hero is centered; the
             rows run the width of the page. */}
         <div className="w-full px-4 sm:px-8 xl:px-12 pt-4 pb-16">
-          <HomeTopBar />
+          <HomeTopBar quests={questMode === "pill" && questData ? { data: questData, onDiscordQuest: handleDiscordQuest } : null} />
 
           <div className="mt-8 xl:mt-14">
             <AutoClipLaunchBox />
@@ -305,6 +318,15 @@ function DashboardPageInner() {
           <div className="mt-9">
             <ToolChips />
           </div>
+
+          {/* Onboarding quests, inline. Brand-new users only; past that they
+              live in the top bar's pill — which phones don't have, so below
+              xl the strip stays. */}
+          {(questMode === "strip" || questMode === "pill") && (
+            <div className={`mx-auto mt-8 max-w-[820px] ${questMode === "pill" ? "xl:hidden" : ""}`}>
+              <QuestCard questData={questData} hasUser={!!user} onDiscordQuest={handleDiscordQuest} variant="strip" />
+            </div>
+          )}
 
           <div className="mt-16 space-y-11 sm:space-y-14">
             {summary === null && summaryFailed && (
@@ -356,12 +378,6 @@ function DashboardPageInner() {
             )}
 
             <WhatsNew />
-
-            {/* Onboarding quests: collapsed to a bar by default, at the foot of
-                the page. */}
-            <div className="mx-auto max-w-[720px]">
-              <QuestCard questData={questData} hasUser={!!user} onDiscordQuest={handleDiscordQuest} variant="rail" />
-            </div>
           </div>
         </div>
     </>

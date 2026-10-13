@@ -122,11 +122,16 @@ interface QuestCardProps {
    * "rail" fits the home page's narrow right-hand column: the XP total moves
    * under the title and the quest list is one column.
    */
-  variant?: "wide" | "rail";
+  /** wide/rail: the classic card. strip: one line that expands in place (Home,
+   *  brand-new users). popover: always open, no toggle (inside Home's pill). */
+  variant?: "wide" | "rail" | "strip" | "popover";
 }
 
 export function QuestCard({ questData, hasUser, onDiscordQuest, variant = "wide" }: QuestCardProps) {
-  const rail = variant === "rail";
+  const strip = variant === "strip";
+  const popover = variant === "popover";
+  // The popover reuses the narrow, single-column rail layout.
+  const rail = variant === "rail" || popover;
   const t = useTranslations("Dashboard");
   const quests = useQuests();
 
@@ -134,15 +139,18 @@ export function QuestCard({ questData, hasUser, onDiscordQuest, variant = "wide"
   // agree (localStorage is not readable during SSR); the stored preference is
   // applied just after mount. Reading it during render is the specific thing
   // that would produce a hydration mismatch here.
-  const [expanded, setExpanded] = useState(false);
+  const [storedExpanded, setExpanded] = useState(false);
+  // The popover has no toggle — it is the expanded state.
+  const expanded = popover || storedExpanded;
   useEffect(() => {
+    if (popover) return;
     try {
       if (localStorage.getItem(EXPANDED_STORAGE_KEY) === "true") setExpanded(true);
     } catch { /* private mode / storage disabled — stay collapsed */ }
   }, []);
 
   function toggle() {
-    const next = !expanded;
+    const next = !storedExpanded;
     setExpanded(next);
     try {
       localStorage.setItem(EXPANDED_STORAGE_KEY, String(next));
@@ -167,15 +175,51 @@ export function QuestCard({ questData, hasUser, onDiscordQuest, variant = "wide"
     </>
   );
 
+  const rankPill = level && (
+    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+      style={{ background: levelColor(level) + "18", color: levelColor(level) }}>
+      {level}
+    </span>
+  );
+
+  const stripHeader = (
+    <button
+      type="button"
+      onClick={toggle}
+      aria-expanded={expanded}
+      aria-label={t("toggleQuests")}
+      className="w-full px-4 sm:px-5 py-3 flex flex-wrap sm:flex-nowrap items-center gap-x-4 gap-y-2 text-left hover:bg-surface-2 transition-colors"
+    >
+      <span className="text-[11px] font-bold text-fg-muted uppercase tracking-widest">{t("onboarding")}</span>
+      {rankPill}
+      <span className="text-sm font-semibold text-fg whitespace-nowrap">{loading ? "…" : t("questsToGo", { count: remaining })}</span>
+      <span className="order-last sm:order-none basis-full sm:basis-auto flex-1 h-1.5 bg-surface-3 rounded-full overflow-hidden">
+        <span className="block h-full grad-brand rounded-full transition-all duration-500" style={{ width: `${progressPct}%` }} />
+      </span>
+      <span className="ml-auto sm:ml-0 text-[13px] text-fg-muted whitespace-nowrap">
+        <span className="font-bold text-success">{earnedXp}</span> {t("xpTotal", { total: TOTAL_XP })}
+      </span>
+      <span className={`text-fg-subtle transition-transform duration-200 ${expanded ? "rotate-180" : ""}`}>
+        <IcChevronDown />
+      </span>
+    </button>
+  );
+
+  const HeaderTag = popover ? "div" : "button";
+  const headerProps = popover
+    ? { className: "w-full px-5 pt-4 pb-3 flex items-center justify-between gap-4 text-left" }
+    : {
+        type: "button" as const,
+        onClick: toggle,
+        "aria-expanded": expanded,
+        "aria-label": t("toggleQuests"),
+        className: "w-full px-5 py-4 flex items-center justify-between gap-4 text-left hover:bg-surface-2 transition-colors",
+      };
+
   return (
-    <Card className="bg-panel">
-      <button
-        type="button"
-        onClick={toggle}
-        aria-expanded={expanded}
-        aria-label={t("toggleQuests")}
-        className="w-full px-5 py-4 flex items-center justify-between gap-4 text-left hover:bg-surface-2 transition-colors"
-      >
+    <Card className={popover ? "bg-panel border-0 shadow-none" : "bg-panel"}>
+      {strip ? stripHeader : (
+      <HeaderTag {...headerProps}>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 mb-0.5">
             <p className="text-[10px] font-bold text-ink-soft uppercase tracking-widest">{t("onboarding")}</p>
@@ -229,11 +273,14 @@ export function QuestCard({ questData, hasUser, onDiscordQuest, variant = "wide"
         </div>
         <div className="flex items-center gap-3 flex-shrink-0">
           {!rail && <div className="text-right">{xpTotal}</div>}
-          <span className={`text-fg-subtle transition-transform duration-200 ${expanded ? "rotate-180" : ""}`}>
-            <IcChevronDown />
-          </span>
+          {!popover && (
+            <span className={`text-fg-subtle transition-transform duration-200 ${expanded ? "rotate-180" : ""}`}>
+              <IcChevronDown />
+            </span>
+          )}
         </div>
-      </button>
+      </HeaderTag>
+      )}
 
       {/* `inert` while collapsed: the rows are still in the DOM for the
           transition, and without it the 11 hidden quest links stay tabbable
@@ -245,7 +292,14 @@ export function QuestCard({ questData, hasUser, onDiscordQuest, variant = "wide"
       >
         <div className="overflow-hidden">
           <div className={`grid grid-cols-1 ${rail ? "" : "sm:grid-cols-2"} border-t border-line`}>
-            {quests.map((q, i) => {
+            {(popover
+              // In the popover, what's left comes first — finished quests
+              // sink to the bottom rather than leading the list.
+              ? [...quests].sort((a, b) =>
+                  Number(!!questData?.quests?.find((lq) => lq.id === a.id)?.completedAt) -
+                  Number(!!questData?.quests?.find((lq) => lq.id === b.id)?.completedAt))
+              : quests
+            ).map((q, i) => {
               const liveQuest = questData?.quests?.find(lq => lq.id === q.id);
               const done = !!liveQuest?.completedAt;
               const isDiscord = q.id === "join-community";

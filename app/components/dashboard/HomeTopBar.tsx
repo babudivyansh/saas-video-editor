@@ -11,10 +11,15 @@ import { NotificationBell } from "@/app/components/NotificationBell";
 import { CreditsPill } from "@/app/components/ui/CreditsPill";
 import { useBillingOverlay } from "@/app/components/billing/BillingOverlayContext";
 import { usePlanSummary } from "@/app/components/usePlanSummary";
+import { QuestPill } from "@/app/components/dashboard/QuestPill";
+import type { QuestData } from "@/app/components/dashboard/QuestCard";
 
 const IcCrown = () => <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4" aria-hidden="true"><path d="M3 18h18l-2-10-5 4-2-7-2 7-5-4z" /></svg>;
 
-export function HomeTopBar() {
+export function HomeTopBar({ quests }: {
+  /** Set when quests belong in the pill (past the first few, not all done). */
+  quests?: { data: QuestData; onDiscordQuest: () => void } | null;
+}) {
   const t = useTranslations("Dashboard");
   const { openBilling } = useBillingOverlay();
   const { user, hasActivePlan, minutes, credits, minutesLow } = usePlanSummary();
@@ -23,6 +28,7 @@ export function HomeTopBar() {
   return (
     <div className="hidden xl:block">
       <div className="flex items-center justify-end gap-2">
+        {quests && <QuestPill questData={quests.data} onDiscordQuest={quests.onDiscordQuest} />}
         <NotificationBell />
         <CreditsPill credits={credits} minutes={minutes} minutesLow={minutesLow} />
         <button

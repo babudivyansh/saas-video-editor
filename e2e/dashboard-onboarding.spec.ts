@@ -22,8 +22,8 @@ const XP: Record<string, number> = {
   "complete-profile": 100, "track-account": 250, "refer-friend": 400,
 };
 
-async function setupDashboard(page: Page, baseURL: string | undefined, opts: { allComplete?: boolean } = {}) {
-  const completed = opts.allComplete ? QUEST_IDS : [];
+async function setupDashboard(page: Page, baseURL: string | undefined, opts: { allComplete?: boolean; completed?: string[] } = {}) {
+  const completed = opts.allComplete ? QUEST_IDS : (opts.completed ?? []);
   const earnedXp = completed.reduce((sum, id) => sum + XP[id], 0);
 
   await page.route("**/api/auth/me", (route) =>
@@ -158,20 +158,40 @@ test("expanding the quest card reveals all 11 quests and the choice survives a r
   await expect(questToggle(page)).toHaveAttribute("aria-expanded", "false");
 });
 
-test("a finished user gets a trophy bar rather than a permanent wall of struck-through quests", async ({ page, baseURL }) => {
+test("a finished user gets no quest UI at all — not a permanent wall of struck-through quests", async ({ page, baseURL }) => {
   await setupDashboard(page, baseURL, { allComplete: true });
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
 
-  // Scoped to the collapsed bar: the phrase also appears in the banner inside
-  // the expanded body, and the point here is that the *bar* shows the trophy.
-  await expect(questToggle(page)).toContainText("🏆");
-  await expect(questToggle(page)).toContainText("All quests complete!");
-  await expect(questToggle(page)).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByRole("button", { name: /get clips/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Turn long videos into viral clips" })).toBeVisible();
+  // Give the quests fetch time to land before asserting absence.
+  await page.waitForResponse("**/api/quests").catch(() => {});
+  await expect(questToggle(page)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /quests left/i })).toHaveCount(0);
+});
 
-  const card = questToggle(page).locator("xpath=ancestor::div[contains(@class,'rounded-')][1]");
-  const cardBox = await card.boundingBox();
-  expect(cardBox!.height).toBeLessThan(220);
+test("past the first few quests, they move from the inline strip to a top-bar pill", async ({ page, baseURL }) => {
+  await setupDashboard(page, baseURL, { completed: ["join-community", "first-clip", "hear-yourself-out", "picture-this"] });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
+
+  const pill = page.getByRole("button", { name: /6 quests left/i });
+  await expect(pill).toBeVisible();
+  // The inline strip is for brand-new users only (it stays below xl, where
+  // there is no top bar for the pill).
+  await expect(questToggle(page)).toBeHidden();
+
+  // Hydration-safe open, as with the strip toggle above.
+  await expect(async () => {
+    if ((await pill.getAttribute("aria-expanded")) !== "true") await pill.click();
+    await expect(pill).toHaveAttribute("aria-expanded", "true", { timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+  const popover = page.getByRole("dialog", { name: "Onboarding" });
+  await expect(popover.getByText("Refer a friend")).toBeVisible();
+
+  await page.keyboard.press("Escape");
+  await expect(popover).toBeHidden();
 });
 
 test("collapsed quest links are not reachable by keyboard", async ({ page, baseURL }) => {
