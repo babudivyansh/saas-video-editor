@@ -13,6 +13,7 @@
 
 import { usePathname } from "next/navigation";
 import DashboardHeader from "@/app/components/DashboardHeader";
+import { AppTopBar } from "@/app/components/AppTopBar";
 import ToolsSidebar from "@/app/components/ToolsSidebar";
 import { CreditModalProvider } from "@/app/components/billing/CreditModalContext";
 import { BillingOverlayProvider, useBillingOverlay } from "@/app/components/billing/BillingOverlayContext";
@@ -61,9 +62,11 @@ function ShellChrome({ children }: { children: React.ReactNode }) {
       <SkipLink />
       <ToolsSidebar active={isBillingOpen ? "billing" : isSettingsOpen ? "settings" : activeIdFor(pathname)} />
       <div className="flex flex-1 min-w-0 flex-col overflow-hidden">
-        {/* Home (design B) has no header from xl up — it renders its own
-            top bar (HomeTopBar). Below xl the header stays: it holds the menu. */}
-        <DashboardHeader desktopHidden={pathname === "/dashboard"} />
+        {/* Below xl: the header (menu drawer, logo, credits, account).
+            From xl up: a slim top bar — search plus the status cluster — on
+            every page but Home, which renders its own (HomeTopBar). */}
+        <DashboardHeader />
+        {pathname !== "/dashboard" && <AppTopBar />}
         {/*
           `relative` is not cosmetic — it makes this pane the containing block
           for the absolutely-positioned boxes inside it, and `sr-only` is

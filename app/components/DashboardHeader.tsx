@@ -55,7 +55,7 @@ function IcDiscord() {
 
 // ── Global search ──────────────────────────────────────────────────────────
 
-interface SearchEntry extends NavItem {
+export interface SearchEntry extends NavItem {
   group: string;
   /**
    * Set instead of navigating, for destinations that are overlays rather than
@@ -95,14 +95,11 @@ function useCorePages(): SearchEntry[] {
   );
 }
 
-function HeaderSearch({ className = "relative flex-1 max-w-md" }: { className?: string }) {
-  const t = useTranslations("Nav");
+/** Tools and pages the dashboard search matches against — shared by this
+ *  header's drawer search and the desktop GlobalSearch. */
+export function useSearchIndex(): SearchEntry[] {
   const corePages = useCorePages();
-  const [query, setQuery] = useState("");
-  const [focused, setFocused] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  const searchIndex = useMemo<SearchEntry[]>(
+  return useMemo<SearchEntry[]>(
     () => [
       ...VIDEO_TOOLS.map((item) => ({ ...item, group: "Video" })),
       ...AI_TOOLS.map((item) => ({ ...item, group: "AI" })),
@@ -111,6 +108,14 @@ function HeaderSearch({ className = "relative flex-1 max-w-md" }: { className?: 
     ],
     [corePages]
   );
+}
+
+function HeaderSearch({ className = "relative flex-1 max-w-md" }: { className?: string }) {
+  const t = useTranslations("Nav");
+  const [query, setQuery] = useState("");
+  const [focused, setFocused] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const searchIndex = useSearchIndex();
 
   useEffect(() => {
     function onDown(e: MouseEvent) {
@@ -275,7 +280,7 @@ function usePageTitle(groups: ToolsSidebarNavGroup[]): string {
 
 // ── Header ─────────────────────────────────────────────────────────────────
 
-export default function DashboardHeader({ desktopHidden = false }: { desktopHidden?: boolean }) {
+export default function DashboardHeader() {
   const { user, isLoading, openAuthModal } = useAuth();
   const { openBilling } = useBillingOverlay();
   const t = useTranslations("Nav");
@@ -300,7 +305,9 @@ export default function DashboardHeader({ desktopHidden = false }: { desktopHidd
 
   return (
     <>
-    <header className={`flex items-center gap-2 sm:gap-4 px-3 sm:px-5 h-16 flex-shrink-0 border-b border-line bg-panel z-40 ${desktopHidden ? "xl:hidden" : ""}`}>
+    {/* Below xl only: from xl up every page uses the sidebar rail plus a slim
+        top bar (AppTopBar, or Home's own HomeTopBar). */}
+    <header className="flex xl:hidden items-center gap-2 sm:gap-4 px-3 sm:px-5 h-16 flex-shrink-0 border-b border-line bg-panel z-40">
       {user && (
         <button
           className="xl:hidden p-2 -ml-2 rounded-md text-ink-soft hover:text-ink flex-shrink-0"

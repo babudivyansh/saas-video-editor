@@ -1,16 +1,14 @@
 "use client";
 
-// Home has no shell header from xl up (DashboardShell hides it there), so the
-// page carries its own: status in the top-right corner, and for free users a
-// centered upgrade banner under it. The account menu is not here — from xl up
-// it heads the sidebar rail. Below xl the shell header is back and this bar
-// is hidden.
+// Home's top bar (from xl up; the shell header is hidden there on every page):
+// the shared status cluster with the quest pill in front, and for free users a
+// centered upgrade banner under it. Other pages get the same cluster plus a
+// search box from AppTopBar. The account menu heads the sidebar rail.
 
 import { useTranslations } from "next-intl";
-import { NotificationBell } from "@/app/components/NotificationBell";
-import { CreditsPill } from "@/app/components/ui/CreditsPill";
 import { useBillingOverlay } from "@/app/components/billing/BillingOverlayContext";
 import { usePlanSummary } from "@/app/components/usePlanSummary";
+import { TopBarStatus } from "@/app/components/TopBarStatus";
 import { QuestPill } from "@/app/components/dashboard/QuestPill";
 import type { QuestData } from "@/app/components/dashboard/QuestCard";
 
@@ -22,23 +20,12 @@ export function HomeTopBar({ quests }: {
 }) {
   const t = useTranslations("Dashboard");
   const { openBilling } = useBillingOverlay();
-  const { user, hasActivePlan, minutes, credits, minutesLow } = usePlanSummary();
+  const { user, hasActivePlan } = usePlanSummary();
   if (!user) return null;
 
   return (
     <div className="hidden xl:block">
-      <div className="flex items-center justify-end gap-2">
-        {quests && <QuestPill questData={quests.data} onDiscordQuest={quests.onDiscordQuest} />}
-        <NotificationBell />
-        <CreditsPill credits={credits} minutes={minutes} minutesLow={minutesLow} />
-        <button
-          type="button"
-          onClick={() => openBilling({ tab: hasActivePlan ? "topup" : "overview" })}
-          className="h-10 rounded-[10px] border border-line bg-surface-3 px-4 text-sm font-semibold text-fg hover:bg-surface-2 hover:border-fg/20 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
-        >
-          {t("home.addCredits")}
-        </button>
-      </div>
+      <TopBarStatus before={quests && <QuestPill questData={quests.data} onDiscordQuest={quests.onDiscordQuest} />} />
 
       {!hasActivePlan && (
         <div className="mt-2 flex justify-center">

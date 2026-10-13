@@ -68,7 +68,11 @@
       "myVideos": { "title": "My Videos", "desc": "All your generated videos" }
     },
     "collapseSidebar": "Collapse sidebar",
-    "expandSidebar": "Expand sidebar"
+    "expandSidebar": "Expand sidebar",
+    "findLabel": "Search tools, pages and clips",
+    "findPlaceholder": "Find tools, pages or clips…",
+    "findNoResults": "No matches. Try a tool name or a word from a clip title.",
+    "findClip": "Clip"
   },
   "Dashboard": {
     "welcomeBack": "Welcome back, {name} · AI Clip Studio",
