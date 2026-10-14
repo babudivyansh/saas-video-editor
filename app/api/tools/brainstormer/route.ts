@@ -51,7 +51,16 @@ async function handlePOST(req: NextRequest) {
     idempotencyKey: body.idempotencyKey,
     log: { generationType: "utility", prompt: topic },
   });
+  // A replayed key was charged (and answered) by an earlier request; running
+  // Gemini again would be unmetered work, and failing it would refund that
+  // earlier request. There is no job to hand back, so refuse it.
+  if (charge.ok && charge.replay) {
+    return NextResponse.json({ error: "This request was already submitted." }, { status: 409 });
+  }
   if (!charge.ok) {
+    if (charge.reason === "idempotency_conflict") {
+      return NextResponse.json({ error: "This request could not be accepted. Please try again." }, { status: 409 });
+    }
     if (charge.reason === "tool_disabled") {
       return NextResponse.json({ error: "Brainstormer is temporarily disabled." }, { status: 503 });
     }

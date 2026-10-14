@@ -9,7 +9,7 @@ import { withRateLimit } from "@/lib/with-rate-limit";
 import { getImageModel, resolveImageAspectRatio, providerAspectRatio } from "@/lib/models/imageModels";
 import { falSubmit, falPollUntilDone, extractResultUrl } from "@/lib/fal";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress, checkModelAccess } from "@/lib/credits";
-import { createJobStatusHandler, createJobCancelHandler, type CancellableJob } from "@/lib/job-routes";
+import { createJobStatusHandler, createJobCancelHandler, idempotencyResponse, type CancellableJob } from "@/lib/job-routes";
 import { saveToolResult } from "@/lib/tool-results";
 
 export const maxDuration = 120;
@@ -101,6 +101,8 @@ async function handlePOST(req: NextRequest) {
     idempotencyKey: body.idempotencyKey,
     log: { modelId: modelEntry.id, generationType: "image", prompt, estimatedCostUsd: modelEntry.costUsd },
   });
+  const replayed = idempotencyResponse(charge, jobs);
+  if (replayed) return replayed;
   if (!charge.ok) {
     if (charge.reason === "tool_disabled") {
       return NextResponse.json({ error: "Image generation is temporarily disabled." }, { status: 503 });

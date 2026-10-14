@@ -8,7 +8,7 @@ import { env } from "@/lib/env";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress } from "@/lib/credits";
 import { vocalRemoverCredits } from "@/lib/audio-pricing";
 import { resolveUploadPolicy, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
-import { createJobStatusHandler, createJobCancelHandler, type CancellableJob } from "@/lib/job-routes";
+import { createJobStatusHandler, createJobCancelHandler, idempotencyResponse, type CancellableJob } from "@/lib/job-routes";
 import { saveToolResult } from "@/lib/tool-results";
 import os from "os";
 import path from "path";
@@ -187,6 +187,11 @@ async function handlePOST(req: NextRequest) {
     idempotencyKey,
     log: { generationType: "audio", estimatedCostUsd: durationSec * AUDIO_COST_USD_PER_SEC },
   });
+  const replayed = idempotencyResponse(charge, jobs);
+  if (replayed) {
+    try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
+    return replayed;
+  }
   if (!charge.ok) {
     try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
     if (charge.reason === "tool_disabled") {

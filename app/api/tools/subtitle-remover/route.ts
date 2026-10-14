@@ -10,7 +10,7 @@ import { subtitleRemoverCredits } from "@/lib/subtitle-remover-pricing";
 import { env } from "@/lib/env";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress, checkModelAccess } from "@/lib/credits";
 import { resolveUploadPolicy, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
-import { createJobStatusHandler, createJobCancelHandler, type CancellableJob } from "@/lib/job-routes";
+import { createJobStatusHandler, createJobCancelHandler, idempotencyResponse, type CancellableJob } from "@/lib/job-routes";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -220,6 +220,11 @@ async function handlePOST(req: NextRequest) {
     idempotencyKey,
     log: { generationType: "video" },
   });
+  const replayed = idempotencyResponse(charge, jobs);
+  if (replayed) {
+    try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
+    return replayed;
+  }
   if (!charge.ok) {
     try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
     if (charge.reason === "tool_disabled") {

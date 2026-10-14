@@ -52,6 +52,9 @@ export async function runCharged<T>(opts: ChargedRunOptions, work: () => Promise
     if (charge.reason === "insufficient_credits") {
       throw new HttpError(402, "Not enough credits.", "insufficient_credits");
     }
+    if (charge.reason === "idempotency_conflict") {
+      throw new HttpError(409, "This request could not be accepted. Please try again.", "idempotency_conflict");
+    }
     throw new HttpError(503, "This feature is temporarily disabled.", "tool_disabled");
   }
 
@@ -61,7 +64,12 @@ export async function runCharged<T>(opts: ChargedRunOptions, work: () => Promise
     return result;
   } catch (e) {
     logger.error("social-ai", `${opts.toolSlug} failed for ${opts.userId}`, e);
-    await refundCredits({ userId: opts.userId, amount: config.creditCost, generationId: charge.generationId });
+    // A replay was not charged, so there is nothing of its own to refund —
+    // refunding here would hand back the charge of the earlier request that
+    // first used this key, and the same failing retry could be repeated.
+    if (!charge.replay) {
+      await refundCredits({ userId: opts.userId, amount: config.creditCost, generationId: charge.generationId });
+    }
     // 502 and the explicit "not charged": the alternative is a user who cannot
     // tell a failed generation from a silent one.
     throw new HttpError(502, "Generation failed — you were not charged.", "generation_failed");
