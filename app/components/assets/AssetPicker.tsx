@@ -213,8 +213,9 @@ export function AssetPicker({ open, onClose, accept, onSelect, title = "Choose m
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={title} variant="drawer" maxWidth="max-w-2xl">
-      <div className="flex flex-col gap-4">
+    // A page of its own, like the upgrade page: centered heading, round Close.
+    <Modal open={open} onClose={onClose} title={title} variant="fullscreen">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 pb-16 pt-8 sm:px-8">
         <div className="flex flex-col sm:flex-row gap-2.5">
           <div className="flex-1 min-w-0">
             <Input
@@ -314,7 +315,7 @@ export function AssetPicker({ open, onClose, accept, onSelect, title = "Choose m
             />
           ) : (
             <>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                 {assets.map((a) => (
                   <AssetTile key={a.id} asset={a} onSelect={handleTileSelect} />
                 ))}

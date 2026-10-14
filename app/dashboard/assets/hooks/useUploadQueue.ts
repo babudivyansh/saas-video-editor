@@ -202,10 +202,13 @@ export function useUploadQueue() {
     }
   }, [token, updateItem, invalidate]);
 
-  const addFiles = useCallback(async (files: FileList | File[]) => {
+  /** Queues the files and starts them; resolves with their item ids, in order. */
+  const addFiles = useCallback(async (files: FileList | File[]): Promise<string[]> => {
     const list = Array.from(files);
+    const ids: string[] = [];
     for (const file of list) {
       const id = crypto.randomUUID();
+      ids.push(id);
       const supportsPauseResume = file.size > MULTIPART_THRESHOLD;
       setItems((prev) => [...prev, { id, file, status: "uploading", progress: 0, supportsPauseResume }]);
 
@@ -216,6 +219,7 @@ export function useUploadQueue() {
         runSingleShot(id, file, meta);
       }
     }
+    return ids;
   }, [runMultipart, runSingleShot]);
 
   const pause = useCallback((id: string) => {

@@ -15,12 +15,12 @@ interface ModalProps {
   children: React.ReactNode;
   maxWidth?: string; // Tailwind max-w-* class, default max-w-lg
   /**
-   * "center" is the default dialog. "drawer" slides in from the right edge and
-   * runs full height — for panels the user works *in* rather than a prompt they
-   * answer and dismiss. Everything else (focus trap, ESC, scroll lock, focus
-   * restore, portal) is identical, so a drawer is never a second-class dialog.
+   * "center" is the default dialog. "fullscreen" is a page of its own for
+   * anything the user works in (pricing, the Assets picker, admin detail):
+   * centered heading, round Close top right. There is no side drawer — every
+   * panel opens one of these two ways, so the app has one look for it.
    */
-  variant?: "center" | "drawer" | "fullscreen";
+  variant?: "center" | "fullscreen";
   // "fullscreen": covers the viewport (an upgrade page, not a prompt) — the
   // title becomes a centered page heading and Close a round button top-right.
   /**
@@ -95,7 +95,6 @@ export function Modal({ open, onClose, title, children, maxWidth = "max-w-lg", v
 
   if (typeof document === "undefined") return null;
 
-  const isDrawer = variant === "drawer";
   const isFull = variant === "fullscreen";
 
   return createPortal(
@@ -103,7 +102,7 @@ export function Modal({ open, onClose, title, children, maxWidth = "max-w-lg", v
       {open && (
         <motion.div
           className={`fixed inset-0 z-[100] flex ${
-            isFull ? "bg-bg" : `bg-black/70 backdrop-blur-sm ${isDrawer ? "justify-end" : "items-center justify-center p-4"}`
+            isFull ? "bg-bg" : "bg-black/70 backdrop-blur-sm items-center justify-center p-4"
           }`}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -121,14 +120,12 @@ export function Modal({ open, onClose, title, children, maxWidth = "max-w-lg", v
             className={
               isFull
                 ? `relative w-full h-full bg-bg outline-none overflow-y-auto ${panelClassName}`
-                : isDrawer
-                ? `w-full ${maxWidth} h-full bg-panel shadow-xl border-l border-card-border outline-none overflow-y-auto`
                 : `w-full ${maxWidth} bg-panel rounded-[var(--radius-card)] shadow-xl border border-card-border outline-none max-h-[90vh] overflow-y-auto ${panelClassName}`
             }
-            initial={isDrawer ? { x: "100%" } : isFull ? { opacity: 0, y: 12 } : { opacity: 0, scale: 0.96, y: 8 }}
-            animate={isDrawer ? { x: 0 } : isFull ? { opacity: 1, y: 0 } : { opacity: 1, scale: 1, y: 0 }}
-            exit={isDrawer ? { x: "100%" } : isFull ? { opacity: 0, y: 12 } : { opacity: 0, scale: 0.96, y: 8 }}
-            transition={isDrawer ? { type: "tween", duration: 0.25, ease: "easeOut" } : { duration: 0.18, ease: "easeOut" }}
+            initial={isFull ? { opacity: 0, y: 12 } : { opacity: 0, scale: 0.96, y: 8 }}
+            animate={isFull ? { opacity: 1, y: 0 } : { opacity: 1, scale: 1, y: 0 }}
+            exit={isFull ? { opacity: 0, y: 12 } : { opacity: 0, scale: 0.96, y: 8 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
           >
             {isFull && (
               <>
@@ -160,9 +157,7 @@ export function Modal({ open, onClose, title, children, maxWidth = "max-w-lg", v
               </>
             )}
             {title && !isFull && (
-              <div className={`flex items-center justify-between px-5 py-4 border-b border-card-border ${
-                isDrawer ? "sticky top-0 bg-panel z-10" : ""
-              }`}>
+              <div className="flex items-center justify-between px-5 py-4 border-b border-card-border">
                 <div className="flex items-center gap-2 min-w-0">
                   {onBack && (
                     <button
