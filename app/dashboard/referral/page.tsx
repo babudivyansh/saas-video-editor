@@ -7,6 +7,7 @@
 
 import { useEffect, useState } from "react";
 import { MIN_PAYOUT_AMOUNT } from "@/lib/affiliate-constants";
+import { UpgradeBanner } from "@/app/components/UpgradeBanner";
 
 interface RecentReferral {
   id: string;
@@ -149,7 +150,10 @@ export default function ReferralPage() {
   const recent = stats?.recentReferrals ?? [];
 
   return (
-    <div className="w-full px-4 sm:px-8 xl:px-12 pt-6 pb-16">
+    <div className="w-full px-4 sm:px-8 xl:px-12 pt-4 pb-16">
+      {/* Free users: the same upgrade pill as Home. */}
+      <UpgradeBanner className="mb-8" />
+
       {/* ── Hero ── */}
       <section className="mx-auto max-w-[800px] text-center">
         <p className="text-xs font-semibold uppercase tracking-[0.08em] text-success">Affiliate program</p>
