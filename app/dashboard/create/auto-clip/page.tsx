@@ -143,7 +143,12 @@ function AutoClipFlow() {
   // A failed project the user chose to try again. Its video is already on our
   // side, so Generate re-runs THAT project (the create route re-claims a
   // "failed" project) instead of asking for the file again.
-  const [retryProject, setRetryProject] = useState<{ id: string; name: string | null } | null>(null);
+  // Also arrives as ?retry=<id>&name=<title> from "Try again" on a failed
+  // project's clips page (/dashboard/projects/[id]).
+  const [retryProject, setRetryProject] = useState<{ id: string; name: string | null } | null>(() => {
+    const id = params.get("retry");
+    return id ? { id, name: params.get("name") } : null;
+  });
 
   // Put the run in the URL the moment it starts. It never was, so refreshing
   // mid-run dropped the user back on an empty form with no way back to it.
