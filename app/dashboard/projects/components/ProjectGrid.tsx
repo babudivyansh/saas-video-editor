@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { clipCountLabel, projectHref, type ProjectRow } from "@/app/dashboard/clips/components/projectUi";
+import { clipCountLabel, projectHref, type ProjectRow } from "./projectUi";
 import { fmtLength } from "./format";
 import { IcFilm, IcMore, IcUpload } from "./icons";
 

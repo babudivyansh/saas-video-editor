@@ -7,7 +7,7 @@
 
 import Link from "next/link";
 import { useFormatter, useNow, useTranslations } from "next-intl";
-import { ProjectStatusChip } from "@/app/dashboard/clips/components/projectUi";
+import { ProjectStatusChip } from "@/app/dashboard/projects/components/projectUi";
 
 export interface ContinueProject {
   id: string;
@@ -80,7 +80,7 @@ export function ContinueSection({ projects, total, hrefFor, onMenu }: ContinueSe
     <section>
       <div className="mb-3.5 flex items-baseline justify-between gap-3 px-1.5">
         <h2 className="text-base font-medium text-fg-muted">{t("continueWhereYouLeftOff")}</h2>
-        <Link href="/dashboard/clips" className="text-[13px] font-semibold text-primary hover:text-primary-hover">
+        <Link href="/dashboard/projects" className="text-[13px] font-semibold text-primary hover:text-primary-hover">
           {total > projects.length ? t("viewAllProjects", { count: total }) : t("home.viewAll")}
         </Link>
       </div>

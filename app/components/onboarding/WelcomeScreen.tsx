@@ -3,6 +3,7 @@ import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import { useOnboarding, type ExperienceLevel, type TeamOrIndividual } from "@/app/hooks/useOnboarding";
 import { PRIMARY_GOALS, type PrimaryGoalId } from "@/lib/onboarding-config";
+import { projectHref } from "@/lib/project-links";
 
 interface InProgressProject {
   id: string;
@@ -12,7 +13,7 @@ interface InProgressProject {
 
 function inProgressHref(p: InProgressProject): string {
   if (p.productType === "editor") return `/dashboard/editor?projectId=${p.id}`;
-  return `/dashboard/create/auto-clip?project=${p.id}`;
+  return projectHref(p.id);
 }
 
 interface WelcomeScreenProps {

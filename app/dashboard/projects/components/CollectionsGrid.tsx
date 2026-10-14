@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Skeleton } from "@/app/components/ui/Skeleton";
-import { clipCountLabel } from "@/app/dashboard/clips/components/projectUi";
+import { clipCountLabel } from "./projectUi";
 import { FAVORITES_ID, collectionHref, type CollectionRow, type CollectionsData } from "../hooks/useCollections";
 import { IcFolder, IcHeart, IcMore, IcPlus } from "./icons";
 

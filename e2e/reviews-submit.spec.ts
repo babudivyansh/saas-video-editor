@@ -32,7 +32,7 @@ test("submits a review through the trigger-driven modal and reaches the attachme
     }),
   );
 
-  await page.route("**/api/projects/proj-1/clips", (route) =>
+  await page.route("**/api/projects/proj-1/clips**", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -73,7 +73,7 @@ test("submits a review through the trigger-driven modal and reaches the attachme
     },
   ]);
 
-  await page.goto("/dashboard/create/auto-clip?project=proj-1");
+  await page.goto("/dashboard/projects/proj-1");
   await expect(page.getByRole("heading", { name: "How's Clipiro working out for you?" })).toBeVisible();
 
   await page.getByRole("radio", { name: "5 stars" }).click();

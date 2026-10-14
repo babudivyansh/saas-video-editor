@@ -42,12 +42,12 @@
       "autoClip": "AutoClip",
       "editor": "எடிட்டர்",
       "aiTools": "AI கருவிகள்",
-      "myClips": "என் கிளிப்புகள்"
+      "yourProjects": "உங்கள் ப்ராஜெக்ட்கள்"
     },
     "planCard": { "manage": "நிர்வகி", "clipMinutes": "கிளிப் நிமிடங்கள்", "aiCredits": "AI கிரெடிட்கள்", "minutesValue": "{count} நிமி" },
     "corePages": {
       "dashboardHome": { "title": "டாஷ்போர்டு முகப்பு", "desc": "மேலோட்டம், க்வெஸ்ட்கள் & விரைவு தொடக்கம்" },
-      "myClips": { "title": "என் கிளிப்கள்", "desc": "உங்கள் அனைத்து AutoClip திட்டங்கள்" },
+      "myClips": { "title": "உங்கள் ப்ராஜெக்ட்கள்", "desc": "உங்கள் அனைத்து AutoClip திட்டங்கள்" },
       "assets": { "title": "சொத்துக்கள்", "desc": "உங்கள் பதிவேற்றப்பட்ட மீடியா நூலகம்" },
       "socialTracker": { "title": "சமூக ட்ராக்கர்", "desc": "உங்கள் சமூக செயல்திறனைக் கண்காணிக்கவும்" },
       "earnCredits": { "title": "கிரெடிட்கள் சம்பாதிக்க", "desc": "பரிந்துரை & இணை டாஷ்போர்டு" },

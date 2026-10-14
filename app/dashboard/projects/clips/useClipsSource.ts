@@ -2,7 +2,7 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, apiFetch } from "@/app/dashboard/create/auto-clip/_components/shared";
-import { autoClipPollIntervalMs } from "@/app/dashboard/create/auto-clip/_components/ClipsResults";
+import { autoClipPollIntervalMs } from "./poll";
 import { COLLECTIONS_KEY } from "../hooks/useCollections";
 import type { ClipsSource, CollectionClipsResponse, ProjectClipsResponse, ViewClip } from "./model";
 

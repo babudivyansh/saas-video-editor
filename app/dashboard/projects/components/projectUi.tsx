@@ -1,6 +1,7 @@
 "use client";
 
 import { STATUS_LABEL } from "@/app/components/dashboard/ProjectStatusBadge";
+import { projectHref as projectLink } from "@/lib/project-links";
 
 export interface ProjectRow {
   id: string;
@@ -25,7 +26,7 @@ export function fmtDate(iso: string): string {
 }
 
 export function projectHref(p: ProjectRow): string {
-  return `/dashboard/create/auto-clip?project=${p.id}`;
+  return projectLink(p.id);
 }
 
 export function clipCountLabel(n: number): string {

@@ -29,7 +29,7 @@ test("uploads an attachment during the post-submit attachments step and sees the
     }),
   );
 
-  await page.route("**/api/projects/proj-1/clips", (route) =>
+  await page.route("**/api/projects/proj-1/clips**", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -78,7 +78,7 @@ test("uploads an attachment during the post-submit attachments step and sees the
     },
   ]);
 
-  await page.goto("/dashboard/create/auto-clip?project=proj-1");
+  await page.goto("/dashboard/projects/proj-1");
   await expect(page.getByRole("heading", { name: "How's Clipiro working out for you?" })).toBeVisible();
 
   await page.getByRole("radio", { name: "4 stars" }).click();

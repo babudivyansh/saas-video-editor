@@ -34,6 +34,7 @@ const ROUTE_ACTIVE: { prefix: string; id: string }[] = [
   { prefix: "/dashboard/tools", id: "create" },
   { prefix: "/dashboard/create", id: "create" },
   { prefix: "/dashboard/cut-and-crop", id: "create" },
+  { prefix: "/dashboard/projects", id: "projects" },
   { prefix: "/dashboard/clips", id: "projects" },
   { prefix: "/dashboard/profile", id: "settings" },
 ];

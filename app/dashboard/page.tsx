@@ -23,11 +23,12 @@ import { QuestCard, type QuestData } from "@/app/components/dashboard/QuestCard"
 import { useProjectActions } from "@/app/components/dashboard/useProjectActions";
 import { ToastProvider, useToast } from "@/app/components/ui/Toast";
 import { ContinueSection } from "@/app/components/dashboard/ContinueSection";
-import type { ClipRow } from "@/app/dashboard/clips/hooks/useClipsLibrary";
-import type { ProjectRow } from "@/app/dashboard/clips/components/projectUi";
+import type { ClipRow } from "@/app/dashboard/projects/components/clipRow";
+import type { ProjectRow } from "@/app/dashboard/projects/components/projectUi";
 import { AutoClipLaunchBox } from "@/app/components/dashboard/AutoClipLaunchBox";
 import { HomeEmptyState, RecentProjects, ToolChips, TopClips, WhatsNew } from "@/app/components/dashboard/HomeSections";
 import { HomeTopBar } from "@/app/components/dashboard/HomeTopBar";
+import { projectHref as projectLink } from "@/lib/project-links";
 
 const HAS_PROJECTS_STORAGE_KEY = "clipiro:hasAnyProjects";
 
@@ -64,7 +65,7 @@ interface DashboardSummary {
 
 function inProgressHref(p: InProgressProject): string {
   if (p.productType === "editor") return `/dashboard/editor?projectId=${p.id}`;
-  return `/dashboard/create/auto-clip?project=${p.id}`;
+  return projectLink(p.id);
 }
 
 // ── Page ───────────────────────────────────────────────────────────────────────

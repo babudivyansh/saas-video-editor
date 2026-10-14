@@ -20,7 +20,7 @@ import { OVERFLOW_MINUTES_PER_CREDIT, overflowCreditsFor } from "@/lib/plans/tie
 import { MAX_INSTRUCTIONS_CHARS } from "@/lib/autoclip-create-input";
 import { CAPTION_RENDER_PRICING_DEFAULTS, type CaptionRenderPricing } from "@/lib/captions/pricingDefaults";
 import { IcFilm, IcCloud, IcFile, IcX, IcSparkle, apiFetch, ASPECTS } from "./_components/shared";
-import { ClipsResults } from "./_components/ClipsResults";
+import { clipEditorHref, projectHref } from "@/lib/project-links";
 
 // Mirrors the limits printed on the drop zone (and enforced server-side).
 const ACCEPTED_VIDEO_TYPES = ["video/mp4", "video/quicktime", "video/mov", "video/webm"];
@@ -150,13 +150,18 @@ function AutoClipFlow() {
     return id ? { id, name: params.get("name") } : null;
   });
 
-  // Put the run in the URL the moment it starts. It never was, so refreshing
-  // mid-run dropped the user back on an empty form with no way back to it.
+  // The moment a run starts, go to its project page, where its clips appear
+  // as they're cut. Replace, not push: Back shouldn't land on a spent form.
   useEffect(() => {
-    if (genStatus === "rendering" && genProjectId && !resumeProjectId) {
-      router.replace(`/dashboard/create/auto-clip?project=${encodeURIComponent(genProjectId)}`);
-    }
-  }, [genStatus, genProjectId, resumeProjectId, router]);
+    if ((genStatus === "rendering" || genStatus === "completed") && genProjectId) router.replace(projectHref(genProjectId));
+  }, [genStatus, genProjectId, router]);
+
+  // Old links (emails, notifications, bookmarks) put a run on this page as
+  // ?project=<id>[&clip=<id>]. A project's clips live on its own page now.
+  useEffect(() => {
+    if (!resumeProjectId) return;
+    router.replace(deepLinkClipId ? clipEditorHref(resumeProjectId, deepLinkClipId) : projectHref(resumeProjectId));
+  }, [resumeProjectId, deepLinkClipId, router]);
 
   useEffect(() => { return () => { if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl); }; }, [videoPreviewUrl]);
 
@@ -310,25 +315,34 @@ function AutoClipFlow() {
     router.push("/dashboard/create/auto-clip");
   }, [reset, handleClearFile, router]);
 
-  const showOverlay = !!resumeProjectId || genStatus !== "idle";
-  const activeProjectId = resumeProjectId ?? genProjectId;
   const canGenerate = (!!file || !!importedUrl || !!pickedAsset || !!retryProject) && !durationError && !submitting;
 
-  // "Try again" on a failed run: back to the form with this session's settings
-  // kept (it used to offer only "Create another", which wiped them), and the
-  // failed project as the source.
-  const handleRetry = useCallback((name: string | null) => {
-    if (!activeProjectId) return;
-    setRetryProject({ id: activeProjectId, name });
-    setFile(null); setImportedUrl(null); setPickedAsset(null); setImportError(null);
-    reset();
-    router.push("/dashboard/create/auto-clip");
-  }, [activeProjectId, reset, router]);
-
-  if (showOverlay) {
+  // Between Generate and the run's project page: the upload, then the create
+  // call. A run that fails before it has a project is said here, with its
+  // reason; one that fails later is said on the project page.
+  if (resumeProjectId || genStatus === "uploading" || genStatus === "creating" || genStatus === "rendering" || (genStatus === "completed" && genProjectId)) {
+    const heading = resumeProjectId ? "Opening your project…" : genStatus === "uploading" ? "Uploading your video…" : "Starting your run…";
     return (
       <div className="h-full overflow-y-auto" style={{ background: "var(--surface)" }}>
-        <ClipsResults projectId={activeProjectId} status={resumeProjectId ? "rendering" : genStatus} error={genError} expectedCount={clipCount} fileName={file?.name ?? importedTitle ?? pickedAsset?.name ?? retryProject?.name ?? null} onReset={handleReset} onRetry={handleRetry} initialClipId={deepLinkClipId} />
+        <div className="mx-auto max-w-xl px-6 pb-32 pt-20 text-center">
+          <div className="relative mx-auto mb-8 w-[160px] overflow-hidden rounded-2xl" style={{ aspectRatio: "9/16", background: "linear-gradient(160deg, var(--surface-3), var(--bg))" }}>
+            <div className="ac-shimmer absolute inset-0" />
+          </div>
+          <h1 className="mb-2 text-2xl font-extrabold text-ink"><span role="status" aria-live="polite">{heading}</span></h1>
+          {!resumeProjectId && <p className="text-[15px] text-ink-soft">Keep this tab open until the upload finishes. After that you can leave.</p>}
+        </div>
+      </div>
+    );
+  }
+  // "completed" with no project id has nothing to open either.
+  if (genStatus === "failed" || genStatus === "completed") {
+    return (
+      <div className="h-full overflow-y-auto" style={{ background: "var(--surface)" }}>
+        <div className="mx-auto max-w-xl px-6 pb-32 pt-20 text-center">
+          <h1 className="mb-2 text-2xl font-extrabold text-ink">Something went wrong</h1>
+          <p className="mb-7 text-[15px] text-ink-soft">{genError ?? "We couldn't start this run. Try again."}</p>
+          <Button variant="secondary" onClick={handleReset}>Start over</Button>
+        </div>
       </div>
     );
   }

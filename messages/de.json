@@ -42,12 +42,12 @@
       "autoClip": "AutoClip",
       "editor": "Editor",
       "aiTools": "KI-Tools",
-      "myClips": "Meine Clips"
+      "yourProjects": "Deine Projekte"
     },
     "planCard": { "manage": "Verwalten", "clipMinutes": "Clip-Minuten", "aiCredits": "KI-Credits", "minutesValue": "{count} Min." },
     "corePages": {
       "dashboardHome": { "title": "Dashboard-Startseite", "desc": "Überblick, Quests & Schnellstart" },
-      "myClips": { "title": "Meine Clips", "desc": "Alle Ihre AutoClip-Projekte" },
+      "myClips": { "title": "Deine Projekte", "desc": "Alle Ihre AutoClip-Projekte" },
       "assets": { "title": "Assets", "desc": "Ihre hochgeladene Medienbibliothek" },
       "socialTracker": { "title": "Social Tracker", "desc": "Verfolgen Sie Ihre Social-Media-Performance" },
       "earnCredits": { "title": "Credits verdienen", "desc": "Empfehlungs- und Partner-Dashboard" },

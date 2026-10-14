@@ -42,12 +42,12 @@
       "autoClip": "AutoClip",
       "editor": "ఎడిటర్",
       "aiTools": "AI టూల్స్",
-      "myClips": "నా క్లిప్‌లు"
+      "yourProjects": "మీ ప్రాజెక్ట్‌లు"
     },
     "planCard": { "manage": "నిర్వహించు", "clipMinutes": "క్లిప్ నిమిషాలు", "aiCredits": "AI క్రెడిట్‌లు", "minutesValue": "{count} నిమి" },
     "corePages": {
       "dashboardHome": { "title": "డాష్‌బోర్డ్ హోమ్", "desc": "అవలోకనం, క్వెస్ట్‌లు & త్వరిత ప్రారంభం" },
-      "myClips": { "title": "నా క్లిప్‌లు", "desc": "మీ అన్ని AutoClip ప్రాజెక్ట్‌లు" },
+      "myClips": { "title": "మీ ప్రాజెక్ట్‌లు", "desc": "మీ అన్ని AutoClip ప్రాజెక్ట్‌లు" },
       "assets": { "title": "ఆస్తులు", "desc": "మీ అప్‌లోడ్ చేసిన మీడియా లైబ్రరీ" },
       "socialTracker": { "title": "సోషల్ ట్రాకర్", "desc": "మీ సోషల్ పనితీరును ట్రాక్ చేయండి" },
       "earnCredits": { "title": "క్రెడిట్లు సంపాదించండి", "desc": "రెఫరల్ & అఫిలియేట్ డాష్‌బోర్డ్" },

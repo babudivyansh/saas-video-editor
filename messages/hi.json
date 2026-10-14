@@ -42,12 +42,12 @@
       "autoClip": "AutoClip",
       "editor": "एडिटर",
       "aiTools": "AI टूल्स",
-      "myClips": "मेरी क्लिप"
+      "yourProjects": "आपके प्रोजेक्ट"
     },
     "planCard": { "manage": "प्रबंधित करें", "clipMinutes": "क्लिप मिनट", "aiCredits": "AI क्रेडिट", "minutesValue": "{count} मिनट" },
     "corePages": {
       "dashboardHome": { "title": "डैशबोर्ड होम", "desc": "ओवरव्यू, क्वेस्ट और क्विक स्टार्ट" },
-      "myClips": { "title": "मेरी क्लिप्स", "desc": "आपके सभी AutoClip प्रोजेक्ट्स" },
+      "myClips": { "title": "आपके प्रोजेक्ट", "desc": "आपके सभी AutoClip प्रोजेक्ट्स" },
       "assets": { "title": "एसेट्स", "desc": "आपकी अपलोड की गई मीडिया लाइब्रेरी" },
       "socialTracker": { "title": "सोशल ट्रैकर", "desc": "अपना सोशल परफॉर्मेंस ट्रैक करें" },
       "earnCredits": { "title": "क्रेडिट कमाएं", "desc": "रेफरल और एफिलिएट डैशबोर्ड" },

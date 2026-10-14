@@ -9,6 +9,7 @@ import {
   fmtDuration, fmtSize,
 } from "@/app/components/related/RelatedContent";
 import type { Asset } from "../types";
+import { clipHref, projectHref } from "@/lib/project-links";
 
 interface PreviewLightboxProps {
   asset: Asset | null;
@@ -144,7 +145,7 @@ export function PreviewLightbox({ asset, onClose, onPrev, onNext }: PreviewLight
                     id: related.derivedFrom.clip.id,
                     title: related.derivedFrom.clip.title || `Clip ${related.derivedFrom.clip.index + 1}`,
                     meta: related.derivedFrom.project.title,
-                    href: `/dashboard/create/auto-clip?project=${related.derivedFrom.project.id}`,
+                    href: projectHref(related.derivedFrom.project.id),
                   }]}
                 />
               </RelatedSection>
@@ -159,7 +160,7 @@ export function PreviewLightbox({ asset, onClose, onPrev, onNext }: PreviewLight
                     meta: fmtDuration(c.durationSec),
                     thumbnailUrl: c.thumbnailUrl,
                     score: c.score,
-                    href: `/dashboard/create/auto-clip?project=${c.projectId}&clip=${c.id}`,
+                    href: clipHref(c.projectId, c.id),
                   }))}
                 />
               </RelatedSection>
@@ -175,7 +176,7 @@ export function PreviewLightbox({ asset, onClose, onPrev, onNext }: PreviewLight
                     href:
                       p.productType === "editor"
                         ? `/dashboard/editor?projectId=${p.id}`
-                        : `/dashboard/create/auto-clip?project=${p.id}`,
+                        : projectHref(p.id),
                   }))}
                 />
               </RelatedSection>

@@ -428,8 +428,8 @@ export const EMAIL_REGISTRY: Record<string, TemplateEntry<never>> = {
     trigger: "An Auto Clip render finishes with at least one successful clip",
     build: generations.clipsReady,
     samples: {
-      default: { name: "Divyansh", readyCount: 3, href: "https://clipiro.com/dashboard/create/auto-clip?project=abc123" },
-      "single clip": { name: "Divyansh", readyCount: 1, href: "https://clipiro.com/dashboard/create/auto-clip?project=abc123" },
+      default: { name: "Divyansh", readyCount: 3, href: "https://clipiro.com/dashboard/projects/abc123" },
+      "single clip": { name: "Divyansh", readyCount: 1, href: "https://clipiro.com/dashboard/projects/abc123" },
     },
   }),
 
