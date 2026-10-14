@@ -181,6 +181,9 @@ test("list view, grid popup with arrows, filter, heart and Add to collection", a
 
   await page.goto("/dashboard/projects/collections/col1");
   await expect(page.getByRole("heading", { name: /Merch moments \(1\)/ })).toBeVisible({ timeout: 30_000 });
+  // The grid layout chosen above is remembered by this browser.
+  await expect(page).toHaveURL(/layout=grid/);
+  await page.getByRole("button", { name: "List view" }).click();
   await expect(page.getByRole("article", { name: "#1 From office to store: viral merch" }).getByText("From 24 Hours with Danny Duncan")).toBeVisible();
   await expect(page.getByRole("button", { name: "Remove from collection" })).toBeVisible();
 });
