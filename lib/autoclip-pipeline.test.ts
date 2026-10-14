@@ -380,7 +380,7 @@ describe("notifyRenderOutcome — clips-ready email", () => {
     expect(to).toBe("creator@test.co");
     expect(name).toBe("Ada");
     expect(readyCount).toBe(3);
-    expect(href).toMatch(/^https?:\/\/.+\/dashboard\/create\/auto-clip\?project=project-1$/);
+    expect(href).toMatch(/^https?:\/\/.+\/dashboard\/projects\/project-1$/);
   });
 
   it("never sends an email on a failed outcome", async () => {
