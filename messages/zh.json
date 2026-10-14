@@ -42,12 +42,12 @@
       "autoClip": "AutoClip",
       "editor": "编辑器",
       "aiTools": "AI 工具",
-      "myClips": "我的剪辑"
+      "yourProjects": "你的项目"
     },
     "planCard": { "manage": "管理", "clipMinutes": "剪辑分钟数", "aiCredits": "AI 积分", "minutesValue": "{count} 分钟" },
     "corePages": {
       "dashboardHome": { "title": "仪表盘主页", "desc": "概览、任务与快速开始" },
-      "myClips": { "title": "我的片段", "desc": "您所有的AutoClip项目" },
+      "myClips": { "title": "你的项目", "desc": "您所有的AutoClip项目" },
       "assets": { "title": "素材", "desc": "您上传的媒体库" },
       "socialTracker": { "title": "社交追踪器", "desc": "追踪您的社交表现" },
       "earnCredits": { "title": "赚取积分", "desc": "推荐与联盟仪表盘" },

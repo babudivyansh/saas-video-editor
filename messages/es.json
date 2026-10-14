@@ -42,12 +42,12 @@
       "autoClip": "AutoClip",
       "editor": "Editor",
       "aiTools": "Herramientas de IA",
-      "myClips": "Mis clips"
+      "yourProjects": "Tus proyectos"
     },
     "planCard": { "manage": "Gestionar", "clipMinutes": "Minutos de clip", "aiCredits": "Créditos de IA", "minutesValue": "{count} min" },
     "corePages": {
       "dashboardHome": { "title": "Inicio del panel", "desc": "Resumen, misiones e inicio rápido" },
-      "myClips": { "title": "Mis clips", "desc": "Todos tus proyectos de AutoClip" },
+      "myClips": { "title": "Tus proyectos", "desc": "Todos tus proyectos de AutoClip" },
       "assets": { "title": "Recursos", "desc": "Tu biblioteca de contenido multimedia" },
       "socialTracker": { "title": "Rastreador social", "desc": "Rastrea tu rendimiento en redes sociales" },
       "earnCredits": { "title": "Ganar créditos", "desc": "Panel de referidos y afiliados" },

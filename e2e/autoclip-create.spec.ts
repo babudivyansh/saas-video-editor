@@ -95,13 +95,16 @@ test("a failed run offers Try again on the same video, keeping the user on the f
     project: {
       status: "failed", warnings: null, captionStyleIndex: null, uploadedVideoUrl: null,
       failureReason: "Video is too short (4.0s) for the requested clip duration (min 15s)",
+      title: "talk.mp4", instructions: null, progress: 0,
     },
     clips: [],
   })));
 
-  await page.goto("/dashboard/create/auto-clip?project=p-failed");
+  // A failed run is shown on its project page; Try again goes back to the form.
+  await page.goto("/dashboard/projects/p-failed");
   await expect(page.getByText(/Video is too short/)).toBeVisible({ timeout: 90_000 });
-  await page.getByRole("button", { name: "Try again" }).click();
+  await page.getByRole("link", { name: "Try again" }).click();
+  await expect(page).toHaveURL(/\/dashboard\/create\/auto-clip\?retry=p-failed/);
 
   await expect(page.getByText(/Trying this video again/)).toBeVisible();
   await expect(page.getByRole("button", { name: /Generate clips/ })).toBeEnabled();
@@ -112,7 +115,9 @@ test("a run that no longer exists says so instead of polling forever", async ({ 
   let polls = 0;
   await page.route("**/api/projects/p-gone/clips**", (r) => { polls++; return r.fulfill(json({ error: "Not found" }, 404)); });
 
+  // The old run URL (in sent emails and notifications) still works: it redirects.
   await page.goto("/dashboard/create/auto-clip?project=p-gone");
+  await expect(page).toHaveURL(/\/dashboard\/projects\/p-gone$/, { timeout: 90_000 });
   await expect(page.getByText(/isn.t here any more/)).toBeVisible({ timeout: 90_000 });
   const seen = polls;
   await page.waitForTimeout(3_500); // longer than one 2.5s poll interval

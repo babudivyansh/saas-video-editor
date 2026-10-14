@@ -49,12 +49,12 @@
       "autoClip": "AutoClip",
       "editor": "Editor",
       "aiTools": "AI Tools",
-      "myClips": "My Clips"
+      "yourProjects": "Your projects"
     },
     "planCard": { "manage": "Manage", "clipMinutes": "Clip minutes", "aiCredits": "AI credits", "minutesValue": "{count} min" },
     "corePages": {
       "dashboardHome": { "title": "Dashboard Home", "desc": "Overview, quests & quick start" },
-      "myClips": { "title": "My Clips", "desc": "All your AutoClip projects" },
+      "myClips": { "title": "Your projects", "desc": "All your AutoClip projects" },
       "assets": { "title": "Assets", "desc": "Your uploaded media library" },
       "socialTracker": { "title": "Social Tracker", "desc": "Track your social performance" },
       "earnCredits": { "title": "Earn Credits", "desc": "Referral & affiliate dashboard" },

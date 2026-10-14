@@ -10,8 +10,9 @@ import { useFormatter, useTranslations } from "next-intl";
 import { HOME_TOOLS, type AppToolGroup } from "@/app/components/featureLinks";
 import { ToolIcon } from "@/app/components/toolIcons";
 import { recordRecentTool } from "@/app/components/dashboard/recentTools";
-import type { ProjectRow } from "@/app/dashboard/clips/components/projectUi";
-import type { ClipRow } from "@/app/dashboard/clips/hooks/useClipsLibrary";
+import type { ProjectRow } from "@/app/dashboard/projects/components/projectUi";
+import type { ClipRow } from "@/app/dashboard/projects/components/clipRow";
+import { clipHref, projectHref } from "@/lib/project-links";
 
 const IcFilm = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6" aria-hidden="true"><rect x="2" y="3" width="20" height="18" rx="2" /><path d="M7 3v18M17 3v18M2 9h5M2 15h5M17 9h5M17 15h5" /></svg>;
 const IcDownload = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5" aria-hidden="true"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>;
@@ -84,12 +85,12 @@ export function RecentProjects({ projects }: { projects: ProjectRow[] }) {
   if (projects.length === 0) return null;
   return (
     <section>
-      <RowHeader title={t("home.recentProjects")} href="/dashboard/clips" linkLabel={t("home.viewAll")} />
+      <RowHeader title={t("home.recentProjects")} href="/dashboard/projects" linkLabel={t("home.viewAll")} />
       <div className="grid grid-cols-1 min-[480px]:grid-cols-2 md:grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-3 sm:gap-4">
         {projects.map((p) => (
           <Link
             key={p.id}
-            href={`/dashboard/create/auto-clip?project=${p.id}`}
+            href={projectHref(p.id)}
             className="group relative block aspect-[16/8.4] overflow-hidden rounded-2xl border border-line bg-surface-3 hover:border-primary/40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
           >
             {p.coverUrl ? (
@@ -124,7 +125,7 @@ export function TopClips({ clips }: { clips: ClipRow[] }) {
   if (clips.length === 0) return null;
   return (
     <section>
-      <RowHeader title={t("home.topClips")} href="/dashboard/clips" linkLabel={t("home.viewAll")} />
+      <RowHeader title={t("home.topClips")} href="/dashboard/projects" linkLabel={t("home.viewAll")} />
       {/* A scroll row on phones, a wrapping grid from sm up. */}
       <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 snap-x sm:mx-0 sm:grid sm:grid-cols-[repeat(auto-fill,minmax(168px,1fr))] sm:gap-3.5 sm:overflow-visible sm:px-0 sm:pb-0">
         {clips.map((c) => {
@@ -133,7 +134,7 @@ export function TopClips({ clips }: { clips: ClipRow[] }) {
           return (
             <div key={c.id} className="group relative w-[136px] flex-shrink-0 snap-start sm:w-auto">
               <Link
-                href={`/dashboard/create/auto-clip?project=${c.projectId}&clip=${c.id}`}
+                href={clipHref(c.projectId, c.id)}
                 className="block aspect-[9/16] overflow-hidden rounded-2xl border border-line bg-surface-3 hover:border-primary/40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
               >
                 {c.thumbnailUrl && (
@@ -175,7 +176,7 @@ export function TopClips({ clips }: { clips: ClipRow[] }) {
 // The badge is optional; the tone keys the card's tint.
 const WHATS_NEW: { key: "aiTools" | "dubbing" | "socialTracker"; href: string; badge?: "new"; tone: string }[] = [
   { key: "aiTools", href: "/dashboard/tools", badge: "new", tone: "bg-primary/[0.07]" },
-  { key: "dubbing", href: "/dashboard/clips", tone: "bg-info/[0.08]" },
+  { key: "dubbing", href: "/dashboard/projects", tone: "bg-info/[0.08]" },
   { key: "socialTracker", href: "/dashboard/social-tracker", tone: "bg-warning/[0.07]" },
 ];
 

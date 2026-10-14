@@ -10,6 +10,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/app/components/AuthContext";
 import { useSearchIndex, type SearchEntry } from "@/app/components/DashboardHeader";
+import { clipHref } from "@/lib/project-links";
 
 interface ClipHit {
   id: string;
@@ -109,7 +110,7 @@ export function GlobalSearch() {
     setOpen(false);
     (document.activeElement as HTMLElement | null)?.blur();
     if (row.kind === "clip") {
-      router.push(`/dashboard/create/auto-clip?project=${row.clip.projectId}&clip=${row.clip.id}`);
+      router.push(clipHref(row.clip.projectId, row.clip.id));
     } else if (row.entry.onSelect) {
       row.entry.onSelect();
     } else {

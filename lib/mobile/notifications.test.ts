@@ -10,6 +10,10 @@ const { appHref, toMobileNotifications } = await import("./notifications");
 
 describe("appHref", () => {
   it.each([
+    ["/dashboard/projects/p42", "/projects/p42"],
+    ["https://clipiro.com/dashboard/projects/p42?preview=c1", "/projects/p42"],
+    // A collection page has no app screen; it falls through to the web.
+    ["/dashboard/projects/collections", null],
     ["/dashboard/create/auto-clip?project=p42", "/projects/p42"],
     ["https://clipiro.com/dashboard/create/auto-clip?project=p42", "/projects/p42"],
     ["/dashboard/create/auto-clip", "/create/autoclip"],

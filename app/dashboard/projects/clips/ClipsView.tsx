@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
+import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Breadcrumbs from "@/app/components/ui/Breadcrumbs";
 import { Skeleton } from "@/app/components/ui/Skeleton";
@@ -116,6 +117,17 @@ export function ClipsView({ source }: { source: ClipsSource }) {
           }
         : undefined,
   };
+
+  // A finished run is the "AutoClip worked" moment the review prompt asks at
+  // (moved here from the old AutoClip results page). The provider rate-limits.
+  const fireReviewPrompt = useReviewPromptTrigger();
+  const reviewPromptFired = useRef(false);
+  const completedForPrompt = source.kind === "project" && (data as ProjectClipsResponse | undefined)?.project.status === "completed";
+  useEffect(() => {
+    if (!completedForPrompt || reviewPromptFired.current) return;
+    reviewPromptFired.current = true;
+    fireReviewPrompt("autoclips_milestone", { featureHint: "auto_clips" }).catch(() => {});
+  }, [completedForPrompt, fireReviewPrompt]);
 
   if (query.error instanceof ApiError && query.error.status === 404) {
     return source.kind === "project" ? <ProjectGone /> : <CollectionGone />;

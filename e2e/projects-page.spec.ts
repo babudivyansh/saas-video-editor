@@ -148,3 +148,16 @@ test("lays out in one column on a phone", async ({ page, baseURL }) => {
 async function imagesLoaded(page: Page) {
   await page.waitForFunction(() => Array.from(document.images).every((i) => i.complete && i.naturalWidth > 0), null, { timeout: 15_000 });
 }
+
+test("the old library URL and the sidebar both lead here", async ({ page, baseURL }) => {
+  await signIn(page, baseURL);
+  await mockData(page);
+  await page.goto("/dashboard/clips");
+  await expect(page).toHaveURL(/\/dashboard\/projects$/, { timeout: 90_000 });
+  await expect(page.getByRole("heading", { name: "Your projects" })).toBeVisible();
+  // The rail's link, marked as the current page.
+  const rail = page.getByRole("link", { name: "Your projects" }).first();
+  await expect(rail).toHaveAttribute("href", "/dashboard/projects");
+  // A project card opens the project's own clips page.
+  await expect(page.getByRole("list", { name: "Projects" }).getByRole("link", { name: /24 Hours with Danny Duncan/ })).toHaveAttribute("href", "/dashboard/projects/p1");
+});

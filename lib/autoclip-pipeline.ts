@@ -128,6 +128,7 @@ export {
   AUTOCLIP_PRICING_DEFAULTS, computeCreditCost, computeAnalysisCost, analysisRefId,
   type AutoClipPricing,
 } from "@/lib/autoclip-pricing";
+import { projectHref } from "@/lib/project-links";
 
 export async function getAutoClipPricing(): Promise<AutoClipPricing> {
   try {
@@ -376,7 +377,7 @@ export async function notifyRenderOutcome(
   outcome: "completed" | "failed",
   opts?: { readyCount?: number; reason?: string },
 ): Promise<void> {
-  const href = `/dashboard/create/auto-clip?project=${projectId}`;
+  const href = projectHref(projectId);
   if (outcome === "completed") {
     const n = opts?.readyCount ?? 0;
     await notify({

@@ -67,7 +67,7 @@ export function useDashboardNavItems(): { groups: ToolsSidebarNavGroup[]; bottom
     {
       label: t("groupLibrary"),
       items: [
-        { id: "projects", icon: <IcFilm />, label: t("myClips"), href: "/dashboard/clips" },
+        { id: "projects", icon: <IcFilm />, label: t("yourProjects"), href: "/dashboard/projects" },
         { id: "assets", icon: <IcAssets />, label: t("assets"), href: "/dashboard/assets" },
       ],
     },

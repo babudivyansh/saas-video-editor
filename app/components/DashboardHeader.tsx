@@ -78,7 +78,7 @@ function useCorePages(): SearchEntry[] {
   return useMemo<SearchEntry[]>(
     () => [
       { title: t("dashboardHome.title"), desc: t("dashboardHome.desc"), href: "/dashboard", group: "Page" },
-      { title: t("myClips.title"), desc: t("myClips.desc"), href: "/dashboard/clips", group: "Page" },
+      { title: t("myClips.title"), desc: t("myClips.desc"), href: "/dashboard/projects", group: "Page" },
       { title: t("assets.title"), desc: t("assets.desc"), href: "/dashboard/assets", group: "Page" },
       { title: t("socialTracker.title"), desc: t("socialTracker.desc"), href: "/dashboard/social-tracker", group: "Page" },
       { title: t("earnCredits.title"), desc: t("earnCredits.desc"), href: "/dashboard/referral", group: "Page" },

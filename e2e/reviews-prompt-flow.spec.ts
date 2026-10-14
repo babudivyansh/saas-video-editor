@@ -1,13 +1,11 @@
 import { test, expect } from "@playwright/test";
 import { signToken, SESSION_COOKIE_NAME } from "@/lib/auth";
 
-// Smart review-prompt flow on the Auto Clip results screen, mocked at the
-// network boundary. Resuming with ?project=proj-1 jumps straight to
-// ClipsResults (see app/dashboard/create/auto-clip/page.tsx's
-// `showOverlay = !!resumeProjectId`), whose own polling derives "done" from
-// the mocked /api/projects/proj-1/clips response — no real upload/render
-// needed. Confirms the prompt fires only on the completed results screen
-// (never mid-render) and that "Don't ask again" persists across a reload.
+// Smart review-prompt flow on a finished project's clips page, mocked at the
+// network boundary. /dashboard/projects/proj-1 polls the mocked
+// /api/projects/proj-1/clips response and derives "done" from it — no real
+// upload or render needed. Confirms the prompt fires on a completed run and
+// that "Don't ask again" persists across a reload.
 test("review prompt appears after an Auto Clip batch completes, and stays dismissed after reload", async ({ page, baseURL }) => {
   await page.route("**/api/auth/me", (route) =>
     route.fulfill({
@@ -33,7 +31,7 @@ test("review prompt appears after an Auto Clip batch completes, and stays dismis
     }),
   );
 
-  await page.route("**/api/projects/proj-1/clips", (route) =>
+  await page.route("**/api/projects/proj-1/clips**", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -69,15 +67,15 @@ test("review prompt appears after an Auto Clip batch completes, and stays dismis
     },
   ]);
 
-  await page.goto("/dashboard/create/auto-clip?project=proj-1");
+  await page.goto("/dashboard/projects/proj-1");
 
-  await expect(page.getByText("Your clips are ready 🎉")).toBeVisible();
+  await expect(page.getByRole("heading", { name: /All clips \(1\)/ })).toBeVisible();
   await expect(page.getByRole("heading", { name: "How's Clipiro working out for you?" })).toBeVisible();
 
   await page.getByRole("button", { name: "Don't ask again" }).click();
   await expect(page.getByRole("heading", { name: "How's Clipiro working out for you?" })).not.toBeVisible();
 
   await page.reload();
-  await expect(page.getByText("Your clips are ready 🎉")).toBeVisible();
+  await expect(page.getByRole("heading", { name: /All clips \(1\)/ })).toBeVisible();
   await expect(page.getByRole("heading", { name: "How's Clipiro working out for you?" })).not.toBeVisible();
 });

@@ -42,12 +42,12 @@
       "autoClip": "AutoClip",
       "editor": "المحرر",
       "aiTools": "أدوات الذكاء الاصطناعي",
-      "myClips": "مقاطعي"
+      "yourProjects": "مشاريعك"
     },
     "planCard": { "manage": "إدارة", "clipMinutes": "دقائق المقاطع", "aiCredits": "أرصدة الذكاء الاصطناعي", "minutesValue": "{count} دقيقة" },
     "corePages": {
       "dashboardHome": { "title": "الصفحة الرئيسية للوحة التحكم", "desc": "نظرة عامة، المهام، والبدء السريع" },
-      "myClips": { "title": "مقاطعي", "desc": "جميع مشاريع AutoClip الخاصة بك" },
+      "myClips": { "title": "مشاريعك", "desc": "جميع مشاريع AutoClip الخاصة بك" },
       "assets": { "title": "الأصول", "desc": "مكتبة الوسائط التي رفعتها" },
       "socialTracker": { "title": "متتبع التواصل الاجتماعي", "desc": "تتبّع أداءك على وسائل التواصل الاجتماعي" },
       "earnCredits": { "title": "اكسب أرصدة", "desc": "لوحة الإحالة والشراكة" },

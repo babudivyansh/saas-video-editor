@@ -31,6 +31,10 @@ export function appHref(href: string | null): string | null {
   if (url.hostname !== "clipiro.com" && url.hostname !== new URL(appUrl()).hostname) return null;
   const p = url.pathname.replace(/\/$/, "");
   const q = url.searchParams;
+  // A project's page (lib/project-links.ts), and the older ?project= form that
+  // notifications stored before the move.
+  const project = /^\/dashboard\/projects\/([^/]+)$/.exec(p);
+  if (project && project[1] !== "collections") return `/projects/${encodeURIComponent(decodeURIComponent(project[1]))}`;
   if (p === "/dashboard/create/auto-clip") return q.get("project") ? `/projects/${encodeURIComponent(q.get("project")!)}` : "/create/autoclip";
   if (p === "/dashboard/editor" && q.get("projectId")) return `/editor/export?projectId=${encodeURIComponent(q.get("projectId")!)}`;
   // A post notification (lib/social/publish.ts postHref) opens the post.

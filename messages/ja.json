@@ -42,12 +42,12 @@
       "autoClip": "AutoClip",
       "editor": "エディター",
       "aiTools": "AIツール",
-      "myClips": "マイクリップ"
+      "yourProjects": "プロジェクト"
     },
     "planCard": { "manage": "管理", "clipMinutes": "クリップ分数", "aiCredits": "AIクレジット", "minutesValue": "{count}分" },
     "corePages": {
       "dashboardHome": { "title": "ダッシュボードホーム", "desc": "概要、クエスト、クイックスタート" },
-      "myClips": { "title": "マイクリップ", "desc": "すべてのAutoClipプロジェクト" },
+      "myClips": { "title": "プロジェクト", "desc": "すべてのAutoClipプロジェクト" },
       "assets": { "title": "アセット", "desc": "アップロードしたメディアライブラリ" },
       "socialTracker": { "title": "ソーシャルトラッカー", "desc": "ソーシャルのパフォーマンスを追跡" },
       "earnCredits": { "title": "クレジットを獲得", "desc": "紹介・アフィリエイトダッシュボード" },

@@ -42,12 +42,12 @@
       "autoClip": "AutoClip",
       "editor": "এডিটর",
       "aiTools": "AI টুল",
-      "myClips": "আমার ক্লিপ"
+      "yourProjects": "আপনার প্রজেক্ট"
     },
     "planCard": { "manage": "পরিচালনা", "clipMinutes": "ক্লিপ মিনিট", "aiCredits": "AI ক্রেডিট", "minutesValue": "{count} মিনিট" },
     "corePages": {
       "dashboardHome": { "title": "ড্যাশবোর্ড হোম", "desc": "ওভারভিউ, কোয়েস্ট ও কুইক স্টার্ট" },
-      "myClips": { "title": "আমার ক্লিপ", "desc": "আপনার সব AutoClip প্রজেক্ট" },
+      "myClips": { "title": "আপনার প্রজেক্ট", "desc": "আপনার সব AutoClip প্রজেক্ট" },
       "assets": { "title": "অ্যাসেট", "desc": "আপনার আপলোড করা মিডিয়া লাইব্রেরি" },
       "socialTracker": { "title": "সোশ্যাল ট্র্যাকার", "desc": "আপনার সোশ্যাল পারফরম্যান্স ট্র্যাক করুন" },
       "earnCredits": { "title": "ক্রেডিট আয় করুন", "desc": "রেফারেল ও অ্যাফিলিয়েট ড্যাশবোর্ড" },
