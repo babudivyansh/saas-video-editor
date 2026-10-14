@@ -85,12 +85,14 @@ test("Upload uploads on Home with a progress bar, then one click starts the run"
   await expect(page.locator(".launch-sweep")).toHaveCount(1);
   const getClips = page.getByRole("button", { name: "Get clips in 1 click" });
   await expect(getClips).toBeDisabled();
+  await page.waitForTimeout(300); // let the button colour settle, for the screenshot only
   await page.screenshot({ path: "test-results/home-launch-uploading.png" });
 
   releaseUpload();
   await expect(page.getByRole("status").filter({ hasText: "Ready" })).toBeVisible();
   await expect(page.locator(".launch-sweep")).toHaveCount(0);
   await expect(getClips).toBeEnabled();
+  await page.waitForTimeout(300);
   await page.screenshot({ path: "test-results/home-launch-ready.png" });
 
   await getClips.click();
@@ -135,7 +137,8 @@ test("Assets picks a library video and starts from it", async ({ page, baseURL }
   // A tile is the choice itself; there's no separate confirm step.
   await picker.getByText("Podcast episode 12.mp4").click();
 
-  await expect(page.getByText("Podcast episode 12.mp4")).toBeVisible();
+  // In the launch box (the picker may still be fading out with the same name).
+  await expect(page.locator("form").getByText("Podcast episode 12.mp4")).toBeVisible();
   await expect(page.getByRole("status").filter({ hasText: "Ready" })).toBeVisible();
   await page.getByRole("button", { name: "Get clips in 1 click" }).click();
   await expect(page).toHaveURL(/\/dashboard\/projects\/p-new$/, { timeout: 30_000 });

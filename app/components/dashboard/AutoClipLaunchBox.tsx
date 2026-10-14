@@ -188,7 +188,7 @@ export function AutoClipLaunchBox() {
           <button
             type="submit"
             disabled={!!view && (!launch.ready || launch.starting)}
-            className="h-12 sm:h-[52px] flex-shrink-0 rounded-2xl bg-fg px-7 text-base font-semibold text-bg hover:bg-fg/90 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/70 disabled:cursor-not-allowed disabled:bg-fg/45 disabled:hover:bg-fg/45"
+            className="h-12 sm:h-[52px] flex-shrink-0 rounded-2xl bg-fg px-7 text-base font-semibold text-bg hover:bg-fg/90 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/70 disabled:cursor-not-allowed disabled:bg-fg/30 disabled:text-bg/70 disabled:hover:bg-fg/30"
           >
             {launch.starting ? t("home.starting") : t("home.getClips")}
           </button>
