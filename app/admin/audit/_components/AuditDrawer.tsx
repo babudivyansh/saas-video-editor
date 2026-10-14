@@ -81,7 +81,8 @@ export function AuditDrawer({
   const shown = showSame || oneSided ? changes : changed;
 
   return (
-    <Modal open={!!id} onClose={onClose} title={e ? `${e.label}${e.target ? ` ${e.target.label}` : ""}` : "Audit entry"} variant="drawer" maxWidth="max-w-2xl">
+    <Modal open={!!id} onClose={onClose} title={e ? `${e.label}${e.target ? ` ${e.target.label}` : ""}` : "Audit entry"} variant="fullscreen">
+      <div className="mx-auto w-full max-w-3xl px-4 pb-16 pt-8 sm:px-8">
       {q.isError ? (
         <p className="text-sm text-error">Couldn&apos;t load this entry.</p>
       ) : !e ? (
@@ -225,6 +226,7 @@ export function AuditDrawer({
           </Section>
         </div>
       )}
+      </div>
     </Modal>
   );
 }

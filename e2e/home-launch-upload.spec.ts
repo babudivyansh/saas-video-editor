@@ -134,6 +134,12 @@ test("Assets picks a library video and starts from it", async ({ page, baseURL }
   await page.getByRole("button", { name: "Assets", exact: true }).click({ timeout: 90_000 });
   const picker = page.getByRole("dialog", { name: "Choose a video from Assets" });
   await expect(picker).toBeVisible();
+  // A page of its own like the upgrade page: centered heading, round Close.
+  await expect(picker.getByRole("button", { name: "Close" })).toBeVisible();
+  const box = await picker.boundingBox();
+  expect(box!.width).toBeGreaterThan(1000);
+  await page.waitForTimeout(400); // the open animation, for the screenshot only
+  await page.screenshot({ path: "test-results/home-launch-assets-picker.png" });
   // A tile is the choice itself; there's no separate confirm step.
   await picker.getByText("Podcast episode 12.mp4").click();
 

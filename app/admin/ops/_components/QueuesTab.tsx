@@ -237,7 +237,8 @@ function QueueDetail({ queue, headers, refresh }: { queue: QueueSummary; headers
         )}
       </div>
 
-      <Modal open={!!view} onClose={() => setView(null)} title={view ? `Job ${view.projectId ?? view.id}` : ""} variant="drawer" maxWidth="max-w-xl">
+      <Modal open={!!view} onClose={() => setView(null)} title={view ? `Job ${view.projectId ?? view.id}` : ""} variant="fullscreen">
+        <div className="mx-auto w-full max-w-3xl px-4 pb-16 pt-8 sm:px-8">
         {view && (
           <div className="space-y-3 text-xs">
             <dl className="grid grid-cols-2 gap-2">
@@ -264,6 +265,7 @@ function QueueDetail({ queue, headers, refresh }: { queue: QueueSummary; headers
             </div>
           </div>
         )}
+        </div>
       </Modal>
 
       <ConfirmDialog
