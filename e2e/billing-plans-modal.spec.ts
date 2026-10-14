@@ -59,7 +59,7 @@ test("the billing plans modal shows the same corrected cards as /pricing", async
   // The overlay now renders over /dashboard, so the dashboard page mounts too —
   // its own endpoints need stubbing or it errors behind the overlay.
   await page.route("**/api/quests", (r) =>
-    r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ quests: [], earnedXp: 0, remaining: 0, level: { level: 1, label: "New" } }) }));
+    r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ quests: [], earnedXp: 0, remaining: 0, level: "Beginner", allComplete: false }) }));
   await page.route("**/api/dashboard/summary", (r) =>
     r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ projects: [], stats: {} }) }));
 

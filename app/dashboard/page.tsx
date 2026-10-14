@@ -31,6 +31,14 @@ import { HomeTopBar } from "@/app/components/dashboard/HomeTopBar";
 
 const HAS_PROJECTS_STORAGE_KEY = "clipiro:hasAnyProjects";
 
+// The rank is rendered as text (strip, pill, card). A response whose level
+// isn't a string — a stale client, a mis-shaped stub — would otherwise throw
+// "Objects are not valid as a React child" and take Home down; dropping it
+// falls back to the starting rank instead.
+function normalizeQuests(d: QuestData): QuestData {
+  return typeof d.level === "string" ? d : { ...d, level: undefined as unknown as string };
+}
+
 // Onboarding quests sit inline, as a strip under the tools, until a user has
 // finished this many; after that they shrink to a pill in the top bar.
 const NEW_USER_QUESTS = 3;
@@ -116,7 +124,7 @@ function DashboardPageInner() {
       // r.ok, not just r.json(): an error response still parses, and storing
       // {error:"Unauthorized"} as quest data crashes the reads below.
       .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (d) setQuestData(d); })
+      .then(d => { if (d) setQuestData(normalizeQuests(d)); })
       .catch(() => setSummaryFailed(true));
   }, [user, token, summaryAttempt]);
 
@@ -164,7 +172,7 @@ function DashboardPageInner() {
         body: JSON.stringify({ questId: "join-community" }),
       });
       const res = await fetch("/api/quests", { headers: { Authorization: `Bearer ${token}` } });
-      if (res.ok) setQuestData(await res.json());
+      if (res.ok) setQuestData(normalizeQuests(await res.json()));
     } catch { /* best-effort */ }
   }
 
