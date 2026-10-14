@@ -83,6 +83,7 @@ vi.mock("@/lib/prisma", () => ({
     },
     competitorProfile: { findMany: vi.fn(async () => []) },
     socialGoal: { findMany: vi.fn(async () => []) },
+    clipCollection: { findMany: vi.fn(async () => [{ id: "col1", name: "Hooks", createdAt: new Date(0), items: [{ clipId: "c1", addedAt: new Date(0) }] }]) },
     socialAccountSnapshot: { findMany: vi.fn(async () => [{ id: "snap1", accountId: "acct1", followers: 1000 }]) },
     socialDailyMetric: { findMany: vi.fn(async () => [{ id: "dm1", accountId: "acct1", views: 50 }]) },
     socialPost: { findMany: vi.fn(async () => [{ id: "post1", accountId: "acct1", likes: 5 }]) },
@@ -102,6 +103,7 @@ describe("accountExportJob — social data", () => {
   it("includes the user's social accounts, snapshots, posts, and goals", async () => {
     await accountExportJob({ projectId: "job1", jobId: "job1", userId: "u1" });
     const bundle = JSON.parse(written);
+    expect(bundle.clipCollections).toEqual([expect.objectContaining({ id: "col1", name: "Hooks", items: [expect.objectContaining({ clipId: "c1" })] })]);
     expect(bundle.social.accounts).toEqual([expect.objectContaining({ id: "acct1", provider: "youtube" })]);
     expect(bundle.social.accountSnapshots).toEqual([expect.objectContaining({ id: "snap1" })]);
     expect(bundle.social.dailyMetrics).toEqual([expect.objectContaining({ id: "dm1" })]);

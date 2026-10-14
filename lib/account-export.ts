@@ -52,7 +52,7 @@ export async function accountExportJob(payload: AccountExportPayload): Promise<v
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new Error(`User ${userId} not found`);
 
-    const [projects, assets, purchases, loginEvents, notificationPreference, socialAccounts, competitorProfiles, socialGoals] = await Promise.all([
+    const [projects, assets, purchases, loginEvents, notificationPreference, socialAccounts, competitorProfiles, socialGoals, clipCollections] = await Promise.all([
       prisma.project.findMany({
         where: { userId },
         include: { clips: { select: { id: true, title: true, startSec: true, endSec: true, status: true, videoUrl: true, createdAt: true } } },
@@ -74,6 +74,10 @@ export async function accountExportJob(payload: AccountExportPayload): Promise<v
       }),
       prisma.competitorProfile.findMany({ where: { userId } }), // no OAuth tokens on this model — public-data only
       prisma.socialGoal.findMany({ where: { userId } }),
+      prisma.clipCollection.findMany({
+        where: { userId },
+        select: { id: true, name: true, createdAt: true, items: { select: { clipId: true, addedAt: true } } },
+      }),
     ]);
 
     const assetsWithUrls = await Promise.all(
@@ -106,6 +110,7 @@ export async function accountExportJob(payload: AccountExportPayload): Promise<v
         emailVerifiedAt: user.emailVerifiedAt, credits: user.credits,
       },
       projects: projects.map(({ ...p }) => p),
+      clipCollections,
       assets: assetsWithUrls.map(({ s3Key, ...a }) => { void s3Key; return a; }), // internal key excluded, url is the useful field
       purchases,
       loginHistory: loginEvents,
