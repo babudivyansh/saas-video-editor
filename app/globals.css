@@ -559,6 +559,27 @@ body {
   }
 }
 
+/* ── Home launch box: a light running along the box's edges while a video
+   uploads (AutoClipLaunchBox). Static under prefers-reduced-motion. */
+.launch-sweep::before,
+.launch-sweep::after {
+  content: "";
+  position: absolute;
+  left: 22px;
+  right: 22px;
+  height: 1px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--fg) 85%, transparent), transparent) no-repeat;
+  background-size: 32% 100%;
+  animation: launch-sweep 2.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+.launch-sweep::before { top: -1px; }
+.launch-sweep::after { bottom: -1px; animation-direction: reverse; opacity: 0.55; }
+@keyframes launch-sweep { from { background-position: -45% 0; } to { background-position: 145% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .launch-sweep::before, .launch-sweep::after { animation: none; background-position: 50% 0; }
+}
+
 /* ── AutoClip redesign motion system ───────────────────────────────────────
    Purposeful, 120–340ms, cubic-bezier(0.16,1,0.3,1). Card rise, workspace
    shared-element expand, contextual panel/tab swaps, honest loading shimmer,

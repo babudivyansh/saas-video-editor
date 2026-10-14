@@ -21,12 +21,9 @@ import { MAX_INSTRUCTIONS_CHARS } from "@/lib/autoclip-create-input";
 import { CAPTION_RENDER_PRICING_DEFAULTS, type CaptionRenderPricing } from "@/lib/captions/pricingDefaults";
 import { IcFilm, IcCloud, IcFile, IcX, IcSparkle, apiFetch, ASPECTS } from "./_components/shared";
 import { clipEditorHref, projectHref } from "@/lib/project-links";
+import { sourceDurationError, sourceFileError } from "@/lib/autoclip-source";
 
 // Mirrors the limits printed on the drop zone (and enforced server-side).
-const ACCEPTED_VIDEO_TYPES = ["video/mp4", "video/quicktime", "video/mov", "video/webm"];
-const MAX_SOURCE_BYTES = 500 * 1024 * 1024;
-const MIN_SOURCE_SEC = 60;
-const MAX_SOURCE_SEC = 90 * 60;
 
 // ── Main flow (single-screen Create + overlay) ───────────────────────────────
 type LengthPreset = "short" | "standard" | "long";
@@ -189,9 +186,8 @@ function AutoClipFlow() {
   const handleFile = useCallback((f: File) => {
     // Checked here because a drop bypasses the input's `accept`, and the
     // server only said no after the whole upload had finished.
-    const typeOk = ACCEPTED_VIDEO_TYPES.includes(f.type) || [".mp4", ".mov", ".webm"].some((ext) => f.name.toLowerCase().endsWith(ext));
-    if (!typeOk) { setImportError("That file isn't a supported video. Use MP4, MOV or WebM."); return; }
-    if (f.size > MAX_SOURCE_BYTES) { setImportError("That video is over 500 MB. Trim or compress it, then try again."); return; }
+    const fileError = sourceFileError(f);
+    if (fileError) { setImportError(fileError); return; }
     setImportError(null);
     if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
     setFile(f);
@@ -218,11 +214,7 @@ function AutoClipFlow() {
   }, [file, videoPreviewUrl]);
 
   // Length is only known once the file's metadata loads (effect above).
-  const durationError =
-    sourceDurationSec == null ? null
-      : sourceDurationSec < MIN_SOURCE_SEC ? "That video is under a minute — AutoClip needs at least 1 minute of footage."
-        : sourceDurationSec > MAX_SOURCE_SEC ? "That video is over 1 h 30 m. Trim it and try again."
-          : null;
+  const durationError = sourceDurationError(sourceDurationSec);
 
   // Covers the awaits before the status flips (project create, URL import):
   // the button showed nothing for those seconds, and a second click made a
