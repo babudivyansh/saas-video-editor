@@ -72,6 +72,7 @@ export const PURGED_USER_MODELS = [
   "TwoFactorRecoveryCode",
   "DeviceToken",
   "AssistantMessage",
+  "ClipCollection", // cascades its ClipCollectionItem rows
 ] as const;
 
 export const RETAINED_USER_MODELS = [
@@ -194,6 +195,7 @@ function anonymiseOps(
     prisma.twoFactorRecoveryCode.deleteMany({ where }),
     prisma.deviceToken.deleteMany({ where }),
     prisma.assistantMessage.deleteMany({ where }),
+    prisma.clipCollection.deleteMany({ where }),
     deleteEmailLogs(userId, email),
     // Kept rows, stripped of what identifies a person: the sign-up IP on the
     // referral, and a still-redeemable code on the user's own affiliate row.

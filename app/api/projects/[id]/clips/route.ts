@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { prisma } from "@/lib/prisma";
+import { clipViewSelect, toClipView } from "@/lib/clip-view-query";
 
 // Poll target for the Auto Clip results grid: the project status + every clip
 // with its live status/progress, sorted by virality score (highest first).
@@ -21,31 +22,22 @@ async function handleGET(req: NextRequest, { params }: { params: Promise<{ id: s
     select: {
       id: true, status: true, warnings: true, failureReason: true,
       autoClipCaptionStyle: true, uploadedVideoUrl: true, updatedAt: true,
+      title: true, instructions: true, progress: true,
     },
   });
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const clips = await prisma.clip.findMany({
+  const searchParams = new URL(req.url).searchParams;
+  const wantExcerpts = searchParams.get("excerpts") === "1";
+
+  const rows = await prisma.clip.findMany({
     where: { projectId: id },
     orderBy: [{ score: { sort: "desc", nulls: "last" } }, { index: "asc" }],
-    select: {
-      id: true, index: true, title: true, startSec: true, endSec: true, durationSec: true,
-      aspectRatio: true, score: true, scoreBreakdown: true, mood: true, status: true, progress: true,
-      videoUrl: true, thumbnailUrl: true, hasCaptions: true, captionStyleIndex: true, brollQuery: true,
-      // Small settings blobs the drawer needs to show the clip's CURRENT style
-      // and camera options rather than silently falling back to defaults.
-      subtitleStyleOverride: true, silenceSettings: true, rerenderCount: true,
-      // Lite-editor state and the waveform the scrubber draws. Peaks are ~300
-      // small numbers per clip — an order of magnitude smaller than the
-      // transcript, which stays behind the ?clipId= detail fetch.
-      liteEdits: true, audioPeaks: true,
-      // Why a clip failed. Selected nowhere, so the grid could only say "Failed
-      // to render" while the reason sat on the row.
-      failureReason: true,
-    },
+    select: clipViewSelect(wantExcerpts),
   });
+  const clips = rows.map((row) => toClipView(row, wantExcerpts));
 
-  const clipId = new URL(req.url).searchParams.get("clipId");
+  const clipId = searchParams.get("clipId");
   const detail = clipId
     ? await prisma.clip.findFirst({
         where: { id: clipId, projectId: id },
@@ -62,6 +54,10 @@ async function handleGET(req: NextRequest, { params }: { params: Promise<{ id: s
       uploadedVideoUrl: project.uploadedVideoUrl,
       // Lets the page tell a slow analysis from a stranded one.
       updatedAt: project.updatedAt,
+      // The clips page's breadcrumb and heading.
+      title: project.title,
+      instructions: project.instructions,
+      progress: project.progress,
     },
     clips,
     ...(detail ? { detail } : {}),
