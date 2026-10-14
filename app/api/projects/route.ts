@@ -22,6 +22,10 @@ const LIST_SELECT = {
   failureReason: true, videoUrl: true, uploadedVideoUrl: true, backgroundUrl: true,
   createdAt: true, updatedAt: true,
   _count: { select: { clips: true } },
+  // The projects page's cards: the AutoClip prompt, and the source length
+  // shown as a duration chip.
+  instructions: true,
+  sourceAsset: { select: { duration: true } },
 } as const;
 
 // Generous — the pages that call this render one list without paging — but

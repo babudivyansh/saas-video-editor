@@ -31,11 +31,23 @@ const patchSchema = z
   .object({
     title: z.string().trim().min(1).max(200).optional(),
     isFavorite: z.boolean().optional(),
+    isDisliked: z.boolean().optional(),
   })
   .strict()
-  .refine((v) => v.title !== undefined || v.isFavorite !== undefined, {
+  .refine((v) => v.title !== undefined || v.isFavorite !== undefined || v.isDisliked !== undefined, {
     message: "Nothing to update",
+  })
+  .refine((v) => !(v.isFavorite === true && v.isDisliked === true), {
+    message: "A clip can't be both favorited and disliked",
   });
+
+/** Heart and thumbs-down are one choice: turning either on turns the other off. */
+function feedbackData(v: z.infer<typeof patchSchema>) {
+  const data: { title?: string; isFavorite?: boolean; isDisliked?: boolean } = { ...v };
+  if (v.isFavorite === true) data.isDisliked = false;
+  if (v.isDisliked === true) data.isFavorite = false;
+  return data;
+}
 
 async function handlePATCH(
   req: NextRequest,
@@ -60,8 +72,8 @@ async function handlePATCH(
   // never burned into the video, so charging a render for it would be absurd.
   const updated = await prisma.clip.update({
     where: { id: clipId },
-    data: parsed.data,
-    select: { id: true, title: true, isFavorite: true },
+    data: feedbackData(parsed.data),
+    select: { id: true, title: true, isFavorite: true, isDisliked: true },
   });
 
   return NextResponse.json({ clip: updated });

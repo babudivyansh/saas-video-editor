@@ -88,7 +88,9 @@ export async function startAutoClipRun(userId: string, rawBody: unknown): Promis
   const claimed = await prisma.project.updateMany({
     where: { id: projectId, userId, status: { in: ["draft", "failed"] } },
     // Clear any previous attempt's error so a retry doesn't show a stale banner.
-    data: { status: "analyzing", failureReason: null },
+    // The instructions are kept on the project: its clips page uses them as
+    // its heading. Before this they only lived in the queue payload.
+    data: { status: "analyzing", failureReason: null, instructions: input.instructions.trim() || null },
   });
   if (claimed.count === 0) {
     return fail(409, { error: "Analysis already in progress or already run for this project" });

@@ -111,9 +111,30 @@ describe("PATCH .../clips/[clipId]", () => {
     );
   });
 
-  it("stars a clip", async () => {
+  it("stars a clip, which clears a thumbs-down", async () => {
     await PATCH(patchReq({ isFavorite: true }), ctx("p1", "c1"));
-    expect(clipUpdate).toHaveBeenCalledWith(expect.objectContaining({ data: { isFavorite: true } }));
+    expect(clipUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { isFavorite: true, isDisliked: false } }),
+    );
+  });
+
+  it("dislikes a clip, which clears its heart", async () => {
+    const res = await PATCH(patchReq({ isDisliked: true }), ctx("p1", "c1"));
+    expect(res.status).toBe(200);
+    expect(clipUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { isDisliked: true, isFavorite: false } }),
+    );
+  });
+
+  it("un-dislikes without touching the heart", async () => {
+    await PATCH(patchReq({ isDisliked: false }), ctx("p1", "c1"));
+    expect(clipUpdate).toHaveBeenCalledWith(expect.objectContaining({ data: { isDisliked: false } }));
+  });
+
+  it("rejects favoriting and disliking at once", async () => {
+    const res = await PATCH(patchReq({ isFavorite: true, isDisliked: true }), ctx("p1", "c1"));
+    expect(res.status).toBe(400);
+    expect(clipUpdate).not.toHaveBeenCalled();
   });
 
   it("rejects an empty or whitespace-only title", async () => {

@@ -205,6 +205,7 @@ model User {
   // Posts to social accounts (Social Studio, mobile Phase 11.3).
   socialPosts         ClipPublish[]
   assistantMessages   AssistantMessage[]
+  clipCollections     ClipCollection[]
   clonedVoices        ClonedVoice[]
   assetFolders        AssetFolder[]
   tags                Tag[]
@@ -610,6 +611,9 @@ model Project {
   // throws these as sentences written for a creator, but they used to die in
   // the queue and the UI could only say "something went wrong".
   failureReason        String?
+  // Auto Clip: the instructions the user typed for this run ("Give me the
+  // funniest moments"). Shown as the heading of the project's clips page.
+  instructions         String?
   faceTimeline         Json?
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
@@ -709,6 +713,8 @@ model Clip {
   renderTarget          String?
   // Starred by the user in the clips library.
   isFavorite            Boolean            @default(false)
+  // Thumbs-down in the clips view. Mutually exclusive with isFavorite.
+  isDisliked            Boolean            @default(false)
   // Why this clip's render failed, in words written for a creator. The
   // pipeline only set status:"failed", so the UI could say nothing beyond
   // "Failed to render". Project already carries this; Clip now mirrors it.
@@ -722,6 +728,7 @@ model Clip {
   dubs                  ClipDub[]
   publishes             ClipPublish[]
   captionRenders        CaptionRenderJob[]
+  collectionItems       ClipCollectionItem[]
 
   @@index([projectId])
   @@index([projectId, status])
@@ -2063,6 +2070,32 @@ model AssistantMessage {
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt])
+}
+
+// A named set of clips the user groups by hand, across projects (the
+// "Collections" on the projects page). Favorites is not one of these: it is
+// every clip with isFavorite, so it needs no rows.
+model ClipCollection {
+  id        String               @id @default(cuid())
+  userId    String
+  user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  items     ClipCollectionItem[]
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  @@index([userId, createdAt])
+}
+
+model ClipCollectionItem {
+  collectionId String
+  collection   ClipCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  clipId       String
+  clip         Clip           @relation(fields: [clipId], references: [id], onDelete: Cascade)
+  addedAt      DateTime       @default(now())
+
+  @@id([collectionId, clipId])
+  @@index([clipId])
 }
 
 // The Android app's product analytics (mobile Phase 15, decision R2 A):
