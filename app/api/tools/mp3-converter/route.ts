@@ -4,7 +4,7 @@ import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { checkFreeToolDailyCap, freeToolCapResponseBody } from "@/lib/free-tool-caps";
 import { createJobStatusHandler } from "@/lib/job-routes";
 import { getAuthUser } from "@/lib/auth";
-import { resolveUploadPolicy, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
+import { resolveUploadPolicy, readUploadForm, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -59,21 +59,18 @@ export async function POST(req: NextRequest) {
 
   sweep();
 
-  let formData: FormData;
-  try {
-    formData = await req.formData();
-  } catch {
-    return NextResponse.json({ error: "Invalid multipart body" }, { status: 400 });
-  }
+  // Callable anonymously (IP-rate-limited free tool; only the /dashboard/tools/free/*
+  // pages are login-gated). A session gets the caller's real plan cap, anyone else
+  // ANONYMOUS_MAX_BYTES. Resolved BEFORE the body is read, so an oversized upload is
+  // refused unparsed instead of after it is already held in memory.
+  const auth = await getAuthUser(req);
+  const policy = await resolveUploadPolicy(auth?.userId ?? null, "mp3-converter");
+  const formData = await readUploadForm(req, policy);
+  if (formData instanceof NextResponse) return formData;
 
   const file = formData.get("file") as File | null;
   if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 });
 
-  // Anonymously callable free tool (see audio-balancer/route.ts for the same
-  // note) — resolve a real plan cap when a session is present, else fall
-  // back to just the feature's technical ceiling.
-  const auth = await getAuthUser(req);
-  const policy = await resolveUploadPolicy(auth?.userId ?? null, "mp3-converter");
   try {
     assertWithinUploadPolicy(policy, file.size);
   } catch (e) {

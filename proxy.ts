@@ -207,6 +207,19 @@ export async function proxy(request: NextRequest) {
   return response;
 }
 
+// The tool upload routes are kept OUT of the proxy. For any request the proxy
+// sees, Next tees the body into two in-memory copies (one for the proxy, one
+// for the route) as fast as the socket delivers it, up to
+// proxyClientMaxBodySize (500 MB) — before the route can look at its size.
+// This proxy never reads a body, so each upload sat in RAM, possibly twice,
+// even when the route was about to reject it. What the proxy gave these routes
+// is replicated where they read the body (readUploadForm in
+// lib/upload-policy.ts: maintenance gate, then a size check before buffering);
+// each route does its own real auth. A new upload route must call
+// readUploadForm AND be listed here — lib/upload-policy.proxy.test.ts checks.
+// The matcher has to be a literal: Next reads it statically.
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|api/tools/audio-balancer|api/tools/mp3-converter|api/tools/video-compressor|api/tools/background-remover|api/tools/face-swap|api/tools/subtitle-remover|api/tools/voice-changer|api/tools/vocal-remover|api/tools/enhance-speech|api/tools/cut-and-crop).*)",
+  ],
 };

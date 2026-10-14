@@ -4,7 +4,7 @@ import { cropScaleFilter } from "@/lib/crop";
 import { getAuthUser } from "@/lib/auth";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress } from "@/lib/credits";
-import { resolveUploadPolicy, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
+import { resolveUploadPolicy, readUploadForm, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
 import { createJobStatusHandler, createJobCancelHandler, type CancellableJob } from "@/lib/job-routes";
 import os from "os";
 import path from "path";
@@ -14,6 +14,10 @@ import { randomUUID } from "crypto";
 export const maxDuration = 300;
 
 const CREDIT_COST = 1;
+// One export takes this many clips at most. The file loop below used to be
+// unbounded: one 1-credit request could carry any number of plan-sized files,
+// all held in memory and then re-encoded one after another.
+const MAX_CLIPS = 5;
 
 type CropAspect = "original" | "9:16" | "1:1" | "16:9";
 type Rotation = 0 | 90 | 180 | 270;
@@ -96,12 +100,9 @@ async function handlePOST(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  let formData: FormData;
-  try {
-    formData = await req.formData();
-  } catch {
-    return NextResponse.json({ error: "Invalid multipart body" }, { status: 400 });
-  }
+  const policy = await resolveUploadPolicy(auth.userId, "cut-and-crop");
+  const formData = await readUploadForm(req, policy, MAX_CLIPS);
+  if (formData instanceof NextResponse) return formData;
 
   // Parse trims and crop
   let trims: Trim[];
@@ -126,11 +127,13 @@ async function handlePOST(req: NextRequest) {
     files.push(f);
   }
   if (files.length === 0) return NextResponse.json({ error: "No files provided" }, { status: 400 });
+  if (files.length > MAX_CLIPS) {
+    return NextResponse.json({ error: `You can add up to ${MAX_CLIPS} clips per export.` }, { status: 400 });
+  }
   if (files.length !== trims.length) {
     return NextResponse.json({ error: "Trims/files count mismatch" }, { status: 400 });
   }
 
-  const policy = await resolveUploadPolicy(auth.userId, "cut-and-crop");
   for (const f of files) {
     try {
       assertWithinUploadPolicy(policy, f.size);

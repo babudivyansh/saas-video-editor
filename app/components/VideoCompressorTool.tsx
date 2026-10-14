@@ -3,6 +3,7 @@ import { useRef, useState, useEffect, useCallback } from "react";
 import { useJobPolling } from "./useJobPolling";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 import { useUploadEntitlement } from "@/app/hooks/useUploadEntitlement";
+import { useAuth } from "@/app/components/AuthContext";
 
 interface QualityOption {
   id: string;
@@ -104,6 +105,9 @@ export default function VideoCompressorTool() {
   const job = useJobPolling({ toolSlug: "video-compressor", token: null, requireAuth: false });
   const fireReviewPrompt = useReviewPromptTrigger();
   const { formattedMaxSize: uploadMaxSizeLabel } = useUploadEntitlement("video-compressor");
+  // Sent with the upload so the route applies this user's plan cap — without
+  // it every caller counted as anonymous (lib/upload-policy ANONYMOUS_MAX_BYTES).
+  const { token } = useAuth();
   const submittingRef = useRef(false);
   const downloadedForJobId = useRef<string | null>(null);
 
@@ -151,7 +155,11 @@ export default function VideoCompressorTool() {
         form.append("file", file);
         form.append("quality", quality);
         form.append("resolution", resolution);
-        const startRes = await fetch("/api/tools/video-compressor", { method: "POST", body: form });
+        const startRes = await fetch("/api/tools/video-compressor", {
+          method: "POST",
+          body: form,
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
         if (!startRes.ok) {
           const json = await startRes.json().catch(() => ({})) as { error?: string };
           throw new Error(json.error ?? `Server error (${startRes.status})`);
@@ -161,7 +169,7 @@ export default function VideoCompressorTool() {
     } finally {
       submittingRef.current = false;
     }
-  }, [file, quality, resolution, job]);
+  }, [file, quality, resolution, job, token]);
 
   const stage = file ? (job.status === "idle" ? "ready" : job.status) : "idle";
 
