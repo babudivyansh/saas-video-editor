@@ -1,7 +1,8 @@
 "use client";
 
-// The Settings panel: a large dialog over the current page with the section
-// list on the left and the active section on the right. Rendered once by
+// The Settings panel: a full-screen page over the current one (the same
+// style as Billing and "Upgrade your plan") with the section list on the left
+// and the active section on the right. Rendered once by
 // SettingsOverlayProvider; see that file for why this is an overlay and not a
 // route.
 //
@@ -314,13 +315,15 @@ export function SettingsOverlay({
     <AnimatePresence>
       {open && (
         <motion.div
-          className="fixed inset-0 z-[90] flex items-stretch sm:items-center justify-center bg-black/70 backdrop-blur-sm sm:p-6"
+          className="fixed inset-0 z-[90] flex bg-bg"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.15 }}
-          onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
         >
+          {/* Full screen, like Billing and "Upgrade your plan": a centered
+              heading, a round Close top-right, and the section list beside
+              the active section in a centered column. */}
           <motion.div
             ref={panelRef}
             role="dialog"
@@ -328,68 +331,71 @@ export function SettingsOverlay({
             aria-labelledby="settings-overlay-title"
             tabIndex={-1}
             data-testid="settings-overlay"
-            className="relative flex flex-col md:flex-row w-full sm:max-w-[1120px] h-full sm:h-[min(840px,100%)] bg-surface-1 sm:rounded-[var(--radius-card)] border-line sm:border shadow-2xl overflow-hidden outline-none"
-            initial={{ opacity: 0, scale: 0.97, y: 8 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.97, y: 8 }}
+            className="relative flex w-full h-full flex-col bg-bg outline-none overflow-hidden"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 12 }}
             transition={{ duration: 0.18, ease: "easeOut" }}
           >
-            {/* Section list: a sidebar from md up, a scrolling tab strip below. */}
-            <aside className="hidden md:flex flex-shrink-0 w-64 bg-bg border-r border-line flex-col min-h-0">
-              <div className="flex items-center gap-3 px-4 pt-5 pb-3">
-                <span className="relative w-10 h-10 rounded-full overflow-hidden grid place-items-center bg-surface-2 ring-2 ring-emerald-bright/70 text-sm font-bold text-emerald-bright flex-shrink-0">
-                  {user?.avatarUrl ? <Image src={user.avatarUrl} alt="" fill sizes="40px" className="object-cover" /> : initial}
-                </span>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-fg truncate">{user?.name || user?.email}</p>
-                  <p className="text-xs text-fg-muted truncate">{planName}</p>
-                </div>
-              </div>
+            <div className="relative flex-shrink-0 flex items-center justify-center px-16 pt-5 pb-4 md:pb-6">
+              <h2 id="settings-overlay-title" className="text-center text-2xl sm:text-[28px] font-bold tracking-tight text-fg">
+                {t("heading")}
+                <span className="sr-only"> / {activeLabel}</span>
+              </h2>
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label={tCommon("close")}
+                title={t("escToClose")}
+                className="absolute right-4 sm:right-8 top-5 w-10 h-10 rounded-full border border-line bg-surface-2 grid place-items-center text-fg-muted hover:text-fg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/70 cursor-pointer"
+              >
+                <IcClose />
+              </button>
+            </div>
 
-              <nav aria-label={t("heading")} className="flex flex-1 min-h-0 flex-col overflow-y-auto px-3 pb-4">
-                {groups.map((g) => (
-                  <div key={g.label} className="mt-3">
-                    <p className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-subtle">{g.label}</p>
-                    <div className="flex flex-col gap-0.5">
-                      {g.items.map((item) => navButton(item))}
+            {/* Below md the section list is this scrolling tab strip. */}
+            <nav ref={mobileNavRef} aria-label={t("heading")} className="md:hidden flex-shrink-0 flex gap-1 overflow-x-auto px-3 py-2 border-y border-line [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {allItems.map((item) => navButton(item, true))}
+            </nav>
+
+            <div className="flex-1 min-h-0 flex justify-center md:px-8 md:pb-8">
+              <div className="flex w-full max-w-[1200px] min-h-0 gap-6">
+                {/* Section list, from md up. */}
+                <aside className="hidden md:flex flex-shrink-0 w-64 flex-col min-h-0 rounded-2xl border border-line bg-surface-1">
+                  <div className="flex items-center gap-3 px-4 pt-5 pb-3">
+                    <span className="relative w-10 h-10 rounded-full overflow-hidden grid place-items-center bg-surface-2 ring-2 ring-emerald-bright/70 text-sm font-bold text-emerald-bright flex-shrink-0">
+                      {user?.avatarUrl ? <Image src={user.avatarUrl} alt="" fill sizes="40px" className="object-cover" /> : initial}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-fg truncate">{user?.name || user?.email}</p>
+                      <p className="text-xs text-fg-muted truncate">{planName}</p>
                     </div>
                   </div>
-                ))}
-                <div className="flex-1 min-h-4" />
-                <div className="border-t border-line pt-3">{navButton(danger)}</div>
-              </nav>
 
-            </aside>
+                  <nav aria-label={t("heading")} className="flex flex-1 min-h-0 flex-col overflow-y-auto px-3 pb-4">
+                    {groups.map((g) => (
+                      <div key={g.label} className="mt-3">
+                        <p className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-subtle">{g.label}</p>
+                        <div className="flex flex-col gap-0.5">
+                          {g.items.map((item) => navButton(item))}
+                        </div>
+                      </div>
+                    ))}
+                    <div className="flex-1 min-h-4" />
+                    <div className="border-t border-line pt-3">{navButton(danger)}</div>
+                  </nav>
+                </aside>
 
-            <div className="flex-1 min-w-0 min-h-0 flex flex-col">
-              <div className="h-14 flex-shrink-0 flex items-center justify-between gap-3 pl-4 pr-2 md:pl-10 md:pr-3 border-b border-line">
-                <h2 id="settings-overlay-title" className="text-sm text-fg-muted truncate">
-                  {t("heading")}
-                  <span className="text-fg-subtle"> / </span>
-                  <span className="text-fg font-semibold">{activeLabel}</span>
-                </h2>
-                <div className="flex items-center gap-2">
-                  <span className="hidden md:inline text-xs text-fg-subtle">{t("escToClose")}</span>
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    aria-label={tCommon("close")}
-                    className="w-10 h-10 rounded-xl grid place-items-center text-fg-muted hover:bg-surface-2 hover:text-fg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/70 cursor-pointer"
+                {/* The active section. */}
+                <div className="flex-1 min-w-0 min-h-0 flex flex-col md:rounded-2xl md:border md:border-line md:bg-surface-1">
+                  <div
+                    ref={contentRef}
+                    onClick={onContentClick}
+                    className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-6 md:px-10 md:py-8"
                   >
-                    <IcClose />
-                  </button>
+                    <Section key={section} />
+                  </div>
                 </div>
-              </div>
-              {/* Below md the sidebar collapses into this scrolling tab strip. */}
-              <nav ref={mobileNavRef} aria-label={t("heading")} className="md:hidden flex-shrink-0 flex gap-1 overflow-x-auto px-3 py-2 border-b border-line bg-bg [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {allItems.map((item) => navButton(item, true))}
-              </nav>
-              <div
-                ref={contentRef}
-                onClick={onContentClick}
-                className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-6 md:px-10 md:py-8"
-              >
-                <Section key={section} />
               </div>
             </div>
           </motion.div>

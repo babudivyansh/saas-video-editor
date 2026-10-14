@@ -128,11 +128,14 @@ export function BillingOverlay({ state, onClose }: { state: BillingOverlayState;
       open={state.open}
       onClose={onClose}
       title={TITLES[view]}
-      variant={view === "plans" ? "fullscreen" : "center"}
-      maxWidth="max-w-4xl"
+      // Every view is a full-screen page (centered heading, round Close
+      // top-right, Back where there is a view behind it), matching the
+      // upgrade page.
+      variant="fullscreen"
       onBack={view === "billing" || (view === "plans" && plansDirect) ? undefined : () => setView("billing")}
     >
       {view === "billing" && (
+        <div className="mx-auto w-full max-w-5xl px-4 sm:px-8 pt-6 pb-16">
         <BillingPanel
           initialTab={tab}
           success={success}
@@ -143,9 +146,11 @@ export function BillingOverlay({ state, onClose }: { state: BillingOverlayState;
           onOpenPlans={(opts) => { setResumeFromPeriodEnd(!!opts?.resumeFromPeriodEnd); setView("plans"); }}
           onPurchaseSuccess={handlePurchaseSuccess}
         />
+        </div>
       )}
 
       {view === "manage" && (
+        <div className="mx-auto w-full max-w-3xl px-4 sm:px-8 pt-6 pb-16">
         <ManageSubscriptionPanel
           user={user}
           token={token}
@@ -154,6 +159,7 @@ export function BillingOverlay({ state, onClose }: { state: BillingOverlayState;
           onCancelClick={() => setView("billing")}
           onResumed={() => { refreshUser(); setView("billing"); }}
         />
+        </div>
       )}
 
       {view === "plans" && (
