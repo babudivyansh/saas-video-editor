@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
-import { getMediaDurationSec } from "@/utils/ffmpeg-render";
+import { getMediaDurationSec, trimAudioForProvider } from "@/utils/ffmpeg-render";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { fetchElevenLabs } from "@/utils/elevenlabs";
 import { env } from "@/lib/env";
@@ -76,18 +76,22 @@ async function handlePOST(req: NextRequest) {
   const ext = (file.name.split(".").pop() ?? "mp3").toLowerCase();
   const inputPath = path.join(os.tmpdir(), `${jobId}-input.${ext}`);
   const outputPath = path.join(os.tmpdir(), `${jobId}-output.mp3`);
+  const providerPath = path.join(os.tmpdir(), `${jobId}-provider.mp3`);
   const downloadName = `enhanced-${file.name.replace(/\.[^.]+$/, "")}.mp3`;
 
   // Write to disk first so we can probe duration BEFORE charging.
   fs.writeFileSync(inputPath, Buffer.from(await file.arrayBuffer()));
 
+  // 0 means ffmpeg could not probe the file. It used to fall through to the
+  // 1-credit minimum while the whole file still went to ElevenLabs (~$0.20/min)
+  // — the same hole voice-changer already closed.
   const durationSec = await getMediaDurationSec(inputPath);
-  if (durationSec > MAX_DURATION_SEC) {
+  if (durationSec <= 0 || durationSec > MAX_DURATION_SEC) {
     try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
-    return NextResponse.json(
-      { error: `Audio is too long (${Math.round(durationSec)}s). Max is ${MAX_DURATION_SEC / 60} minutes.` },
-      { status: 400 },
-    );
+    const message = durationSec <= 0
+      ? "Couldn't read this file's duration — it may be corrupted or an unsupported format."
+      : `Audio is too long (${Math.round(durationSec)}s). Max is ${MAX_DURATION_SEC / 60} minutes.`;
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 
   const idempotencyKey = (formData.get("idempotencyKey") as string | null) ?? undefined;
@@ -127,9 +131,12 @@ async function handlePOST(req: NextRequest) {
     try {
       job.progress = 20;
 
+      // The billed length only, never the raw file (its header duration is
+      // what we charged for, and it can lie).
+      await trimAudioForProvider(inputPath, providerPath, durationSec);
       const elForm = new FormData();
-      const blob = new Blob([fs.readFileSync(inputPath)], { type: file.type || "audio/mpeg" });
-      elForm.append("audio", blob, file.name);
+      const blob = new Blob([fs.readFileSync(providerPath)], { type: "audio/mpeg" });
+      elForm.append("audio", blob, "audio.mp3");
 
       job.progress = 30;
       if (job.generationId) void updateGenerationProgress(job.generationId, job.progress);
@@ -177,6 +184,7 @@ async function handlePOST(req: NextRequest) {
       }
     } finally {
       try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
+      try { fs.unlinkSync(providerPath); } catch { /* ignore */ }
     }
   })();
 

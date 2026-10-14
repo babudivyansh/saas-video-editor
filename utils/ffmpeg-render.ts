@@ -554,6 +554,26 @@ export async function getMediaDurationSec(filePath: string, timeoutMs = 30_000):
   return (await probeMediaDuration(filePath, timeoutMs)).durationSec ?? 0;
 }
 
+/**
+ * Re-encode an upload to an audio-only MP3 no longer than `maxSec`, for the
+ * tools that bill by length and then send the audio to a per-second provider.
+ *
+ * The probed duration comes from the container header, which the uploader
+ * controls: a file can claim 5 s and hold 90 s. Sending the ORIGINAL file meant
+ * billing for the claim and paying the provider for the reality. Sending this
+ * output instead caps what reaches the provider at what was billed, whatever
+ * the header says. It also drops any video stream, so a video upload is not
+ * shipped to an audio API in full.
+ */
+export function trimAudioForProvider(inputPath: string, outputPath: string, maxSec: number, bitrate = "192k"): Promise<void> {
+  return runFFmpegArgs([
+    "-y", "-i", inputPath,
+    "-vn", "-t", String(Math.max(1, Math.ceil(maxSec))),
+    "-c:a", "libmp3lame", "-b:a", bitrate,
+    outputPath,
+  ]);
+}
+
 // Probe a video's pixel dimensions from FFmpeg's "Video: ... WxH" stderr line.
 // Returns {w:0,h:0} if it can't be determined (callers should treat that as
 // "dimensions unknown" and skip anything that depends on them).
