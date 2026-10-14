@@ -24,7 +24,7 @@ export function UploadTile() {
   return (
     <Link
       href={NEW_AUTOCLIP_HREF}
-      className="group flex aspect-video flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-line-strong text-fg-muted transition-colors hover:border-primary/60 hover:text-fg outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+      className="group flex aspect-[3/1] sm:aspect-video flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-line-strong text-fg-muted transition-colors hover:border-primary/60 hover:text-fg outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
     >
       <IcUpload className="w-6 h-6" />
       <span className="text-sm font-medium">Upload new video</span>
@@ -49,7 +49,8 @@ export function ProjectCard({ project, onMenu }: { project: ProjectCardRow; onMe
             <img src={project.coverUrl} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-fg-subtle">
-              <IcFilm className="w-6 h-6" />
+              {/* A status badge sits here instead while a run is going or failed. */}
+              {!active && !failed && <IcFilm className="w-6 h-6" />}
             </div>
           )}
           {(active || failed) && (

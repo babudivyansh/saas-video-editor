@@ -93,14 +93,15 @@ test("shows collections and projects, and makes, renames and deletes a collectio
   await expect(projects.getByText("2:02:02")).toBeVisible();
   await expect(projects.getByText("Rendering · 42%")).toBeVisible();
   await expect(projects.getByText("Failed", { exact: true }).first()).toBeVisible();
+  await imagesLoaded(page);
   await page.screenshot({ path: "test-results/projects-page-desktop.png", fullPage: true });
 
   // Tabs carry counts: Favorites + one collection, four projects.
-  await expect(page.getByRole("tab", { name: "Collections (2)" })).toBeVisible();
-  await page.getByRole("tab", { name: "Projects (4)" }).click();
+  await expect(page.getByRole("tab", { name: /Collections\s*\(2\)/ })).toBeVisible();
+  await page.getByRole("tab", { name: /Projects\s*\(4\)/ }).click();
   await expect(page.getByRole("list", { name: "Collections" })).toHaveCount(0);
   await expect(page.getByRole("list", { name: "Projects" })).toBeVisible();
-  await page.getByRole("tab", { name: "All" }).click();
+  await page.getByRole("tab", { name: "All", exact: true }).click();
 
   // Search narrows the grid and hides the upload tile.
   await page.getByRole("searchbox", { name: "Search projects" }).fill("curry");
@@ -139,5 +140,11 @@ test("lays out in one column on a phone", async ({ page, baseURL }) => {
   // No sideways scroll at phone width.
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(0);
+  await imagesLoaded(page);
   await page.screenshot({ path: "test-results/projects-page-phone.png", fullPage: true });
 });
+
+/** Covers are lazy images; let them land before a screenshot. */
+async function imagesLoaded(page: Page) {
+  await page.waitForFunction(() => Array.from(document.images).every((i) => i.complete && i.naturalWidth > 0), null, { timeout: 15_000 });
+}
