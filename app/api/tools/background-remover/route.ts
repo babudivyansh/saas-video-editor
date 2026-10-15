@@ -1,3 +1,4 @@
+import { userMessage, rawErrorText } from "@/lib/user-facing-error";
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { markQuestComplete } from "@/lib/quests";
@@ -17,6 +18,7 @@ import fs from "fs";
 export const maxDuration = 120;
 
 const CREDIT_COST = 1;
+const IMAGE_EXT: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/jpg": "jpg", "image/webp": "webp", "image/gif": "gif" };
 // fal.ai rembg model – removes background from images (PNG/JPG/WEBP)
 const FAL_MODEL = "fal-ai/imageutils/rembg";
 
@@ -82,9 +84,12 @@ async function submitToFal(imageUrl: string): Promise<string> {
 }
 
 async function pollFal(requestId: string): Promise<string> {
-  // Must stay safely under this route's maxDuration (120s) — see the
-  // identical note in app/api/tools/face-swap/route.ts's pollFal.
-  const deadline = Date.now() + 90 * 1000;
+  // This polls inside the job's detached background promise, AFTER the POST
+  // has already returned its jobId — the route's maxDuration does not apply
+  // to it. A 90s deadline here only meant that any fal queue backlog failed
+  // and refunded the job while fal still finished (and billed) the request.
+  // The server-restart case is covered by reconcileOrphanedToolJobs (15 min).
+  const deadline = Date.now() + 5 * 60 * 1000;
   while (Date.now() < deadline) {
     await new Promise(r => setTimeout(r, 3000));
     const statusRes = await fetch(
@@ -161,7 +166,8 @@ async function handlePOST(req: NextRequest) {
   }
 
   const jobId = randomUUID();
-  const ext = (file.name.split(".").pop() ?? "png").toLowerCase();
+  // From the allow-listed MIME type, never the user's filename.
+  const ext = IMAGE_EXT[file.type] ?? "png";
   const inputPath = path.join(os.tmpdir(), `${jobId}-input.${ext}`);
   const outputPath = path.join(os.tmpdir(), `${jobId}-output.png`);
   const baseName = file.name.replace(/\.[^.]+$/, "");
@@ -228,12 +234,13 @@ async function handlePOST(req: NextRequest) {
     } catch (err) {
       if ((job.status as string) === "cancelled") return;
       job.status = "error";
-      job.error = err instanceof Error ? err.message : "Unknown error";
+      logger.error("background-remover", "job failed", err);
+      job.error = userMessage(err, "We couldn't remove the background from this image. Your credit was refunded — please try again.");
       if (!job.refunded) {
         job.refunded = true;
         try {
           await refundCredits({ userId: auth.userId, amount: CREDIT_COST, generationId: job.generationId });
-          if (job.generationId) await markGenerationStatus(job.generationId, "failed", job.error);
+          if (job.generationId) await markGenerationStatus(job.generationId, "failed", rawErrorText(err));
         } catch (e) { logger.error("background-remover", "refund failed", e); }
       }
     } finally {
@@ -250,7 +257,7 @@ export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy:
 
 export const GET = withRateLimit(
   createJobStatusHandler(jobs, { contentType: "image/png", deleteOnDownload: false }),
-  { limit: 30, windowSec: 60, keyBy: "user", name: "tools:background-remover:status" },
+  { limit: 60, windowSec: 60, keyBy: "user", name: "tools:background-remover:status" },
 );
 
 export const DELETE = withRateLimit(

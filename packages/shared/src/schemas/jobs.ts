@@ -43,7 +43,8 @@ export const startJobRequest = z.discriminatedUnion("type", [
   }),
   z.object({ type: z.literal("background-remover"), assetId: z.string().min(1), idempotencyKey }),
   /** The face from `faceAssetId` put onto the person in `targetAssetId` (both images in Assets). */
-  z.object({ type: z.literal("face-swap"), faceAssetId: z.string().min(1), targetAssetId: z.string().min(1), idempotencyKey }),
+  // consent: the person confirmed they have the right to use both faces.
+  z.object({ type: z.literal("face-swap"), faceAssetId: z.string().min(1), targetAssetId: z.string().min(1), consent: z.literal(true), idempotencyKey }),
   z.object({ type: z.literal("subtitle-remover"), assetId: z.string().min(1), idempotencyKey }),
 ]);
 export type StartJobRequest = z.input<typeof startJobRequest>;

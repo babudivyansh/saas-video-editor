@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runFFmpegWithProgress } from "@/utils/ffmpeg-render";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
-import { checkFreeToolDailyCap, freeToolCapResponseBody } from "@/lib/free-tool-caps";
+import { freeToolGate } from "@/lib/free-tool-caps";
 import { createJobStatusHandler } from "@/lib/job-routes";
-import { getAuthUser } from "@/lib/auth";
+import { saveMediaUpload } from "@/lib/media-upload";
+import { logger } from "@/lib/logger";
 import { resolveUploadPolicy, readUploadForm, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
 import os from "os";
 import path from "path";
@@ -48,23 +49,17 @@ function sweep() {
 
 // ── POST: start a conversion, return a jobId immediately ──────────────────────
 export async function POST(req: NextRequest) {
-  const limit = await rateLimit(`mp3-converter:ip:${getClientIp(req)}`, 5, 3600);
-  if (!limit.allowed) {
-    return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
-  }
-  const daily = await checkFreeToolDailyCap("mp3-converter", `ip:${getClientIp(req)}`);
-  if (!daily.allowed) {
-    return NextResponse.json(freeToolCapResponseBody("mp3-converter", daily.cap), { status: 429 });
-  }
+  // Kill switch, then per-user (or anonymous per-IP) caps.
+  const gate = await freeToolGate(req, "mp3-converter");
+  if (gate instanceof NextResponse) return gate;
 
   sweep();
 
-  // Callable anonymously (IP-rate-limited free tool; only the /dashboard/tools/free/*
-  // pages are login-gated). A session gets the caller's real plan cap, anyone else
-  // ANONYMOUS_MAX_BYTES. Resolved BEFORE the body is read, so an oversized upload is
-  // refused unparsed instead of after it is already held in memory.
-  const auth = await getAuthUser(req);
-  const policy = await resolveUploadPolicy(auth?.userId ?? null, "mp3-converter");
+  // Callable anonymously (only the /dashboard/tools/free/* pages are
+  // login-gated). A session gets the caller's real plan cap, anyone else
+  // ANONYMOUS_MAX_BYTES. Resolved BEFORE the body is read, so an oversized
+  // upload is refused unparsed instead of after it is already held in memory.
+  const policy = await resolveUploadPolicy(gate.auth?.userId ?? null, "mp3-converter");
   const formData = await readUploadForm(req, policy);
   if (formData instanceof NextResponse) return formData;
 
@@ -84,12 +79,11 @@ export async function POST(req: NextRequest) {
   const bitrate = QUALITY_BITRATE[quality] ?? QUALITY_BITRATE.medium;
 
   const jobId = randomUUID();
-  const inputExt = (file.name.split(".").pop() ?? "mp4").toLowerCase();
-  const inputPath = path.join(os.tmpdir(), `${jobId}-input.${inputExt}`);
+  const saved = await saveMediaUpload(file, jobId, "mp4");
+  if (saved instanceof NextResponse) return saved;
+  const { inputPath } = saved;
   const outputPath = path.join(os.tmpdir(), `${jobId}-output.mp3`);
   const downloadName = `${file.name.replace(/\.[^.]+$/, "")}.mp3`;
-
-  fs.writeFileSync(inputPath, Buffer.from(await file.arrayBuffer()));
 
   const job: Job = {
     progress: 0, status: "processing", inputPath, outputPath, downloadName, createdAt: Date.now(),
@@ -102,7 +96,11 @@ export async function POST(req: NextRequest) {
     (pct) => { job.progress = pct; },
   )
     .then(() => { job.progress = 100; job.status = "done"; })
-    .catch((err) => { job.status = "error"; job.error = err instanceof Error ? err.message : "Conversion failed"; })
+    .catch((err) => {
+      logger.error("mp3-converter", "job failed", err);
+      job.status = "error";
+      job.error = "We couldn't convert this file. Make sure it has an audio track and try again.";
+    })
     .finally(() => { try { fs.unlinkSync(inputPath); } catch {} });
 
   return NextResponse.json({ jobId }, { status: 202 });

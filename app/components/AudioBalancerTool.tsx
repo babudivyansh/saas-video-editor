@@ -12,9 +12,9 @@ interface BalanceMode {
 }
 
 const BALANCE_MODES: BalanceMode[] = [
-  { id: "left-only", label: "Left Only", sub: "Keep left, mute right" },
-  { id: "balance-center", label: "Balance Center", sub: "Auto-balance channels" },
-  { id: "right-only", label: "Right Only", sub: "Keep right, mute left" },
+  { id: "left-only", label: "Use left side", sub: "Left channel in both ears" },
+  { id: "balance-center", label: "Even out volume", sub: "Normalise loudness" },
+  { id: "right-only", label: "Use right side", sub: "Right channel in both ears" },
 ];
 
 function fmtMB(bytes: number): string {
@@ -223,7 +223,7 @@ export default function AudioBalancerTool() {
               <IcMusic />
             </div>
             <div className="min-w-0">
-              <h2 className="font-bold text-fg text-[17px] leading-tight">Balance Audio</h2>
+              <h1 className="font-bold text-fg text-[17px] leading-tight">Audio Balancer</h1>
               <p className="text-sm text-fg-muted mt-1">Upload an audio or video file to normalize and balance audio.</p>
             </div>
           </div>

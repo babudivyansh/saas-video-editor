@@ -4,6 +4,7 @@ import { useJobPolling } from "./useJobPolling";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 import { useUploadEntitlement } from "@/app/hooks/useUploadEntitlement";
 import { useAuth } from "@/app/components/AuthContext";
+import { useModKey } from "./useModKey";
 
 interface QualityOption {
   id: string;
@@ -18,15 +19,21 @@ interface ResolutionOption {
   h: number;
 }
 
+// Ordered smallest file → best quality. The ids are the route's compression
+// strengths (lib: QUALITY_CRF); the old labels ("Maximum" … "Minimal") named
+// the compression, so "Low" read as low quality when it meant high.
 const QUALITY_OPTIONS: QualityOption[] = [
-  { id: "maximum", label: "Maximum", sub: "Smallest file size" },
-  { id: "high", label: "High", sub: "Good balance" },
-  { id: "medium", label: "Medium", sub: "Better quality" },
-  { id: "low", label: "Low", sub: "High quality" },
-  { id: "minimal", label: "Minimal", sub: "Best quality" },
+  { id: "maximum", label: "Smallest file", sub: "Most compression" },
+  { id: "high", label: "Small", sub: "Good for sharing" },
+  { id: "medium", label: "Balanced", sub: "Recommended" },
+  { id: "low", label: "High quality", sub: "Larger file" },
+  { id: "minimal", label: "Best quality", sub: "Largest file" },
 ];
 
 const RESOLUTION_TARGETS = [
+  { id: "1080p", label: "1080p", targetH: 1080 },
+  { id: "720p", label: "720p", targetH: 720 },
+  { id: "480p", label: "480p", targetH: 480 },
   { id: "360p", label: "360p", targetH: 360 },
   { id: "240p", label: "240p", targetH: 240 },
 ];
@@ -102,12 +109,13 @@ function Spinner() {
 
 export default function VideoCompressorTool() {
   const inputRef = useRef<HTMLInputElement>(null);
-  const job = useJobPolling({ toolSlug: "video-compressor", token: null, requireAuth: false });
+  const job = useJobPolling({ toolSlug: "video-compressor", token: null, requireAuth: false, maxDurationMs: 30 * 60 * 1000 });
   const fireReviewPrompt = useReviewPromptTrigger();
   const { formattedMaxSize: uploadMaxSizeLabel } = useUploadEntitlement("video-compressor");
   // Sent with the upload so the route applies this user's plan cap — without
   // it every caller counted as anonymous (lib/upload-policy ANONYMOUS_MAX_BYTES).
   const { token } = useAuth();
+  const modKey = useModKey();
   const submittingRef = useRef(false);
   const downloadedForJobId = useRef<string | null>(null);
 
@@ -266,8 +274,8 @@ export default function VideoCompressorTool() {
               <IcVideo />
             </div>
             <div className="min-w-0">
-              <h2 className="font-bold text-fg text-[17px] leading-tight">Compress Video</h2>
-              <p className="text-sm text-fg-muted mt-1">Upload a video file to reduce its file size.</p>
+              <h1 className="font-bold text-fg text-[17px] leading-tight">Compress Video</h1>
+              <p className="text-sm text-fg-muted mt-1">Make a video file smaller for sharing. Smaller sizes lower the quality.</p>
             </div>
           </div>
 
@@ -315,7 +323,7 @@ export default function VideoCompressorTool() {
           {stage !== "idle" && resolutionOptions.length > 0 && (
             <div className="mt-5">
               <p className="text-sm font-semibold text-fg mb-2">Resolution</p>
-              <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${resolutionOptions.length}, 1fr)` }}>
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
                 {resolutionOptions.map(opt => {
                   const active = resolution === opt.id;
                   return (
@@ -344,8 +352,8 @@ export default function VideoCompressorTool() {
           {/* Compression Level selector */}
           {stage !== "idle" && (
             <div className="mt-5">
-              <p className="text-sm font-semibold text-fg mb-2">Compression Level</p>
-              <div className="grid grid-cols-5 gap-2">
+              <p className="text-sm font-semibold text-fg mb-2">File size vs quality</p>
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                 {QUALITY_OPTIONS.map(opt => {
                   const active = quality === opt.id;
                   return (
@@ -377,7 +385,7 @@ export default function VideoCompressorTool() {
           {stage === "processing" && (
             <div className="mt-5">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-fg-muted">Compressing with {qualityLabel} level…</span>
+                <span className="text-fg-muted">Compressing ({qualityLabel})…</span>
                 {realtime > 0 && <span className="text-fg-subtle">~{realtime.toFixed(1)}x real time</span>}
               </div>
               <div className="mt-2 h-2 rounded-full bg-surface-3 overflow-hidden">
@@ -409,7 +417,7 @@ export default function VideoCompressorTool() {
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="font-medium" style={{ color: "var(--success)" }}>Compression level:</span>
+                  <span className="font-medium" style={{ color: "var(--success)" }}>Setting:</span>
                   <span className="font-semibold" style={{ color: "var(--success)" }}>{qualityLabel}</span>
                 </div>
               </div>
@@ -424,8 +432,8 @@ export default function VideoCompressorTool() {
               className="mt-4 w-full inline-flex items-center justify-center gap-2 text-sm font-semibold py-3 rounded-xl transition-colors"
               style={{ background: "var(--primary)", color: "var(--on-primary)" }}
             >
-              <span>Generate Video</span>
-              <span className="ml-auto text-xs opacity-70 bg-black/10 rounded px-1.5 py-0.5">⌘+Enter</span>
+              <span>Compress video</span>
+              <span className="ml-auto hidden sm:inline text-xs opacity-70 bg-black/10 rounded px-1.5 py-0.5">{modKey}+Enter</span>
             </button>
           )}
 

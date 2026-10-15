@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthContext";
@@ -45,27 +46,27 @@ function SadMuffin() {
   return (
     <svg viewBox="0 0 120 130" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-28 h-28">
       {/* sparkles */}
-      <circle cx="18" cy="18" r="2.5" fill="#CBD5E1" />
-      <circle cx="100" cy="22" r="2" fill="#CBD5E1" />
-      <circle cx="108" cy="10" r="1.5" fill="#CBD5E1" />
-      <line x1="100" y1="14" x2="100" y2="10" stroke="#CBD5E1" strokeWidth="1.5" strokeLinecap="round" />
-      <line x1="96" y1="16" x2="92" y2="13" stroke="#CBD5E1" strokeWidth="1.5" strokeLinecap="round" />
-      <line x1="104" y1="16" x2="108" y2="13" stroke="#CBD5E1" strokeWidth="1.5" strokeLinecap="round" />
+      <circle cx="18" cy="18" r="2.5" fill="var(--fg-subtle)" />
+      <circle cx="100" cy="22" r="2" fill="var(--fg-subtle)" />
+      <circle cx="108" cy="10" r="1.5" fill="var(--fg-subtle)" />
+      <line x1="100" y1="14" x2="100" y2="10" stroke="var(--fg-subtle)" strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="96" y1="16" x2="92" y2="13" stroke="var(--fg-subtle)" strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="104" y1="16" x2="108" y2="13" stroke="var(--fg-subtle)" strokeWidth="1.5" strokeLinecap="round" />
       {/* muffin top */}
-      <ellipse cx="60" cy="52" rx="38" ry="34" fill="#D1D5DB" />
+      <ellipse cx="60" cy="52" rx="38" ry="34" fill="var(--surface-3)" />
       {/* sparkle on top */}
-      <circle cx="72" cy="30" r="3" fill="#9CA3AF" />
+      <circle cx="72" cy="30" r="3" fill="var(--fg-subtle)" />
       {/* muffin base/wrapper */}
-      <path d="M24 72 Q24 68 28 68 H92 Q96 68 96 72 L90 108 Q90 112 86 112 H34 Q30 112 30 108 Z" fill="#E5E7EB" />
+      <path d="M24 72 Q24 68 28 68 H92 Q96 68 96 72 L90 108 Q90 112 86 112 H34 Q30 112 30 108 Z" fill="var(--line-strong)" />
       {/* wrapper lines */}
-      <line x1="42" y1="68" x2="38" y2="112" stroke="#D1D5DB" strokeWidth="1.5" />
-      <line x1="60" y1="68" x2="60" y2="112" stroke="#D1D5DB" strokeWidth="1.5" />
-      <line x1="78" y1="68" x2="82" y2="112" stroke="#D1D5DB" strokeWidth="1.5" />
+      <line x1="42" y1="68" x2="38" y2="112" stroke="var(--line-strong)" strokeWidth="1.5" />
+      <line x1="60" y1="68" x2="60" y2="112" stroke="var(--line-strong)" strokeWidth="1.5" />
+      <line x1="78" y1="68" x2="82" y2="112" stroke="var(--line-strong)" strokeWidth="1.5" />
       {/* eyes (×) */}
-      <line x1="46" y1="46" x2="52" y2="52" stroke="#6B7280" strokeWidth="2.5" strokeLinecap="round" />
-      <line x1="52" y1="46" x2="46" y2="52" stroke="#6B7280" strokeWidth="2.5" strokeLinecap="round" />
-      <line x1="68" y1="46" x2="74" y2="52" stroke="#6B7280" strokeWidth="2.5" strokeLinecap="round" />
-      <line x1="74" y1="46" x2="68" y2="52" stroke="#6B7280" strokeWidth="2.5" strokeLinecap="round" />
+      <line x1="46" y1="46" x2="52" y2="52" stroke="var(--fg-muted)" strokeWidth="2.5" strokeLinecap="round" />
+      <line x1="52" y1="46" x2="46" y2="52" stroke="var(--fg-muted)" strokeWidth="2.5" strokeLinecap="round" />
+      <line x1="68" y1="46" x2="74" y2="52" stroke="var(--fg-muted)" strokeWidth="2.5" strokeLinecap="round" />
+      <line x1="74" y1="46" x2="68" y2="52" stroke="var(--fg-muted)" strokeWidth="2.5" strokeLinecap="round" />
     </svg>
   );
 }
@@ -237,7 +238,7 @@ export default function VocalRemoverTool() {
                   <p className="text-sm font-semibold text-fg mb-1">Upload audio/video</p>
                   <p className="text-sm text-brand font-medium mb-3">Drag and drop or click to browse</p>
                   <p className="text-xs text-fg-subtle text-center leading-relaxed">
-                    .mp3, .wav, .ogg, .flac, .m4a, .aac, .mp4, .mov, .avi, .webm • Max 50 MB
+                    .mp3, .wav, .ogg, .flac, .m4a, .aac, .mp4, .mov, .avi, .webm • Max 50 MB · up to 5 minutes
                   </p>
                   <p className="text-xs text-fg-subtle text-center mt-1">{AUDIO_RATE_LABEL["vocal-remover"]} · min 1 credit</p>
                 </div>
@@ -299,7 +300,7 @@ export default function VocalRemoverTool() {
 
             {stage === "cancelled" && (
               <p className="text-sm text-fg-muted bg-surface-2 rounded-lg px-3 py-2">
-                Cancelled — your credit was refunded.
+                Cancelled — your credits were refunded.
               </p>
             )}
 
@@ -328,9 +329,9 @@ export default function VocalRemoverTool() {
           <div className="flex items-center justify-between px-5 py-4 border-b border-line">
             <div>
               <p className="text-sm font-bold text-fg">Recent Vocal Removals</p>
-              <p className="text-xs text-fg-subtle mt-0.5">Select and upload the clip to remove vocal</p>
+              <p className="text-xs text-fg-subtle mt-0.5">Both stems are also saved to your Assets</p>
             </div>
-            <button className="text-xs font-semibold text-brand hover:underline flex-shrink-0">View All</button>
+            <Link href="/dashboard/assets" className="text-xs font-semibold text-brand hover:underline flex-shrink-0">View all</Link>
           </div>
 
           <div className="flex-1 flex flex-col items-center justify-center p-6">
@@ -339,7 +340,7 @@ export default function VocalRemoverTool() {
               <div className="flex flex-col items-center text-center gap-3">
                 <SadMuffin />
                 <p className="text-base font-semibold text-fg">No Output Yet</p>
-                <p className="text-sm text-brand">First, Remove Vocals!</p>
+                <p className="text-sm text-fg-muted">Upload a song to get its instrumental and vocals.</p>
               </div>
             ) : (
               /* Result state */
@@ -361,8 +362,18 @@ export default function VocalRemoverTool() {
                   download={downloadName}
                   className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-semibold grad-brand text-on-primary transition-opacity hover:opacity-90"
                 >
-                  <IcDownload /> Download
+                  <IcDownload /> Download instrumental
                 </a>
+                {typeof job.meta?.vocalsUrl === "string" && (
+                  <a
+                    href={job.meta.vocalsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-semibold border border-line text-fg hover:bg-surface-3 transition-colors"
+                  >
+                    <IcDownload /> Vocals only (acapella)
+                  </a>
+                )}
               </div>
             )}
           </div>

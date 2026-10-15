@@ -64,7 +64,8 @@ export type SourceFeature =
   | "voice-changer"
   | "background-remover"
   | "face-swap"
-  | "subtitle-remover";
+  | "subtitle-remover"
+  | "cut-and-crop";
 
 export interface AdoptResult {
   asset: Asset & { url: string };

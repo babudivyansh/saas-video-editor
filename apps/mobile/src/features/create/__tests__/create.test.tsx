@@ -378,10 +378,13 @@ describe("File tools", () => {
     await chooseFromAssets(/^Guest portrait.png/, /^Face: choose an image/);
     await chooseFromAssets(/^Summit.jpg/, /^Photo to put it on: choose an image/);
     expect(screen.getByText("2 credits")).toBeOnTheScreen();
+    // Both photos chosen, but no consent yet: the button stays off.
+    expect(screen.getByRole("button", { name: "Face swap" })).toBeDisabled();
+    fireEvent(screen.getByRole("switch", { name: "I have permission to use both faces" }), "valueChange", true);
     await waitFor(() => expect(screen.getByRole("button", { name: "Face swap" })).toBeEnabled());
     press("Face swap");
     expect(await screen.findByText("Face swapped. Saved to Assets.")).toBeOnTheScreen();
-    expect(lastToolJob()).toMatchObject({ type: "face-swap", faceAssetId: "a6", targetAssetId: "a4" });
+    expect(lastToolJob()).toMatchObject({ type: "face-swap", faceAssetId: "a6", targetAssetId: "a4", consent: true });
   });
 
   it("voice changer: priced by length, in the chosen voice, with its settings", async () => {
