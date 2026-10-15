@@ -6,9 +6,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // limiting-factor resolution, and the anonymous (no session) fallback.
 
 let tier: "free" | "creator" | "pro" | "studio" = "free";
+let isAdmin = false;
 vi.mock("@/lib/auth", () => ({
   getUserTier: vi.fn(async () => tier),
+  requireAdmin: vi.fn(async () => (isAdmin ? { userId: "admin" } : null)),
 }));
+let maintenance: { on: boolean; message?: string } = { on: false };
+vi.mock("@/lib/flags", () => ({ getMaintenanceModeCached: vi.fn(async () => maintenance) }));
+const { NextRequest } = await import("next/server");
 
 const {
   resolveUploadPolicy,
@@ -16,11 +21,16 @@ const {
   UploadPolicyError,
   uploadPolicyErrorStatus,
   FEATURE_TECHNICAL_MAX_BYTES,
+  ANONYMOUS_MAX_BYTES,
+  MULTIPART_OVERHEAD_BYTES,
+  readUploadForm,
 } = await import("./upload-policy");
 const { MAX_UPLOAD_BYTES_BY_TIER } = await import("./plans/tiers");
 
 beforeEach(() => {
   tier = "free";
+  isAdmin = false;
+  maintenance = { on: false };
 });
 
 describe("resolveUploadPolicy — effective = min(plan, feature, provider)", () => {
@@ -53,12 +63,115 @@ describe("resolveUploadPolicy — effective = min(plan, feature, provider)", () 
     }
   });
 
-  it("anonymous caller (no session) gets only the feature's technical cap — no plan term applies", async () => {
+  it("anonymous caller (no session) is held to ANONYMOUS_MAX_BYTES, not the 500MB feature ceiling", async () => {
     const policy = await resolveUploadPolicy(null, "audio-balancer");
     expect(policy.tier).toBeNull();
-    expect(policy.planMaxBytes).toBeUndefined();
-    expect(policy.effectiveMaxBytes).toBe(FEATURE_TECHNICAL_MAX_BYTES["audio-balancer"]);
-    expect(policy.limitingFactor).toBe("feature");
+    expect(policy.planMaxBytes).toBe(ANONYMOUS_MAX_BYTES);
+    expect(ANONYMOUS_MAX_BYTES).toBeLessThan(FEATURE_TECHNICAL_MAX_BYTES["audio-balancer"]);
+    expect(policy.effectiveMaxBytes).toBe(ANONYMOUS_MAX_BYTES);
+    expect(policy.limitingFactor).toBe("plan");
+    expect(policy.planLabel).toBe("Guest");
+  });
+
+  it("anonymous rejection asks the caller to sign in, not to upgrade", async () => {
+    const policy = await resolveUploadPolicy(null, "mp3-converter");
+    expect(() => assertWithinUploadPolicy(policy, ANONYMOUS_MAX_BYTES + 1)).toThrow(/Sign in to upload/);
+  });
+});
+
+describe("readUploadForm — size enforced before the body is buffered", () => {
+  const boundary = "----test";
+  const multipart = (bytes: number) =>
+    `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="a.mp3"\r\nContent-Type: audio/mpeg\r\n\r\n` +
+    "x".repeat(bytes) + `\r\n--${boundary}--\r\n`;
+
+  it("parses a body that fits", async () => {
+    const policy = await resolveUploadPolicy(null, "mp3-converter");
+    const body = multipart(1000);
+    const req = new NextRequest("http://l/x", {
+      method: "POST",
+      headers: { "content-type": `multipart/form-data; boundary=${boundary}`, "content-length": String(body.length) },
+      body,
+    });
+    const form = await readUploadForm(req, policy);
+    expect(form).toBeInstanceOf(FormData);
+    expect(((form as FormData).get("file") as File).size).toBe(1000);
+  });
+
+  it("413s a declared Content-Length over the limit without reading the body", async () => {
+    const policy = await resolveUploadPolicy(null, "mp3-converter");
+    let pulled = false;
+    const req = new NextRequest("http://l/x", {
+      method: "POST",
+      headers: {
+        "content-type": `multipart/form-data; boundary=${boundary}`,
+        "content-length": String(ANONYMOUS_MAX_BYTES + MULTIPART_OVERHEAD_BYTES + 1),
+      },
+      // highWaterMark 0: pull() runs only when someone actually reads.
+      body: new ReadableStream({ pull() { pulled = true; } }, { highWaterMark: 0 }),
+      // @ts-expect-error — Node's fetch needs this for a stream body
+      duplex: "half",
+    });
+    const res = await readUploadForm(req, policy);
+    expect(res).not.toBeInstanceOf(FormData);
+    expect((res as Response).status).toBe(413);
+    expect(((await (res as Response).json()) as { error: string }).error).toMatch(/Sign in to upload/);
+    expect(pulled).toBe(false);
+  });
+
+  it("cuts off a chunked body (no Content-Length) as soon as it passes the limit", async () => {
+    tier = "studio";
+    const policy = await resolveUploadPolicy("u1", "face-swap"); // 10 MB
+    const limit = policy.effectiveMaxBytes + MULTIPART_OVERHEAD_BYTES;
+    const chunk = new Uint8Array(1024 * 1024);
+    let sent = 0;
+    const req = new NextRequest("http://l/x", {
+      method: "POST",
+      headers: { "content-type": `multipart/form-data; boundary=${boundary}` },
+      body: new ReadableStream({
+        pull(controller) {
+          // An endless body: only the reader's cut-off can end this test.
+          sent += chunk.byteLength;
+          controller.enqueue(chunk);
+        },
+      }),
+      // @ts-expect-error — Node's fetch needs this for a stream body
+      duplex: "half",
+    });
+    const res = await readUploadForm(req, policy);
+    expect((res as Response).status).toBe(413);
+    expect(sent).toBeLessThan(limit + 4 * chunk.byteLength);
+  });
+
+  it("503s during maintenance (the proxy gate it replaces), but lets an admin through", async () => {
+    const policy = await resolveUploadPolicy(null, "mp3-converter");
+    const body = multipart(10);
+    const make = () => new NextRequest("http://l/x", {
+      method: "POST",
+      headers: { "content-type": `multipart/form-data; boundary=${boundary}`, "content-length": String(body.length) },
+      body,
+    });
+    maintenance = { on: true, message: "Back soon" };
+    const res = (await readUploadForm(make(), policy)) as Response;
+    expect(res.status).toBe(503);
+    expect(((await res.json()) as { error: string }).error).toBe("Back soon");
+    isAdmin = true;
+    expect(await readUploadForm(make(), policy)).toBeInstanceOf(FormData);
+  });
+
+  it("scales the limit for multi-file routes", async () => {
+    tier = "studio";
+    const policy = await resolveUploadPolicy("u1", "face-swap");
+    const twoFiles = 2 * policy.effectiveMaxBytes;
+    const req = (n: number) => new NextRequest("http://l/x", {
+      method: "POST",
+      headers: { "content-type": `multipart/form-data; boundary=${boundary}`, "content-length": String(twoFiles) },
+      body: multipart(10),
+    });
+    expect(((await readUploadForm(req(1), policy, 1)) as Response).status).toBe(413);
+    // Same declared size passes the length gate with room for 2 files (the
+    // tiny real body then parses normally).
+    expect(await readUploadForm(req(2), policy, 2)).toBeInstanceOf(FormData);
   });
 });
 

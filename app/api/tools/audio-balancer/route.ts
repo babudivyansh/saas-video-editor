@@ -4,7 +4,7 @@ import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { checkFreeToolDailyCap, freeToolCapResponseBody } from "@/lib/free-tool-caps";
 import { createJobStatusHandler } from "@/lib/job-routes";
 import { getAuthUser } from "@/lib/auth";
-import { resolveUploadPolicy, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
+import { resolveUploadPolicy, readUploadForm, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -53,24 +53,18 @@ export async function POST(req: NextRequest) {
 
   sweep();
 
-  let formData: FormData;
-  try {
-    formData = await req.formData();
-  } catch {
-    return NextResponse.json({ error: "Invalid multipart body" }, { status: 400 });
-  }
+  // Callable anonymously (IP-rate-limited free tool; only the /dashboard/tools/free/*
+  // pages are login-gated). A session gets the caller's real plan cap, anyone else
+  // ANONYMOUS_MAX_BYTES. Resolved BEFORE the body is read, so an oversized upload is
+  // refused unparsed instead of after it is already held in memory.
+  const auth = await getAuthUser(req);
+  const policy = await resolveUploadPolicy(auth?.userId ?? null, "audio-balancer");
+  const formData = await readUploadForm(req, policy);
+  if (formData instanceof NextResponse) return formData;
 
   const file = formData.get("file") as File | null;
   if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 });
 
-  // This route is intentionally callable anonymously (IP-rate-limited free
-  // tool, no login wall on the API itself — only /dashboard/tools/free/* is
-  // login-gated at the page level). When a session IS present, resolve the
-  // real subscription tier so a logged-in paid user gets their actual plan
-  // cap instead of the flat feature ceiling; an anonymous caller only gets
-  // the feature's technical ceiling, since there's no plan to resolve.
-  const auth = await getAuthUser(req);
-  const policy = await resolveUploadPolicy(auth?.userId ?? null, "audio-balancer");
   try {
     assertWithinUploadPolicy(policy, file.size);
   } catch (e) {

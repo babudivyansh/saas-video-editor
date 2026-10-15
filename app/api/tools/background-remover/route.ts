@@ -8,7 +8,7 @@ import { logger } from "@/lib/logger";
 import { saveToolResult } from "@/lib/tool-results";
 import { env } from "@/lib/env";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress } from "@/lib/credits";
-import { resolveUploadPolicy, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
+import { resolveUploadPolicy, readUploadForm, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
 import { createJobStatusHandler, createJobCancelHandler, idempotencyResponse, type CancellableJob } from "@/lib/job-routes";
 import os from "os";
 import path from "path";
@@ -122,9 +122,9 @@ async function handlePOST(req: NextRequest) {
     return NextResponse.json({ error: "Background remover not configured (missing FAL_KEY)" }, { status: 503 });
   }
 
-  let formData: FormData;
-  try { formData = await req.formData(); }
-  catch { return NextResponse.json({ error: "Invalid multipart body" }, { status: 400 }); }
+  const policy = await resolveUploadPolicy(auth.userId, "background-remover");
+  const formData = await readUploadForm(req, policy);
+  if (formData instanceof NextResponse) return formData;
 
   const file = formData.get("file") as File | null;
   if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 });
@@ -134,7 +134,6 @@ async function handlePOST(req: NextRequest) {
     return NextResponse.json({ error: "Only PNG, JPG, WEBP, GIF images are supported" }, { status: 400 });
   }
 
-  const policy = await resolveUploadPolicy(auth.userId, "background-remover");
   try {
     assertWithinUploadPolicy(policy, file.size);
   } catch (e) {

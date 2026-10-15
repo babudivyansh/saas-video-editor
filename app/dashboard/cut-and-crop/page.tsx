@@ -6,6 +6,9 @@ import { useJobPolling } from "@/app/components/useJobPolling";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 import { computeMask, type Aspect } from "@/lib/crop";
 
+// Must match MAX_CLIPS in app/api/tools/cut-and-crop/route.ts.
+const MAX_CLIPS = 5;
+
 // ── Types ────────────────────────────────────────────────────────────────────
 interface Clip {
   id: string;
@@ -260,10 +263,21 @@ export default function CutAndCropPage() {
   // File ingestion
   function handleFiles(list: FileList | null) {
     if (!list || list.length === 0) return;
+    const videos = Array.from(list).filter((file) => file.type.startsWith("video/"));
+    // The export route takes MAX_CLIPS files at most; refuse the rest here
+    // rather than letting the user build a timeline that can't be exported.
+    const room = Math.max(0, MAX_CLIPS - clips.length);
+    if (videos.length > room) {
+      setPreflightError(`You can add up to ${MAX_CLIPS} clips per export.`);
+    }
+    const accepted = videos.slice(0, room);
+    if (accepted.length === 0) {
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
     pushHistory();
     const added: Clip[] = [];
-    for (const file of Array.from(list)) {
-      if (!file.type.startsWith("video/")) continue;
+    for (const file of accepted) {
       const id = crypto.randomUUID();
       const url = URL.createObjectURL(file);
       added.push({ id, file, url, name: file.name, duration: 0, trimStart: 0, trimEnd: 0 });

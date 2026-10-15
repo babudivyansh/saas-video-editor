@@ -13,7 +13,8 @@
 // are untouched by this module — they remain the authority for anything that
 // becomes a persisted Asset (uploads, multipart, URL import, avatars,
 // stock re-hosts).
-import { getUserTier } from "@/lib/auth";
+import { NextResponse, type NextRequest } from "next/server";
+import { getUserTier, requireAdmin } from "@/lib/auth";
 import {
   type TierId,
   TIER_LABEL,
@@ -76,6 +77,15 @@ export const FEATURE_TECHNICAL_MAX_BYTES: Record<UploadFeature, number> = {
 // for any of these features today (audit §13) — this map is the deliberate
 // extension point for when one is confirmed against a provider's real docs.
 // Left empty on purpose: DO NOT populate with a guessed number.
+/**
+ * Ceiling for a caller with NO session — the three free tools accept anonymous
+ * requests. Their 500 MB feature ceilings were sized for signed-in plans, and
+ * every byte of a multipart body is held in memory while it is parsed, so an
+ * unauthenticated 500 MB upload per request (times a few IPs) was enough to
+ * exhaust the host. Signed-in callers get their real plan cap instead.
+ */
+export const ANONYMOUS_MAX_BYTES = 100 * 1024 * 1024;
+
 export const PROVIDER_TECHNICAL_MAX_BYTES: Partial<Record<UploadFeature, number>> = {};
 
 export type UploadLimitingFactor = "plan" | "feature" | "provider" | "storage";
@@ -84,7 +94,7 @@ export interface UploadPolicy {
   /** null when no authenticated user is available (an anonymous-callable free tool) — see resolveUploadPolicy. */
   tier: TierId | null;
   planLabel: string;
-  /** Undefined when there's no signed-in user to resolve a plan for. */
+  /** ANONYMOUS_MAX_BYTES when there's no signed-in user to resolve a plan for. */
   planMaxBytes: number | undefined;
   featureMaxBytes: number;
   providerMaxBytes: number | undefined;
@@ -109,15 +119,15 @@ function tierDisplayName(tier: TierId): string {
  * database via getUserTier, exactly like the Asset Library's own
  * assertFileSizeAllowed. Pass `null` only for the handful of routes that are
  * deliberately anonymous-callable (IP-rate-limited free tools with no login
- * requirement on the route itself) — in that case only the feature's
- * technical cap applies, since there is no plan to resolve.
+ * requirement on the route itself) — in that case ANONYMOUS_MAX_BYTES stands
+ * in for the plan cap, since there is no plan to resolve.
  */
 export async function resolveUploadPolicy(userId: string | null, feature: UploadFeature): Promise<UploadPolicy> {
   const featureMaxBytes = FEATURE_TECHNICAL_MAX_BYTES[feature];
   const providerMaxBytes = PROVIDER_TECHNICAL_MAX_BYTES[feature];
 
   const tier = userId ? await getUserTier(userId) : null;
-  const planMaxBytes = tier ? maxUploadBytesForTier(tier) : undefined;
+  const planMaxBytes = tier ? maxUploadBytesForTier(tier) : ANONYMOUS_MAX_BYTES;
 
   let effectiveMaxBytes = featureMaxBytes;
   let limitingFactor: Exclude<UploadLimitingFactor, "storage"> = "feature";
@@ -173,6 +183,9 @@ function uploadPolicyMessage(
   factor: UploadLimitingFactor,
   featureLabel: string,
 ): string {
+  if (factor === "plan" && !tier) {
+    return `This file is ${formatBytes(actualBytes)}. Sign in to upload files larger than ${formatBytes(limitBytes)}.`;
+  }
   if (factor === "plan" && tier) {
     return `This file is ${formatBytes(actualBytes)}, but your ${tierDisplayName(tier)} plan supports files up to ${formatBytes(limitBytes)}. Upgrade to upload larger files.`;
   }
@@ -209,4 +222,96 @@ export function uploadPolicyErrorBody(e: UploadPolicyError, policy: UploadPolicy
     planMaxBytes: policy.planMaxBytes,
     featureMaxBytes: policy.featureMaxBytes,
   };
+}
+
+// Same upgrade rule as uploadPolicyMessage, minus the actual size: the body
+// was refused before any file in it could be measured.
+function bodyTooLargeMessage(policy: UploadPolicy): string {
+  const max = formatBytes(policy.effectiveMaxBytes);
+  if (policy.limitingFactor === "plan" && !policy.tier) return `Sign in to upload files larger than ${max}.`;
+  if (policy.limitingFactor === "plan" && policy.tier) {
+    return `Your ${tierDisplayName(policy.tier)} plan supports files up to ${max}. Upgrade to upload larger files.`;
+  }
+  return `${policy.featureLabel} accepts files up to ${max}.`;
+}
+
+/** Room for multipart boundaries, headers and the small text fields that ride
+ * along with the file(s). */
+export const MULTIPART_OVERHEAD_BYTES = 1024 * 1024;
+
+/**
+ * Parse a tool route's multipart body, refusing it BEFORE it is buffered when
+ * it cannot possibly fit the policy. Returns the FormData, or a 413/400
+ * response for the route to return as-is.
+ *
+ * `req.formData()` holds the whole body in memory, and the per-file
+ * assertWithinUploadPolicy check can only run after it — so every size limit
+ * used to be enforced after the bytes were already in RAM, up to the 500 MB
+ * proxy ceiling, on routes that anonymous callers can reach. A declared
+ * Content-Length over the limit is now rejected without reading the body; a
+ * body with no Content-Length (chunked) is counted as it streams in and cut
+ * off the moment it passes the limit.
+ *
+ * `maxFiles` sizes the limit for routes that take several files per request
+ * (each still checked individually afterwards).
+ */
+export async function readUploadForm(
+  req: NextRequest,
+  policy: UploadPolicy,
+  maxFiles = 1,
+): Promise<FormData | NextResponse> {
+  // Every caller is excluded from proxy.ts's matcher (Next would otherwise
+  // buffer the whole body for the proxy before any of this runs — see the
+  // matcher there), so the proxy's maintenance gate runs here instead.
+  const { getMaintenanceModeCached } = await import("@/lib/flags");
+  const maint = await getMaintenanceModeCached().catch(() => ({ on: false, message: undefined }));
+  if (maint.on && !(await requireAdmin(req).catch(() => null))) {
+    return NextResponse.json(
+      { error: maint.message || "Clipiro is briefly down for maintenance — back shortly.", maintenance: true },
+      { status: 503, headers: { "Retry-After": "300" } },
+    );
+  }
+
+  const limit = policy.effectiveMaxBytes * maxFiles + MULTIPART_OVERHEAD_BYTES;
+  const tooLarge = () =>
+    NextResponse.json(
+      {
+        error: bodyTooLargeMessage(policy),
+        limitBytes: policy.effectiveMaxBytes,
+        limitingFactor: policy.limitingFactor,
+        plan: policy.planLabel,
+        planMaxBytes: policy.planMaxBytes,
+        featureMaxBytes: policy.featureMaxBytes,
+      },
+      { status: 413 },
+    );
+
+  const declared = req.headers.get("content-length");
+  try {
+    if (declared !== null) {
+      if (Number(declared) > limit) return tooLarge();
+      return await req.formData();
+    }
+    if (!req.body) return await req.formData();
+
+    // No declared length: count the bytes ourselves and stop at the limit.
+    const reader = req.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > limit) {
+        await reader.cancel().catch(() => {});
+        return tooLarge();
+      }
+      chunks.push(value);
+    }
+    return await new Response(new Blob(chunks as BlobPart[]), {
+      headers: { "content-type": req.headers.get("content-type") ?? "" },
+    }).formData();
+  } catch {
+    return NextResponse.json({ error: "Invalid multipart body" }, { status: 400 });
+  }
 }
