@@ -8,16 +8,12 @@ import { motion } from "framer-motion";
 import dynamic from "next/dynamic";
 import {
   Clapperboard,
-  Image as ImageIcon,
-  Video,
   Music2,
   Type,
   Captions,
-  Sticker as StickerIcon,
+  Shapes,
   Wand2,
-  Filter as FilterIcon,
-  ArrowLeftRight,
-  Keyboard,
+  Sparkles,
   ChevronLeft,
 } from "lucide-react";
 import { useEditorStore, type PanelKind } from "../store/editorStore";
@@ -37,21 +33,24 @@ const StickerPanel = dynamic(() => import("./panels/StickerPanel"), { ssr: false
 const EffectPanel = dynamic(() => import("./panels/EffectPanel"), { ssr: false });
 const FilterPanel = dynamic(() => import("./panels/FilterPanel"), { ssr: false });
 const TransitionPanel = dynamic(() => import("./panels/TransitionPanel"), { ssr: false });
-const KeyboardPanel = dynamic(() => import("./panels/KeyboardPanel"), { ssr: false });
+const AiToolsPanel = dynamic(() => import("./panels/AiToolsPanel"), { ssr: false });
 
-const TABS: { id: PanelKind; label: string; icon: React.ReactNode }[] = [
-  { id: "media", label: "Media", icon: <Clapperboard className="h-5 w-5" /> },
-  { id: "image", label: "Image", icon: <ImageIcon className="h-5 w-5" /> },
-  { id: "video", label: "Video", icon: <Video className="h-5 w-5" /> },
-  { id: "audio", label: "Audio", icon: <Music2 className="h-5 w-5" /> },
-  { id: "text", label: "Text", icon: <Type className="h-5 w-5" /> },
-  { id: "caption", label: "Caption", icon: <Captions className="h-5 w-5" /> },
-  { id: "sticker", label: "Sticker", icon: <StickerIcon className="h-5 w-5" /> },
-  { id: "effect", label: "Effect", icon: <Wand2 className="h-5 w-5" /> },
-  { id: "filter", label: "Filter", icon: <FilterIcon className="h-5 w-5" /> },
-  { id: "transition", label: "Transition", icon: <ArrowLeftRight className="h-5 w-5" /> },
-  { id: "keyboard", label: "Keys", icon: <Keyboard className="h-5 w-5" /> },
+// Seven groups (redesign, 2026-10). Each opens on its first panel; groups with
+// more than one panel show a small tab row at the top of the panel.
+const GROUPS: { id: string; label: string; icon: React.ReactNode; panels: { id: PanelKind; label: string }[]; ai?: boolean }[] = [
+  { id: "media", label: "Media", icon: <Clapperboard className="h-5 w-5" />, panels: [
+    { id: "media", label: "Your media" }, { id: "video", label: "Stock video" }, { id: "image", label: "Stock images" },
+  ] },
+  { id: "text", label: "Text", icon: <Type className="h-5 w-5" />, panels: [{ id: "text", label: "Text" }] },
+  { id: "caption", label: "Captions", icon: <Captions className="h-5 w-5" />, panels: [{ id: "caption", label: "Captions" }] },
+  { id: "audio", label: "Audio", icon: <Music2 className="h-5 w-5" />, panels: [{ id: "audio", label: "Music" }] },
+  { id: "elements", label: "Elements", icon: <Shapes className="h-5 w-5" />, panels: [{ id: "sticker", label: "Stickers & GIFs" }] },
+  { id: "effects", label: "Effects", icon: <Wand2 className="h-5 w-5" />, panels: [
+    { id: "effect", label: "Effects" }, { id: "filter", label: "Filters" }, { id: "transition", label: "Transitions" },
+  ] },
+  { id: "ai", label: "AI tools", icon: <Sparkles className="h-5 w-5" />, panels: [{ id: "ai", label: "AI tools" }], ai: true },
 ];
+const groupOf = (p: PanelKind) => GROUPS.find((g) => g.panels.some((x) => x.id === p)) ?? GROUPS[0];
 
 export default function SidebarTabs() {
   const activePanel = useEditorStore((s) => s.activePanel);
@@ -72,32 +71,32 @@ export default function SidebarTabs() {
       {isCompact && !collapsed && (
         <div data-testid="editor-panel-backdrop" className="fixed inset-0 z-30 bg-black/30 xl:hidden" onClick={() => setCollapsed(true)} />
       )}
-      {/* Icon rail — icon + always-visible label (11 distinct content-type
-          tabs benefit from a text label, unlike single-purpose icon buttons
-          elsewhere in the chrome). */}
-      <div className="flex w-16 flex-col items-center gap-1 overflow-y-auto border-r border-editor-border py-3">
-        {TABS.map((tab) => {
-          const active = activePanel === tab.id && !collapsed;
+      {/* Icon rail — icon + always-visible label. */}
+      <div className="flex w-[72px] flex-col items-center gap-1 overflow-y-auto border-r border-editor-border py-3">
+        {GROUPS.map((tab, i) => {
+          const active = groupOf(activePanel).id === tab.id && !collapsed;
           return (
+            <React.Fragment key={tab.id}>
+            {tab.ai && i > 0 && <span aria-hidden="true" className="my-1 h-px w-8 bg-editor-border" />}
             <motion.button
-              key={tab.id}
               type="button"
+              aria-pressed={active}
               onClick={() => {
-                if (collapsed && activePanel === tab.id) setCollapsed(false);
-                setActivePanel(tab.id);
+                setActivePanel(groupOf(activePanel).id === tab.id ? activePanel : tab.panels[0].id);
                 setCollapsed(false);
               }}
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
               className={`flex w-14 flex-shrink-0 flex-col items-center gap-1 rounded-editor-md py-2 text-[10px] font-semibold transition-colors cursor-pointer ${
                 active
-                  ? "bg-editor-accent/15 text-editor-accent shadow-editor-glow"
-                  : "text-editor-text-muted hover:bg-editor-card hover:text-editor-text"
+                  ? "bg-editor-card text-editor-text [&>svg]:text-editor-accent"
+                  : `text-editor-text-muted hover:bg-editor-card hover:text-editor-text ${tab.ai ? "[&>svg]:text-[var(--primary)]" : ""}`
               }`}
             >
               {tab.icon}
               {tab.label}
             </motion.button>
+            </React.Fragment>
           );
         })}
       </div>
@@ -112,6 +111,22 @@ export default function SidebarTabs() {
         className="fixed inset-y-0 left-16 z-40 bg-editor-bg shadow-2xl xl:static xl:inset-auto xl:left-auto xl:z-auto xl:shadow-none"
       >
         <div className="h-full w-80 overflow-y-auto overflow-x-hidden">
+          {groupOf(activePanel).panels.length > 1 && (
+            <div role="tablist" aria-label={groupOf(activePanel).label} className="sticky top-0 z-10 flex gap-1 border-b border-editor-border bg-editor-bg/95 p-2 backdrop-blur">
+              {groupOf(activePanel).panels.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={activePanel === p.id}
+                  onClick={() => setActivePanel(p.id)}
+                  className={`flex-1 rounded-editor-sm px-2 py-1.5 text-[12px] font-semibold transition-colors ${activePanel === p.id ? "bg-editor-card text-editor-text" : "text-editor-text-muted hover:text-editor-text"}`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          )}
           {activePanel === "media" && <MediaPanel />}
           {activePanel === "image" && <StockImagePanel />}
           {activePanel === "video" && <StockVideoPanel />}
@@ -122,7 +137,7 @@ export default function SidebarTabs() {
           {activePanel === "effect" && <EffectPanel />}
           {activePanel === "filter" && <FilterPanel />}
           {activePanel === "transition" && <TransitionPanel />}
-          {activePanel === "keyboard" && <KeyboardPanel />}
+          {activePanel === "ai" && <AiToolsPanel />}
         </div>
       </motion.div>
 

@@ -73,14 +73,15 @@ describe("TextClipProps — ai tab", () => {
     expect(refreshUser).toHaveBeenCalled();
   });
 
-  it("blocks the request client-side and shows an error when credits are insufficient, without calling fetch", async () => {
+  // AI text edits are free (daily fair-use cap on the server), so an empty
+  // credit balance must not stop the request.
+  it("still sends the request with no credits — the edit is free", async () => {
     authUser = { credits: 0 };
     render(<TextClipProps clip={makeClip()} activeTab="ai" />);
     await userEvent.click(screen.getByRole("button", { name: /Rewrite this text/ }));
 
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(updateClip).not.toHaveBeenCalled();
-    expect(await screen.findByText(/Not enough credits/)).toBeInTheDocument();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(screen.queryByText(/Not enough credits/)).not.toBeInTheDocument();
   });
 
   it("shows the server's error and does not patch the clip on a 402", async () => {

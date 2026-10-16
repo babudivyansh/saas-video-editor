@@ -10,6 +10,7 @@ import type { AnyClip, Aspect, AudioClip, CaptionClip, ImageClip, TextClip, Time
 import { DEFAULT_DOC, MIN_CLIP_DURATION, normalizeDoc } from "@/lib/editor/types";
 import { placeCaptionClip, placeVideoClip, splitCaptionClip, splitVideoClip, videoClipAt } from "@/lib/editor/doc-utils";
 import { emptyHistory, pushHistory, redo, undo, type HistoryState } from "./history";
+import { realignWords } from "@/lib/editor/caption-words";
 
 // "conflict" = the server rejected our last save because a newer version (from
 // another tab/device) already landed — see app/dashboard/editor/hooks/useAutosave.ts.
@@ -28,7 +29,8 @@ export type PanelKind =
   | "effect"
   | "filter"
   | "transition"
-  | "keyboard";
+  | "keyboard"
+  | "ai";
 
 export interface Selection {
   clipId: string;
@@ -52,6 +54,10 @@ interface EditorState {
   snapEnabled: boolean;
   activePanel: PanelKind;
   exportOpen: boolean;
+  /** Ctrl K command bar. */
+  paletteOpen: boolean;
+  /** Keyboard shortcuts sheet (title menu → Keyboard shortcuts, or ?). */
+  shortcutsOpen: boolean;
   saveState: SaveState;
   focusTextClipId: string | null; // set by "Add Text"/double-click-on-canvas to focus the Lexical editor in the properties panel
 
@@ -78,6 +84,8 @@ interface EditorState {
   setZoom: (z: number) => void;
   toggleSnap: () => void;
   setExportOpen: (open: boolean) => void;
+  setPaletteOpen: (open: boolean) => void;
+  setShortcutsOpen: (open: boolean) => void;
   requestTextFocus: (clipId: string) => void;
   clearTextFocus: () => void;
 
@@ -98,6 +106,8 @@ interface EditorState {
   mergeCaptionClips: (clipIdA: string, clipIdB: string) => void;
   moveCaptionClipTransient: (clipId: string, newStart: number) => void;
   applyCaptionStyle: (patch: Partial<CaptionClip>) => void;
+  /** Rewrites every caption's text with `edit` as one undo step, keeping word timings in step. Returns how many changed. */
+  applyCaptionTextEdit: (edit: (text: string) => string) => number;
   updateClip: (track: TrackKind, clipId: string, patch: Record<string, unknown>, undoable?: boolean) => void;
   commitDrag: (before: TimelineDoc) => void;
   moveVideoClipTransient: (clipId: string, newStart: number) => void;
@@ -126,6 +136,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   snapEnabled: true,
   activePanel: "media",
   exportOpen: false,
+  paletteOpen: false,
+  shortcutsOpen: false,
   saveState: "saved",
   focusTextClipId: null,
 
@@ -168,7 +180,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setActivePanel: (p) => set({ activePanel: p }),
   setZoom: (z) => set({ zoom: Math.min(300, Math.max(10, z)) }),
   toggleSnap: () => set((s) => ({ snapEnabled: !s.snapEnabled })),
-  setExportOpen: (open) => set({ exportOpen: open }),
+  setExportOpen: (open) => set({ exportOpen: open, paletteOpen: false }),
+  setPaletteOpen: (open) => set({ paletteOpen: open }),
+  setShortcutsOpen: (open) => set({ shortcutsOpen: open, paletteOpen: false }),
   requestTextFocus: (clipId) => set({ focusTextClipId: clipId }),
   clearTextFocus: () => set({ focusTextClipId: null }),
 
@@ -309,6 +323,21 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       doc: { ...s.doc, tracks: { ...s.doc.tracks, caption: s.doc.tracks.caption.map((c) => ({ ...c, ...patch })) } },
       saveState: "dirty",
     })),
+
+  applyCaptionTextEdit: (edit) => {
+    const s = get();
+    let changed = 0;
+    const caption = s.doc.tracks.caption.map((c) => {
+      const text = edit(c.text);
+      if (text === c.text) return c;
+      changed++;
+      return { ...c, text, words: realignWords(c.words, text) };
+    });
+    if (changed > 0) {
+      set({ history: pushHistory(s.history, s.doc), doc: { ...s.doc, tracks: { ...s.doc.tracks, caption } }, saveState: "dirty" });
+    }
+    return changed;
+  },
 
   updateClip: (track, clipId, patch, undoable = true) =>
     set((s) => {

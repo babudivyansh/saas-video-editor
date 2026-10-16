@@ -5,6 +5,7 @@
 // space = play/pause · S = split · Delete = remove · Ctrl+Z / Ctrl+Y = undo/redo
 // Ctrl+C = copy · Ctrl+D = duplicate · Ctrl+V = paste at playhead
 // ←/→ = nudge playhead one frame (1/30s), with shift = 1s
+// Ctrl+K = command bar (works while typing too) · ? = shortcuts sheet
 
 import { useEffect } from "react";
 import { useEditorStore } from "../store/editorStore";
@@ -14,10 +15,26 @@ const FRAME = 1 / 30;
 export function useKeyboardShortcuts() {
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
+      const s = useEditorStore.getState();
+
+      // Ctrl/Cmd+K works everywhere, including while typing — it's how you
+      // get to the command bar from the title or a text field.
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        s.setPaletteOpen(!s.paletteOpen);
+        return;
+      }
+
       const target = e.target as HTMLElement;
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
+      // While the command bar or a dialog is open its own keys win.
+      if (s.paletteOpen || s.shortcutsOpen || s.exportOpen) return;
 
-      const s = useEditorStore.getState();
+      if (e.key === "?") {
+        e.preventDefault();
+        s.setShortcutsOpen(true);
+        return;
+      }
 
       if (e.code === "Space") {
         e.preventDefault();

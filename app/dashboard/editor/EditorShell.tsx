@@ -9,9 +9,10 @@ import Link from "next/link";
 import Image from "next/image";
 import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
-import { ChevronLeft, Sparkles, User as UserIcon, LogOut } from "lucide-react";
+import { ChevronLeft, Sparkles, User as UserIcon, LogOut, Undo2, Redo2, Search } from "lucide-react";
 import type { Aspect } from "@/lib/editor/types";
 import { useAuth } from "@/app/components/AuthContext";
+import { useModKey } from "./hooks/useModKey";
 import { useEditorStore } from "./store/editorStore";
 import { useAutosave, reloadLatestProject } from "./hooks/useAutosave";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
@@ -23,7 +24,9 @@ import Timeline from "./components/timeline/Timeline";
 // still bundles it into the initial editor chunk regardless — React just
 // doesn't mount it early. Dynamic import defers the actual code fetch too.
 const ExportModal = dynamic(() => import("./components/ExportModal"), { ssr: false });
-import { Button } from "./components/ui";
+const CommandPalette = dynamic(() => import("./components/CommandPalette"), { ssr: false });
+const ShortcutsSheet = dynamic(() => import("./components/ShortcutsSheet"), { ssr: false });
+import { ExportSplitButton, TitleMenu } from "./components/header/HeaderMenus";
 import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
 
 const ASPECTS: Aspect[] = ["9:16", "1:1", "16:9"];
@@ -42,7 +45,11 @@ export default function EditorShell() {
   const saveState = useEditorStore((s) => s.saveState);
   const projectId = useEditorStore((s) => s.projectId);
   const exportOpen = useEditorStore((s) => s.exportOpen);
-  const setExportOpen = useEditorStore((s) => s.setExportOpen);
+  const undoAction = useEditorStore((s) => s.undoAction);
+  const redoAction = useEditorStore((s) => s.redoAction);
+  const setPaletteOpen = useEditorStore((s) => s.setPaletteOpen);
+  const { user } = useAuth();
+  const modKey = useModKey();
   const [reloading, setReloading] = useState(false);
   // Replaces window.confirm / window.alert, which blocked the tab and looked
   // like a browser warning rather than part of the product.
@@ -67,22 +74,23 @@ export default function EditorShell() {
 
   return (
     <div className="clipiro-editor flex h-[100dvh] flex-col overflow-hidden bg-editor-bg font-sans text-editor-text">
-      {/* Top bar */}
-      <header className="flex h-14 flex-shrink-0 items-center justify-between border-b border-editor-border bg-editor-glass px-5 backdrop-blur-editor-glass">
-        <div className="flex items-center gap-3">
+      {/* Top bar — the "command header" from the 2026-10 redesign (A):
+          project + title menu on the left, undo/redo and the command bar in
+          the middle, shape, credits and Export on the right. */}
+      <header className="flex h-14 flex-shrink-0 items-center gap-3 border-b border-editor-border bg-editor-glass px-3 backdrop-blur-editor-glass">
+        <div className="flex min-w-0 items-center gap-1.5">
           <Link
             href="/dashboard"
-            className="flex items-center gap-1 rounded-editor-sm px-1.5 py-1 text-sm font-semibold text-editor-text-muted transition-colors hover:bg-editor-card hover:text-editor-text"
+            aria-label="Back to dashboard"
+            className="flex h-9 items-center gap-1 rounded-editor-sm px-1.5 text-editor-text-muted transition-colors hover:bg-editor-card hover:text-editor-text"
           >
             <ChevronLeft className="h-4 w-4" />
-            Dashboard
+            <span className="flex h-7 w-7 items-center justify-center rounded-editor-sm bg-[var(--primary)] text-[13px] font-extrabold text-editor-bg">C</span>
           </Link>
-          <span className="h-5 w-px bg-editor-border" />
+          <Link href="/dashboard/projects" className="hidden text-[13px] text-editor-text-faint transition-colors hover:text-editor-text md:inline">Projects</Link>
+          <span className="hidden text-editor-text-faint md:inline">/</span>
           <ProjectTitle />
-        </div>
-
-        <div className="flex items-center gap-2.5">
-          <span className="hidden items-center gap-1.5 rounded-editor-full bg-editor-card px-2.5 py-1 text-[11px] text-editor-text-muted sm:flex">
+          <span className="ml-1 hidden items-center gap-1.5 whitespace-nowrap text-[11.5px] text-editor-text-muted sm:flex">
             <span className={`h-1.5 w-1.5 rounded-full ${save.dot}`} />
             {save.text}
           </span>
@@ -91,14 +99,36 @@ export default function EditorShell() {
               type="button"
               onClick={() => setConfirmReload(true)}
               disabled={reloading}
-              className="rounded-editor-full border border-red-500/40 px-2.5 py-1 text-[11px] font-semibold text-red-400 transition-colors hover:bg-red-500/10 disabled:opacity-50 cursor-pointer"
+              className="ml-1 whitespace-nowrap rounded-editor-full border border-red-500/40 px-2.5 py-1 text-[11px] font-semibold text-red-400 transition-colors hover:bg-red-500/10 disabled:opacity-50 cursor-pointer"
               title="Someone (or another tab) saved this project after your last edit here. Your changes below are safe but not saved yet."
             >
               {reloading ? "Loading…" : "Reload latest"}
             </button>
           )}
           {reloadError && <span role="alert" className="text-[11px] font-semibold text-red-400">{reloadError}</span>}
+        </div>
 
+        <div className="flex items-center gap-0.5">
+          <button type="button" onClick={undoAction} aria-label="Undo" title="Undo (Ctrl+Z)" className="flex h-9 w-9 items-center justify-center rounded-editor-md text-editor-text-muted transition-colors hover:bg-editor-card hover:text-editor-text"><Undo2 className="h-4 w-4" /></button>
+          <button type="button" onClick={redoAction} aria-label="Redo" title="Redo (Ctrl+Y)" className="flex h-9 w-9 items-center justify-center rounded-editor-md text-editor-text-muted transition-colors hover:bg-editor-card hover:text-editor-text"><Redo2 className="h-4 w-4" /></button>
+        </div>
+
+        <div className="flex flex-1 justify-center">
+          <button
+            type="button"
+            onClick={() => setPaletteOpen(true)}
+            className="hidden h-9 w-full max-w-[300px] items-center gap-2 rounded-editor-md border border-editor-border bg-editor-panel px-3 text-[13px] text-editor-text-faint transition-colors hover:border-editor-border-strong hover:text-editor-text-muted lg:flex"
+          >
+            <Sparkles className="h-4 w-4 text-[var(--primary)]" aria-hidden="true" />
+            Search or run a command…
+            <kbd className="ml-auto rounded-editor-sm border border-editor-border-strong px-1.5 py-0.5 text-[11px] text-editor-text-muted">{modKey} K</kbd>
+          </button>
+          <button type="button" onClick={() => setPaletteOpen(true)} aria-label="Command bar" className="flex h-9 w-9 items-center justify-center rounded-editor-md text-editor-text-muted hover:bg-editor-card hover:text-editor-text lg:hidden">
+            <Search className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2.5">
           {/* Aspect picker */}
           <div role="group" aria-label="Aspect ratio" className="flex items-center rounded-editor-md border border-editor-border bg-editor-panel p-0.5">
             {ASPECTS.map((a) => (
@@ -121,14 +151,15 @@ export default function EditorShell() {
             ))}
           </div>
 
-          {/* The ⌘K chip and a Notifications button used to sit here, neither
-              wired to anything: controls that look clickable and do nothing.
-              Removed until the command palette exists. */}
+          {user && (
+            <span className="hidden whitespace-nowrap rounded-editor-full border border-editor-border bg-editor-panel px-3 py-1.5 text-[12px] text-editor-text-muted xl:inline">
+              <b className="font-semibold text-editor-text">{(user.minutes ?? 0).toLocaleString()}</b> min
+              <span className="mx-1.5 text-editor-text-faint">|</span>
+              <b className="font-semibold text-editor-text">{(user.credits ?? 0).toLocaleString()}</b> credits
+            </span>
+          )}
 
-          <Button variant="primary" rounded="rounded-editor-full" onClick={() => setExportOpen(true)} className="!px-5 hover:shadow-editor-glow">
-            <Sparkles className="h-3.5 w-3.5" />
-            Export
-          </Button>
+          <ExportSplitButton title="captions" />
 
           <ProfileChip />
         </div>
@@ -160,6 +191,8 @@ export default function EditorShell() {
       </div>
 
       {exportOpen && <ExportModal />}
+      <CommandPalette />
+      <ShortcutsSheet />
     </div>
   );
 }
@@ -192,7 +225,9 @@ function ProjectTitle() {
   };
 
   return (
+    <span className="flex min-w-0 items-center">
     <input
+      id="editor-project-title"
       value={title}
       onChange={(e) => setTitle(e.target.value)}
       onBlur={commit}
@@ -200,6 +235,8 @@ function ProjectTitle() {
       className="w-44 truncate rounded-editor-sm border border-transparent bg-transparent px-2 py-1 text-[13px] font-medium tracking-tight text-editor-text outline-none transition-colors hover:border-editor-border focus:border-editor-accent"
       aria-label="Project title"
     />
+    <TitleMenu titleInputId="editor-project-title" title={title} />
+    </span>
   );
 }
 
