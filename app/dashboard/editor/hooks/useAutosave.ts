@@ -105,7 +105,7 @@ export function useAutosave() {
  * Recovery action for the "conflict" state: discards the local unsaved doc
  * and replaces it with the server's current version. This is the ONLY path
  * that discards local edits, and it only runs when the user explicitly asks
- * for it (e.g. clicking "Reload latest" in the save-status UI) — never
+ * for it (the conflict banner's "Load the other version") — never
  * automatically.
  */
 export async function reloadLatestProject(projectId: string): Promise<{ ok: boolean; error?: string }> {
