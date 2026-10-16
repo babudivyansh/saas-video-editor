@@ -23,6 +23,8 @@ export interface StockItem {
   width?: number;
   height?: number;
   durationSec?: number; // video/audio only
+  /** Smallest video file, for a hover preview in the panel (video only). */
+  previewUrl?: string;
   attribution: string; // required by most free-tier stock APIs' display terms
 }
 
@@ -57,12 +59,15 @@ export async function searchStockImages(query: string, page = 1): Promise<StockI
   }));
 }
 
-export async function searchStockVideos(query: string, page = 1): Promise<StockItem[]> {
+export type StockOrientation = "portrait" | "square" | "landscape";
+export const STOCK_ORIENTATIONS: readonly StockOrientation[] = ["portrait", "square", "landscape"];
+
+export async function searchStockVideos(query: string, page = 1, orientation?: StockOrientation): Promise<StockItem[]> {
   const key = env.PEXELS_API_KEY;
   if (!key) throw new StockNotConfiguredError("Stock video", "PEXELS_API_KEY");
 
   const res = await fetch(
-    `https://api.pexels.com/videos/search?query=${encodeURIComponent(query)}&per_page=24&page=${page}`,
+    `https://api.pexels.com/videos/search?query=${encodeURIComponent(query)}&per_page=24&page=${page}${orientation ? `&orientation=${orientation}` : ""}`,
     { headers: { Authorization: key } },
   );
   if (!res.ok) throw new Error(`Pexels video search failed (${res.status})`);
@@ -81,6 +86,7 @@ export async function searchStockVideos(query: string, page = 1): Promise<StockI
       name: `Video by ${v.user.name}`,
       thumbUrl: v.image,
       downloadUrl: file.link,
+      previewUrl: files[0]?.link,
       width: v.width,
       height: v.height,
       durationSec: v.duration,

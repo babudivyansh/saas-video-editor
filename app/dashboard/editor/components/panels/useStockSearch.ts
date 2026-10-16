@@ -15,6 +15,8 @@ export interface StockItem {
   width?: number;
   height?: number;
   durationSec?: number;
+  /** Smallest file, for hover previews (video only). */
+  previewUrl?: string;
   attribution: string;
 }
 
@@ -41,7 +43,11 @@ const DEFAULT_QUERIES: Record<"image" | "video" | "audio" | "sticker", string> =
 // providers exposing a total count.
 const PAGE_SIZE = 24;
 
-export function useStockSearch(type: "image" | "video" | "audio" | "sticker") {
+export function useStockSearch(
+  type: "image" | "video" | "audio" | "sticker",
+  opts: { orientation?: "portrait" | "square" | "landscape" } = {},
+) {
+  const { orientation } = opts;
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<StockItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -53,7 +59,7 @@ export function useStockSearch(type: "image" | "video" | "audio" | "sticker") {
   // always starts over, "load more" is the only way page advances.
   useEffect(() => {
     setPage(1);
-  }, [query, type]);
+  }, [query, type, orientation]);
 
   useEffect(() => {
     const trimmed = query.trim();
@@ -67,7 +73,7 @@ export function useStockSearch(type: "image" | "video" | "audio" | "sticker") {
         try {
           const token = localStorage.getItem("token");
           const res = await fetch(
-            `/api/editor/stock/search?type=${type}&q=${encodeURIComponent(effectiveQuery)}&page=${page}`,
+            `/api/editor/stock/search?type=${type}&q=${encodeURIComponent(effectiveQuery)}&page=${page}${orientation ? `&orientation=${orientation}` : ""}`,
             { headers: { Authorization: `Bearer ${token}` }, signal: ctrl.signal },
           );
           const data = await res.json();
@@ -104,7 +110,7 @@ export function useStockSearch(type: "image" | "video" | "audio" | "sticker") {
       clearTimeout(timer);
       ctrl.abort();
     };
-  }, [query, type, page]);
+  }, [query, type, page, orientation]);
 
   const loadMore = () => {
     if (!loading && hasMore) setPage((p) => p + 1);

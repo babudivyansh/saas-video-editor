@@ -4,6 +4,7 @@ import { withRateLimit } from "@/lib/with-rate-limit";
 import {
   searchStockImages,
   searchStockVideos,
+  STOCK_ORIENTATIONS,
   searchStockAudio,
   searchStockStickers,
   searchStockGifs,
@@ -23,6 +24,10 @@ async function handleGET(req: NextRequest) {
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10) || 1);
   const limit = Math.min(24, Math.max(1, parseInt(searchParams.get("limit") ?? "24", 10) || 24));
 
+  // Video only: the shape to match (e.g. portrait for a 9:16 project).
+  const rawOrientation = searchParams.get("orientation");
+  const orientation = STOCK_ORIENTATIONS.find((o) => o === rawOrientation);
+
   if (!q) return NextResponse.json({ items: [] });
 
   try {
@@ -32,7 +37,7 @@ async function handleGET(req: NextRequest) {
         items = await searchStockImages(q, page);
         break;
       case "video":
-        items = await searchStockVideos(q, page);
+        items = await searchStockVideos(q, page, orientation);
         break;
       case "audio":
         items = await searchStockAudio(q, page);
