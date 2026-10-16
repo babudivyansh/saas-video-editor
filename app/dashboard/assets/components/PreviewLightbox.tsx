@@ -29,6 +29,16 @@ export const SOURCE_LABELS: Record<string, string> = {
   "video-generator": "Legacy project",
   avatar: "Avatar",
   stock: "Stock",
+  // AI and editing tools that save their result to Assets (lib/tool-results.ts).
+  "image-generator": "AI Image Generator",
+  voiceover: "AI Voiceover",
+  "enhance-speech": "AI Speech Enhancer",
+  "vocal-remover": "AI Vocal Remover",
+  "voice-changer": "AI Voice Changer",
+  "background-remover": "Background Remover",
+  "face-swap": "AI Face Swap",
+  "subtitle-remover": "Subtitle Remover",
+  "cut-and-crop": "Cut & Crop",
 };
 
 function Meta({ label, value }: { label: string; value: string }) {

@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "./AuthContext";
+import { useModKey } from "./useModKey";
 import { useJobPolling } from "./useJobPolling";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 import { IMAGE_MODELS, DEFAULT_IMAGE_MODEL_ID, getImageModel, resolveImageAspectRatio } from "@/lib/models/imageModels";
@@ -165,8 +166,32 @@ function RatioDropdown({ value, options, onChange }: { value: string; options: r
 }
 
 // ── Main component ───────────────────────────────────────────────────────────
+/**
+ * Save an image to disk. `<a download>` is ignored for cross-origin URLs (the
+ * images are on S3), so the button used to just open the image in a new tab.
+ * Fetching it as a blob makes it a same-origin download; if the fetch is
+ * blocked, fall back to opening it as before.
+ */
+async function saveImage(url: string) {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(String(res.status));
+    const href = URL.createObjectURL(await res.blob());
+    const a = document.createElement("a");
+    a.href = href;
+    a.download = "generated-image.png";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(href), 60_000);
+  } catch {
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+}
+
 export default function ImageGeneratorTool() {
   const { user, token, openAuthModal, refreshUser } = useAuth();
+  const modKey = useModKey();
   const job = useJobPolling({ toolSlug: "image-generator", token });
   const fireReviewPrompt = useReviewPromptTrigger();
 
@@ -312,6 +337,7 @@ export default function ImageGeneratorTool() {
               <a
                 href={lightbox.imageUrl}
                 download="generated-image.png"
+                onClick={(e) => { e.preventDefault(); void saveImage(lightbox.imageUrl); }}
                 aria-label="Download image"
                 className="w-10 h-10 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center transition-colors outline-none focus-visible:ring-2 focus-visible:ring-white/70"
               >
@@ -472,6 +498,8 @@ export default function ImageGeneratorTool() {
                   <a
                     href={currentImage}
                     download="generated-image.png"
+                    aria-label="Download image"
+                    onClick={(e) => { e.preventDefault(); void saveImage(currentImage); }}
                     className="w-8 h-8 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center transition-colors"
                   >
                     <IcDownload />
@@ -537,7 +565,7 @@ export default function ImageGeneratorTool() {
           >
             {generating ? <><Spinner /> Generating…</> : "Generate Image"}
             {!generating && prompt.trim() && (
-              <kbd className="ml-1 hidden sm:inline-block text-[11px] font-semibold bg-white/20 rounded px-1.5 py-0.5">⌘+Enter</kbd>
+              <kbd className="ml-1 hidden sm:inline-block text-[11px] font-semibold bg-white/20 rounded px-1.5 py-0.5">{modKey}+Enter</kbd>
             )}
           </button>
           {!user && (

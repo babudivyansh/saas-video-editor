@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runFFmpegWithProgress } from "@/utils/ffmpeg-render";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
-import { checkFreeToolDailyCap, freeToolCapResponseBody } from "@/lib/free-tool-caps";
+import { freeToolGate } from "@/lib/free-tool-caps";
 import { createJobStatusHandler } from "@/lib/job-routes";
 import { createRenderQueue } from "@/lib/render-queue";
-import { getAuthUser } from "@/lib/auth";
-import { resolveUploadPolicy, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
+import { resolveUploadPolicy, readUploadForm, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
+import { saveMediaUpload } from "@/lib/media-upload";
+import { logger } from "@/lib/logger";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -13,6 +14,8 @@ import { randomUUID } from "crypto";
 
 export const maxDuration = 300;
 
+// Compression strength → x264 CRF. Higher CRF = smaller file, lower quality.
+// The UI shows these as a "Smaller file ↔ Better quality" scale.
 const QUALITY_CRF: Record<string, string> = {
   maximum: "36",
   high: "32",
@@ -21,7 +24,7 @@ const QUALITY_CRF: Record<string, string> = {
   minimal: "20",
 };
 
-const RESOLUTION_H: Record<string, number> = { "360p": 360, "240p": 240 };
+const RESOLUTION_H: Record<string, number> = { "1080p": 1080, "720p": 720, "480p": 480, "360p": 360, "240p": 240 };
 
 interface Job {
   progress: number;
@@ -48,34 +51,31 @@ interface CompressPayload {
   scaleArgs: string[];
 }
 
-// Was a bare fire-and-forget promise chain mutating `jobs` directly — moved
-// onto the shared BullMQ-backed queue so a compression job survives a server
-// restart and gets automatic retry/backoff on failure, instead of silently
-// vanishing (the in-memory Map lost all state on restart, and a mid-render
-// crash just left the job stuck at whatever progress it last reported).
-// Deliberately NOT changed: the `jobs` Map, `Job` shape, and
-// createJobStatusHandler below are untouched, so status/download polling and
-// ownership checks behave exactly as before.
+// Runs on the shared render queue, which caps how many compressions run at
+// once (RENDER_CONCURRENCY) and retries a failed attempt. It does NOT make a
+// job survive a restart: the `jobs` Map is in memory, so after a restart a
+// re-delivered payload finds no entry and the handler returns without work.
 const compressQueue = createRenderQueue<CompressPayload>("video-compressor", async (payload) => {
   const job = jobs.get(payload.projectId);
-  if (!job) return; // job entry already swept — nothing to update
+  if (!job) return; // job entry swept or lost to a restart — nothing to update
   try {
+    // `-2` keeps the width even (x264 requires it) and the aspect ratio intact;
+    // min() never upscales a source that is already smaller than the target.
     await runFFmpegWithProgress(
-      ["-y", "-i", payload.inputPath, ...payload.scaleArgs, "-c:v", "libx264", "-crf", payload.crf, "-preset", "fast", "-c:a", "aac", "-b:a", "128k", payload.outputPath],
+      ["-y", "-i", payload.inputPath, ...payload.scaleArgs, "-c:v", "libx264", "-crf", payload.crf, "-preset", "fast", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", payload.outputPath],
       (pct) => { job.progress = pct; },
     );
     job.progress = 100;
     job.status = "done";
   } catch (err) {
+    logger.error("video-compressor", "job failed", err);
     job.status = "error";
-    job.error = err instanceof Error ? err.message : "Compression failed";
-    throw err; // let BullMQ's retry/backoff decide whether to try again
+    job.error = "We couldn't compress this video. Make sure it plays, then try again.";
+    throw err; // let the queue's retry/backoff decide whether to try again
   }
-  // Input file cleanup deliberately NOT done here: BullMQ retries this same
-  // handler up to 3x on failure, and deleting the input after attempt 1
-  // would make attempts 2-3 fail on a missing file instead of actually
-  // retrying the compression. The existing sweep() below already reclaims
-  // both input and output paths after 30 minutes regardless of outcome.
+  // Input file cleanup deliberately NOT done here: the queue retries this same
+  // handler on failure, and deleting the input after attempt 1 would make the
+  // retries fail on a missing file. sweep() reclaims both paths after 30 min.
 });
 
 function sweep() {
@@ -89,32 +89,23 @@ function sweep() {
 }
 
 export async function POST(req: NextRequest) {
-  const limit = await rateLimit(`video-compressor:ip:${getClientIp(req)}`, 5, 3600);
-  if (!limit.allowed) {
-    return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
-  }
-  const daily = await checkFreeToolDailyCap("video-compressor", `ip:${getClientIp(req)}`);
-  if (!daily.allowed) {
-    return NextResponse.json(freeToolCapResponseBody("video-compressor", daily.cap), { status: 429 });
-  }
+  // Kill switch, then per-user (or anonymous per-IP) caps.
+  const gate = await freeToolGate(req, "video-compressor");
+  if (gate instanceof NextResponse) return gate;
 
   sweep();
 
-  let formData: FormData;
-  try {
-    formData = await req.formData();
-  } catch {
-    return NextResponse.json({ error: "Invalid multipart body" }, { status: 400 });
-  }
+  // Callable anonymously (only the /dashboard/tools/free/* pages are
+  // login-gated). A session gets the caller's real plan cap, anyone else
+  // ANONYMOUS_MAX_BYTES. Resolved BEFORE the body is read, so an oversized
+  // upload is refused unparsed instead of after it is already held in memory.
+  const policy = await resolveUploadPolicy(gate.auth?.userId ?? null, "video-compressor");
+  const formData = await readUploadForm(req, policy);
+  if (formData instanceof NextResponse) return formData;
 
   const file = formData.get("file") as File | null;
   if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 });
 
-  // Anonymously callable free tool (see audio-balancer/route.ts for the same
-  // note) — resolve a real plan cap when a session is present, else fall
-  // back to just the feature's technical ceiling.
-  const auth = await getAuthUser(req);
-  const policy = await resolveUploadPolicy(auth?.userId ?? null, "video-compressor");
   try {
     assertWithinUploadPolicy(policy, file.size);
   } catch (e) {
@@ -129,15 +120,14 @@ export async function POST(req: NextRequest) {
 
   const resolution = (formData.get("resolution") as string | null) ?? "original";
   const targetH = RESOLUTION_H[resolution] ?? null;
-  const scaleArgs = targetH ? ["-vf", `scale=-2:${targetH}`] : [];
+  const scaleArgs = targetH ? ["-vf", `scale=-2:'min(${targetH},ih)'`] : [];
 
   const jobId = randomUUID();
-  const inputExt = (file.name.split(".").pop() ?? "mp4").toLowerCase();
-  const inputPath = path.join(os.tmpdir(), `${jobId}-input.${inputExt}`);
+  const saved = await saveMediaUpload(file, jobId, "mp4");
+  if (saved instanceof NextResponse) return saved;
+  const { inputPath } = saved;
   const outputPath = path.join(os.tmpdir(), `${jobId}-output.mp4`);
   const downloadName = `${file.name.replace(/\.[^.]+$/, "")}-compressed.mp4`;
-
-  fs.writeFileSync(inputPath, Buffer.from(await file.arrayBuffer()));
 
   const job: Job = {
     progress: 0, status: "processing", inputPath, outputPath, downloadName, createdAt: Date.now(),
