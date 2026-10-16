@@ -10,6 +10,7 @@
 import React from "react";
 import GenerateSection from "./caption/GenerateSection";
 import CaptionListSection from "./caption/CaptionListSection";
+import TranscriptSection from "./caption/TranscriptSection";
 import TemplatesGallery from "./caption/TemplatesGallery";
 import AiToolsSection from "./caption/AiToolsSection";
 
@@ -19,6 +20,10 @@ export default function CaptionPanel() {
       <div>
         <p className="mb-2 px-0.5 text-[11px] font-semibold uppercase tracking-wide text-editor-text-muted">Generate Captions</p>
         <GenerateSection />
+      </div>
+      <div>
+        <p className="mb-2 px-0.5 text-[11px] font-semibold uppercase tracking-wide text-editor-text-muted">Transcript</p>
+        <TranscriptSection />
       </div>
       <div>
         <p className="mb-2 px-0.5 text-[11px] font-semibold uppercase tracking-wide text-editor-text-muted">Caption List</p>
