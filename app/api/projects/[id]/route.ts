@@ -7,6 +7,7 @@ import { parseS3Url } from "@/lib/s3-url";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { collectProjectMediaKeys, deleteUnreferencedKeys } from "@/lib/storage-cleanup";
 import { sourceUrlError } from "@/lib/source-url";
+import { snapshotDoc } from "@/lib/project-versions";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await getAuthUser(req);
@@ -101,6 +102,11 @@ async function handlePATCH(req: NextRequest, { params }: { params: Promise<{ id:
         { error: "version_conflict", currentVersion: current?.editorVersion ?? null },
         { status: 409 },
       );
+    }
+    // Keep the doc this save replaced in Version history. "overwrite" is the
+    // conflict banner's "Keep my version": the other copy is always kept.
+    if (existing.editorVersion === expectedVersion) {
+      await snapshotDoc(id, existing.editorDoc, existing.editorVersion, body.overwrite === true ? "overwrite" : "autosave");
     }
     const project = await prisma.project.findUnique({ where: { id } });
     // Editing bumps updatedAt, which is what the resume rail orders by.

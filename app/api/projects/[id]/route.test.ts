@@ -62,6 +62,14 @@ vi.mock("@/lib/dashboard-summary-cache", () => ({
   invalidateDashboardSummary: vi.fn(async (userId: string) => { invalidatedUsers.push(userId); }),
 }));
 
+const snapshots: Array<{ projectId: string; doc: unknown; version: number; reason: string }> = [];
+vi.mock("@/lib/project-versions", () => ({
+  snapshotDoc: vi.fn(async (projectId: string, doc: unknown, version: number, reason: string) => {
+    snapshots.push({ projectId, doc, version, reason });
+    return true;
+  }),
+}));
+
 const { PATCH, DELETE } = await import("./route");
 
 function makeDoc(marker: string) {
@@ -82,6 +90,24 @@ describe("PATCH /api/projects/[id] — optimistic concurrency", () => {
   beforeEach(() => {
     db = { id: "proj-1", userId: "u1", editorDoc: null, editorVersion: 1, title: "t", uploadedVideoUrl: null, faceTimeline: null };
     authUser = { userId: "u1" };
+    snapshots.length = 0;
+  });
+
+  it("keeps the replaced doc in version history, marked as an overwrite for keep-my-version", async () => {
+    await PATCH(patchRequest({ editorDoc: makeDoc("A"), expectedVersion: 1 }), ctx);
+    await PATCH(patchRequest({ editorDoc: makeDoc("B"), expectedVersion: 2, overwrite: true }), ctx);
+    expect(snapshots.map((s) => [s.version, s.reason, (s.doc as { marker?: string } | null)?.marker])).toEqual([
+      [1, "autosave", undefined],
+      [2, "overwrite", "A"],
+    ]);
+  });
+
+  it("does not snapshot when the save is rejected as a conflict", async () => {
+    await PATCH(patchRequest({ editorDoc: makeDoc("A"), expectedVersion: 1 }), ctx);
+    snapshots.length = 0;
+    const res = await PATCH(patchRequest({ editorDoc: makeDoc("B"), expectedVersion: 1 }), ctx);
+    expect(res.status).toBe(409);
+    expect(snapshots).toEqual([]);
   });
 
   it("normal save: correct expectedVersion succeeds and bumps editorVersion", async () => {

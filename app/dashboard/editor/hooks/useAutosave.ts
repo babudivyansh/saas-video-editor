@@ -105,7 +105,7 @@ export function useAutosave() {
  * Recovery action for the "conflict" state: discards the local unsaved doc
  * and replaces it with the server's current version. This is the ONLY path
  * that discards local edits, and it only runs when the user explicitly asks
- * for it (e.g. clicking "Reload latest" in the save-status UI) — never
+ * for it (the conflict banner's "Load the other version") — never
  * automatically.
  */
 export async function reloadLatestProject(projectId: string): Promise<{ ok: boolean; error?: string }> {
@@ -122,5 +122,40 @@ export async function reloadLatestProject(projectId: string): Promise<{ ok: bool
     return { ok: true };
   } catch {
     return { ok: false, error: "Could not load the latest version." };
+  }
+}
+
+/**
+ * The other recovery action for "conflict": keeps the local doc and saves it
+ * over the newer one. The server keeps the copy being replaced in Version
+ * history (`overwrite: true`), so nothing is lost either way.
+ */
+export async function keepMyVersion(projectId: string): Promise<{ ok: boolean; error?: string }> {
+  const store = useEditorStore.getState();
+  try {
+    const token = localStorage.getItem("token");
+    const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+    const current = await fetch(`/api/projects/${projectId}`, { headers });
+    if (!current.ok) return { ok: false, error: "Could not reach the server. Try again." };
+    const { project } = await current.json();
+    store.markSaved("saving");
+    const doc = useEditorStore.getState().doc;
+    const res = await fetch(`/api/projects/${projectId}`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ editorDoc: doc, expectedVersion: project.editorVersion, overwrite: true }),
+    });
+    if (res.status === 409) {
+      store.markSaved("conflict");
+      return { ok: false, error: "It changed again just now. Compare and choose once more." };
+    }
+    if (!res.ok) throw new Error("save failed");
+    const { project: saved } = await res.json();
+    if (typeof saved?.editorVersion === "number") store.setEditorVersion(saved.editorVersion);
+    store.markSaved(useEditorStore.getState().doc === doc ? "saved" : "dirty");
+    return { ok: true };
+  } catch {
+    store.markSaved("conflict");
+    return { ok: false, error: "Could not save your version. Try again." };
   }
 }

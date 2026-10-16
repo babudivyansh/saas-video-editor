@@ -28,7 +28,7 @@ export function useKeyboardShortcuts() {
       const target = e.target as HTMLElement;
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
       // While the command bar or a dialog is open its own keys win.
-      if (s.paletteOpen || s.shortcutsOpen || s.exportOpen || s.silenceOpen) return;
+      if (s.paletteOpen || s.shortcutsOpen || s.exportOpen || s.silenceOpen || s.historyOpen) return;
 
       if (e.key === "?") {
         e.preventDefault();

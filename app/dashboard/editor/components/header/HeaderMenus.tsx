@@ -5,7 +5,7 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, Copy, Keyboard, Pencil, Captions, Film, LayoutGrid } from "lucide-react";
+import { ChevronDown, Copy, History, Keyboard, Pencil, Captions, Film, LayoutGrid } from "lucide-react";
 import { Dropdown } from "@/app/components/ui/Dropdown";
 import { useEditorStore } from "../../store/editorStore";
 import { downloadCaptionsSrt } from "./downloadCaptions";
@@ -31,6 +31,7 @@ export function TitleMenu({ titleInputId, title }: { titleInputId: string; title
   const router = useRouter();
   const projectId = useEditorStore((s) => s.projectId);
   const setShortcutsOpen = useEditorStore((s) => s.setShortcutsOpen);
+  const setHistoryOpen = useEditorStore((s) => s.setHistoryOpen);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -84,6 +85,7 @@ export function TitleMenu({ titleInputId, title }: { titleInputId: string; title
           <MenuItem icon={<Copy className="h-4 w-4" />} disabled={!projectId || busy} onClick={() => { void duplicate(); }}>
             {busy ? "Duplicating…" : "Duplicate project"}
           </MenuItem>
+          <MenuItem icon={<History className="h-4 w-4" />} disabled={!projectId} onClick={() => { close(); setHistoryOpen(true); }}>Version history</MenuItem>
           <MenuItem icon={<Keyboard className="h-4 w-4" />} hint="?" onClick={() => { close(); setShortcutsOpen(true); }}>Keyboard shortcuts</MenuItem>
           <div className="my-1 h-px bg-line" />
           <MenuItem icon={<LayoutGrid className="h-4 w-4" />} onClick={() => { close(); router.push("/dashboard/projects"); }}>All projects</MenuItem>
