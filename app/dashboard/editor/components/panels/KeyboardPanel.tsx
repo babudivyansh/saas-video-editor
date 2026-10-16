@@ -6,6 +6,8 @@
 import React from "react";
 
 const SHORTCUTS: { keys: string; action: string }[] = [
+  { keys: "Ctrl/Cmd + K", action: "Search commands or ask AI" },
+  { keys: "?", action: "Show keyboard shortcuts" },
   { keys: "Space", action: "Play / pause" },
   { keys: "S", action: "Split clip at playhead" },
   { keys: "Delete / Backspace", action: "Delete selected clip" },

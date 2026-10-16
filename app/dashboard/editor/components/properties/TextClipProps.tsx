@@ -43,7 +43,7 @@ const AI_FREE_TOOLS: { label: string; run: (text: string) => string }[] = [
 export default function TextClipProps({ clip, activeTab }: { clip: TextClip; activeTab: string }) {
   const updateClip = useEditorStore((s) => s.updateClip);
   const patch = (p: Partial<TextClip>, undoable = true) => updateClip("text", clip.id, p, undoable);
-  const { user, refreshUser } = useAuth();
+  const { refreshUser } = useAuth();
   const [aiWorking, setAiWorking] = useState<string | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
   const [targetLang, setTargetLang] = useState(DUB_LANGUAGES[0]?.label ?? "Spanish");
@@ -58,11 +58,8 @@ export default function TextClipProps({ clip, activeTab }: { clip: TextClip; act
   // acceptable trade for a rewrite the user explicitly asked for.
   async function runLlmOp(operation: AiTextLlmOperation) {
     if (aiWorking) return;
-    const CREDIT_COST = 1;
-    if ((user?.credits ?? 0) < CREDIT_COST) {
-      setAiError(`Not enough credits (${CREDIT_COST} needed).`);
-      return;
-    }
+    // Free since 2026-09-26 under a daily fair-use cap (the route enforces
+    // it); there is no credit check to make here.
     setAiWorking(operation);
     setAiError(null);
     try {
@@ -311,7 +308,7 @@ export default function TextClipProps({ clip, activeTab }: { clip: TextClip; act
                 className="justify-start"
                 onClick={() => runLlmOp(operation)}
               >
-                {aiWorking === operation ? "Working…" : `${label} (1 credit)`}
+                {aiWorking === operation ? "Working…" : label}
               </Button>
             ))}
             <div className="flex gap-1.5 items-center">
@@ -322,7 +319,7 @@ export default function TextClipProps({ clip, activeTab }: { clip: TextClip; act
                 className="justify-start flex-1"
                 onClick={() => runLlmOp("translate")}
               >
-                {aiWorking === "translate" ? "Working…" : "Translate (1 credit)"}
+                {aiWorking === "translate" ? "Working…" : "Translate"}
               </Button>
               <SelectField label="" value={targetLang} options={DUB_LANGUAGES.map((l) => l.label)} onChange={setTargetLang} />
             </div>

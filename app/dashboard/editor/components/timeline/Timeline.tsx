@@ -17,6 +17,11 @@ import TrackHeader from "./TrackHeader";
 import Playhead from "./Playhead";
 import EditToolbar from "../EditToolbar";
 
+function fmtLength(sec: number) {
+  const s = Math.max(0, Math.round(sec));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
 const TRACKS = [
   { kind: "video" as const, label: "Video" },
   { kind: "image" as const, label: "Image" },
@@ -46,6 +51,7 @@ export default function Timeline() {
   }, []);
 
   const total = Math.max(docDuration(doc), 10);
+  const clipCount = doc.tracks.video.length + doc.tracks.text.length + doc.tracks.audio.length + doc.tracks.image.length;
   const contentWidth = total * zoom + 240; // trailing space to drop clips into
 
   const seekFromEvent = (e: React.MouseEvent) => {
@@ -62,6 +68,9 @@ export default function Timeline() {
       <div className="flex h-10 flex-shrink-0 items-center justify-between border-b border-editor-border px-3">
         <EditToolbar />
         <div className="flex items-center gap-2">
+          <span className="mr-2 hidden whitespace-nowrap rounded-editor-full border border-editor-border px-2 py-0.5 font-mono text-[11px] text-editor-text-muted md:inline">
+            {clipCount} clip{clipCount === 1 ? "" : "s"} · {fmtLength(docDuration(doc))}
+          </span>
           <IconButton icon={<ZoomOut className="h-3.5 w-3.5" />} label="Zoom out" size="sm" onClick={() => setZoom(zoom - 20)} />
           <input
             type="range"

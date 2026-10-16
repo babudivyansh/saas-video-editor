@@ -1,38 +1,25 @@
 "use client";
 
-// Pure UI stub — panel-level (general "give me text ideas") AI actions,
-// distinct from the clip-scoped "ai" tab in the properties panel (rewrite
-// *this* clip's text). Structured so a real handler can replace the
-// disabled/no-op buttons later without any layout change.
+// Points at the AI tools tab, which works on the selected text clip (rewrite,
+// shorten, expand, translate, punch-up, emojis…).
 
 import React from "react";
-import { Wand2, Scissors, Maximize2, Languages, SpellCheck2, Zap, Type, Smile } from "lucide-react";
-import { Button, PropertyCard, Tooltip } from "../../ui";
-
-const AI_TOOLS = [
-  { label: "Rewrite", icon: Wand2 },
-  { label: "Shorten", icon: Scissors },
-  { label: "Expand", icon: Maximize2 },
-  { label: "Translate", icon: Languages },
-  { label: "Improve Grammar", icon: SpellCheck2 },
-  { label: "Generate Hook", icon: Zap },
-  { label: "Generate Title", icon: Type },
-  { label: "Add Emojis", icon: Smile },
-] as const;
+import { Sparkles } from "lucide-react";
+import { Button, PropertyCard } from "../../ui";
+import { useEditorStore } from "../../../store/editorStore";
 
 export default function AiToolsSection() {
+  const setActivePanel = useEditorStore((s) => s.setActivePanel);
+  const hasTextSelected = useEditorStore((s) => s.selection?.track === "text");
   return (
     <PropertyCard title="AI Tools" defaultOpen={false}>
-      <div className="grid grid-cols-2 gap-1.5">
-        {AI_TOOLS.map(({ label, icon: Icon }) => (
-          <Tooltip key={label} content="Coming soon" side="top">
-            <Button variant="subtle" size="sm" disabled className="justify-start gap-1.5">
-              <Icon className="h-3.5 w-3.5" />
-              {label}
-            </Button>
-          </Tooltip>
-        ))}
-      </div>
+      <p className="mb-2 text-[11.5px] leading-snug text-editor-text-muted">
+        {hasTextSelected ? "Rewrite, shorten, translate or punch up the selected text." : "Select a text clip, then rewrite, shorten or translate it with AI."}
+      </p>
+      <Button variant="subtle" size="sm" className="w-full justify-start gap-1.5" onClick={() => setActivePanel("ai")}>
+        <Sparkles className="h-3.5 w-3.5" />
+        Open AI tools
+      </Button>
     </PropertyCard>
   );
 }
