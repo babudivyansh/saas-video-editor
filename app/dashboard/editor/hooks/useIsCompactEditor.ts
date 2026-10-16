@@ -1,7 +1,7 @@
 "use client";
 
-// Below `xl` (1280px) — but above the phone-width gate in EditorShell.tsx,
-// which already blocks <768px entirely — the side panels don't have room to
+// Below `xl` (1280px) — including phones, which also get the phone layout
+// (useIsPhoneEditor) — the side panels don't have room to
 // sit inline next to the preview (SidebarTabs' expanded panel + PropertiesPanel
 // alone are 608px). This hook lets those two panels switch from pushing the
 // preview aside to overlaying on top of it, closed by default, on tablets.

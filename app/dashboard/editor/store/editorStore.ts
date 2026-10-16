@@ -60,6 +60,8 @@ interface EditorState {
   /** Keyboard shortcuts sheet (title menu → Keyboard shortcuts, or ?). */
   shortcutsOpen: boolean;
   historyOpen: boolean;
+  /** Properties panel open in overlay (tablet) / full-screen (phone) mode. */
+  propertiesOpen: boolean;
   /** Remove silences dialog. */
   silenceOpen: boolean;
   saveState: SaveState;
@@ -91,6 +93,7 @@ interface EditorState {
   setPaletteOpen: (open: boolean) => void;
   setShortcutsOpen: (open: boolean) => void;
   setHistoryOpen: (open: boolean) => void;
+  setPropertiesOpen: (open: boolean) => void;
   setSilenceOpen: (open: boolean) => void;
   requestTextFocus: (clipId: string) => void;
   clearTextFocus: () => void;
@@ -151,6 +154,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   paletteOpen: false,
   shortcutsOpen: false,
   historyOpen: false,
+  propertiesOpen: false,
   silenceOpen: false,
   saveState: "saved",
   focusTextClipId: null,
@@ -198,6 +202,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setPaletteOpen: (open) => set({ paletteOpen: open }),
   setShortcutsOpen: (open) => set({ shortcutsOpen: open, paletteOpen: false }),
   setHistoryOpen: (open) => set({ historyOpen: open, paletteOpen: false }),
+  setPropertiesOpen: (open) => set({ propertiesOpen: open }),
   setSilenceOpen: (open) => set({ silenceOpen: open, paletteOpen: false }),
   requestTextFocus: (clipId) => set({ focusTextClipId: clipId }),
   clearTextFocus: () => set({ focusTextClipId: null }),

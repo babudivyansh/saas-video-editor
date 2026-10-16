@@ -107,9 +107,9 @@ export function ExportSplitButton({ title }: { title: string }) {
       <button
         type="button"
         onClick={() => setExportOpen(true)}
-        className="flex h-9 items-center gap-1.5 rounded-l-editor-full bg-editor-accent pl-4 pr-3 text-[13px] font-semibold text-editor-bg transition-colors hover:bg-editor-accent-hover"
+        className="flex h-9 items-center gap-1.5 rounded-l-editor-full bg-editor-accent pl-3 pr-2.5 text-[13px] md:pl-4 md:pr-3 font-semibold text-editor-bg transition-colors hover:bg-editor-accent-hover"
       >
-        <Film className="h-4 w-4" aria-hidden="true" />
+        <Film className="h-4 w-4 max-md:hidden" aria-hidden="true" />
         Export
       </button>
       <Dropdown

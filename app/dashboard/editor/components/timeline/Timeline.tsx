@@ -63,7 +63,7 @@ export default function Timeline() {
   };
 
   return (
-    <div className="flex h-60 flex-shrink-0 flex-col border-t border-editor-border bg-editor-panel">
+    <div className="flex h-44 flex-shrink-0 flex-col border-t md:h-60 border-editor-border bg-editor-panel">
       {/* Toolbar: edit tools left, zoom right */}
       <div className="flex h-10 flex-shrink-0 items-center justify-between border-b border-editor-border px-3">
         <EditToolbar />
@@ -86,8 +86,11 @@ export default function Timeline() {
         </div>
       </div>
 
-      {/* Track area: frozen headers column + scrollable ruler/tracks/playhead */}
-      <div className="flex min-h-0 flex-1">
+      {/* Track area: frozen headers column + scrollable ruler/tracks/playhead.
+          Scrolls vertically as a whole when the tracks don't fit (the
+          shorter phone timeline), so headers stay level with their lanes. */}
+      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+      <div className="flex min-h-full">
         <div className="flex flex-shrink-0 flex-col border-r border-editor-border bg-editor-panel">
           <div className="h-6 w-14 flex-shrink-0" />
           <div className="flex flex-col gap-1 py-1">
@@ -116,6 +119,7 @@ export default function Timeline() {
             <Playhead zoom={zoom} scrollRef={scrollRef} />
           </div>
         </div>
+      </div>
       </div>
     </div>
   );
