@@ -59,6 +59,8 @@ export default function TransitionPanel() {
   const selection = useEditorStore((s) => s.selection);
   const doc = useEditorStore((s) => s.doc);
   const updateClip = useEditorStore((s) => s.updateClip);
+  const applyAll = useEditorStore((s) => s.applyTransitionToAllCuts);
+  const cuts = Math.max(0, doc.tracks.video.length - 1);
 
   const clip = selection?.track === "video" ? doc.tracks.video.find((c) => c.id === selection.clipId) : null;
 
@@ -88,6 +90,15 @@ export default function TransitionPanel() {
           />
         ))}
       </div>
+      {cuts > 0 && (
+        <button
+          type="button"
+          onClick={() => applyAll(clip.transitionOut)}
+          className="mt-2 w-full rounded-editor-md border border-editor-border bg-editor-card px-3 py-2 text-[12px] font-semibold text-editor-text hover:border-editor-border-strong"
+        >
+          Use “{TRANSITION_PRESETS[clip.transitionOut ?? "none"].label}” on all {cuts} cut{cuts === 1 ? "" : "s"}
+        </button>
+      )}
       <p className="mt-1 px-1 text-[10px] leading-snug text-editor-text-muted">
         Applied to the exported video as a 0.5s crossfade into the next clip. The canvas
         approximates it as a fade.

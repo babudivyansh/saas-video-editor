@@ -25,6 +25,7 @@ import {
 import { docDuration, videoSegments } from "./doc-utils";
 import { clipDuckSegments, musicVolumeFilter, speechRangesFromCaptions } from "./music-envelope";
 import { keyframeExpr } from "./keyframes";
+import { adjustFilters, needsWrapping, wrappedEffect } from "./video-look";
 
 export interface ClipInput {
   /** local downloaded file path */
@@ -214,7 +215,7 @@ export function buildFilterGraph(input: FiltergraphInput): FiltergraphResult {
       const preset = FILTER_PRESETS[clip.filter ?? "none"];
       const effect = EFFECT_PRESETS[clip.effect ?? "none"];
 
-      const vChain = [
+      const preChain = [
         `trim=start=${from}:end=${to}`,
         `setpts=PTS-STARTPTS`,
         ...(speed !== 1 ? [`setpts=PTS/${num(speed)}`] : []),
@@ -223,12 +224,23 @@ export function buildFilterGraph(input: FiltergraphInput): FiltergraphResult {
         `crop=${W}:${H}`,
         `setsar=1`,
         ...(preset.ffmpeg ? [preset.ffmpeg] : []),
-        ...(effect.ffmpeg ? [effect.ffmpeg(W, H)] : []),
+        ...adjustFilters(clip.adjust),
+      ];
+      const postChain = [
         ...(fadeIn > 0 ? [`fade=t=in:st=0:d=${num(fadeIn)}`] : []),
         ...(fadeOut > 0 ? [`fade=t=out:st=${num(clip.duration - fadeOut)}:d=${num(fadeOut)}`] : []),
         ...xfadeNormalize,
       ];
-      filters.push(`[${n}:v]${vChain.join(",")}[${vLabel}]`);
+      if (effect.ffmpeg && needsWrapping(clip)) {
+        // Effect on part of the clip and/or below full strength: split, run the
+        // effect on one copy, blend it back (lib/editor/video-look.ts).
+        filters.push(`[${n}:v]${preChain.join(",")}[${vLabel}p]`);
+        filters.push(wrappedEffect(effect.ffmpeg(W, H), clip, `[${vLabel}p]`, `[${vLabel}x]`, `${vLabel}fx`));
+        filters.push(`[${vLabel}x]${postChain.length ? postChain.join(",") : "null"}[${vLabel}]`);
+      } else {
+        const vChain = [...preChain, ...(effect.ffmpeg ? [effect.ffmpeg(W, H)] : []), ...postChain];
+        filters.push(`[${n}:v]${vChain.join(",")}[${vLabel}]`);
+      }
 
       if (asset.hasAudio && !clip.muted && clip.volume > 0) {
         const aChain = [

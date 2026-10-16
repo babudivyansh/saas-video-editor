@@ -114,6 +114,10 @@ interface EditorState {
   applyCaptionTextEdit: (edit: (text: string) => string) => number;
   /** Cuts time ranges out of every track and closes the gaps, as one undo step. */
   rippleCutRanges: (ranges: TimeRange[]) => void;
+  /** Copies a filter preset + fine-tune onto every video clip (one undo step). */
+  applyVideoLookToAll: (look: { filter?: VideoClip["filter"]; adjust?: VideoClip["adjust"] }) => void;
+  /** Sets the same transition on every cut (all video clips but the last). */
+  applyTransitionToAllCuts: (t: VideoClip["transitionOut"]) => void;
   updateClip: (track: TrackKind, clipId: string, patch: Record<string, unknown>, undoable?: boolean) => void;
   commitDrag: (before: TimelineDoc) => void;
   moveVideoClipTransient: (clipId: string, newStart: number) => void;
@@ -345,6 +349,25 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       set({ history: pushHistory(s.history, s.doc), doc: { ...s.doc, tracks: { ...s.doc.tracks, caption } }, saveState: "dirty" });
     }
     return changed;
+  },
+
+  applyVideoLookToAll: (look) => {
+    const s = get();
+    set({
+      history: pushHistory(s.history, s.doc),
+      doc: { ...s.doc, tracks: { ...s.doc.tracks, video: s.doc.tracks.video.map((c) => ({ ...c, filter: look.filter, adjust: look.adjust })) } },
+      saveState: "dirty",
+    });
+  },
+
+  applyTransitionToAllCuts: (t) => {
+    const s = get();
+    const last = s.doc.tracks.video.length - 1;
+    set({
+      history: pushHistory(s.history, s.doc),
+      doc: { ...s.doc, tracks: { ...s.doc.tracks, video: s.doc.tracks.video.map((c, i) => (i < last ? { ...c, transitionOut: t } : c)) } },
+      saveState: "dirty",
+    });
   },
 
   rippleCutRanges: (ranges) => {

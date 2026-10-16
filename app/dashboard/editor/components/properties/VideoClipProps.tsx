@@ -9,17 +9,15 @@
 
 import React from "react";
 import { useEditorStore } from "../../store/editorStore";
-import type { EffectPreset, FilterPreset, TransitionPreset, VideoClip } from "@/lib/editor/types";
-import { EFFECT_PRESETS, FILTER_PRESETS, MAX_FADE_SEC, SPEED_OPTIONS, TRANSITION_PRESETS } from "@/lib/editor/types";
-import { FieldRow, NumberField, PillGroup, PropertyCard, Slider, Switch } from "../ui";
-
-const PREVIEW_ONLY = (
-  <span className="text-[9px] font-normal normal-case tracking-normal text-editor-text-faint">Preview only</span>
-);
+import type { EffectPreset, FilterPreset, TransitionPreset, VideoAdjust, VideoClip } from "@/lib/editor/types";
+import { EFFECT_PRESETS, FILTER_PRESETS, MAX_FADE_SEC, NEUTRAL_ADJUST, SPEED_OPTIONS, TRANSITION_PRESETS } from "@/lib/editor/types";
+import { Button, FieldRow, NumberField, PillGroup, PropertyCard, Slider, Switch } from "../ui";
+import { isNeutral, withAdjust } from "@/lib/editor/video-look";
 
 export default function VideoClipProps({ clip, activeTab }: { clip: VideoClip; activeTab: string }) {
   const updateClip = useEditorStore((s) => s.updateClip);
   const patch = (p: Partial<VideoClip>) => updateClip("video", clip.id, p);
+  const applyLookToAll = useEditorStore((s) => s.applyVideoLookToAll);
 
   if (activeTab === "basic") {
     return (
@@ -67,6 +65,11 @@ export default function VideoClipProps({ clip, activeTab }: { clip: VideoClip; a
   }
 
   if (activeTab === "adjust") {
+    const adj = clip.adjust ?? NEUTRAL_ADJUST;
+    const setAdj = (p: Partial<VideoAdjust>) => {
+      const next = withAdjust(clip.adjust, p);
+      patch({ adjust: isNeutral(next) ? undefined : next });
+    };
     return (
       <div className="flex flex-col gap-3 p-3">
         <PropertyCard title="Filter" collapsible={false}>
@@ -76,6 +79,16 @@ export default function VideoClipProps({ clip, activeTab }: { clip: VideoClip; a
             onChange={(key) => patch({ filter: key === "none" ? undefined : (key as FilterPreset) })}
             options={(Object.keys(FILTER_PRESETS) as FilterPreset[]).map((key) => ({ key, label: FILTER_PRESETS[key].label }))}
           />
+        </PropertyCard>
+        <PropertyCard title="Fine-tune" collapsible={false}>
+          <Slider label="Brightness" value={adj.brightness} min={-0.3} max={0.3} step={0.01} onChange={(v) => setAdj({ brightness: v })} />
+          <Slider label="Contrast" value={adj.contrast} min={0.5} max={1.5} step={0.01} onChange={(v) => setAdj({ contrast: v })} />
+          <Slider label="Saturation" value={adj.saturation} min={0} max={2} step={0.01} onChange={(v) => setAdj({ saturation: v })} />
+          <Slider label="Warmth" value={adj.warmth} min={-1} max={1} step={0.05} onChange={(v) => setAdj({ warmth: v })} />
+          <div className="flex gap-1.5">
+            <Button variant="subtle" size="sm" className="flex-1" disabled={isNeutral(clip.adjust)} onClick={() => patch({ adjust: undefined })}>Reset</Button>
+            <Button variant="subtle" size="sm" className="flex-1" onClick={() => applyLookToAll({ filter: clip.filter, adjust: clip.adjust })}>Use on all video clips</Button>
+          </div>
         </PropertyCard>
       </div>
     );
@@ -95,25 +108,45 @@ export default function VideoClipProps({ clip, activeTab }: { clip: VideoClip; a
   }
 
   if (activeTab === "effects") {
+    const part = clip.effectStart !== undefined || clip.effectEnd !== undefined;
     return (
       <div className="flex flex-col gap-3 p-3">
-        <PropertyCard title="Effect" trailing={PREVIEW_ONLY}>
+        <PropertyCard title="Effect">
           <PillGroup
             layoutId="video-effect"
             value={clip.effect ?? "none"}
             onChange={(key) => patch({ effect: key === "none" ? undefined : (key as EffectPreset) })}
             options={(Object.keys(EFFECT_PRESETS) as EffectPreset[]).map((key) => ({ key, label: EFFECT_PRESETS[key].label }))}
           />
-          <p className="text-[10px] leading-snug text-editor-text-faint">Preview only — not yet applied to exports.</p>
+          {clip.effect && clip.effect !== "none" && (
+            <>
+              <Slider label="Strength" value={clip.effectStrength ?? 1} min={0.1} max={1} step={0.05} onChange={(v) => patch({ effectStrength: v >= 1 ? undefined : v })} />
+              <PillGroup
+                layoutId="video-effect-where"
+                value={part ? "part" : "whole"}
+                onChange={(k) => patch(k === "whole" ? { effectStart: undefined, effectEnd: undefined } : { effectStart: 0, effectEnd: Math.min(clip.duration, 2) })}
+                options={[{ key: "whole", label: "Whole clip" }, { key: "part", label: "Part of it" }]}
+              />
+              {part && (
+                <>
+                  <NumberField label="From (s)" value={clip.effectStart ?? 0} min={0} max={clip.duration} step={0.1}
+                    onChange={(v) => patch({ effectStart: Math.min(v, (clip.effectEnd ?? clip.duration) - 0.1) })} />
+                  <NumberField label="To (s)" value={clip.effectEnd ?? clip.duration} min={0} max={clip.duration} step={0.1}
+                    onChange={(v) => patch({ effectEnd: Math.max(v, (clip.effectStart ?? 0) + 0.1) })} />
+                </>
+              )}
+            </>
+          )}
+          <p className="text-[10px] leading-snug text-editor-text-faint">Applied in the export. The preview shows an approximation; strength shows only in the export.</p>
         </PropertyCard>
-        <PropertyCard title="Transition (out)" trailing={PREVIEW_ONLY}>
+        <PropertyCard title="Transition (out)">
           <PillGroup
             layoutId="video-transition"
             value={clip.transitionOut ?? "none"}
             onChange={(key) => patch({ transitionOut: key === "none" ? undefined : (key as TransitionPreset) })}
             options={(Object.keys(TRANSITION_PRESETS) as TransitionPreset[]).map((key) => ({ key, label: TRANSITION_PRESETS[key].label }))}
           />
-          <p className="text-[10px] leading-snug text-editor-text-faint">Preview only — not yet applied to exports.</p>
+          <p className="text-[10px] leading-snug text-editor-text-faint">Applied in the export. The preview shows every transition as a fade.</p>
         </PropertyCard>
       </div>
     );
