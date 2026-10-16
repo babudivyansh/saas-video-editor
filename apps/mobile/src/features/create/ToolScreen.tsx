@@ -63,8 +63,10 @@ function ToolBody({ tool }: { tool: FileToolId }) {
   const [voiceId, setVoiceId] = useState<string | null>(null);
   const [removeNoise, setRemoveNoise] = useState(false);
   const [speed, setSpeed] = useState(100);
+  // Face swap: the person confirms they may use both faces (the server requires it).
+  const [consent, setConsent] = useState(false);
 
-  const ready = !!input.source && (tool !== "face-swap" || !!target.source);
+  const ready = !!input.source && (tool !== "face-swap" || (!!target.source && consent));
   const cost = input.source ? fileToolCredits(tool, input.source.durationSec ?? 0) : fileToolCredits(tool, 0);
   const job = useToolJob(cost);
   const voices = useVoices();
@@ -78,7 +80,7 @@ function ToolBody({ tool }: { tool: FileToolId }) {
         if (!voice) throw new Error("Choose a voice first.");
         return jobs.start({ type: "voice-changer", assetId: await input.assetId(), voiceId: voice.id, removeNoise, speed: speed / 100, idempotencyKey: key });
       case "face-swap":
-        return jobs.start({ type: "face-swap", faceAssetId: await input.assetId(), targetAssetId: await target.assetId(), idempotencyKey: key });
+        return jobs.start({ type: "face-swap", faceAssetId: await input.assetId(), targetAssetId: await target.assetId(), consent: true, idempotencyKey: key });
       default:
         return jobs.start({ type: tool, assetId: await input.assetId(), idempotencyKey: key });
     }
@@ -102,6 +104,14 @@ function ToolBody({ tool }: { tool: FileToolId }) {
         {locked ? <PlanGate name={spec.name} minPlan={spec.minPlan} /> : null}
         <FileCard input={input} spec={fileSpec} label={tool === "face-swap" ? "Face" : undefined} disabled={job.busy} />
         {tool === "face-swap" ? <FileCard input={target} spec={fileSpec} label="Photo to put it on" disabled={job.busy} /> : null}
+        {tool === "face-swap" ? (
+          <View style={styles.optionRow}>
+            <Text style={[type(13, "regular", { color: colors.fgMuted }), { flex: 1 }]}>
+              I have permission to use the faces in both photos, and I won’t use the result to deceive or impersonate anyone.
+            </Text>
+            <Toggle value={consent} onValueChange={setConsent} accessibilityLabel="I have permission to use both faces" />
+          </View>
+        ) : null}
         {tool === "voice-changer" ? (
           <VoiceOptions voiceId={voice?.id ?? null} onVoice={setVoiceId} removeNoise={removeNoise} onRemoveNoise={setRemoveNoise} speed={speed} onSpeed={setSpeed} />
         ) : null}
