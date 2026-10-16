@@ -64,7 +64,7 @@ export default function EditorShell() {
       {/* Top bar — the "command header" from the 2026-10 redesign (A):
           project + title menu on the left, undo/redo and the command bar in
           the middle, shape, credits and Export on the right. */}
-      <header className="flex h-14 flex-shrink-0 items-center gap-3 border-b border-editor-border bg-editor-glass px-3 backdrop-blur-editor-glass">
+      <header className="flex h-14 flex-shrink-0 items-center gap-1.5 border-b border-editor-border bg-editor-glass px-2 backdrop-blur-editor-glass md:gap-3 md:px-3">
         <div className="flex min-w-0 items-center gap-1.5">
           <Link
             href="/dashboard"
@@ -85,7 +85,7 @@ export default function EditorShell() {
 
         <div className="flex items-center gap-0.5">
           <button type="button" onClick={undoAction} aria-label="Undo" title="Undo (Ctrl+Z)" className="flex h-9 w-9 items-center justify-center rounded-editor-md text-editor-text-muted transition-colors hover:bg-editor-card hover:text-editor-text"><Undo2 className="h-4 w-4" /></button>
-          <button type="button" onClick={redoAction} aria-label="Redo" title="Redo (Ctrl+Y)" className="flex h-9 w-9 items-center justify-center rounded-editor-md text-editor-text-muted transition-colors hover:bg-editor-card hover:text-editor-text"><Redo2 className="h-4 w-4" /></button>
+          <button type="button" onClick={redoAction} aria-label="Redo" title="Redo (Ctrl+Y)" className="max-md:hidden flex h-9 w-9 items-center justify-center rounded-editor-md text-editor-text-muted transition-colors hover:bg-editor-card hover:text-editor-text"><Redo2 className="h-4 w-4" /></button>
         </div>
 
         <div className="flex flex-1 justify-center">
@@ -105,7 +105,7 @@ export default function EditorShell() {
 
         <div className="flex items-center gap-2.5">
           {/* Aspect picker */}
-          <div role="group" aria-label="Aspect ratio" className="flex items-center rounded-editor-md border border-editor-border bg-editor-panel p-0.5">
+          <div role="group" aria-label="Aspect ratio" className="max-md:hidden flex items-center rounded-editor-md border border-editor-border bg-editor-panel p-0.5">
             {ASPECTS.map((a) => (
               <button
                 key={a}
@@ -143,12 +143,13 @@ export default function EditorShell() {
       <SaveConflictBanner />
 
       {/* Main panes — sidebar spans the full remaining height, alongside
-          both the preview row and the timeline row below it. */}
-      <div className="flex min-h-0 flex-1">
+          both the preview row and the timeline row below it. On a phone the
+          sidebar becomes a bottom tool bar instead (SidebarTabs). */}
+      <div className="flex min-h-0 flex-1 max-md:flex-col">
         <SidebarTabs />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <div className="flex min-h-0 flex-1">
-            <main className="flex min-w-0 flex-1 flex-col items-center justify-center gap-3 bg-editor-bg p-4">
+            <main className="flex min-w-0 flex-1 flex-col items-center justify-center gap-3 bg-editor-bg p-2 md:p-4">
               {docIsEmpty ? <EmptyProjectStart /> : <PreviewStage />}
             </main>
             <PropertiesPanel />
@@ -201,7 +202,7 @@ function ProjectTitle() {
       onChange={(e) => setTitle(e.target.value)}
       onBlur={commit}
       onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-      className="w-44 truncate rounded-editor-sm border border-transparent bg-transparent px-2 py-1 text-[13px] font-medium tracking-tight text-editor-text outline-none transition-colors hover:border-editor-border focus:border-editor-accent"
+      className="w-28 truncate rounded-editor-sm md:w-44 border border-transparent bg-transparent px-2 py-1 text-[13px] font-medium tracking-tight text-editor-text outline-none transition-colors hover:border-editor-border focus:border-editor-accent"
       aria-label="Project title"
     />
     <TitleMenu titleInputId="editor-project-title" title={title} />
@@ -230,7 +231,7 @@ function ProfileChip() {
   const initial = (user.name?.[0] ?? user.email?.[0] ?? "?").toUpperCase();
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative max-md:hidden">
       <button
         onClick={() => setOpen((p) => !p)}
         title="Account"

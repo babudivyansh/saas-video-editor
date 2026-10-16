@@ -134,6 +134,48 @@ test("editor: tablet width clears the phone gate and uses overlay panels, not a 
   await expect(page.getByTestId("editor-panel-backdrop").first()).toBeVisible();
 });
 
+test("editor: phone width gets the phone layout — bottom tools, full-screen panels", async ({ page, baseURL }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockAuth(page, baseURL);
+
+  await page.route("**/api/projects/e2e-fake-project", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        project: {
+          id: "e2e-fake-project",
+          title: "E2E Test Project",
+          editorDoc: {
+            version: 1,
+            aspect: "9:16",
+            fps: 30,
+            tracks: { video: [], text: [], audio: [], image: [], caption: [] },
+          },
+        },
+      }),
+    }),
+  );
+
+  await page.goto("/dashboard/editor?projectId=e2e-fake-project");
+
+  // The editor opens on a phone (there used to be a "needs a larger screen" gate).
+  const tools = page.getByRole("navigation", { name: "Tools" });
+  await expect(tools).toBeVisible();
+  await expect(tools.getByRole("button", { name: "Edit" })).toBeVisible();
+
+  // A tool opens its panel full screen, with a close button.
+  await tools.getByRole("button", { name: "Text" }).click();
+  const panel = page.getByRole("dialog", { name: "Text" });
+  await expect(panel).toBeVisible();
+  await panel.getByRole("button", { name: "Close Text" }).click();
+  await expect(panel).toBeHidden();
+
+  // Nothing is wider than the screen.
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  expect(overflow).toBeLessThanOrEqual(0);
+});
+
 // Regression coverage for a real bug: iPad Mini/Air land at 1024-1194px wide
 // in landscape (Playwright's `devices["iPad Mini landscape"]` is exactly
 // 1024x768) — using Tailwind's `lg` (1024px) as the compact/desktop cutover

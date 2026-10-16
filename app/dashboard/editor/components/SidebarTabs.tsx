@@ -15,9 +15,12 @@ import {
   Wand2,
   Sparkles,
   ChevronLeft,
+  SlidersHorizontal,
+  X,
 } from "lucide-react";
 import { useEditorStore, type PanelKind } from "../store/editorStore";
 import { useIsCompactEditor } from "../hooks/useIsCompactEditor";
+import { useIsPhoneEditor } from "../hooks/useIsPhoneEditor";
 
 // Only one of these ever renders at a time (the active tab), so all 11 were
 // loading into the editor's initial bundle for the 10 the user isn't looking
@@ -52,18 +55,65 @@ const GROUPS: { id: string; label: string; icon: React.ReactNode; panels: { id: 
 ];
 const groupOf = (p: PanelKind) => GROUPS.find((g) => g.panels.some((x) => x.id === p)) ?? GROUPS[0];
 
+// The active group's sub-tab row (when it has more than one panel) and panel.
+function PanelBody() {
+  const activePanel = useEditorStore((s) => s.activePanel);
+  const setActivePanel = useEditorStore((s) => s.setActivePanel);
+  return (
+    <>
+      {groupOf(activePanel).panels.length > 1 && (
+        <div role="tablist" aria-label={groupOf(activePanel).label} className="sticky top-0 z-10 flex gap-1 border-b border-editor-border bg-editor-bg/95 p-2 backdrop-blur">
+          {groupOf(activePanel).panels.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              role="tab"
+              aria-selected={activePanel === p.id}
+              onClick={() => setActivePanel(p.id)}
+              className={`flex-1 rounded-editor-sm px-2 py-1.5 text-[12px] font-semibold transition-colors ${activePanel === p.id ? "bg-editor-card text-editor-text" : "text-editor-text-muted hover:text-editor-text"}`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+      )}
+      {activePanel === "media" && <MediaPanel />}
+      {activePanel === "image" && <StockImagePanel />}
+      {activePanel === "video" && <StockVideoPanel />}
+      {activePanel === "audio" && <StockAudioPanel />}
+      {activePanel === "text" && <TextPanel />}
+      {activePanel === "caption" && <CaptionPanel />}
+      {activePanel === "sticker" && <StickerPanel />}
+      {activePanel === "effect" && <EffectPanel />}
+      {activePanel === "filter" && <FilterPanel />}
+      {activePanel === "transition" && <TransitionPanel />}
+      {activePanel === "ai" && <AiToolsPanel />}
+    </>
+  );
+}
+
 export default function SidebarTabs() {
   const activePanel = useEditorStore((s) => s.activePanel);
   const setActivePanel = useEditorStore((s) => s.setActivePanel);
   const isCompact = useIsCompactEditor();
+  const isPhone = useIsPhoneEditor();
   const [collapsed, setCollapsed] = useState(false);
 
-  // Below `xl` (tablet range — phones are already blocked by EditorShell's
-  // own gate), default the panel closed so PreviewStage gets full width;
+  // Below `xl` (tablets and phones; phones then get PhoneTools below
+  // instead of the rail), default the panel closed so PreviewStage gets full width;
   // tapping a tab still opens it, now as an overlay instead of a push.
   useEffect(() => {
     setCollapsed(isCompact);
   }, [isCompact]);
+  // Something else picked a panel (the command bar, the empty-project start
+  // screen): show it, even if the panel was collapsed.
+  const [lastPanel, setLastPanel] = useState(activePanel);
+  if (lastPanel !== activePanel) {
+    setLastPanel(activePanel);
+    setCollapsed(false);
+  }
+
+  if (isPhone) return <PhoneTools collapsed={collapsed} setCollapsed={setCollapsed} />;
 
   return (
     <aside className="relative flex h-full flex-shrink-0 border-r border-editor-border bg-editor-panel">
@@ -111,33 +161,7 @@ export default function SidebarTabs() {
         className="fixed inset-y-0 left-16 z-40 bg-editor-bg shadow-2xl xl:static xl:inset-auto xl:left-auto xl:z-auto xl:shadow-none"
       >
         <div className="h-full w-80 overflow-y-auto overflow-x-hidden">
-          {groupOf(activePanel).panels.length > 1 && (
-            <div role="tablist" aria-label={groupOf(activePanel).label} className="sticky top-0 z-10 flex gap-1 border-b border-editor-border bg-editor-bg/95 p-2 backdrop-blur">
-              {groupOf(activePanel).panels.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={activePanel === p.id}
-                  onClick={() => setActivePanel(p.id)}
-                  className={`flex-1 rounded-editor-sm px-2 py-1.5 text-[12px] font-semibold transition-colors ${activePanel === p.id ? "bg-editor-card text-editor-text" : "text-editor-text-muted hover:text-editor-text"}`}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-          )}
-          {activePanel === "media" && <MediaPanel />}
-          {activePanel === "image" && <StockImagePanel />}
-          {activePanel === "video" && <StockVideoPanel />}
-          {activePanel === "audio" && <StockAudioPanel />}
-          {activePanel === "text" && <TextPanel />}
-          {activePanel === "caption" && <CaptionPanel />}
-          {activePanel === "sticker" && <StickerPanel />}
-          {activePanel === "effect" && <EffectPanel />}
-          {activePanel === "filter" && <FilterPanel />}
-          {activePanel === "transition" && <TransitionPanel />}
-          {activePanel === "ai" && <AiToolsPanel />}
+          <PanelBody />
         </div>
       </motion.div>
 
@@ -151,5 +175,69 @@ export default function SidebarTabs() {
         <ChevronLeft className={`h-3.5 w-3.5 transition-transform ${collapsed ? "rotate-180" : ""}`} />
       </button>
     </aside>
+  );
+}
+
+// Phone layout (below md): a bottom tool bar — Edit opens the selected clip's
+// properties, the rest open their panel full screen, like every other panel
+// in the app (no side drawers).
+function PhoneTools({ collapsed, setCollapsed }: { collapsed: boolean; setCollapsed: (c: boolean) => void }) {
+  const activePanel = useEditorStore((s) => s.activePanel);
+  const setActivePanel = useEditorStore((s) => s.setActivePanel);
+  const setPropertiesOpen = useEditorStore((s) => s.setPropertiesOpen);
+  const hasSelection = useEditorStore((s) => s.selection !== null);
+  const group = groupOf(activePanel);
+
+  return (
+    <>
+      <nav aria-label="Tools" className="order-last flex h-16 flex-shrink-0 items-center border-t border-editor-border bg-editor-panel px-1">
+        <button
+          type="button"
+          onClick={() => {
+            setCollapsed(true);
+            setPropertiesOpen(true);
+          }}
+          className={`flex min-w-0 flex-1 flex-col items-center gap-1 rounded-editor-md py-1.5 text-[10px] font-semibold ${hasSelection ? "text-editor-text" : "text-editor-text-muted"}`}
+        >
+          <SlidersHorizontal className="h-5 w-5" />
+          Edit
+        </button>
+        {GROUPS.map((tab) => {
+          const active = group.id === tab.id && !collapsed;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              aria-pressed={active}
+              onClick={() => {
+                setActivePanel(group.id === tab.id ? activePanel : tab.panels[0].id);
+                setPropertiesOpen(false);
+                setCollapsed(false);
+              }}
+              className={`flex min-w-0 flex-1 flex-col items-center gap-1 rounded-editor-md py-1.5 text-[10px] font-semibold ${
+                active ? "bg-editor-card text-editor-text [&>svg]:text-editor-accent" : `text-editor-text-muted ${tab.ai ? "[&>svg]:text-[var(--primary)]" : ""}`
+              }`}
+            >
+              {tab.icon}
+              {tab.id === "media" ? "Add" : tab.label.replace(" tools", "")}
+            </button>
+          );
+        })}
+      </nav>
+
+      {!collapsed && (
+        <div role="dialog" aria-label={group.label} className="fixed inset-0 z-40 flex flex-col bg-editor-bg">
+          <div className="flex h-12 flex-shrink-0 items-center justify-between border-b border-editor-border px-4">
+            <p className="text-[14px] font-semibold text-editor-text">{group.label}</p>
+            <button type="button" onClick={() => setCollapsed(true)} aria-label={`Close ${group.label}`} className="flex h-9 w-9 items-center justify-center rounded-editor-sm text-editor-text-muted hover:text-editor-text">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+            <PanelBody />
+          </div>
+        </div>
+      )}
+    </>
   );
 }
