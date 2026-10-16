@@ -14,7 +14,7 @@ import type { Aspect } from "@/lib/editor/types";
 import { useAuth } from "@/app/components/AuthContext";
 import { useModKey } from "./hooks/useModKey";
 import { useEditorStore } from "./store/editorStore";
-import { useAutosave, reloadLatestProject } from "./hooks/useAutosave";
+import { useAutosave } from "./hooks/useAutosave";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import SidebarTabs from "./components/SidebarTabs";
 import PreviewStage from "./components/PreviewStage";
@@ -28,8 +28,9 @@ const ExportModal = dynamic(() => import("./components/ExportModal"), { ssr: fal
 const CommandPalette = dynamic(() => import("./components/CommandPalette"), { ssr: false });
 const ShortcutsSheet = dynamic(() => import("./components/ShortcutsSheet"), { ssr: false });
 const SilenceDialog = dynamic(() => import("./components/SilenceDialog"), { ssr: false });
+const VersionHistory = dynamic(() => import("./components/VersionHistory"), { ssr: false });
 import { ExportSplitButton, TitleMenu } from "./components/header/HeaderMenus";
-import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
+import SaveConflictBanner from "./components/SaveConflictBanner";
 
 const ASPECTS: Aspect[] = ["9:16", "1:1", "16:9"];
 
@@ -38,7 +39,7 @@ const SAVE_LABEL: Record<string, { text: string; dot: string }> = {
   dirty: { text: "Unsaved changes", dot: "bg-amber-400" },
   saving: { text: "Saving…", dot: "bg-amber-400 animate-pulse" },
   error: { text: "Save failed", dot: "bg-red-500" },
-  conflict: { text: "Saved elsewhere", dot: "bg-red-500" },
+  conflict: { text: "Not saved — pick a version", dot: "bg-red-500" },
 };
 
 export default function EditorShell() {
@@ -46,34 +47,17 @@ export default function EditorShell() {
   const docIsEmpty = useEditorStore((s) => Object.values(s.doc.tracks).every((t) => t.length === 0));
   const setAspect = useEditorStore((s) => s.setAspect);
   const saveState = useEditorStore((s) => s.saveState);
-  const projectId = useEditorStore((s) => s.projectId);
   const exportOpen = useEditorStore((s) => s.exportOpen);
   const undoAction = useEditorStore((s) => s.undoAction);
   const redoAction = useEditorStore((s) => s.redoAction);
   const setPaletteOpen = useEditorStore((s) => s.setPaletteOpen);
   const { user } = useAuth();
   const modKey = useModKey();
-  const [reloading, setReloading] = useState(false);
-  // Replaces window.confirm / window.alert, which blocked the tab and looked
-  // like a browser warning rather than part of the product.
-  const [confirmReload, setConfirmReload] = useState(false);
-  const [reloadError, setReloadError] = useState<string | null>(null);
 
   useAutosave();
   useKeyboardShortcuts();
 
   const save = SAVE_LABEL[saveState];
-
-  // The only path that ever discards local edits — only reachable from the
-  // conflict banner, only on explicit click (and a confirm), never automatic.
-  const handleReloadLatest = async () => {
-    if (!projectId || reloading) return;
-    setReloadError(null);
-    setReloading(true);
-    const result = await reloadLatestProject(projectId);
-    setReloading(false);
-    if (!result.ok) setReloadError(result.error ?? "Could not load the latest version.");
-  };
 
   return (
     <div className="clipiro-editor flex h-[100dvh] flex-col overflow-hidden bg-editor-bg font-sans text-editor-text">
@@ -97,18 +81,6 @@ export default function EditorShell() {
             <span className={`h-1.5 w-1.5 rounded-full ${save.dot}`} />
             {save.text}
           </span>
-          {saveState === "conflict" && (
-            <button
-              type="button"
-              onClick={() => setConfirmReload(true)}
-              disabled={reloading}
-              className="ml-1 whitespace-nowrap rounded-editor-full border border-red-500/40 px-2.5 py-1 text-[11px] font-semibold text-red-400 transition-colors hover:bg-red-500/10 disabled:opacity-50 cursor-pointer"
-              title="Someone (or another tab) saved this project after your last edit here. Your changes below are safe but not saved yet."
-            >
-              {reloading ? "Loading…" : "Reload latest"}
-            </button>
-          )}
-          {reloadError && <span role="alert" className="text-[11px] font-semibold text-red-400">{reloadError}</span>}
         </div>
 
         <div className="flex items-center gap-0.5">
@@ -168,15 +140,7 @@ export default function EditorShell() {
         </div>
       </header>
 
-      <ConfirmDialog
-        open={confirmReload}
-        title="Load the other version?"
-        message="This loads the version saved from another tab or device. Your unsaved changes here will be lost."
-        confirmLabel="Load it"
-        danger
-        onConfirm={handleReloadLatest}
-        onClose={() => setConfirmReload(false)}
-      />
+      <SaveConflictBanner />
 
       {/* Main panes — sidebar spans the full remaining height, alongside
           both the preview row and the timeline row below it. */}
@@ -197,6 +161,7 @@ export default function EditorShell() {
       <CommandPalette />
       <ShortcutsSheet />
       <SilenceDialog />
+      <VersionHistory />
     </div>
   );
 }

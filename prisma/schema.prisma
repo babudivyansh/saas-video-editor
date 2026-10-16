@@ -624,6 +624,9 @@ model Project {
   // 409 rather than silently overwriting it. See app/api/projects/[id]/route.ts.
   editorVersion        Int      @default(1)
   clips                Clip[]
+  // Earlier editorDocs, kept on save (throttled) and always before an
+  // overwrite or a restore. See lib/project-versions.ts.
+  versions             ProjectVersion[]
   // Premium caption renders of THIS project's finished video (reddit-video,
   // split-screen, streamer-video). AutoClip's renders hang off Clip instead.
   captionRenders       CaptionRenderJob[]
@@ -2111,4 +2114,26 @@ model AppEventDaily {
   updatedAt  DateTime @updatedAt
 
   @@unique([date, event, appVersion])
+}
+
+// A snapshot of a manual-editor project's timeline, taken by the project PATCH
+// before it replaces the doc (at most one per few minutes while editing, and
+// always before "keep my version" or a restore, plus the browser's copy set
+// aside when a conflict is resolved the other way), so Version history can bring
+// it back. Capped per project. clipCount/durationSec are stored so the list
+// never loads the docs themselves.
+model ProjectVersion {
+  id          String   @id @default(uuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  // The editorVersion the doc had while it was current.
+  version     Int
+  doc         Json
+  // "autosave" | "overwrite" | "restore" | "conflict"
+  reason      String
+  clipCount   Int
+  durationSec Float
+  createdAt   DateTime @default(now())
+
+  @@index([projectId, createdAt])
 }

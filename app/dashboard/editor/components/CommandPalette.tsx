@@ -68,6 +68,7 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
       { id: "aspect-169", group: "Project", label: "Change shape to 16:9 wide", words: "aspect ratio youtube landscape", run: () => s.setAspect("16:9") },
       { id: "export", group: "Project", label: "Export video", keys: "", words: "render download mp4", run: () => s.setExportOpen(true) },
       { id: "srt", group: "Project", label: "Download captions (.srt)", words: "subtitles file", disabled: s.doc.tracks.caption.length === 0, run: () => downloadCaptionsSrt(s.doc) },
+      { id: "history", group: "Project", label: "Version history", words: "restore undo earlier backup versions", run: () => s.setHistoryOpen(true) },
       { id: "shortcuts", group: "Project", label: "Keyboard shortcuts", keys: "?", words: "help keys", run: () => s.setShortcutsOpen(true) },
     ];
   }, [s]);
