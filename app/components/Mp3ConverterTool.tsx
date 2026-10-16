@@ -3,6 +3,7 @@ import { useCallback, useRef, useState, useEffect } from "react";
 import { useJobPolling } from "./useJobPolling";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 import { useUploadEntitlement } from "@/app/hooks/useUploadEntitlement";
+import { useAuth } from "@/app/components/AuthContext";
 
 interface QualityOption {
   id: string;
@@ -11,11 +12,11 @@ interface QualityOption {
 }
 
 const QUALITY_OPTIONS: QualityOption[] = [
-  { id: "minimum", label: "Minimum", sub: "Smallest file size" },
-  { id: "low", label: "Low", sub: "Good balance" },
-  { id: "medium", label: "Medium", sub: "Better quality" },
-  { id: "high", label: "High", sub: "High quality" },
-  { id: "maximum", label: "Maximum", sub: "Best quality" },
+  { id: "minimum", label: "64 kbps", sub: "Smallest file" },
+  { id: "low", label: "128 kbps", sub: "Speech" },
+  { id: "medium", label: "192 kbps", sub: "Recommended" },
+  { id: "high", label: "256 kbps", sub: "Music" },
+  { id: "maximum", label: "320 kbps", sub: "Best quality" },
 ];
 
 function fmtMB(bytes: number): string {
@@ -84,6 +85,9 @@ export default function Mp3ConverterTool() {
   const job = useJobPolling({ toolSlug: "mp3-converter", token: null, requireAuth: false });
   const fireReviewPrompt = useReviewPromptTrigger();
   const { formattedMaxSize: uploadMaxSizeLabel } = useUploadEntitlement("mp3-converter");
+  // Sent with the upload so the route applies this user's plan cap — without
+  // it every caller counted as anonymous (lib/upload-policy ANONYMOUS_MAX_BYTES).
+  const { token } = useAuth();
   const submittingRef = useRef(false);
   const downloadedForJobId = useRef<string | null>(null);
 
@@ -153,7 +157,11 @@ export default function Mp3ConverterTool() {
         const form = new FormData();
         form.append("file", file);
         form.append("quality", quality);
-        const startRes = await fetch("/api/tools/mp3-converter", { method: "POST", body: form });
+        const startRes = await fetch("/api/tools/mp3-converter", {
+          method: "POST",
+          body: form,
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
         if (!startRes.ok) {
           const json = await startRes.json().catch(() => ({})) as { error?: string };
           throw new Error(json.error ?? `Server error (${startRes.status})`);
@@ -163,7 +171,7 @@ export default function Mp3ConverterTool() {
     } finally {
       submittingRef.current = false;
     }
-  }, [file, quality, job]);
+  }, [file, quality, job, token]);
 
   // Once the job is done, fetch the converted file.
   useEffect(() => {
@@ -220,7 +228,7 @@ export default function Mp3ConverterTool() {
               <IcMp3 />
             </div>
             <div className="min-w-0">
-              <h2 className="font-bold text-fg text-[17px] leading-tight">Convert to MP3</h2>
+              <h1 className="font-bold text-fg text-[17px] leading-tight">MP3 Converter</h1>
               <p className="text-sm text-fg-muted mt-1">Upload an audio or video file to convert to MP3.</p>
             </div>
           </div>

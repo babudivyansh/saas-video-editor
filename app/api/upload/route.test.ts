@@ -11,7 +11,10 @@ let authUser: { userId: string } | null = { userId: "u1" };
 vi.mock("@/lib/auth", () => ({
   getAuthUser: vi.fn(async () => authUser),
   getUserTier: vi.fn(async () => "free"),
+  requireAdmin: vi.fn(async () => null),
 }));
+// readMultipartWithin's maintenance gate (it stands in for the proxy's).
+vi.mock("@/lib/flags", () => ({ getMaintenanceModeCached: vi.fn(async () => ({ on: false })) }));
 
 const existingAsset = {
   id: "a1",

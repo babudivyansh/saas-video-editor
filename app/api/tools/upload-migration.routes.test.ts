@@ -41,6 +41,7 @@ vi.mock("@/lib/with-rate-limit", () => ({ withRateLimit: (h: unknown) => h }));
 vi.mock("@/lib/rate-limit", () => ({ rateLimit: vi.fn(async () => ({ allowed: true })), getClientIp: vi.fn(() => "127.0.0.1") }));
 vi.mock("@/lib/free-tool-caps", () => ({
   checkFreeToolDailyCap: vi.fn(async () => ({ allowed: true })),
+  freeToolGate: vi.fn(async () => ({ auth: { userId: "u1" } })),
   freeToolCapResponseBody: vi.fn(() => ({})),
 }));
 const chargeCredits = vi.fn(async () => ({ ok: true, generationId: "g1" }));
@@ -87,6 +88,7 @@ const CASES: RouteCase[] = [
       const f = new FormData();
       f.append("characterImage", file(10 * 1024 * 1024 + over, "a.png", "image/png"));
       f.append("targetImage", file(1024, "b.png", "image/png"));
+      f.append("consent", "1"); // required since the 2026-10-14 audit
       return f;
     },
   },

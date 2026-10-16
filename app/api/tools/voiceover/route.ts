@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { getAuthUser } from "@/lib/auth";
 import { synthesizeVoice } from "@/utils/elevenlabs";
-import { resolveVoiceId } from "@/utils/voice-ids";
+import { resolveToolVoice } from "@/lib/voices/registry";
 import { uploadBufferToS3 } from "@/utils/s3-upload";
 import { markQuestComplete } from "@/lib/quests";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress } from "@/lib/credits";
@@ -10,7 +10,7 @@ import { voiceoverCredits } from "@/lib/audio-pricing";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
-import { createJobStatusHandler, createJobCancelHandler, type CancellableJob } from "@/lib/job-routes";
+import { createJobStatusHandler, createJobCancelHandler, idempotencyResponse, type CancellableJob } from "@/lib/job-routes";
 import { saveToolResult } from "@/lib/tool-results";
 
 export const maxDuration = 120;
@@ -20,6 +20,8 @@ export const maxDuration = 120;
 // flat 2 credits that ran at ~1.6x cost at the cap after GST. The cap bounds
 // one request, not the margin.
 const MAX_CHARS = 2000;
+
+const unit = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : undefined);
 
 // Result is an S3 URL, not a local file — see image-generator/route.ts's
 // identical note. outputPath/downloadName are unused placeholders; the real
@@ -76,6 +78,13 @@ async function handlePOST(req: NextRequest) {
       { status: 400 },
     );
   }
+  // Catalogue voices or the caller's own clones. resolveVoiceId passed any string through as
+  // a raw ElevenLabs id, so a request could use any voice on our account
+  // (including cloned ones) and put arbitrary text into the provider URL.
+  const voice = await resolveToolVoice(auth.userId, voiceSlug);
+  if (!voice) {
+    return NextResponse.json({ error: "Choose a voice from the list." }, { status: 400 });
+  }
   if (!env.ELEVENLABS_API_KEY) {
     return NextResponse.json({ error: "Voice generation is not configured" }, { status: 503 });
   }
@@ -90,6 +99,8 @@ async function handlePOST(req: NextRequest) {
     idempotencyKey: body.idempotencyKey,
     log: { generationType: "audio", prompt: text, estimatedCostUsd: (text.length / 1000) * 0.05 },
   });
+  const replayed = idempotencyResponse(charge, jobs);
+  if (replayed) return replayed;
   if (!charge.ok) {
     if (charge.reason === "tool_disabled") {
       return NextResponse.json({ error: "Voiceover generation is temporarily disabled." }, { status: 503 });
@@ -113,14 +124,15 @@ async function handlePOST(req: NextRequest) {
 
   (async () => {
     try {
-      const voiceId = resolveVoiceId(voiceSlug);
+      const voiceId = voice.providerVoiceId;
       job.progress = 20;
       if (job.generationId) void updateGenerationProgress(job.generationId, job.progress);
 
       const { audioBuffer, wordTimings } = await synthesizeVoice(text, voiceId, {
-        stability: body.stability,
-        similarityBoost: body.similarityBoost,
-        style: body.exaggeration,
+        // ElevenLabs takes 0-1 for all three; anything else just fails the call.
+        stability: unit(body.stability),
+        similarityBoost: unit(body.similarityBoost),
+        style: unit(body.exaggeration),
       });
 
       if ((job.status as string) === "cancelled") return;
@@ -183,7 +195,7 @@ export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy:
 
 export const GET = withRateLimit(
   createJobStatusHandler(jobs, { contentType: "audio/mpeg", deleteOnDownload: false }),
-  { limit: 30, windowSec: 60, keyBy: "user", name: "tools:voiceover:status" },
+  { limit: 60, windowSec: 60, keyBy: "user", name: "tools:voiceover:status" },
 );
 
 export const DELETE = withRateLimit(
