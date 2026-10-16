@@ -9,6 +9,7 @@ import { useEffect, useRef } from "react";
 import { useEditorStore } from "../store/editorStore";
 import { audioClipAt, docDuration, videoClipAt } from "@/lib/editor/doc-utils";
 import { clipDuckSegments, musicGainAt, speechRangesFromCaptions } from "@/lib/editor/music-envelope";
+import { adjustCss, effectActiveAt } from "@/lib/editor/video-look";
 import {
   EFFECT_PRESETS,
   FILTER_PRESETS,
@@ -95,11 +96,12 @@ export function usePlayback(registry: React.RefObject<MediaRegistry>) {
           // "none" clears the inline style entirely so a class-based effect
           // filter (below) isn't overridden by an inline `filter: none`.
           const css = FILTER_PRESETS[active.filter ?? "none"].css;
-          const inlineFilter = css === "none" ? "" : css;
+          const inlineFilter = [css === "none" ? "" : css, adjustCss(active.adjust)].filter(Boolean).join(" ");
           if (el.style.filter !== inlineFilter) el.style.filter = inlineFilter;
           // Effect preview: CSS keyframe approximation of the export-side
           // ffmpeg effect (classes defined in editor-theme.css).
-          const fxClass = EFFECT_PRESETS[active.effect ?? "none"].previewClass ?? "";
+          // Only inside the effect window (effect on part of a clip).
+          const fxClass = effectActiveAt(active, local) ? EFFECT_PRESETS[active.effect ?? "none"].previewClass ?? "" : "";
           if (el.dataset.fxClass !== fxClass) {
             if (el.dataset.fxClass) el.classList.remove(el.dataset.fxClass);
             if (fxClass) el.classList.add(fxClass);

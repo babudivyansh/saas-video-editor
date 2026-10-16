@@ -171,3 +171,22 @@ describe("text keyframes", () => {
     expect(fc).toContain("alpha='if(lt(t,1),0,");
   });
 });
+
+describe("effect window, strength and colour fine-tune", () => {
+  const fcOf = (d: TimelineDoc) => { const a = build(d).args; return a[a.indexOf("-filter_complex") + 1]; };
+
+  it("wraps a part-clip effect in split/blend with an enable window", () => {
+    const fc = fcOf(doc([videoClip({ id: "v1", effect: "filmGrain", effectStart: 1, effectEnd: 2, effectStrength: 0.5 })]));
+    expect(fc).toMatch(/split\[\w+o\]\[\w+f\];\[\w+f\]noise=alls=12:allf=t\+u\[\w+e\];\[\w+o\]\[\w+e\]blend=all_expr='A\+\(B-A\)\*0\.5':enable='between\(t,1,2\)'/);
+  });
+
+  it("keeps the plain chain for a whole-clip, full-strength effect", () => {
+    expect(fcOf(doc([videoClip({ id: "v1", effect: "filmGrain" })]))).not.toContain("blend=");
+  });
+
+  it("adds eq/colorbalance for the fine-tune", () => {
+    const fc = fcOf(doc([videoClip({ id: "v1", adjust: { brightness: 0.1, contrast: 1, saturation: 1.2, warmth: 0.4 } })]));
+    expect(fc).toContain("eq=brightness=0.1:contrast=1:saturation=1.2");
+    expect(fc).toContain("colorbalance=rs=0.06");
+  });
+});

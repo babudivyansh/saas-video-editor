@@ -79,8 +79,23 @@ export interface VideoClip extends ClipBase {
   filter?: FilterPreset; // color preset (default "none")
   // Applied at export by filtergraph.ts (see EFFECT_PRESETS/TRANSITION_PRESETS).
   effect?: EffectPreset;
+  /** Effect only between these clip-local seconds (both unset = whole clip). */
+  effectStart?: number;
+  effectEnd?: number;
+  /** How strongly the effect shows, 0.1..1 (default 1) — a blend with the untouched picture. */
+  effectStrength?: number;
+  /** Colour fine-tune on top of the filter preset. */
+  adjust?: VideoAdjust;
   transitionOut?: TransitionPreset;
 }
+
+export interface VideoAdjust {
+  brightness: number; // -0.3..0.3 (0 = unchanged)
+  contrast: number; // 0.5..1.5 (1 = unchanged)
+  saturation: number; // 0..2 (1 = unchanged)
+  warmth: number; // -1..1 (0 = unchanged; + warmer, - cooler)
+}
+export const NEUTRAL_ADJUST: VideoAdjust = { brightness: 0, contrast: 1, saturation: 1, warmth: 0 };
 
 export interface TextClip extends ClipBase {
   type: "text";
@@ -451,6 +466,15 @@ export function validateDoc(doc: unknown): string | null {
     if (v.filter !== undefined && !(v.filter in FILTER_PRESETS)) return "video clip invalid filter";
     if (v.effect !== undefined && !(v.effect in EFFECT_PRESETS)) return "video clip invalid effect";
     if (v.transitionOut !== undefined && !(v.transitionOut in TRANSITION_PRESETS)) return "video clip invalid transitionOut";
+    if (v.effectStart !== undefined && !isFiniteNonNeg(v.effectStart)) return "video clip invalid effectStart";
+    if (v.effectEnd !== undefined && !isFiniteNonNeg(v.effectEnd)) return "video clip invalid effectEnd";
+    if (v.effectStart !== undefined && v.effectEnd !== undefined && v.effectEnd <= v.effectStart) return "video clip invalid effect range";
+    if (v.effectStrength !== undefined && !isFiniteInRange(v.effectStrength, 0.1, 1)) return "video clip invalid effectStrength";
+    if (v.adjust !== undefined) {
+      const a = v.adjust;
+      if (typeof a !== "object" || a === null || !isFiniteInRange(a.brightness, -0.3, 0.3) || !isFiniteInRange(a.contrast, 0.5, 1.5) || !isFiniteInRange(a.saturation, 0, 2) || !isFiniteInRange(a.warmth, -1, 1))
+        return "video clip invalid adjust";
+    }
   }
   for (const t of d.tracks.text) {
     if (typeof t.text !== "string") return "text clip missing text";
