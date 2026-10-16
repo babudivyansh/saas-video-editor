@@ -3,7 +3,7 @@ import fs from "fs";
 import { Readable } from "stream";
 import { getAuthUser } from "@/lib/auth";
 import { attachmentDisposition } from "@/utils/content-disposition";
-import { refundCredits, cancelGeneration, markGenerationStatus } from "@/lib/credits";
+import { refundCredits, cancelGeneration, markGenerationStatus, type ChargeCreditsResult } from "@/lib/credits";
 
 // Shared GET (poll/download) handler for the ~12 tool routes that each run
 // a background job in a `globalThis` Map and let the client poll/download
@@ -157,4 +157,36 @@ export function createJobCancelHandler<J extends CancellableJob>(
 
     return NextResponse.json({ ok: true });
   };
+}
+
+/**
+ * What a job route returns when chargeCredits did NOT make a fresh charge
+ * for this request's idempotency key, or null to carry on normally.
+ *
+ * A replay (same user, same key — a double-click or a network retry) gets the
+ * job that key already started, so the client simply keeps polling it. It must
+ * never start a second job: nothing was charged for one, and a failing second
+ * job would refund the FIRST job's charge. If that job is gone (finished and
+ * swept, or lost to a restart) the answer is a 409 pointing at the durable
+ * Generation instead. A key that belongs to another user is refused outright.
+ */
+export function idempotencyResponse<J extends { generationId?: string }>(
+  charge: ChargeCreditsResult,
+  jobs: Map<string, J>,
+): NextResponse | null {
+  if (!charge.ok) {
+    return charge.reason === "idempotency_conflict"
+      ? NextResponse.json({ error: "This request could not be accepted. Please try again." }, { status: 409 })
+      : null;
+  }
+  if (!charge.replay) return null;
+  for (const [jobId, job] of jobs) {
+    if (charge.generationId && job.generationId === charge.generationId) {
+      return NextResponse.json({ jobId, generationId: charge.generationId, replayed: true }, { status: 202 });
+    }
+  }
+  return NextResponse.json(
+    { error: "This request was already submitted — check your Assets for the result.", generationId: charge.generationId },
+    { status: 409 },
+  );
 }

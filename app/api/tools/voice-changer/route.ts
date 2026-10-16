@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { markQuestComplete } from "@/lib/quests";
 import { resolveVoiceId } from "@/utils/voice-ids";
-import { getMediaDurationSec } from "@/utils/ffmpeg-render";
+import { getMediaDurationSec, trimAudioForProvider } from "@/utils/ffmpeg-render";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { fetchElevenLabs, ElevenLabsHttpError } from "@/utils/elevenlabs";
 import { logger } from "@/lib/logger";
@@ -11,7 +11,7 @@ import { env } from "@/lib/env";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress } from "@/lib/credits";
 import { voiceFxCredits } from "@/lib/audio-pricing";
 import { resolveUploadPolicy, readUploadForm, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
-import { createJobStatusHandler, createJobCancelHandler, type CancellableJob } from "@/lib/job-routes";
+import { createJobStatusHandler, createJobCancelHandler, idempotencyResponse, type CancellableJob } from "@/lib/job-routes";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -88,6 +88,7 @@ async function handlePOST(req: NextRequest) {
   const ext = (audioFile.name.split(".").pop() ?? "mp3").toLowerCase();
   const inputPath = path.join(os.tmpdir(), `${jobId}-input.${ext}`);
   const outputPath = path.join(os.tmpdir(), `${jobId}-output.mp3`);
+  const providerPath = path.join(os.tmpdir(), `${jobId}-provider.mp3`);
   const downloadName = `voice-changed-${Date.now()}.mp3`;
 
   fs.writeFileSync(inputPath, Buffer.from(await audioFile.arrayBuffer()));
@@ -116,6 +117,11 @@ async function handlePOST(req: NextRequest) {
     idempotencyKey,
     log: { generationType: "audio", estimatedCostUsd: durationSec * AUDIO_COST_USD_PER_SEC },
   });
+  const replayed = idempotencyResponse(charge, jobs);
+  if (replayed) {
+    try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
+    return replayed;
+  }
   if (!charge.ok) {
     try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
     if (charge.reason === "tool_disabled") {
@@ -144,9 +150,12 @@ async function handlePOST(req: NextRequest) {
 
       job.progress = 10;
 
+      // The billed length only, never the raw file (its header duration is
+      // what we charged for, and it can lie).
+      await trimAudioForProvider(inputPath, providerPath, durationSec);
       const elForm = new FormData();
-      const inputBlob = new Blob([fs.readFileSync(inputPath)], { type: audioFile.type || "audio/mpeg" });
-      elForm.append("audio", inputBlob, audioFile.name);
+      const inputBlob = new Blob([fs.readFileSync(providerPath)], { type: "audio/mpeg" });
+      elForm.append("audio", inputBlob, "audio.mp3");
       elForm.append("model_id", "eleven_multilingual_sts_v2");
       elForm.append("voice_settings", JSON.stringify({ stability: 0.5, similarity_boost: 0.75, speed }));
       elForm.append("remove_background_noise", String(removeNoise));
@@ -208,6 +217,7 @@ async function handlePOST(req: NextRequest) {
       }
     } finally {
       try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
+      try { fs.unlinkSync(providerPath); } catch { /* ignore */ }
     }
   })();
 
