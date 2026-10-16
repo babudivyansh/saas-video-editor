@@ -9,18 +9,17 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Music2, UploadCloud } from "lucide-react";
 import { useEditorStore } from "../../store/editorStore";
-import { docDuration } from "@/lib/editor/doc-utils";
 import {
   type AssetRow,
   type SortKind,
   fmtDuration,
-  probeDuration,
   searchAssets,
   useAssets,
   useUpload,
 } from "./shared/assetData";
 import { Button, PillGroup, SelectField } from "../ui";
 import AssetCard from "./shared/AssetCard";
+import { addAssetToTimeline } from "./shared/addAssetToTimeline";
 import SearchField from "./shared/SearchField";
 import PanelStatus from "./shared/PanelStatus";
 
@@ -39,9 +38,6 @@ const SORTS: { key: SortKind; label: string }[] = [
 ];
 
 export default function MediaPanel() {
-  const addVideoClip = useEditorStore((s) => s.addVideoClip);
-  const addImageClip = useEditorStore((s) => s.addImageClip);
-  const addAudioClip = useEditorStore((s) => s.addAudioClip);
   const [filter, setFilter] = useState<(typeof FILTERS)[number]["key"]>("all");
   const [sort, setSort] = useState<SortKind>("date");
   const [query, setQuery] = useState("");
@@ -84,49 +80,7 @@ export default function MediaPanel() {
   const addToTimeline = async (asset: AssetRow) => {
     setAdding(asset.id);
     try {
-      if (asset.kind === "video") {
-        const duration = asset.duration ?? (await probeDuration(asset.url, "video"));
-        const doc = useEditorStore.getState().doc;
-        addVideoClip({
-          type: "video",
-          id: crypto.randomUUID(),
-          assetId: asset.id,
-          timelineStart:
-            docDuration(doc) === 0
-              ? 0
-              : doc.tracks.video.length
-                ? doc.tracks.video[doc.tracks.video.length - 1].timelineStart +
-                  doc.tracks.video[doc.tracks.video.length - 1].duration
-                : 0,
-          duration,
-          srcIn: 0,
-          volume: 1,
-          muted: false,
-        });
-      } else if (asset.kind === "audio") {
-        const duration = asset.duration ?? (await probeDuration(asset.url, "audio"));
-        addAudioClip({
-          type: "audio",
-          id: crypto.randomUUID(),
-          assetId: asset.id,
-          timelineStart: useEditorStore.getState().currentTime,
-          duration,
-          srcIn: 0,
-          volume: 0.5,
-        });
-      } else {
-        addImageClip({
-          type: "image",
-          id: crypto.randomUUID(),
-          assetId: asset.id,
-          timelineStart: useEditorStore.getState().currentTime,
-          duration: 4,
-          x: 0.5,
-          y: 0.5,
-          scalePct: 1,
-          opacity: 1,
-        });
-      }
+      await addAssetToTimeline(asset);
     } catch {
       // metadata probe failed — skip silently, the asset stays in the library
     } finally {

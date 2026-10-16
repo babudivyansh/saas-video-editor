@@ -18,6 +18,7 @@ import { useAutosave, reloadLatestProject } from "./hooks/useAutosave";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import SidebarTabs from "./components/SidebarTabs";
 import PreviewStage from "./components/PreviewStage";
+import EmptyProjectStart from "./components/EmptyProjectStart";
 import PropertiesPanel from "./components/PropertiesPanel";
 import Timeline from "./components/timeline/Timeline";
 // Conditionally rendered ({exportOpen && ...} below), but a static import
@@ -42,6 +43,7 @@ const SAVE_LABEL: Record<string, { text: string; dot: string }> = {
 
 export default function EditorShell() {
   const aspect = useEditorStore((s) => s.doc.aspect);
+  const docIsEmpty = useEditorStore((s) => Object.values(s.doc.tracks).every((t) => t.length === 0));
   const setAspect = useEditorStore((s) => s.setAspect);
   const saveState = useEditorStore((s) => s.saveState);
   const projectId = useEditorStore((s) => s.projectId);
@@ -183,7 +185,7 @@ export default function EditorShell() {
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <div className="flex min-h-0 flex-1">
             <main className="flex min-w-0 flex-1 flex-col items-center justify-center gap-3 bg-editor-bg p-4">
-              <PreviewStage />
+              {docIsEmpty ? <EmptyProjectStart /> : <PreviewStage />}
             </main>
             <PropertiesPanel />
           </div>
