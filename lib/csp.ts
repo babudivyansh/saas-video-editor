@@ -19,8 +19,10 @@ export function buildCsp(nonce: string): string {
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com`,
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob: https://*.amazonaws.com https://lh3.googleusercontent.com",
-    "media-src 'self' https://*.amazonaws.com",
+    // Stock thumbnails and hover previews load straight from the providers
+    // (the hosts in lib/stock-hosts.ts) until the user adds one.
+    "img-src 'self' data: blob: https://*.amazonaws.com https://lh3.googleusercontent.com https://images.pexels.com https://*.giphy.com",
+    "media-src 'self' https://*.amazonaws.com https://videos.pexels.com https://player.vimeo.com https://*.jamendo.com",
     "connect-src 'self' https://api.razorpay.com https://*.razorpay.com https://*.sentry.io https://*.ingest.sentry.io",
     "frame-src 'self' https://api.razorpay.com https://*.razorpay.com",
     "font-src 'self' data:",
