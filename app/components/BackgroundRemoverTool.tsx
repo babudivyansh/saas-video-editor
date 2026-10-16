@@ -198,7 +198,7 @@ export default function BackgroundRemoverTool() {
               <IcImage />
             </div>
             <div className="min-w-0">
-              <h2 className="font-bold text-fg text-[17px] leading-tight">Remove Background</h2>
+              <h1 className="font-bold text-fg text-[17px] leading-tight">Background Remover</h1>
               <p className="text-sm text-fg-muted mt-0.5">Upload an image to remove the background.</p>
             </div>
           </div>
@@ -225,9 +225,9 @@ export default function BackgroundRemoverTool() {
                 <div className="w-14 h-14 rounded-full bg-panel border border-line flex items-center justify-center text-fg-subtle mb-3">
                   <IcCloud />
                 </div>
-                <p className="text-[15px] font-semibold text-fg">Upload image/video</p>
+                <p className="text-[15px] font-semibold text-fg">Upload image</p>
                 <p className="text-sm text-fg-subtle mt-1">Drag and drop or click to browse</p>
-                <p className="text-xs text-fg-subtle mt-2">.png, .jpg, .jpeg, .webp, .gif • Max 10 MB</p>
+                <p className="text-xs text-fg-subtle mt-2">.png, .jpg, .jpeg, .webp, .gif • Max 10 MB · GIFs use the first frame</p>
               </button>
             </>
           )}

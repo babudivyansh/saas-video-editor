@@ -1,8 +1,10 @@
+import { saveMediaUpload } from "@/lib/media-upload";
+import { userMessage, rawErrorText } from "@/lib/user-facing-error";
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { markQuestComplete } from "@/lib/quests";
-import { resolveVoiceId } from "@/utils/voice-ids";
-import { getMediaDurationSec } from "@/utils/ffmpeg-render";
+import { resolveToolVoice } from "@/lib/voices/registry";
+import { trimAudioForProvider } from "@/utils/ffmpeg-render";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { fetchElevenLabs, ElevenLabsHttpError } from "@/utils/elevenlabs";
 import { logger } from "@/lib/logger";
@@ -10,8 +12,8 @@ import { saveToolResult } from "@/lib/tool-results";
 import { env } from "@/lib/env";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress } from "@/lib/credits";
 import { voiceFxCredits } from "@/lib/audio-pricing";
-import { resolveUploadPolicy, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
-import { createJobStatusHandler, createJobCancelHandler, type CancellableJob } from "@/lib/job-routes";
+import { resolveUploadPolicy, readUploadForm, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
+import { createJobStatusHandler, createJobCancelHandler, idempotencyResponse, type CancellableJob } from "@/lib/job-routes";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -59,17 +61,13 @@ async function handlePOST(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  let formData: FormData;
-  try {
-    formData = await req.formData();
-  } catch {
-    return NextResponse.json({ error: "Invalid multipart body" }, { status: 400 });
-  }
+  const policy = await resolveUploadPolicy(auth.userId, "voice-changer");
+  const formData = await readUploadForm(req, policy);
+  if (formData instanceof NextResponse) return formData;
 
   const audioFile = formData.get("audio") as File | null;
   if (!audioFile) return NextResponse.json({ error: "No audio file provided" }, { status: 400 });
 
-  const policy = await resolveUploadPolicy(auth.userId, "voice-changer");
   try {
     assertWithinUploadPolicy(policy, audioFile.size);
   } catch (e) {
@@ -87,21 +85,31 @@ async function handlePOST(req: NextRequest) {
   const speed = Number.isFinite(speedRaw) ? Math.min(1.2, Math.max(0.7, speedRaw)) : 1;
   const idempotencyKey = (formData.get("idempotencyKey") as string | null) ?? undefined;
 
+  // Catalogue voices or the caller's own clones. resolveVoiceId passed any string through as
+  // a raw ElevenLabs id, so a request could use any voice on our account
+  // (including cloned ones) and put arbitrary text into the provider URL.
+  const voice = await resolveToolVoice(auth.userId, voiceSlug);
+  if (!voice) {
+    return NextResponse.json({ error: "Choose a voice from the list." }, { status: 400 });
+  }
+
   // Write the upload to disk first so we can probe its duration BEFORE charging.
   const jobId = randomUUID();
-  const ext = (audioFile.name.split(".").pop() ?? "mp3").toLowerCase();
-  const inputPath = path.join(os.tmpdir(), `${jobId}-input.${ext}`);
   const outputPath = path.join(os.tmpdir(), `${jobId}-output.mp3`);
+  const providerPath = path.join(os.tmpdir(), `${jobId}-provider.mp3`);
   const downloadName = `voice-changed-${Date.now()}.mp3`;
 
-  fs.writeFileSync(inputPath, Buffer.from(await audioFile.arrayBuffer()));
+  // Safe temp extension + container allow-list (lib/media-upload.ts).
+  const saved = await saveMediaUpload(audioFile, jobId, "mp3");
+  if (saved instanceof NextResponse) return saved;
+  const { inputPath } = saved;
 
   // Enforce the length cap (no credit charged yet). A duration of 0 means
   // ffmpeg couldn't probe the file at all (unreadable/unsupported container)
   // rather than a genuinely empty clip — treat that as a rejection too,
   // since letting it through silently bypassed the cost-control cap for any
   // file whose duration couldn't be determined.
-  const durationSec = await getMediaDurationSec(inputPath);
+  const durationSec = saved.durationSec;
   if (durationSec <= 0 || durationSec > MAX_DURATION_SEC) {
     try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
     const message = durationSec <= 0
@@ -120,6 +128,11 @@ async function handlePOST(req: NextRequest) {
     idempotencyKey,
     log: { generationType: "audio", estimatedCostUsd: durationSec * AUDIO_COST_USD_PER_SEC },
   });
+  const replayed = idempotencyResponse(charge, jobs);
+  if (replayed) {
+    try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
+    return replayed;
+  }
   if (!charge.ok) {
     try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
     if (charge.reason === "tool_disabled") {
@@ -144,13 +157,16 @@ async function handlePOST(req: NextRequest) {
 
   (async () => {
     try {
-      const voiceId = resolveVoiceId(voiceSlug);
+      const voiceId = encodeURIComponent(voice.providerVoiceId);
 
       job.progress = 10;
 
+      // The billed length only, never the raw file (its header duration is
+      // what we charged for, and it can lie).
+      await trimAudioForProvider(inputPath, providerPath, durationSec);
       const elForm = new FormData();
-      const inputBlob = new Blob([fs.readFileSync(inputPath)], { type: audioFile.type || "audio/mpeg" });
-      elForm.append("audio", inputBlob, audioFile.name);
+      const inputBlob = new Blob([fs.readFileSync(providerPath)], { type: "audio/mpeg" });
+      elForm.append("audio", inputBlob, "audio.mp3");
       elForm.append("model_id", "eleven_multilingual_sts_v2");
       elForm.append("voice_settings", JSON.stringify({ stability: 0.5, similarity_boost: 0.75, speed }));
       elForm.append("remove_background_noise", String(removeNoise));
@@ -201,17 +217,19 @@ async function handlePOST(req: NextRequest) {
             ? "The voice engine is temporarily unavailable — please try again."
             : "Couldn't convert this audio — try a different voice or file.";
       } else {
-        job.error = err instanceof Error ? err.message : "Voice change failed";
+        logger.error("voice-changer", "job failed", err);
+        job.error = userMessage(err, "We couldn't convert this audio. Your credits were refunded — please try again.");
       }
       if (!job.refunded) {
         job.refunded = true;
         try {
           await refundCredits({ userId: job.userId, amount: job.creditCost, generationId: job.generationId });
-          if (job.generationId) await markGenerationStatus(job.generationId, "failed", job.error);
+          if (job.generationId) await markGenerationStatus(job.generationId, "failed", rawErrorText(err));
         } catch { /* swallow */ }
       }
     } finally {
       try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
+      try { fs.unlinkSync(providerPath); } catch { /* ignore */ }
     }
   })();
 
@@ -224,7 +242,7 @@ export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy:
 
 export const GET = withRateLimit(
   createJobStatusHandler(jobs, { contentType: "audio/mpeg", deleteOnDownload: true }),
-  { limit: 30, windowSec: 60, keyBy: "user", name: "tools:voice-changer:status" },
+  { limit: 60, windowSec: 60, keyBy: "user", name: "tools:voice-changer:status" },
 );
 
 export const DELETE = withRateLimit(

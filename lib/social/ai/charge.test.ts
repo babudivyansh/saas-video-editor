@@ -46,6 +46,24 @@ describe("runCharged", () => {
     expect((err as Error).message).toContain("not charged");
   });
 
+  it("does not refund a failed replay — it would hand back the earlier request's charge", async () => {
+    chargeCredits.mockResolvedValue({ ok: true, generationId: "g1", replay: true });
+    const err = await runCharged(OPTS, async () => {
+      throw new Error("gemini exploded");
+    }).catch((e: unknown) => e);
+
+    expect(refundCredits).not.toHaveBeenCalled();
+    expect((err as InstanceType<typeof HttpError>).status).toBe(502);
+  });
+
+  it("409s a key that belongs to another user", async () => {
+    chargeCredits.mockResolvedValue({ ok: false, reason: "idempotency_conflict" });
+    const work = vi.fn();
+    const err = await runCharged(OPTS, work).catch((e: unknown) => e);
+    expect((err as InstanceType<typeof HttpError>).status).toBe(409);
+    expect(work).not.toHaveBeenCalled();
+  });
+
   it("does not run the work at all when the charge fails", async () => {
     chargeCredits.mockResolvedValue({ ok: false, reason: "insufficient_credits" });
     const work = vi.fn();

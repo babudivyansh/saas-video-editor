@@ -1,11 +1,13 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "./AuthContext";
+import { useModKey } from "./useModKey";
 import { useJobPolling } from "./useJobPolling";
 import { Tooltip } from "@/app/components/ui/Tooltip";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 import { VOICES, voiceBySlug, type Voice } from "@/app/components/voice-catalog";
 import { voiceoverCredits } from "@/lib/audio-pricing";
+import { DEFAULT_VOICE_SLUG } from "@/lib/voices/catalog";
 import { Modal } from "@/app/components/ui/Modal";
 
 function IcInfo() {
@@ -443,10 +445,14 @@ function PlayerCard({
 // ── Main component ───────────────────────────────────────────────────────────
 export default function VoiceoverTool() {
   const { user, token, openAuthModal, refreshUser } = useAuth();
+  const modKey = useModKey();
   const job = useJobPolling({ toolSlug: "voiceover", token });
   const fireReviewPrompt = useReviewPromptTrigger();
 
-  const [voiceSlug, setVoiceSlug] = useState("william");
+  // DEFAULT_VOICE_SLUG, an offered voice. This was "william" — a retired alias
+  // that is not in the picker, so the picker showed its first voice while the
+  // request sent "william" (which speaks as Brian): you heard another voice.
+  const [voiceSlug, setVoiceSlug] = useState(DEFAULT_VOICE_SLUG);
   const [title, setTitle] = useState("");
   const [script, setScript] = useState("");
   const [exaggeration, setExaggeration] = useState(0.5);
@@ -684,7 +690,7 @@ export default function VoiceoverTool() {
             ) : (
               <>
                 Generate voiceover
-                <kbd className="ml-1 hidden sm:inline-block text-[11px] font-semibold bg-white/20 rounded px-1.5 py-0.5">⌘+Enter</kbd>
+                <kbd className="ml-1 hidden sm:inline-block text-[11px] font-semibold bg-white/20 rounded px-1.5 py-0.5">{modKey}+Enter</kbd>
               </>
             )}
           </button>

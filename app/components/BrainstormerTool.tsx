@@ -132,6 +132,12 @@ export default function BrainstormerTool() {
 
   return (
     <div className="min-h-screen bg-surface-2 p-4 md:p-8">
+      <div className="max-w-5xl mx-auto mb-5">
+        <h1 className="text-[22px] font-extrabold text-fg tracking-tight">AI Brainstormer</h1>
+        <p className="text-[13.5px] text-fg-muted mt-1">
+          Five video ideas with hooks for your niche. Free — {user ? "a daily allowance on your plan" : "5 a day on the free plan, 50 on paid plans"}.
+        </p>
+      </div>
       <div className="max-w-5xl mx-auto flex flex-col lg:flex-row gap-5">
 
         {/* ── Left panel ── */}
