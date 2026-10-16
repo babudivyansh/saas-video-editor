@@ -179,7 +179,7 @@ export default function EnhanceSpeechTool() {
             <IcLink />
           </div>
           <div>
-            <h1 className="text-lg font-bold text-fg leading-tight">Enhance Speech</h1>
+            <h1 className="text-lg font-bold text-fg leading-tight">AI Speech Enhancer</h1>
             <p className="text-sm text-brand mt-0.5">Upload a video or audio file to enhance the audio clarity.</p>
           </div>
         </div>
@@ -212,7 +212,7 @@ export default function EnhanceSpeechTool() {
                 <p className="text-sm font-semibold text-fg mb-1">Upload audio/video</p>
                 <p className="text-sm text-brand font-medium mb-3">Drag and drop or click to browse</p>
                 <p className="text-xs text-fg-subtle text-center leading-relaxed">
-                  .mp3, .wav, .m4a, .ogg, .aac, .mp4, .mov, .avi, .webm • Max 50 MB
+                  .mp3, .wav, .m4a, .ogg, .aac, .mp4, .mov, .avi, .webm • Max 50 MB · up to 90 seconds
                 </p>
                 <p className="text-xs text-fg-subtle text-center mt-1">{AUDIO_RATE_LABEL["enhance-speech"]} · min 1 credit</p>
               </div>
@@ -277,7 +277,7 @@ export default function EnhanceSpeechTool() {
 
           {stage === "cancelled" && (
             <p className="text-sm text-fg-muted bg-surface-2 rounded-lg px-3 py-2">
-              Cancelled — your credit was refunded.
+              Cancelled — your credits were refunded.
             </p>
           )}
 
@@ -301,7 +301,7 @@ export default function EnhanceSpeechTool() {
               disabled={stage === "processing" || !file}
               className="w-full py-3 rounded-xl text-sm font-semibold grad-brand text-on-primary transition-opacity disabled:opacity-40"
             >
-              {stage === "processing" ? "Enhancing…" : "Generate Audio"}
+              {stage === "processing" ? "Enhancing…" : "Enhance speech"}
             </button>
           ) : (
             <button
