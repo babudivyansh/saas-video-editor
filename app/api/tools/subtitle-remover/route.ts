@@ -9,7 +9,7 @@ import { saveToolResult } from "@/lib/tool-results";
 import { subtitleRemoverCredits } from "@/lib/subtitle-remover-pricing";
 import { env } from "@/lib/env";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress, checkModelAccess } from "@/lib/credits";
-import { resolveUploadPolicy, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
+import { resolveUploadPolicy, readUploadForm, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
 import { createJobStatusHandler, createJobCancelHandler, idempotencyResponse, type CancellableJob } from "@/lib/job-routes";
 import os from "os";
 import path from "path";
@@ -171,17 +171,13 @@ async function handlePOST(req: NextRequest) {
     );
   }
 
-  let formData: FormData;
-  try {
-    formData = await req.formData();
-  } catch {
-    return NextResponse.json({ error: "Invalid multipart body" }, { status: 400 });
-  }
+  const policy = await resolveUploadPolicy(auth.userId, "subtitle-remover");
+  const formData = await readUploadForm(req, policy);
+  if (formData instanceof NextResponse) return formData;
 
   const videoFile = formData.get("video") as File | null;
   if (!videoFile) return NextResponse.json({ error: "No video file provided" }, { status: 400 });
 
-  const policy = await resolveUploadPolicy(auth.userId, "subtitle-remover");
   try {
     assertWithinUploadPolicy(policy, videoFile.size);
   } catch (e) {

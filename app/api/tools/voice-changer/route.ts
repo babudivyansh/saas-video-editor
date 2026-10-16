@@ -10,7 +10,7 @@ import { saveToolResult } from "@/lib/tool-results";
 import { env } from "@/lib/env";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress } from "@/lib/credits";
 import { voiceFxCredits } from "@/lib/audio-pricing";
-import { resolveUploadPolicy, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
+import { resolveUploadPolicy, readUploadForm, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
 import { createJobStatusHandler, createJobCancelHandler, idempotencyResponse, type CancellableJob } from "@/lib/job-routes";
 import os from "os";
 import path from "path";
@@ -59,17 +59,13 @@ async function handlePOST(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  let formData: FormData;
-  try {
-    formData = await req.formData();
-  } catch {
-    return NextResponse.json({ error: "Invalid multipart body" }, { status: 400 });
-  }
+  const policy = await resolveUploadPolicy(auth.userId, "voice-changer");
+  const formData = await readUploadForm(req, policy);
+  if (formData instanceof NextResponse) return formData;
 
   const audioFile = formData.get("audio") as File | null;
   if (!audioFile) return NextResponse.json({ error: "No audio file provided" }, { status: 400 });
 
-  const policy = await resolveUploadPolicy(auth.userId, "voice-changer");
   try {
     assertWithinUploadPolicy(policy, audioFile.size);
   } catch (e) {

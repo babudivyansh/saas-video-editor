@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
+import { Readable } from "stream";
 import { getAuthUser } from "@/lib/auth";
 import { attachmentDisposition } from "@/utils/content-disposition";
 import { refundCredits, cancelGeneration, markGenerationStatus, type ChargeCreditsResult } from "@/lib/credits";
@@ -77,17 +78,25 @@ export function createJobStatusHandler<J extends PollableJob>(
       if (!fs.existsSync(job.outputPath)) {
         return NextResponse.json({ error: "Output file missing" }, { status: 404 });
       }
-      const buffer = fs.readFileSync(job.outputPath);
+      // Streamed, never read whole: outputs run to hundreds of MB (a 20-minute
+      // 4K YouTube download can pass 1 GB) and readFileSync held each one in
+      // memory per request — past ~2 GB it could not be held at all.
+      const outputPath = job.outputPath;
+      const size = fs.statSync(outputPath).size;
+      const stream = fs.createReadStream(outputPath);
       if (opts.deleteOnDownload) {
-        try { fs.unlinkSync(job.outputPath); } catch { /* ignore */ }
         jobs.delete(jobId);
+        // After the stream closes (finished OR aborted by the client) — an
+        // open file can't be unlinked on Windows, and deleting it first would
+        // truncate the download on Linux.
+        stream.on("close", () => { fs.unlink(outputPath, () => { /* ignore */ }); });
       }
       const contentType = typeof opts.contentType === "function" ? opts.contentType(job) : opts.contentType;
-      return new NextResponse(new Uint8Array(buffer), {
+      return new NextResponse(Readable.toWeb(stream) as ReadableStream<Uint8Array>, {
         headers: {
           "Content-Type": contentType,
           "Content-Disposition": attachmentDisposition(job.downloadName),
-          "Content-Length": String(buffer.length),
+          "Content-Length": String(size),
           "Cache-Control": "no-store",
         },
       });

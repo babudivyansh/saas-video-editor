@@ -12,7 +12,7 @@ import { logger } from "@/lib/logger";
 import { saveToolResult } from "@/lib/tool-results";
 import { env } from "@/lib/env";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress, checkModelAccess } from "@/lib/credits";
-import { resolveUploadPolicy, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
+import { resolveUploadPolicy, readUploadForm, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
 import { createJobStatusHandler, createJobCancelHandler, idempotencyResponse, type CancellableJob } from "@/lib/job-routes";
 
 export const maxDuration = 120;
@@ -122,9 +122,9 @@ async function handlePOST(req: NextRequest) {
     );
   }
 
-  let formData: FormData;
-  try { formData = await req.formData(); }
-  catch { return NextResponse.json({ error: "Invalid multipart body" }, { status: 400 }); }
+  const policy = await resolveUploadPolicy(auth.userId, "face-swap");
+  const formData = await readUploadForm(req, policy, 2);
+  if (formData instanceof NextResponse) return formData;
 
   const characterFile = formData.get("characterImage") as File | null;
   const targetFile    = formData.get("targetImage")    as File | null;
@@ -133,7 +133,6 @@ async function handlePOST(req: NextRequest) {
   }
 
   const allowed = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
-  const policy = await resolveUploadPolicy(auth.userId, "face-swap");
   for (const f of [characterFile, targetFile]) {
     if (!allowed.includes(f.type)) {
       return NextResponse.json({ error: "Only PNG, JPG, WEBP images are supported" }, { status: 400 });

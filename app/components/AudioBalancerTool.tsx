@@ -3,6 +3,7 @@ import { useCallback, useRef, useState, useEffect } from "react";
 import { useJobPolling } from "./useJobPolling";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 import { useUploadEntitlement } from "@/app/hooks/useUploadEntitlement";
+import { useAuth } from "@/app/components/AuthContext";
 
 interface BalanceMode {
   id: string;
@@ -80,6 +81,9 @@ export default function AudioBalancerTool() {
   const job = useJobPolling({ toolSlug: "audio-balancer", token: null, requireAuth: false });
   const fireReviewPrompt = useReviewPromptTrigger();
   const { formattedMaxSize: uploadMaxSizeLabel } = useUploadEntitlement("audio-balancer");
+  // Sent with the upload so the route applies this user's plan cap — without
+  // it every caller counted as anonymous (lib/upload-policy ANONYMOUS_MAX_BYTES).
+  const { token } = useAuth();
   const submittingRef = useRef(false);
   const downloadedForJobId = useRef<string | null>(null);
 
@@ -147,7 +151,11 @@ export default function AudioBalancerTool() {
         const form = new FormData();
         form.append("file", file);
         form.append("mode", balanceMode);
-        const startRes = await fetch("/api/tools/audio-balancer", { method: "POST", body: form });
+        const startRes = await fetch("/api/tools/audio-balancer", {
+          method: "POST",
+          body: form,
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
         if (!startRes.ok) {
           const json = await startRes.json().catch(() => ({})) as { error?: string };
           throw new Error(json.error ?? `Server error (${startRes.status})`);
@@ -157,7 +165,7 @@ export default function AudioBalancerTool() {
     } finally {
       submittingRef.current = false;
     }
-  }, [file, balanceMode, job]);
+  }, [file, balanceMode, job, token]);
 
   // Once the job is done, fetch the balanced file.
   useEffect(() => {

@@ -6,7 +6,7 @@ import { fetchElevenLabs } from "@/utils/elevenlabs";
 import { env } from "@/lib/env";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress } from "@/lib/credits";
 import { voiceFxCredits } from "@/lib/audio-pricing";
-import { resolveUploadPolicy, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
+import { resolveUploadPolicy, readUploadForm, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
 import { createJobStatusHandler, createJobCancelHandler, idempotencyResponse, type CancellableJob } from "@/lib/job-routes";
 import { saveToolResult } from "@/lib/tool-results";
 import os from "os";
@@ -52,17 +52,13 @@ async function handlePOST(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  let formData: FormData;
-  try {
-    formData = await req.formData();
-  } catch {
-    return NextResponse.json({ error: "Invalid multipart body" }, { status: 400 });
-  }
+  const policy = await resolveUploadPolicy(auth.userId, "enhance-speech");
+  const formData = await readUploadForm(req, policy);
+  if (formData instanceof NextResponse) return formData;
 
   const file = formData.get("file") as File | null;
   if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 });
 
-  const policy = await resolveUploadPolicy(auth.userId, "enhance-speech");
   try {
     assertWithinUploadPolicy(policy, file.size);
   } catch (e) {
