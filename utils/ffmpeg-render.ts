@@ -786,3 +786,54 @@ export function styleIndexToSubtitleStyle(index: number, mode: "oneword" | "line
   const safe = Number.isFinite(index) ? Math.max(0, Math.min(index, arr.length - 1)) : 0;
   return arr[safe];
 }
+
+// ── Silence detection (editor: "Remove silences") ─────────────────────────
+
+export interface Silence { start: number; end: number }
+
+/**
+ * Pulls silence spans out of ffmpeg's silencedetect log. Times in the log are
+ * relative to where reading started (`-ss`), so `offset` puts them back into
+ * source time. A silence still open at the end of the input is closed at
+ * `totalSec`.
+ */
+export function parseSilenceLog(log: string, offset: number, totalSec: number): Silence[] {
+  const out: Silence[] = [];
+  let open: number | null = null;
+  for (const m of log.matchAll(/silence_(start|end):\s*(-?\d+(?:\.\d+)?)/g)) {
+    const t = Math.max(0, parseFloat(m[2]));
+    if (m[1] === "start") open = t;
+    else if (open !== null) { out.push({ start: offset + open, end: offset + t }); open = null; }
+  }
+  if (open !== null && totalSec > open) out.push({ start: offset + open, end: offset + totalSec });
+  return out;
+}
+
+/** Silences (source seconds) in [startSec, startSec + durationSec] of a media file or URL. */
+export function detectSilences(
+  input: string,
+  opts: { startSec: number; durationSec: number; noiseDb?: number; minSilenceSec?: number },
+  timeoutMs = 120_000,
+): Promise<Silence[]> {
+  const noise = opts.noiseDb ?? -35;
+  const min = opts.minSilenceSec ?? 0.6;
+  return new Promise((resolve, reject) => {
+    const proc = spawnFfmpeg(ffmpegBin!, [
+      "-hide_banner", "-nostats",
+      "-ss", String(Math.max(0, opts.startSec)),
+      "-t", String(Math.max(0.1, opts.durationSec)),
+      "-i", input,
+      "-vn", "-af", `silencedetect=noise=${noise}dB:d=${min}`,
+      "-f", "null", "-",
+    ], { stdio: ["ignore", "ignore", "pipe"] });
+    let buf = "";
+    const clearWatchdog = killAfterTimeout(proc, timeoutMs, () => reject(new Error("silence detection timed out")));
+    proc.stderr.on("data", (chunk: Buffer) => { buf += chunk.toString(); });
+    proc.on("close", (code) => {
+      clearWatchdog();
+      if (code !== 0 && !/silence_/.test(buf)) { reject(new Error(`ffmpeg exited ${code}`)); return; }
+      resolve(parseSilenceLog(buf, opts.startSec, opts.durationSec));
+    });
+    proc.on("error", (err) => { clearWatchdog(); reject(err); });
+  });
+}

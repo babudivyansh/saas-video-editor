@@ -26,6 +26,7 @@ import Timeline from "./components/timeline/Timeline";
 const ExportModal = dynamic(() => import("./components/ExportModal"), { ssr: false });
 const CommandPalette = dynamic(() => import("./components/CommandPalette"), { ssr: false });
 const ShortcutsSheet = dynamic(() => import("./components/ShortcutsSheet"), { ssr: false });
+const SilenceDialog = dynamic(() => import("./components/SilenceDialog"), { ssr: false });
 import { ExportSplitButton, TitleMenu } from "./components/header/HeaderMenus";
 import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
 
@@ -193,6 +194,7 @@ export default function EditorShell() {
       {exportOpen && <ExportModal />}
       <CommandPalette />
       <ShortcutsSheet />
+      <SilenceDialog />
     </div>
   );
 }
