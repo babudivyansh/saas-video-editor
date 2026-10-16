@@ -240,6 +240,15 @@ export default function TimelineClip({
           <span className="h-1/2 w-1 rounded-full bg-white/60 opacity-40 transition-opacity group-hover:opacity-100" />
         </span>
       )}
+      {/* Keyframe diamonds (text clips). */}
+      {clip.type === "text" && clip.keyframes?.map((k) => (
+        <span
+          key={k.t}
+          aria-hidden="true"
+          className="pointer-events-none absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rotate-45 border border-black/50 bg-warning"
+          style={{ left: k.t * zoom }}
+        />
+      ))}
     </div>
   );
 }

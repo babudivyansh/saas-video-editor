@@ -14,6 +14,7 @@ import { docDuration } from "@/lib/editor/doc-utils";
 import { ASPECT_DIMENSIONS } from "@/lib/editor/types";
 import { useAssets } from "./panels/shared/assetData";
 import { buildTextCss } from "./text/textStyle";
+import { setKeyframe, textAt } from "@/lib/editor/keyframes";
 import { renderRichTextToReact } from "./text/renderRichText";
 import { getTextMotion } from "./text/textAnimations";
 import { renderCaptionWords } from "./captions/renderCaptionWords";
@@ -76,6 +77,16 @@ export default function PreviewStage() {
     const rect = stage.getBoundingClientRect();
     const x = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
     const y = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height));
+    // Keyframed text: dragging sets the keyframe at the playhead instead of
+    // the (overridden) static position.
+    if (drag.track === "text") {
+      const s = useEditorStore.getState();
+      const clip = s.doc.tracks.text.find((c) => c.id === drag.clipId);
+      if (clip?.keyframes?.length) {
+        updateClip("text", drag.clipId, { keyframes: setKeyframe(clip, s.currentTime - clip.timelineStart, { x, y }) }, false);
+        return;
+      }
+    }
     updateClip(drag.track, drag.clipId, { x, y }, false);
   };
 
@@ -169,7 +180,9 @@ export default function PreviewStage() {
           ))}
 
           {/* Text overlays */}
-          {activeTexts.map((t) => {
+          {activeTexts.map((clip) => {
+            // Keyframed text: position, size and opacity at the playhead.
+            const t = textAt(clip, currentTime);
             const baseStyle = buildTextCss(t, stageH, stageW);
             const motion_ = getTextMotion(t, currentTime);
             const finalOpacity = (t.opacity ?? 1) * motion_.opacityMultiplier;

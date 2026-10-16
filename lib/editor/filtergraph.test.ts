@@ -155,3 +155,19 @@ describe("transitions", () => {
     expect(result.durationSec).toBe(6);
   });
 });
+
+describe("text keyframes", () => {
+  it("animates x, y, size and opacity with expressions in t", () => {
+    const d = doc([videoClip({ id: "v1" })]);
+    d.tracks.text = [{
+      id: "t1", type: "text", text: "Hi", timelineStart: 1, duration: 3, fontFamily: "Poppins", fontSizePct: 0.05,
+      color: "#ffffff", bold: false, align: "center", x: 0.5, y: 0.5, bgColor: null,
+      keyframes: [{ t: 0, x: 0.2, y: 0.5, scale: 1, opacity: 0 }, { t: 2, x: 0.8, y: 0.5, scale: 2, opacity: 1 }],
+    }];
+    const fc = buildFilterGraph({ doc: d, assets: assetsFor(d), textFiles: new Map([["t1", "/tmp/t1.txt"]]), outputPath: "/tmp/out.mp4" })
+      .args[buildFilterGraph({ doc: d, assets: assetsFor(d), textFiles: new Map([["t1", "/tmp/t1.txt"]]), outputPath: "/tmp/out.mp4" }).args.indexOf("-filter_complex") + 1];
+    expect(fc).toContain("x='(w*(if(lt(t,1),0.2,if(lt(t,3),0.2+(0.6)*(t-1)/2,0.8))))-(text_w/2)'");
+    expect(fc).toMatch(/fontsize='[\d.]+\*\(if\(lt\(t,1\),1,/);
+    expect(fc).toContain("alpha='if(lt(t,1),0,");
+  });
+});

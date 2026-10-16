@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import dynamic from "next/dynamic";
 import { useEditorStore } from "../../store/editorStore";
+import KeyframesCard from "./text/KeyframesCard";
 import { useAuth } from "@/app/components/AuthContext";
 import type { FontFamily, TextClip, TextEntrancePreset, TextLoopPreset, TextExitPreset } from "@/lib/editor/types";
 import { FONT_WHITELIST, TEXT_ENTRANCE_PRESETS, TEXT_LOOP_PRESETS, TEXT_EXIT_PRESETS } from "@/lib/editor/types";
@@ -217,6 +218,7 @@ export default function TextClipProps({ clip, activeTab }: { clip: TextClip; act
   if (activeTab === "animation") {
     return (
       <div className="flex flex-col gap-3 p-3">
+        <KeyframesCard clip={clip} />
         <PropertyCard title="Entrance" trailing={<PreviewOnlyBadge />}>
           <PillGroup
             layoutId="text-entrance-pills"
