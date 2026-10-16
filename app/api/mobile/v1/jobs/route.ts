@@ -187,6 +187,7 @@ async function startFileTool(req: NextRequest, auth: TokenPayload, b: FileTool):
       break;
     case "face-swap":
       refused = (await add("characterImage", b.faceAssetId)) ?? (await add("targetImage", b.targetAssetId));
+      form.append("consent", "1");
       break;
     case "subtitle-remover":
       refused = await add("video", b.assetId);
