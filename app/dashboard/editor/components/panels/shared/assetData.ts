@@ -131,7 +131,7 @@ export function useAssets(kind: AssetKind, opts: { sort?: SortKind } = {}) {
   return { assets: assetCache[kind], loading, refresh, loadMore, hasMore: nextCursorCache[kind] != null };
 }
 
-export function useUpload(onDone: () => void) {
+export function useUpload(onDone: (asset?: AssetRow) => void) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -153,7 +153,7 @@ export function useUpload(onDone: () => void) {
           throw new Error(data.error ?? "Upload failed");
         }
         if (data.asset) registerAsset(data.asset);
-        onDone();
+        onDone(data.asset as AssetRow | undefined);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Upload failed");
       } finally {
