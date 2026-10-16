@@ -62,8 +62,8 @@ test("brainstormer generates ideas from a mocked provider response", async ({ pa
 
   await page.goto("/dashboard/tools/brainstormer");
 
-  await page.getByPlaceholder("Generate ideas for a niche to start a page on").fill("Gardening tips");
-  await page.getByRole("button", { name: /generate ideas/i }).click();
+  await page.getByRole("textbox", { name: "Topic" }).fill("Gardening tips");
+  await page.getByRole("button", { name: /get 5 ideas/i }).click();
 
   await expect(page.getByText("Mocked idea one")).toBeVisible();
   await expect(page.getByText("Mocked idea two")).toBeVisible();
