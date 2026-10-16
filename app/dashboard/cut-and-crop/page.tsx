@@ -5,6 +5,8 @@ import { useAuth } from "@/app/components/AuthContext";
 import { useJobPolling } from "@/app/components/useJobPolling";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 import { computeMask, type Aspect } from "@/lib/crop";
+import { Button } from "@/app/components/ui/Button";
+import { ToolWorkspace, ToolBadge, ToolField, CostRow, OptionCards, StageEmpty, RecentResults } from "@/app/components/tools/ToolWorkspace";
 
 // Must match MAX_CLIPS in app/api/tools/cut-and-crop/route.ts.
 const MAX_CLIPS = 5;
@@ -70,13 +72,6 @@ function IconScissors() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
       <circle cx="6" cy="6" r="3" /><circle cx="6" cy="18" r="3" /><line x1="20" y1="4" x2="8.12" y2="15.88" /><line x1="14.47" y1="14.48" x2="20" y2="20" /><line x1="8.12" y1="8.12" x2="12" y2="12" />
-    </svg>
-  );
-}
-function IconCrop() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-      <path d="M6.13 1L6 16a2 2 0 002 2h15" /><path d="M1 6.13L16 6a2 2 0 012 2v15" />
     </svg>
   );
 }
@@ -505,85 +500,104 @@ export default function CutAndCropPage() {
   }, [job.status, job.jobId, token, refreshUser, fireReviewPrompt]);
 
   // ── Render ──────────────────────────────────────────────────────────────────
+  const busy = job.status === "processing";
+  const iconBtn = "w-8 h-8 flex items-center justify-center rounded-xl text-fg-muted hover:bg-surface-3 disabled:opacity-30 transition-colors";
+
   return (
-    <div className="flex flex-col min-w-0 h-full overflow-hidden bg-panel">
-
-        {/* ── Header ─────────────────────────────────────────────────────── */}
-        <header className="flex items-center gap-3 px-4 sm:px-6 h-12 flex-shrink-0 border-b border-line bg-panel">
-          {/* Title */}
-          <h1 className="text-[15px] font-semibold text-fg whitespace-nowrap">Cut &amp; Crop</h1>
-
-          <div className="flex-1" />
-
-          {/* Right cluster */}
-          <div className="flex items-center gap-2">
-            {/* Exporting indicator */}
-            {job.status === "processing" && (
-              <div className="flex items-center gap-2 text-sm text-fg-muted">
-                <div className="w-3.5 h-3.5 border-2 border-line border-t-primary rounded-full animate-spin" />
-                <span className="font-medium text-xs">{job.progress}%</span>
-                <button
-                  onClick={() => void job.cancel()}
-                  className="text-xs font-medium text-fg-subtle hover:text-error transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
-            )}
-
-            {/* Error toast */}
-            {(preflightError || (job.status === "error" && job.error)) && (
-              <span
-                className="text-xs text-error bg-error/10 border border-error/30 rounded-xl px-3 py-1.5 max-w-[160px] sm:max-w-[280px] truncate"
-                title={preflightError ?? job.error ?? undefined}
+    <ToolWorkspace
+      title="Cut & Crop"
+      icon="crop"
+      badges={<ToolBadge>1 credit</ToolBadge>}
+      description="Trim, reframe and stitch clips into one export."
+      controls={
+        <>
+          <ToolField label={`Clips · ${clips.length} of ${MAX_CLIPS}`}>
+            {clips.length === 0 ? (
+              <button
+                type="button"
+                onClick={onAddVideo}
+                className="flex w-full flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-line-strong bg-surface-1 px-4 py-8 text-center transition-colors hover:bg-surface-3"
               >
-                {preflightError ?? job.error}
-                {job.status === "error" && (
-                  <button onClick={() => void handleExport()} className="ml-1.5 font-semibold underline underline-offset-2 hover:text-error">
-                    Retry
+                <span className="text-primary"><IconCloud /></span>
+                <span className="text-[13px] font-medium text-fg">Click or drag videos here</span>
+                <span className="text-[11.5px] text-fg-subtle">Up to {MAX_CLIPS} clips · 10 minutes total</span>
+              </button>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {clips.map(clip => (
+                  <div key={clip.id} className={`flex items-center gap-3 rounded-xl border p-2.5 transition-colors ${activeId === clip.id ? "border-primary/50 bg-primary/5" : "border-line bg-surface-1"}`}>
+                    <button type="button" onClick={() => setActiveId(clip.id)} className="min-w-0 flex-1 text-left">
+                      <span className="block truncate text-[13px] font-medium text-fg">{clip.name}</span>
+                      <span className="block text-[11.5px] text-fg-subtle tabular-nums">Keep {fmt(clip.trimStart)} – {fmt(clip.trimEnd)} · {fmt(clip.trimEnd - clip.trimStart)}</span>
+                    </button>
+                    <button type="button" onClick={() => removeClip(clip.id)} aria-label={`Remove ${clip.name}`} className="flex h-7 w-7 items-center justify-center rounded-lg text-fg-subtle transition-colors hover:bg-error/10 hover:text-error">
+                      <IconTrash />
+                    </button>
+                  </div>
+                ))}
+                {clips.length < MAX_CLIPS && (
+                  <button type="button" onClick={onAddVideo} className="inline-flex items-center gap-1 self-start rounded-xl border border-line px-3 py-1.5 text-xs font-semibold text-fg-muted transition-colors hover:bg-surface-3">
+                    <IconPlus /> Add clip
                   </button>
                 )}
-              </span>
+              </div>
             )}
+          </ToolField>
 
-            {job.status === "cancelled" && (
-              <span className="text-xs text-fg-muted bg-surface-2 border border-line rounded-xl px-3 py-1.5">
-                Cancelled — credit refunded
-              </span>
-            )}
-
-            {/* Download again */}
-            {job.status === "done" && outputUrl && (
-              <a
-                href={outputUrl}
-                download={outputFilename}
-                className="text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl px-3 py-1.5 hover:bg-success/15 transition-colors whitespace-nowrap"
-              >
-                Download again
-              </a>
-            )}
-
-            {/* Export */}
-            <button
-              onClick={handleExport}
-              disabled={clips.length === 0 || job.status === "processing"}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold text-on-primary bg-brand hover:bg-brand-dark transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <IconUpload />
-              Export
-              {clips.length > 0 && (
-                <span className="text-[10px] bg-white/25 px-1.5 py-0.5 rounded-full font-medium">1 credit</span>
-              )}
-            </button>
-          </div>
-        </header>
-
-        {/* ── Editor body ─────────────────────────────────────────────────── */}
-        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-
+          <ToolField label="Frame">
+            <OptionCards
+              name="crop-aspect"
+              value={crop}
+              onChange={setCrop}
+              options={[
+                ["original", "Original", "No crop"],
+                ["9:16", "9:16", "Shorts, Reels"],
+                ["1:1", "1:1", "Feed"],
+                ["16:9", "16:9", "YouTube"],
+              ] as const}
+            />
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setRotation(r => (r === 270 ? 0 : (r + 90) as 0 | 90 | 180 | 270))}
+                      className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${rotation !== 0 ? "border-primary/50 bg-primary/10 text-fg" : "border-line text-fg-muted hover:bg-surface-3"}`}>
+                <IconRotate /> Rotate{rotation !== 0 ? ` ${rotation}°` : ""}
+              </button>
+              <button type="button" onClick={() => setFlipH(v => !v)} aria-pressed={flipH}
+                      className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${flipH ? "border-primary/50 bg-primary/10 text-fg" : "border-line text-fg-muted hover:bg-surface-3"}`}>
+                <IconFlip /> Flip
+              </button>
+            </div>
+          </ToolField>
+        </>
+      }
+      footer={
+        <>
+          {(preflightError || (job.status === "error" && job.error)) && (
+            <div role="alert" className="flex items-center justify-between gap-2 rounded-lg bg-error/10 px-3 py-2 text-xs text-error">
+              <span>{preflightError ?? job.error}</span>
+              {job.status === "error" && <button type="button" onClick={() => void handleExport()} className="flex-shrink-0 font-semibold underline underline-offset-2">Retry</button>}
+            </div>
+          )}
+          {job.status === "cancelled" && <p className="text-xs text-fg-muted">Cancelled — credit refunded.</p>}
+          <CostRow right={user ? `You have ${user.credits.toLocaleString()}` : undefined}>
+            Output <span className="font-semibold text-fg">{fmt(totalDuration)}</span>{crop !== "original" ? ` · ${crop}` : ""} · <span className="font-semibold text-fg">1 credit</span>
+          </CostRow>
+          <Button type="button" className="w-full" onClick={() => void handleExport()} disabled={clips.length === 0 || busy} loading={busy}>
+            {busy ? `Exporting… ${Math.round(job.progress)}%` : <span className="inline-flex items-center gap-2"><IconUpload /> Export video</span>}
+          </Button>
+          {busy && <button type="button" onClick={() => void job.cancel()} className="text-center text-xs font-medium text-fg-subtle hover:text-error">Cancel</button>}
+          {job.status === "done" && outputUrl && (
+            <a href={outputUrl} download={outputFilename} className="rounded-xl border border-success/30 bg-success/10 px-3 py-2 text-center text-xs font-semibold text-success hover:bg-success/15">Download again</a>
+          )}
+          <p className="text-center text-[11.5px] text-fg-subtle">Up to {MAX_CLIPS} clips, 10 minutes total. Saved to your Assets.</p>
+        </>
+      }
+      stageTitle="Preview"
+      stageActions={<span className="text-xs font-mono tabular-nums text-fg-subtle">{fmt(currentTime)} / {fmt(totalDuration)}</span>}
+      stage={
+        <div className="flex flex-1 flex-col gap-3">
           {/* Preview canvas */}
           <div
-            className="flex-1 min-h-0 flex items-center justify-center bg-[#111318] relative overflow-hidden"
+            className="relative flex min-h-[320px] flex-1 items-center justify-center overflow-hidden rounded-xl bg-[#050908]"
             onDragOver={e => { e.preventDefault(); setDraggingOver(true); }}
             onDragLeave={() => setDraggingOver(false)}
             onDrop={e => {
@@ -594,42 +608,18 @@ export default function CutAndCropPage() {
             }}
           >
             {clips.length === 0 ? (
-              /* Empty state */
-              <div
-                onClick={onAddVideo}
-                role="button"
-                tabIndex={0}
-                aria-label="Add a video"
-                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onAddVideo(); } }}
-                className={`flex flex-col items-center gap-4 cursor-pointer rounded-2xl border-2 border-dashed px-14 py-12 transition-colors ${
-                  draggingOver
-                    ? "border-brand bg-tint-blue0/10"
-                    : "border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10"
-                }`}
-              >
-                <div className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center text-white/50">
-                  <IconCloud />
-                </div>
-                <div className="text-center">
-                  <p className="text-white/80 text-sm font-medium mb-1">Upload a video to get started</p>
-                  <p className="text-white/40 text-xs">or drag &amp; drop a file here</p>
-                </div>
-                <button
-                  onClick={e => { e.stopPropagation(); onAddVideo(); }}
-                  className="px-5 py-2 rounded-full bg-brand hover:bg-brand-dark text-on-primary text-sm font-semibold transition-colors shadow-sm"
-                >
-                  Add Video
-                </button>
-              </div>
+              <StageEmpty icon="crop" title={draggingOver ? "Drop to add your clips" : "Your video appears here"}>
+                Add clips on the left or drop them here, then trim them on the timeline below.
+              </StageEmpty>
             ) : (
-              /* Video preview with crop overlay */
               <div style={{ display: "inline-block", position: "relative" }}>
                 <video
                   ref={videoRef}
                   style={{
                     display: "block",
-                    maxHeight: "calc(100vh - 256px)",
-                    maxWidth: "calc(100vw - 90px)",
+                    maxHeight: "calc(100vh - 430px)",
+                    minHeight: 220,
+                    maxWidth: "100%",
                     borderRadius: "0.5rem",
                     transform: `rotate(${rotation}deg)${flipH ? " scaleX(-1)" : ""}`,
                   }}
@@ -647,32 +637,12 @@ export default function CutAndCropPage() {
                   const m = computeMask(videoNatSize.w, videoNatSize.h, crop);
                   return (
                     <div style={{ position: "absolute", inset: 0, pointerEvents: "none", borderRadius: "0.5rem", overflow: "hidden" }}>
-                      {/* Dark regions */}
-                      <div style={{ position: "absolute", inset: 0, top: 0, left: 0, right: 0, height: `${m.top}%`, background: "rgba(0,0,0,0.65)" }} />
+                      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: `${m.top}%`, background: "rgba(0,0,0,0.65)" }} />
                       <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: `${m.bottom}%`, background: "rgba(0,0,0,0.65)" }} />
                       <div style={{ position: "absolute", top: `${m.top}%`, bottom: `${m.bottom}%`, left: 0, width: `${m.left}%`, background: "rgba(0,0,0,0.65)" }} />
                       <div style={{ position: "absolute", top: `${m.top}%`, bottom: `${m.bottom}%`, right: 0, width: `${m.right}%`, background: "rgba(0,0,0,0.65)" }} />
-                      {/* Bright border around kept region */}
-                      <div style={{
-                        position: "absolute",
-                        top: `${m.top}%`, left: `${m.left}%`,
-                        right: `${m.right}%`, bottom: `${m.bottom}%`,
-                        border: "1.5px solid rgba(255,255,255,0.85)",
-                      }} />
-                      {/* Ratio label */}
-                      <div style={{
-                        position: "absolute",
-                        bottom: `calc(${m.bottom}% + 8px)`,
-                        left: "50%",
-                        transform: "translateX(-50%)",
-                        background: "rgba(0,0,0,0.6)",
-                        color: "#fff",
-                        fontSize: 11,
-                        fontWeight: 600,
-                        padding: "2px 8px",
-                        borderRadius: 4,
-                        letterSpacing: "0.04em",
-                      }}>
+                      <div style={{ position: "absolute", top: `${m.top}%`, left: `${m.left}%`, right: `${m.right}%`, bottom: `${m.bottom}%`, border: "2px solid var(--emerald-bright)" }} />
+                      <div style={{ position: "absolute", bottom: `calc(${m.bottom}% + 8px)`, left: "50%", transform: "translateX(-50%)", background: "rgba(0,0,0,0.6)", color: "#fff", fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 4, letterSpacing: "0.04em" }}>
                         {crop}
                       </div>
                     </div>
@@ -680,255 +650,84 @@ export default function CutAndCropPage() {
                 })()}
               </div>
             )}
-
-            {/* Drag-over indicator when clips already exist — dropping here adds
-                another clip, but the empty-state's own indicator only renders
-                before the first clip is added, so this covers the rest. */}
             {draggingOver && clips.length > 0 && (
-              <div className="absolute inset-0 flex items-center justify-center bg-tint-blue0/10 border-2 border-dashed border-brand/60 rounded-2xl pointer-events-none">
-                <p className="text-white text-sm font-medium bg-black/60 px-4 py-2 rounded-full">Drop to add another clip</p>
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-xl border-2 border-dashed border-primary/60 bg-primary/5">
+                <p className="rounded-full bg-black/60 px-4 py-2 text-sm font-medium text-white">Drop to add another clip</p>
               </div>
             )}
-
           </div>
 
-          {/* ── Timeline panel ─────────────────────────────────────────── */}
-          <div className="flex-shrink-0 bg-panel border-t border-line">
-
-            {/* Controls bar */}
-            <div className="flex items-center gap-1 px-4 py-2 border-b border-line overflow-x-auto [&>*]:flex-shrink-0">
-              {/* Transport */}
-              <div className="flex items-center gap-0.5">
-                <button
-                  onClick={() => seekRel(-10)}
-                  disabled={!activeClip}
-                  title="Back 10s"
-                  className="w-8 h-8 flex items-center justify-center rounded-xl text-fg-muted hover:bg-surface-3 disabled:opacity-30 transition-colors"
-                >
-                  <IconBack10 />
-                </button>
-                <button
-                  onClick={togglePlay}
-                  disabled={!activeClip}
-                  aria-label={isPlaying ? "Pause" : "Play"}
-                  className="w-8 h-8 flex items-center justify-center rounded-xl text-fg hover:bg-surface-3 disabled:opacity-30 transition-colors"
-                >
-                  {isPlaying ? <IconPause /> : <IconPlay />}
-                </button>
-                <button
-                  onClick={() => seekRel(10)}
-                  disabled={!activeClip}
-                  title="Forward 10s"
-                  className="w-8 h-8 flex items-center justify-center rounded-xl text-fg-muted hover:bg-surface-3 disabled:opacity-30 transition-colors"
-                >
-                  <IconFwd10 />
-                </button>
-                <button
-                  onClick={toggleMute}
-                  title={muted ? "Unmute" : "Mute"}
-                  aria-label={muted ? "Unmute" : "Mute"}
-                  className="w-8 h-8 flex items-center justify-center rounded-xl text-fg-muted hover:bg-surface-3 transition-colors"
-                >
-                  {muted ? <IconMute /> : <IconVolume />}
-                </button>
-              </div>
-
-              {/* Time */}
-              <span className="text-xs font-mono text-fg-subtle ml-1 select-none tabular-nums whitespace-nowrap">
-                {fmt(currentTime)} / {fmt(totalDuration)}
-              </span>
-
-              {/* Divider */}
-              <div className="w-px h-5 bg-surface-3 mx-2" />
-
-              {/* Undo / redo */}
-              <button
-                onClick={undo}
-                disabled={past.length === 0}
-                title="Undo (Ctrl+Z)"
-                className="w-8 h-8 flex items-center justify-center rounded-xl text-fg-muted hover:bg-surface-3 disabled:opacity-30 transition-colors"
-              >
-                <IconUndo />
-              </button>
-              <button
-                onClick={redo}
-                disabled={future.length === 0}
-                title="Redo (Ctrl+Shift+Z)"
-                className="w-8 h-8 flex items-center justify-center rounded-xl text-fg-muted hover:bg-surface-3 disabled:opacity-30 transition-colors"
-              >
-                <IconRedo />
-              </button>
-
-              {/* Divider */}
-              <div className="w-px h-5 bg-surface-3 mx-2" />
-
-              {/* Edit tools */}
-              <button
-                onClick={splitAtPlayhead}
-                disabled={!activeClip}
-                title="Split at playhead"
-                className="w-8 h-8 flex items-center justify-center rounded-xl text-fg-muted hover:bg-surface-3 disabled:opacity-30 transition-colors"
-              >
-                <IconScissors />
-              </button>
-              <div className="flex items-center gap-1 rounded-xl px-2 h-8 text-fg-muted hover:bg-surface-3 cursor-pointer">
-                <IconCrop />
-                <select
-                  value={crop}
-                  onChange={e => setCrop(e.target.value as CropAspect)}
-                  aria-label="Crop aspect ratio"
-                  className="appearance-none bg-transparent text-xs font-medium text-fg-muted outline-none cursor-pointer"
-                >
-                  <option value="original">Original</option>
-                  <option value="9:16">9:16</option>
-                  <option value="1:1">1:1</option>
-                  <option value="16:9">16:9</option>
-                </select>
-              </div>
-              <button
-                onClick={() => setRotation(r => (r === 270 ? 0 : (r + 90) as 0 | 90 | 180 | 270))}
-                title={`Rotate (currently ${rotation}°)`}
-                className={`w-8 h-8 flex items-center justify-center rounded-xl transition-colors ${rotation !== 0 ? "bg-tint-blue text-brand" : "text-fg-muted hover:bg-surface-3"}`}
-              >
-                <IconRotate />
-              </button>
-              <button
-                onClick={() => setFlipH(v => !v)}
-                title="Flip horizontal"
-                className={`w-8 h-8 flex items-center justify-center rounded-xl transition-colors ${flipH ? "bg-tint-blue text-brand" : "text-fg-muted hover:bg-surface-3"}`}
-              >
-                <IconFlip />
-              </button>
-              <button
-                onClick={() => activeClip && removeClip(activeClip.id)}
-                disabled={!activeClip}
-                title="Delete clip"
-                className="w-8 h-8 flex items-center justify-center rounded-xl text-fg-muted hover:bg-error/10 hover:text-error disabled:opacity-30 transition-colors"
-              >
-                <IconTrash />
-              </button>
-
-              {/* Right side */}
-              <div className="ml-auto flex items-center gap-3 pl-2">
-                {/* Zoom — timeline width; not needed on a phone-width screen */}
-                <div className="hidden sm:flex items-center gap-1.5 text-fg-subtle">
-                  <button onClick={() => setZoom(z => Math.max(20, z - 10))} aria-label="Zoom out timeline" className="hover:text-fg-muted transition-colors"><IconZoomOut /></button>
-                  <input
-                    type="range" min={20} max={100} value={zoom}
-                    onChange={e => setZoom(parseInt(e.target.value, 10))}
-                    aria-label="Timeline zoom"
-                    className="w-20 accent-[var(--primary)] h-1"
-                  />
-                  <button onClick={() => setZoom(z => Math.min(100, z + 10))} aria-label="Zoom in timeline" className="hover:text-fg-muted transition-colors"><IconZoomIn /></button>
-                </div>
-                {/* Add */}
-                <button
-                  onClick={onAddVideo}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-line text-fg-muted text-xs font-semibold hover:bg-surface-2 transition-colors whitespace-nowrap"
-                >
-                  <IconPlus /> Add clip
-                </button>
-              </div>
+          {/* Controls bar */}
+          <div className="flex items-center gap-1 overflow-x-auto rounded-xl border border-line bg-surface-1 px-2 py-1.5 [&>*]:flex-shrink-0">
+            <button type="button" onClick={() => seekRel(-10)} disabled={!activeClip} title="Back 10s" aria-label="Back 10 seconds" className={iconBtn}><IconBack10 /></button>
+            <button type="button" onClick={togglePlay} disabled={!activeClip} aria-label={isPlaying ? "Pause" : "Play"} className="flex h-9 w-9 items-center justify-center rounded-full bg-fg text-surface-1 transition-opacity disabled:opacity-30">{isPlaying ? <IconPause /> : <IconPlay />}</button>
+            <button type="button" onClick={() => seekRel(10)} disabled={!activeClip} title="Forward 10s" aria-label="Forward 10 seconds" className={iconBtn}><IconFwd10 /></button>
+            <button type="button" onClick={toggleMute} aria-label={muted ? "Unmute" : "Mute"} title={muted ? "Unmute" : "Mute"} className={iconBtn}>{muted ? <IconMute /> : <IconVolume />}</button>
+            <div className="mx-2 h-5 w-px bg-line" />
+            <button type="button" onClick={undo} disabled={past.length === 0} title="Undo (Ctrl+Z)" aria-label="Undo" className={iconBtn}><IconUndo /></button>
+            <button type="button" onClick={redo} disabled={future.length === 0} title="Redo (Ctrl+Shift+Z)" aria-label="Redo" className={iconBtn}><IconRedo /></button>
+            <div className="mx-2 h-5 w-px bg-line" />
+            <button type="button" onClick={splitAtPlayhead} disabled={!activeClip} title="Split at playhead" aria-label="Split at playhead" className={iconBtn}><IconScissors /></button>
+            <button type="button" onClick={() => activeClip && removeClip(activeClip.id)} disabled={!activeClip} title="Delete clip" aria-label="Delete clip" className="flex h-8 w-8 items-center justify-center rounded-xl text-fg-muted transition-colors hover:bg-error/10 hover:text-error disabled:opacity-30"><IconTrash /></button>
+            <div className="ml-auto hidden items-center gap-1.5 pl-2 text-fg-subtle sm:flex">
+              <button type="button" onClick={() => setZoom(z => Math.max(20, z - 10))} aria-label="Zoom out timeline" className="transition-colors hover:text-fg-muted"><IconZoomOut /></button>
+              <input type="range" min={20} max={100} value={zoom} onChange={e => setZoom(parseInt(e.target.value, 10))} aria-label="Timeline zoom" className="h-1 w-20 accent-[var(--primary)]" />
+              <button type="button" onClick={() => setZoom(z => Math.min(100, z + 10))} aria-label="Zoom in timeline" className="transition-colors hover:text-fg-muted"><IconZoomIn /></button>
             </div>
+          </div>
 
-            {/* Tracks area */}
-            <div className="px-4 py-3 min-h-[80px] max-h-[160px] overflow-y-auto">
-              {/* Hidden input */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="video/*"
-                multiple
-                className="hidden"
-                onChange={e => handleFiles(e.target.files)}
-              />
-
-              {clips.length === 0 ? (
-                <div className="flex items-center justify-center h-14 rounded-xl border-2 border-dashed border-line text-xs text-fg-subtle select-none">
-                  Add a video to get started
-                </div>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  {clips.map(clip => {
-                    const maxDur = Math.max(...clips.map(c => c.duration), 1);
-                    const widthPct = Math.max(20, Math.min(100, (clip.duration / maxDur) * (zoom + 35)));
-                    const trimLPct = clip.duration > 0 ? (clip.trimStart / clip.duration) * 100 : 0;
-                    const trimRPct = clip.duration > 0 ? ((clip.duration - clip.trimEnd) / clip.duration) * 100 : 0;
-                    const isActive = activeId === clip.id;
-                    const playheadPct = isActive && clip.duration > 0 ? (currentTime / clip.duration) * 100 : null;
-
-                    return (
-                      <div key={clip.id} className="flex items-center gap-2">
-                        {/* Track */}
-                        <div
-                          role="button"
-                          tabIndex={0}
-                          onClick={e => seekToTrackPos(clip, e.currentTarget as HTMLElement, e)}
-                          onKeyDown={e => { if (e.key === "Enter") setActiveId(clip.id); }}
-                          className={`relative h-9 rounded-xl select-none cursor-pointer transition-all ${
-                            isActive
-                              ? "bg-tint-blue ring-1 ring-primary/40"
-                              : "bg-surface-3 ring-1 ring-line hover:bg-gray-200/70"
-                          }`}
-                          style={{ width: `${widthPct}%`, minWidth: 180 }}
-                        >
-                          {/* Trim masks */}
-                          <div className="absolute inset-y-0 left-0 bg-black/10 rounded-l-xl pointer-events-none" style={{ width: `${trimLPct}%` }} />
-                          <div className="absolute inset-y-0 right-0 bg-black/10 rounded-r-xl pointer-events-none" style={{ width: `${trimRPct}%` }} />
-
-                          {/* Left trim handle */}
-                          <div
-                            onPointerDown={e => startTrimDrag(clip.id, "start", e.currentTarget.parentElement as HTMLElement, e)}
-                            title="Trim start"
-                            className="absolute inset-y-0 w-2 cursor-ew-resize bg-brand rounded-l-xl flex items-center justify-center z-10"
-                            style={{ left: `${trimLPct}%` }}
-                          >
-                            <div className="w-px h-3 bg-white/70 rounded-full" />
-                          </div>
-                          {/* Right trim handle */}
-                          <div
-                            onPointerDown={e => startTrimDrag(clip.id, "end", e.currentTarget.parentElement as HTMLElement, e)}
-                            title="Trim end"
-                            className="absolute inset-y-0 w-2 cursor-ew-resize bg-brand rounded-r-xl flex items-center justify-center z-10"
-                            style={{ right: `${trimRPct}%` }}
-                          >
-                            <div className="w-px h-3 bg-white/70 rounded-full" />
-                          </div>
-
-                          {/* Playhead */}
-                          {playheadPct !== null && (
-                            <div className="absolute top-0 bottom-0 w-0.5 bg-brand pointer-events-none z-20" style={{ left: `${playheadPct}%` }}>
-                              <div className="absolute -top-0.5 left-1/2 -translate-x-1/2 w-2 h-2 bg-brand rotate-45" />
-                            </div>
-                          )}
-
-                          {/* Label */}
-                          <span className="absolute inset-0 flex items-center justify-center text-[11px] font-medium text-fg truncate px-5 pointer-events-none">
-                            {clip.name.replace(/\.[^.]+$/, "")}
-                          </span>
+          {/* Tracks */}
+          <div className="max-h-[180px] min-h-[64px] overflow-y-auto">
+            <input ref={fileInputRef} type="file" accept="video/*" multiple className="hidden" onChange={e => handleFiles(e.target.files)} />
+            {clips.length === 0 ? (
+              <div className="flex h-14 select-none items-center justify-center rounded-xl border-2 border-dashed border-line text-xs text-fg-subtle">Your clips will line up here — drag the green handles to trim</div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {clips.map(clip => {
+                  const maxDur = Math.max(...clips.map(c => c.duration), 1);
+                  const widthPct = Math.max(20, Math.min(100, (clip.duration / maxDur) * (zoom + 35)));
+                  const trimLPct = clip.duration > 0 ? (clip.trimStart / clip.duration) * 100 : 0;
+                  const trimRPct = clip.duration > 0 ? ((clip.duration - clip.trimEnd) / clip.duration) * 100 : 0;
+                  const isActive = activeId === clip.id;
+                  const playheadPct = isActive && clip.duration > 0 ? (currentTime / clip.duration) * 100 : null;
+                  return (
+                    <div key={clip.id} className="flex items-center gap-2">
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`Clip ${clip.name}`}
+                        onClick={e => seekToTrackPos(clip, e.currentTarget as HTMLElement, e)}
+                        onKeyDown={e => { if (e.key === "Enter") setActiveId(clip.id); }}
+                        className={`relative h-10 cursor-pointer select-none rounded-xl transition-all ${isActive ? "bg-primary/15 ring-1 ring-primary/50" : "bg-surface-3 ring-1 ring-line hover:bg-surface-2"}`}
+                        style={{ width: `${widthPct}%`, minWidth: 180 }}
+                      >
+                        <div className="pointer-events-none absolute inset-y-0 left-0 rounded-l-xl bg-black/40" style={{ width: `${trimLPct}%` }} />
+                        <div className="pointer-events-none absolute inset-y-0 right-0 rounded-r-xl bg-black/40" style={{ width: `${trimRPct}%` }} />
+                        <div onPointerDown={e => startTrimDrag(clip.id, "start", e.currentTarget.parentElement as HTMLElement, e)} title="Trim start"
+                             className="absolute inset-y-0 z-10 flex w-2.5 cursor-ew-resize items-center justify-center rounded-l-xl bg-[var(--emerald-bright)]" style={{ left: `${trimLPct}%` }}>
+                          <div className="h-3 w-px rounded-full bg-black/60" />
                         </div>
-
-                        {/* Duration */}
-                        <span className="text-[10px] text-fg-subtle font-mono whitespace-nowrap tabular-nums w-10 flex-shrink-0">
-                          {fmt(clip.trimEnd - clip.trimStart)}
-                        </span>
-
-                        {/* Delete */}
-                        <button
-                          onClick={() => removeClip(clip.id)}
-                          title="Remove"
-                          className="w-6 h-6 flex items-center justify-center rounded-lg text-fg-subtle hover:text-error hover:bg-error/10 transition-colors flex-shrink-0"
-                        >
-                          <IconTrash />
-                        </button>
+                        <div onPointerDown={e => startTrimDrag(clip.id, "end", e.currentTarget.parentElement as HTMLElement, e)} title="Trim end"
+                             className="absolute inset-y-0 z-10 flex w-2.5 cursor-ew-resize items-center justify-center rounded-r-xl bg-[var(--emerald-bright)]" style={{ right: `${trimRPct}%` }}>
+                          <div className="h-3 w-px rounded-full bg-black/60" />
+                        </div>
+                        {playheadPct !== null && (
+                          <div className="pointer-events-none absolute bottom-0 top-0 z-20 w-0.5 bg-primary" style={{ left: `${playheadPct}%` }}>
+                            <div className="absolute -top-0.5 left-1/2 h-2 w-2 -translate-x-1/2 rotate-45 bg-primary" />
+                          </div>
+                        )}
+                        <span className="pointer-events-none absolute inset-0 flex items-center justify-center truncate px-5 text-[11px] font-medium text-fg">{clip.name.replace(/\.[^.]+$/, "")}</span>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+                      <span className="w-10 flex-shrink-0 whitespace-nowrap font-mono text-[10px] tabular-nums text-fg-subtle">{fmt(clip.trimEnd - clip.trimStart)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
-      </div>
+      }
+      below={user ? <RecentResults source="cut-and-crop" label="Recent exports" refreshKey={outputUrl} /> : undefined}
+    />
   );
 }

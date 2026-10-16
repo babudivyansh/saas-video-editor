@@ -4,6 +4,8 @@ import { useRef, useState } from "react";
 import { useAuth } from "./AuthContext";
 import { Tooltip } from "@/app/components/ui/Tooltip";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
+import { Button } from "@/app/components/ui/Button";
+import { ToolWorkspace, ToolBadge, ToolField, CostRow, StageEmpty } from "@/app/components/tools/ToolWorkspace";
 
 function IcInfo() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" className="w-3.5 h-3.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>;
@@ -40,14 +42,6 @@ function IcCheck() {
   );
 }
 
-function Spinner({ className = "w-4 h-4" }: { className?: string }) {
-  return (
-    <svg className={`animate-spin ${className}`} viewBox="0 0 24 24" fill="none">
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-    </svg>
-  );
-}
 
 function IdeaCard({ idea, index }: { idea: Idea; index: number }) {
   const [copied, setCopied] = useState(false);
@@ -60,20 +54,22 @@ function IdeaCard({ idea, index }: { idea: Idea; index: number }) {
   };
 
   return (
-    <div className="border border-line rounded-xl p-4 bg-panel hover:border-line transition-colors">
+    <div className="rounded-xl border border-line bg-surface-1 p-4 transition-colors hover:border-line-strong">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-2.5 flex-1 min-w-0">
-          <span className="flex-shrink-0 w-5 h-5 rounded-full bg-tint-violet text-brand text-[10px] font-bold flex items-center justify-center mt-0.5">
+          <span className="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary/15 text-[11px] font-bold text-primary">
             {index + 1}
           </span>
           <div className="min-w-0">
-            <p className="text-[13px] font-semibold text-fg leading-snug">{idea.title}</p>
-            <p className="text-xs text-fg-muted mt-1 leading-relaxed">{idea.description}</p>
+            <p className="text-[14.5px] font-semibold leading-snug text-fg">{idea.title}</p>
+            <p className="mt-1 text-[13px] leading-relaxed text-fg-muted">{idea.description}</p>
           </div>
         </div>
         <button
+          type="button"
           onClick={handleCopy}
           title="Copy idea"
+          aria-label={copied ? "Copied" : `Copy idea ${index + 1}`}
           className={`flex-shrink-0 p-1.5 rounded-lg transition-colors ${copied ? "text-success bg-success/10" : "text-fg-subtle hover:text-fg hover:bg-surface-3"}`}
         >
           {copied ? <IcCheck /> : <IcCopy />}
@@ -95,6 +91,15 @@ export default function BrainstormerTool() {
   const [stage, setStage] = useState<Stage>("idle");
   const [ideas, setIdeas] = useState<Idea[]>([]);
   const [errorMsg, setErrorMsg] = useState("");
+  const [copiedAll, setCopiedAll] = useState(false);
+
+  const copyAll = () => {
+    const text = ideas.map((idea, i) => `${i + 1}. ${idea.title}\n${idea.description}`).join("\n\n");
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedAll(true);
+      setTimeout(() => setCopiedAll(false), 2000);
+    }).catch(() => { /* clipboard blocked */ });
+  };
 
   const canGenerate = topic.trim().length > 0 && stage !== "loading";
 
@@ -130,173 +135,108 @@ export default function BrainstormerTool() {
     }
   };
 
+  const chip = (on: boolean) =>
+    `rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${on ? "border-primary/50 bg-primary/10 text-fg" : "border-line text-fg-muted hover:border-line-strong hover:text-fg"}`;
+
   return (
-    <div className="min-h-screen bg-surface-2 p-4 md:p-8">
-      <div className="max-w-5xl mx-auto mb-5">
-        <h1 className="text-[22px] font-extrabold text-fg tracking-tight">AI Brainstormer</h1>
-        <p className="text-[13.5px] text-fg-muted mt-1">
-          Five video ideas with hooks for your niche. Free — {user ? "a daily allowance on your plan" : "5 a day on the free plan, 50 on paid plans"}.
-        </p>
-      </div>
-      <div className="max-w-5xl mx-auto flex flex-col lg:flex-row gap-5">
-
-        {/* ── Left panel ── */}
-        <div className="flex-1 bg-panel rounded-2xl border border-line shadow-sm p-6 space-y-5">
-
-          {/* Topic */}
-          <div>
-            <div className="flex items-center gap-1.5 mb-2">
-              <label className="block text-sm font-semibold text-fg">Topic</label>
-              <Tooltip content="Narrower is better — 'vintage motorcycle restoration' beats 'motorcycles' for more specific, usable ideas.">
-                <span className="text-fg-subtle cursor-help"><IcInfo /></span>
-              </Tooltip>
-            </div>
-            <input
-              type="text"
+    <ToolWorkspace
+      title="AI Brainstormer"
+      icon="bulb"
+      badges={<ToolBadge tone="free">Free</ToolBadge>}
+      description={`Five video ideas with hooks for your niche. ${user ? "Free with a daily allowance on your plan." : "5 a day on the free plan, 50 on paid plans."}`}
+      controls={
+        <>
+          <ToolField label="Topic" hint={
+            <Tooltip content="Narrower is better — 'vintage motorcycle restoration' beats 'motorcycles' for more specific, usable ideas.">
+              <span className="cursor-help text-fg-subtle"><IcInfo /></span>
+            </Tooltip>
+          }>
+            <textarea
               value={topic}
               onChange={e => setTopic(e.target.value)}
               maxLength={200}
-              placeholder="Generate ideas for a niche to start a page on"
-              className="w-full rounded-xl border border-line px-3.5 py-2.5 text-sm text-fg placeholder:text-fg-subtle outline-none focus:border-brand/60 focus:ring-2 focus:ring-primary/25 transition-all"
+              rows={3}
+              aria-label="Topic"
+              placeholder="A niche to start a page on, e.g. vintage motorcycle restoration"
+              className="w-full resize-none rounded-xl border border-line bg-surface-1 px-3.5 py-2.5 text-sm text-fg outline-none transition placeholder:text-fg-subtle focus:border-primary/60 focus:ring-2 focus:ring-primary/25"
             />
-            <div className="flex flex-wrap gap-2 mt-2.5">
-              {TOPIC_CHIPS.map(chip => (
-                <button
-                  key={chip}
-                  onClick={() => setTopic(chip)}
-                  className={`px-3 py-1 rounded-lg border text-xs font-medium transition-colors ${
-                    topic === chip
-                      ? "border-brand/50 bg-tint-blue text-brand"
-                      : "border-line bg-panel text-fg-muted hover:border-line-strong hover:bg-surface-2"
-                  }`}
-                >
-                  {chip}
-                </button>
+            <div className="flex flex-wrap gap-2">
+              {TOPIC_CHIPS.map(c => (
+                <button key={c} type="button" onClick={() => setTopic(c)} aria-pressed={topic === c} className={chip(topic === c)}>{c}</button>
               ))}
             </div>
-          </div>
+          </ToolField>
 
-          {/* Tone */}
-          <div>
-            <label className="block text-sm font-semibold text-fg mb-2">Select the tone for your ideas</label>
-            <div className="relative">
-              <select
-                value={tone}
-                onChange={e => setTone(e.target.value)}
-                className="w-full appearance-none rounded-xl border border-line px-3.5 py-2.5 text-sm text-fg outline-none focus:border-brand/60 focus:ring-2 focus:ring-primary/25 transition-all bg-panel pr-8"
-              >
-                <option value="">Select Tone</option>
-                {TONES.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-fg-subtle pointer-events-none">
-                <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+          <ToolField label="Tone">
+            <div className="flex flex-wrap gap-2">
+              {TONES.map(t => (
+                <button key={t} type="button" onClick={() => setTone(prev => prev === t ? "" : t)} aria-pressed={tone === t} className={chip(tone === t)}>{t}</button>
+              ))}
             </div>
-          </div>
+          </ToolField>
 
-          {/* Target audience */}
-          <div>
-            <label className="block text-sm font-semibold text-fg mb-2">Target audience</label>
+          <ToolField label="Audience">
             <input
               type="text"
               value={targetAudience}
               onChange={e => setTargetAudience(e.target.value)}
               maxLength={200}
-              placeholder="30-40 year old moms in the US"
-              className="w-full rounded-xl border border-line px-3.5 py-2.5 text-sm text-fg placeholder:text-fg-subtle outline-none focus:border-brand/60 focus:ring-2 focus:ring-primary/25 transition-all"
+              aria-label="Target audience"
+              placeholder="30–40 year old parents in the US"
+              className="w-full rounded-xl border border-line bg-surface-1 px-3.5 py-2.5 text-sm text-fg outline-none transition placeholder:text-fg-subtle focus:border-primary/60 focus:ring-2 focus:ring-primary/25"
             />
-          </div>
+          </ToolField>
 
-          {/* Video type */}
-          <div>
-            <label className="block text-sm font-semibold text-fg mb-2">Video type</label>
-            <div className="flex gap-2 flex-wrap">
+          <ToolField label="Video type">
+            <div className="flex flex-wrap gap-2">
               {VIDEO_TYPES.map(vt => (
-                <button
-                  key={vt}
-                  onClick={() => setVideoType(prev => prev === vt ? "" : vt)}
-                  className={`px-3.5 py-2 rounded-lg border text-xs font-medium transition-colors ${
-                    videoType === vt
-                      ? "border-brand/50 bg-tint-blue text-brand"
-                      : "border-line bg-panel text-fg-muted hover:border-line-strong hover:bg-surface-2"
-                  }`}
-                >
-                  {vt}
-                </button>
+                <button key={vt} type="button" onClick={() => setVideoType(prev => prev === vt ? "" : vt)} aria-pressed={videoType === vt} className={chip(videoType === vt)}>{vt}</button>
               ))}
             </div>
+          </ToolField>
+        </>
+      }
+      footer={
+        <>
+          {errorMsg && <p role="alert" className="rounded-xl bg-error/10 px-4 py-3 text-sm text-error">{errorMsg}</p>}
+          <CostRow right={user ? "50 a day on paid plans" : undefined}>
+            <span className="font-semibold text-fg">Free</span> · 5 runs a day on the free plan
+          </CostRow>
+          <Button type="button" className="w-full" onClick={() => void handleGenerate()} disabled={!canGenerate} loading={stage === "loading"}>
+            {stage === "loading" ? "Generating ideas…" : <span className="inline-flex items-center gap-2"><IcSparkle /> Get 5 ideas</span>}
+          </Button>
+        </>
+      }
+      stageTitle={stage === "done" && ideas.length > 0 ? `${ideas.length} ideas` : "Ideas"}
+      stageActions={
+        stage === "done" && ideas.length > 0 ? (
+          <Button type="button" size="sm" variant="secondary" onClick={copyAll}>{copiedAll ? "Copied" : "Copy all"}</Button>
+        ) : undefined
+      }
+      stage={
+        stage === "loading" ? (
+          <div className="flex flex-col gap-3" aria-busy="true">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="h-[76px] animate-pulse rounded-xl border border-line bg-surface-1" style={{ animationDelay: `${i * 90}ms` }} />
+            ))}
           </div>
-
-          {/* Error */}
-          {errorMsg && (
-            <p className="text-sm text-error bg-error/10 rounded-xl px-4 py-3">{errorMsg}</p>
-          )}
-
-          {/* Generate button */}
-          <button
-            onClick={() => void handleGenerate()}
-            disabled={!canGenerate}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold grad-brand text-on-primary transition-all disabled:opacity-40"
-          >
-            {stage === "loading" ? (
-              <><Spinner /> Generating ideas…</>
-            ) : (
-              <><IcSparkle /> Generate ideas</>
+        ) : stage === "done" && ideas.length > 0 ? (
+          <div className="flex flex-col gap-3">
+            {ideas.length < 5 && (
+              <p className="rounded-lg bg-warning/10 px-3 py-2 text-xs text-warning">
+                Only {ideas.length} idea{ideas.length === 1 ? "" : "s"} came back this time — try again for a full set of 5.
+              </p>
             )}
-          </button>
-        </div>
-
-        {/* ── Right panel ── */}
-        <div className="w-full lg:w-96 lg:flex-shrink-0 bg-panel rounded-2xl border border-line shadow-sm flex flex-col overflow-hidden">
-          <div className="flex items-center gap-2 px-5 py-4 border-b border-line flex-shrink-0">
-            <IcSparkle className="w-3.5 h-3.5 text-brand" />
-            <p className="text-sm font-semibold text-fg">Your idea will appear here</p>
+            {ideas.map((idea, i) => <IdeaCard key={i} idea={idea} index={i} />)}
           </div>
-
-          <div className="flex-1 overflow-y-auto p-4">
-            {stage === "idle" && (
-              <div className="space-y-2 pt-1">
-                {[1, 0.9, 0.95, 0.7, 0.85, 0.6, 0.75, 0.88].map((w, i) => (
-                  <div key={i} className="h-2 rounded-full bg-surface-3" style={{ width: `${w * 100}%` }} />
-                ))}
-                <p className="text-xs text-fg-subtle mt-4 leading-relaxed">
-                  Describe your niche and audience, then generate — five ideas with hooks will appear here.
-                </p>
-              </div>
-            )}
-
-            {stage === "loading" && (
-              <div className="space-y-2 pt-1">
-                {[1, 0.9, 0.95, 0.7, 0.85, 0.6, 0.75, 0.88].map((w, i) => (
-                  <div
-                    key={i}
-                    className="h-2 rounded-full bg-surface-3 animate-pulse"
-                    style={{ width: `${w * 100}%`, animationDelay: `${i * 80}ms` }}
-                  />
-                ))}
-              </div>
-            )}
-
-            {stage === "done" && ideas.length > 0 && (
-              <div className="space-y-3">
-                {ideas.length < 5 && (
-                  <p className="text-xs text-warning bg-warning/10 rounded-lg px-3 py-2">
-                    Only {ideas.length} idea{ideas.length === 1 ? "" : "s"} came back this time — try generating again for a full set of 5.
-                  </p>
-                )}
-                {ideas.map((idea, i) => (
-                  <IdeaCard key={i} idea={idea} index={i} />
-                ))}
-              </div>
-            )}
-
-            {stage === "error" && !errorMsg && (
-              <p className="text-sm text-error mt-4">Generation failed. Please try again.</p>
-            )}
-          </div>
-        </div>
-
-      </div>
-    </div>
+        ) : stage === "error" && !errorMsg ? (
+          <StageEmpty icon="bulb" title="That didn’t work">Generation failed. Please try again.</StageEmpty>
+        ) : (
+          <StageEmpty icon="bulb" title="Your five ideas appear here">
+            Describe your niche and audience on the left. Each idea comes with a hook you can film today.
+          </StageEmpty>
+        )
+      }
+    />
   );
 }

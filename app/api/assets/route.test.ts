@@ -162,6 +162,17 @@ describe("GET /api/assets — filtering", () => {
     expect(lastArgs.where).toMatchObject({ folderId: null });
   });
 
+  // A tool page's "Recent" strip lists only what that tool made.
+  it("filters by the feature that made the asset", async () => {
+    await GET(req("?source=face-swap"));
+    expect(lastArgs.where).toMatchObject({ sourceFeature: "face-swap" });
+  });
+
+  it("ignores a source value that is not slug-shaped", async () => {
+    await GET(req("?source=" + encodeURIComponent("x' OR 1=1")));
+    expect(lastArgs.where).not.toHaveProperty("sourceFeature");
+  });
+
   it("caps the page size", async () => {
     await GET(req("?limit=9999"));
     expect(lastArgs.take).toBe(101);

@@ -6,52 +6,25 @@ import { useJobPolling } from "./useJobPolling";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 import { useUploadEntitlement } from "@/app/hooks/useUploadEntitlement";
 import { AUDIO_RATE_LABEL } from "@/lib/audio-pricing";
+import { Button } from "@/app/components/ui/Button";
+import { ToolWorkspace, ToolBadge, ToolField, CostRow, FileDrop, Segmented, StageEmpty, StageProgress, RecentResults } from "@/app/components/tools/ToolWorkspace";
 
-function IcLink() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-      <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
-      <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
-    </svg>
-  );
-}
 
-function IcCloud() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8 text-fg-subtle">
-      <path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z" />
-    </svg>
-  );
-}
 
-function IcX() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-      <path d="M18 6L6 18M6 6l12 12" />
-    </svg>
-  );
-}
 
-function IcAudio() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-brand">
-      <path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" />
-    </svg>
-  );
-}
 
 export default function EnhanceSpeechTool() {
   const { user, token, openAuthModal, refreshUser } = useAuth();
   const job = useJobPolling({ toolSlug: "enhance-speech", token });
   const fireReviewPrompt = useReviewPromptTrigger();
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const submittingRef = useRef(false);
   const downloadedForJobId = useRef<string | null>(null);
 
   const [file, setFile] = useState<File | null>(null);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [downloadName, setDownloadName] = useState("enhanced-audio.mp3");
-  const [dragging, setDragging] = useState(false);
+  const [originalUrl, setOriginalUrl] = useState<string | null>(null);
+  const [compareView, setCompareView] = useState<"before" | "after">("after");
   const [pickError, setPickError] = useState<string | null>(null);
   const { maxBytes: uploadMaxBytes, formattedMaxSize: uploadMaxSizeLabel } = useUploadEntitlement("enhance-speech");
 
@@ -65,26 +38,17 @@ export default function EnhanceSpeechTool() {
     }
     setPickError(null);
     setFile(f);
+    if (originalUrl) URL.revokeObjectURL(originalUrl);
+    setOriginalUrl(URL.createObjectURL(f));
+    setCompareView("after");
     job.reset();
     if (downloadUrl) { URL.revokeObjectURL(downloadUrl); setDownloadUrl(null); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [downloadUrl, uploadMaxBytes, uploadMaxSizeLabel]);
-
-  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (f) acceptFile(f);
-    e.target.value = "";
-  };
-
-  const onDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragging(false);
-    const f = e.dataTransfer.files[0];
-    if (f) acceptFile(f);
-  };
+  }, [downloadUrl, originalUrl, uploadMaxBytes, uploadMaxSizeLabel]);
 
   const removeFile = () => {
     setFile(null);
+    if (originalUrl) { URL.revokeObjectURL(originalUrl); setOriginalUrl(null); }
     job.reset();
     if (downloadUrl) { URL.revokeObjectURL(downloadUrl); setDownloadUrl(null); }
   };
@@ -93,6 +57,7 @@ export default function EnhanceSpeechTool() {
   useEffect(() => {
     return () => {
       if (downloadUrl) URL.revokeObjectURL(downloadUrl);
+      if (originalUrl) URL.revokeObjectURL(originalUrl);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -163,156 +128,82 @@ export default function EnhanceSpeechTool() {
 
   const handleAgain = () => {
     setFile(null);
+    if (originalUrl) { URL.revokeObjectURL(originalUrl); setOriginalUrl(null); }
     job.reset();
     if (downloadUrl) { URL.revokeObjectURL(downloadUrl); setDownloadUrl(null); }
   };
 
-  const stage = file ? (job.status === "idle" ? "ready" : job.status) : "idle";
+  const busy = job.status === "processing";
+  const done = job.status === "done" && !!downloadUrl;
 
   return (
-    <div className="min-h-screen bg-surface-2 flex items-start justify-center p-4 md:p-8">
-      <div className="w-full max-w-lg bg-panel rounded-2xl shadow-sm border border-line overflow-hidden">
-
-        {/* Header */}
-        <div className="p-6 pb-5 flex items-start gap-3">
-          <div className="w-9 h-9 rounded-full bg-surface-3 flex items-center justify-center flex-shrink-0 mt-0.5">
-            <IcLink />
-          </div>
-          <div>
-            <h1 className="text-lg font-bold text-fg leading-tight">AI Speech Enhancer</h1>
-            <p className="text-sm text-brand mt-0.5">Upload a video or audio file to enhance the audio clarity.</p>
-          </div>
-        </div>
-
-        <hr className="border-line" />
-
-        {/* Body */}
-        <div className="p-6 space-y-4">
-
-          {/* Upload zone or file chip */}
-          {stage === "idle" || stage === "ready" ? (
-            !file ? (
-              <div
-                className={`border-2 border-dashed rounded-xl p-10 flex flex-col items-center justify-center cursor-pointer transition-colors ${
-                  dragging ? "border-brand bg-tint-blue" : "border-line hover:border-line-strong bg-surface-2"
-                }`}
-                onClick={() => fileInputRef.current?.click()}
-                role="button"
-                tabIndex={0}
-                aria-label="Upload audio or video"
-                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInputRef.current?.click(); } }}
-                onDragOver={e => { e.preventDefault(); setDragging(true); }}
-                onDragLeave={() => setDragging(false)}
-                onDrop={onDrop}
-              >
-                <input ref={fileInputRef} type="file" accept="audio/*,video/*" className="hidden" onChange={onFileChange} />
-                <div className="w-14 h-14 rounded-full bg-surface-3 flex items-center justify-center mb-4">
-                  <IcCloud />
-                </div>
-                <p className="text-sm font-semibold text-fg mb-1">Upload audio/video</p>
-                <p className="text-sm text-brand font-medium mb-3">Drag and drop or click to browse</p>
-                <p className="text-xs text-fg-subtle text-center leading-relaxed">
-                  .mp3, .wav, .m4a, .ogg, .aac, .mp4, .mov, .avi, .webm • Max 50 MB · up to 90 seconds
-                </p>
-                <p className="text-xs text-fg-subtle text-center mt-1">{AUDIO_RATE_LABEL["enhance-speech"]} · min 1 credit</p>
-              </div>
-            ) : (
-              <div className="border border-line rounded-xl p-4 flex items-center gap-3 bg-surface-2">
-                <div className="w-10 h-10 rounded-lg bg-tint-blue flex items-center justify-center flex-shrink-0">
-                  <IcAudio />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-fg truncate">{file.name}</p>
-                  <p className="text-xs text-fg-subtle">{(file.size / 1024 / 1024).toFixed(1)} MB</p>
-                </div>
-                <button aria-label="Remove file" onClick={removeFile} className="text-fg-subtle hover:text-fg-muted transition-colors p-1">
-                  <IcX />
-                </button>
-              </div>
-            )
-          ) : null}
-
-          {/* File chip during processing / complete */}
-          {(stage === "processing" || stage === "done") && file && (
-            <div className="border border-line rounded-xl p-4 flex items-center gap-3 bg-surface-2">
-              <div className="w-10 h-10 rounded-lg bg-tint-blue flex items-center justify-center flex-shrink-0">
-                <IcAudio />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-fg truncate">{file.name}</p>
-                <p className="text-xs text-fg-subtle">{(file.size / 1024 / 1024).toFixed(1)} MB</p>
-              </div>
-            </div>
-          )}
-
-          {/* Progress bar */}
-          {stage === "processing" && (
-            <div className="space-y-1.5">
-              <div className="flex justify-between text-xs text-fg-muted">
-                <span>Enhancing…</span>
-                <span>{job.progress}%</span>
-              </div>
-              <div className="w-full bg-surface-3 rounded-full h-2">
-                <div
-                  className="bg-brand h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${job.progress}%` }}
-                />
-              </div>
-              <button
-                onClick={() => void job.cancel()}
-                className="text-xs font-medium text-fg-subtle hover:text-error transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
-          )}
-
-          {/* Error */}
-          {pickError && (
-            <p className="text-sm text-error bg-error/10 rounded-lg px-3 py-2">{pickError}</p>
-          )}
-          {stage === "error" && job.error && (
-            <p className="text-sm text-error bg-error/10 rounded-lg px-3 py-2">{job.error}</p>
-          )}
-
-          {stage === "cancelled" && (
-            <p className="text-sm text-fg-muted bg-surface-2 rounded-lg px-3 py-2">
-              Cancelled — your credits were refunded.
-            </p>
-          )}
-
-          {/* Complete */}
-          {stage === "done" && downloadUrl && (
-            <div className="flex items-center gap-3 bg-success/10 border border-success/30 rounded-xl p-3">
-              <svg className="w-5 h-5 text-success shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <p className="text-sm text-success font-medium flex-1">Done! Audio downloaded.</p>
-              <a href={downloadUrl} download={downloadName} className="text-xs text-brand font-medium hover:underline">
-                Download again
-              </a>
-            </div>
-          )}
-
-          {/* CTA */}
-          {stage !== "done" ? (
-            <button
-              onClick={() => void handleGenerate()}
-              disabled={stage === "processing" || !file}
-              className="w-full py-3 rounded-xl text-sm font-semibold grad-brand text-on-primary transition-opacity disabled:opacity-40"
-            >
-              {stage === "processing" ? "Enhancing…" : "Enhance speech"}
-            </button>
+    <ToolWorkspace
+      title="AI Speech Enhancer"
+      icon="sparkle"
+      badges={<ToolBadge>{AUDIO_RATE_LABEL["enhance-speech"]}</ToolBadge>}
+      description="Remove noise and echo so your voice sounds studio-clean."
+      controls={
+        <ToolField label="Recording" hint="up to 90 seconds">
+          <FileDrop
+            accept="audio/*,video/*"
+            title="Click or drag audio or video here"
+            hint={<>MP3, WAV, M4A, OGG, AAC, MP4, MOV, WEBM · up to {uploadMaxSizeLabel ?? "50 MB"}</>}
+            file={file}
+            onFile={acceptFile}
+            onClear={busy || done ? undefined : removeFile}
+            disabled={busy}
+            inputLabel="Upload audio or video"
+          />
+          {pickError && <p role="alert" className="text-[12.5px] text-error">{pickError}</p>}
+        </ToolField>
+      }
+      footer={
+        <>
+          {job.status === "error" && job.error && <p role="alert" className="rounded-lg bg-error/10 px-3 py-2 text-sm text-error">{job.error}</p>}
+          {job.status === "cancelled" && <p className="text-sm text-fg-muted">Cancelled — your credits were refunded.</p>}
+          <CostRow right={user ? `You have ${user.credits.toLocaleString()}` : undefined}>
+            <span className="font-semibold text-fg">{AUDIO_RATE_LABEL["enhance-speech"]}</span> · minimum 1
+          </CostRow>
+          {!done ? (
+            <Button type="button" className="w-full" onClick={() => void handleGenerate()} disabled={busy || !file} loading={busy}>
+              {busy ? "Enhancing…" : "Enhance speech"}
+            </Button>
           ) : (
-            <button
-              onClick={handleAgain}
-              className="w-full py-3 rounded-xl text-sm font-semibold grad-brand text-on-primary"
-            >
-              Enhance Another
-            </button>
+            <Button type="button" className="w-full" variant="secondary" onClick={handleAgain}>Enhance another</Button>
           )}
-        </div>
-      </div>
-    </div>
+        </>
+      }
+      stageTitle="Before / After"
+      stageActions={
+        done ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <Segmented label="Compare" value={compareView} onChange={setCompareView} options={[["before", "Before"], ["after", "After"]] as const} />
+            <a href={downloadUrl!} download={downloadName} className="rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-fg hover:bg-surface-3">Download MP3</a>
+          </div>
+        ) : undefined
+      }
+      stage={
+        busy ? (
+          <StageProgress label="Enhancing…" progress={job.progress} onCancel={() => void job.cancel()} cancelLabel="Cancel" />
+        ) : originalUrl && file ? (
+          <div className="flex flex-1 flex-col gap-3">
+            <div className={`flex flex-col gap-2 rounded-xl border p-4 ${!done || compareView === "before" ? "border-line bg-surface-1" : "border-line bg-surface-1 opacity-60"}`}>
+              <p className="text-[12px] font-semibold text-fg-muted">Before · {file.name}</p>
+              <audio src={originalUrl} controls className="w-full" />
+            </div>
+            <div className={`flex flex-col gap-2 rounded-xl border p-4 ${done ? (compareView === "after" ? "border-primary/50 bg-primary/5" : "border-line bg-surface-1 opacity-60") : "border-dashed border-line-strong bg-surface-1"}`}>
+              <p className="text-[12px] font-semibold text-fg-muted">After · enhanced</p>
+              {done ? <audio src={downloadUrl!} controls className="w-full" /> : <p className="text-[13px] text-fg-subtle">Press “Enhance speech” to hear the cleaned-up version here.</p>}
+            </div>
+            {done && <p className="text-[12px] text-fg-subtle">Downloaded and saved to your Assets</p>}
+          </div>
+        ) : (
+          <StageEmpty icon="sparkle" title="Hear the difference here">
+            Add a recording on the left. You can play the original and the enhanced version one after the other.
+          </StageEmpty>
+        )
+      }
+      below={user ? <RecentResults source="enhance-speech" refreshKey={downloadUrl} /> : undefined}
+    />
   );
 }

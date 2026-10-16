@@ -56,6 +56,10 @@ async function handleGET(req: NextRequest) {
   // review" tile — but a feature picker must never offer one, and until now
   // nothing stopped it: the picker filtered on status alone.
   const excludeFlagged = searchParams.get("excludeFlagged") === "true";
+  // Optional: only assets one feature produced (a tool page's "Recent" strip
+  // passes its slug). Slug-shaped values only — anything else is ignored.
+  const sourceParam = searchParams.get("source");
+  const source = sourceParam && /^[a-z][a-z0-9-]{0,39}$/.test(sourceParam) ? sourceParam : undefined;
 
   // Every sort ends in `id`. Cursor pagination over a non-unique key is
   // non-deterministic on ties: paging by name across several files called
@@ -80,6 +84,7 @@ async function handleGET(req: NextRequest) {
       ...(tag ? { tags: { some: { tag: { name: tag } } } } : {}),
       ...(status ? { status } : {}),
       ...(excludeFlagged ? { moderationStatus: { not: "flagged" } } : {}),
+      ...(source ? { sourceFeature: source } : {}),
     },
     include: {
       folder: { select: { id: true, name: true, color: true } },

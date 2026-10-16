@@ -4,6 +4,8 @@ import { useJobPolling } from "./useJobPolling";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 import { useUploadEntitlement } from "@/app/hooks/useUploadEntitlement";
 import { useAuth } from "@/app/components/AuthContext";
+import { Button } from "@/app/components/ui/Button";
+import { ToolWorkspace, ToolBadge, ToolField, CostRow, FileDrop, OptionCards, StageEmpty, StageProgress } from "@/app/components/tools/ToolWorkspace";
 
 interface QualityOption {
   id: string;
@@ -23,47 +25,8 @@ function fmtMB(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
-function truncate(name: string, max = 40): string {
-  return name.length > max ? name.slice(0, max) + "…" : name;
-}
 
 // ── Icons ──────────────────────────────────────────────────────────────────
-function IcCloud() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
-      <path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z" />
-    </svg>
-  );
-}
-function IcMp3({ className = "w-5 h-5" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><path d="M14 2v6h6" />
-      <path d="M8 16a1.5 1.5 0 103 0v-3.5l3-1V15a1.5 1.5 0 103 0" />
-    </svg>
-  );
-}
-function IcCheck({ className = "w-5 h-5" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <circle cx="12" cy="12" r="10" /><path d="M9 12l2 2 4-4" />
-    </svg>
-  );
-}
-function IcDoc() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><path d="M14 2v6h6" />
-    </svg>
-  );
-}
-function IcX() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-      <path d="M18 6L6 18M6 6l12 12" />
-    </svg>
-  );
-}
 function IcDownload() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
@@ -71,17 +34,8 @@ function IcDownload() {
     </svg>
   );
 }
-function Spinner() {
-  return (
-    <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none">
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-    </svg>
-  );
-}
 
 export default function Mp3ConverterTool() {
-  const inputRef = useRef<HTMLInputElement>(null);
   const job = useJobPolling({ toolSlug: "mp3-converter", token: null, requireAuth: false });
   const fireReviewPrompt = useReviewPromptTrigger();
   const { formattedMaxSize: uploadMaxSizeLabel } = useUploadEntitlement("mp3-converter");
@@ -92,7 +46,6 @@ export default function Mp3ConverterTool() {
   const downloadedForJobId = useRef<string | null>(null);
 
   const [file, setFile] = useState<File | null>(null);
-  const [dragging, setDragging] = useState(false);
   const [quality, setQuality] = useState("medium");
   const [realtime, setRealtime] = useState(0);
 
@@ -119,7 +72,7 @@ export default function Mp3ConverterTool() {
     }
   }, [job.progress, job.status, durationSec]);
 
-  function onPick(list: FileList | null) {
+  function onPick(list: FileList | File[] | null) {
     if (!list || list.length === 0) return;
     const f = list[0];
     setFile(f);
@@ -216,174 +169,80 @@ export default function Mp3ConverterTool() {
   const busy = stage === "processing";
   // Quality is locked once conversion starts and stays locked on the result screen.
   const qualityLocked = stage === "processing" || stage === "done";
+  const qualityLabel = QUALITY_OPTIONS.find(q => q.id === quality)?.label ?? quality;
 
   return (
-    <div className="mx-auto w-full max-w-[1440px] px-4 md:px-8 pb-10">
-      <div className="rounded-[28px] bg-surface-2 border border-line flex items-center justify-center p-4 md:p-8" style={{ minHeight: "calc(100vh - 132px)" }}>
-        <div className="w-full max-w-[560px] bg-panel rounded-2xl border border-line shadow-sm p-5">
-
-          {/* Header */}
-          <div className="flex items-start gap-3 pb-4 border-b border-line">
-            <div className="w-11 h-11 rounded-full border border-line flex items-center justify-center text-fg-muted flex-shrink-0">
-              <IcMp3 />
+    <ToolWorkspace
+      title="MP3 Converter"
+      icon="note"
+      badges={<ToolBadge tone="free">Free</ToolBadge>}
+      description="Pull the audio out of any video, or re-save audio as MP3."
+      controls={
+        <>
+          <ToolField label="Video or audio">
+            <FileDrop
+              accept="audio/*,video/*"
+              title="Click or drag a file here"
+              hint={<>MP3, WAV, AAC, MP4, MOV, MKV, WEBM · up to {uploadMaxSizeLabel ?? "500 MB"}</>}
+              file={file}
+              onFile={(f) => onPick([f])}
+              onClear={busy ? undefined : clearFile}
+              disabled={busy}
+              inputLabel="Upload audio or video"
+            />
+          </ToolField>
+          <ToolField label="Quality" hint="higher means bigger files">
+            <OptionCards
+              name="mp3-quality"
+              value={quality}
+              onChange={setQuality}
+              disabled={qualityLocked}
+              columns={1}
+              options={QUALITY_OPTIONS.map(q => [q.id, q.label, q.sub] as const)}
+            />
+          </ToolField>
+        </>
+      }
+      footer={
+        <>
+          {stage === "error" && job.error && <p role="alert" className="text-sm text-error">{job.error}</p>}
+          <CostRow right={qualityLabel}><span className="font-semibold text-fg">Free</span></CostRow>
+          {stage === "done" ? (
+            <Button type="button" className="w-full" variant="secondary" onClick={convertAgain}>Convert again</Button>
+          ) : (
+            <Button type="button" className="w-full" onClick={() => void handleConvert()} disabled={!canSubmit} loading={busy}>
+              {busy ? "Converting…" : "Convert to MP3"}
+            </Button>
+          )}
+        </>
+      }
+      stageActions={
+        stage === "done" && outputUrl ? (
+          <Button type="button" size="sm" onClick={handleDownload}><span className="inline-flex items-center gap-2"><IcDownload /> Download MP3</span></Button>
+        ) : undefined
+      }
+      stage={
+        busy ? (
+          <StageProgress label={`Converting at ${qualityLabel}${realtime > 0 ? ` · about ${realtime.toFixed(1)}× real time` : ""}…`} progress={job.progress} />
+        ) : stage === "done" && file && outputUrl ? (
+          <div className="flex flex-1 flex-col gap-3">
+            <div className="flex flex-col gap-2 rounded-xl border border-primary/50 bg-primary/5 p-4">
+              <p className="text-[12px] font-semibold text-fg-muted">{file.name.replace(/\.[^.]+$/, "")}.mp3 · {qualityLabel}</p>
+              <audio src={outputUrl} controls className="w-full" />
             </div>
-            <div className="min-w-0">
-              <h1 className="font-bold text-fg text-[17px] leading-tight">MP3 Converter</h1>
-              <p className="text-sm text-fg-muted mt-1">Upload an audio or video file to convert to MP3.</p>
-            </div>
+            {outputBlob && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl border border-line bg-surface-1 p-4"><p className="text-[12px] text-fg-subtle">Original</p><p className="text-[22px] font-semibold text-fg">{fmtMB(file.size)}</p></div>
+                <div className="rounded-xl border border-line bg-surface-1 p-4"><p className="text-[12px] text-fg-subtle">MP3</p><p className="text-[22px] font-semibold text-fg">{fmtMB(outputBlob.size)}</p></div>
+              </div>
+            )}
           </div>
-
-          {/* Dropzone (idle only) */}
-          {stage === "idle" && (
-            <>
-              <input ref={inputRef} type="file" accept="audio/*,video/*" className="hidden" onChange={e => onPick(e.target.files)} />
-              <button
-                type="button"
-                onClick={() => inputRef.current?.click()}
-                onDragOver={e => { e.preventDefault(); setDragging(true); }}
-                onDragLeave={() => setDragging(false)}
-                onDrop={e => { e.preventDefault(); setDragging(false); onPick(e.dataTransfer.files); }}
-                className="mt-4 w-full rounded-xl border transition-colors flex flex-col items-center justify-center text-center px-6 py-10"
-                style={{ borderColor: dragging ? "var(--primary)" : "var(--line)", background: dragging ? "var(--tint-emerald)" : "var(--surface-2)" }}
-              >
-                <div className="w-12 h-12 rounded-full bg-surface-2 border border-line flex items-center justify-center text-fg-subtle mb-3">
-                  <IcCloud />
-                </div>
-                <p className="text-[15px] font-semibold text-fg">Upload audio or video</p>
-                <p className="text-sm text-fg-subtle mt-1">Drag and drop or click to browse</p>
-                <p className="text-xs text-fg-subtle mt-2">.mp3, .wav, .aac, .mp4, .mov, .mkv, .webm • Max {uploadMaxSizeLabel ?? "500 MB"}</p>
-              </button>
-            </>
-          )}
-
-          {/* Uploaded file card */}
-          {stage !== "idle" && file && (
-            <div className="mt-4 rounded-xl border border-success/30 bg-success/10 px-4 py-3 flex items-center gap-3">
-              <span className="text-success flex-shrink-0"><IcCheck /></span>
-              <span className="w-8 h-8 rounded-lg bg-panel border border-success/30 flex items-center justify-center text-fg-muted flex-shrink-0"><IcDoc /></span>
-              <div className="min-w-0 flex-1">
-                <p className="text-[14px] font-semibold text-fg truncate">{truncate(file.name)}</p>
-                <p className="text-xs text-fg-muted mt-0.5">{fmtMB(file.size)} • Uploaded successfully</p>
-              </div>
-              {!busy && (
-                <button aria-label="Remove file" type="button" onClick={clearFile} className="text-fg-subtle hover:text-fg-muted flex-shrink-0">
-                  <IcX />
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* Quality selector */}
-          {stage !== "idle" && (
-            <div className="mt-5">
-              <p className="text-sm font-semibold text-fg mb-2">MP3 Quality</p>
-              <div className="grid grid-cols-5 gap-2">
-                {QUALITY_OPTIONS.map(opt => {
-                  const active = quality === opt.id;
-                  return (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      disabled={qualityLocked}
-                      onClick={() => setQuality(opt.id)}
-                      className="rounded-lg border px-1 py-2 text-center transition-colors"
-                      style={{
-                        borderColor: active ? "var(--primary)" : "var(--line)",
-                        background: active ? "var(--tint-emerald)" : "var(--surface-2)",
-                        opacity: qualityLocked && !active ? 0.5 : 1,
-                        cursor: qualityLocked ? "not-allowed" : "pointer",
-                      }}
-                    >
-                      <p className="text-[12px] font-semibold" style={{ color: active ? "var(--brand-deep)" : "var(--fg-muted)" }}>{opt.label}</p>
-                      <p className="text-[10px] text-fg-subtle leading-tight mt-0.5">{opt.sub}</p>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {stage === "error" && job.error && <p className="mt-3 text-sm text-error text-center">{job.error}</p>}
-
-          {/* Converting progress */}
-          {stage === "processing" && (
-            <div className="mt-5">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-fg-muted">
-                  Converting to MP3 with {QUALITY_OPTIONS.find(q => q.id === quality)?.label} quality…
-                </span>
-                {realtime > 0 && <span className="text-fg-subtle">~{realtime.toFixed(1)}x real time</span>}
-              </div>
-              <div className="mt-2 h-2 rounded-full bg-surface-3 overflow-hidden">
-                <div className="h-full bg-brand transition-all duration-150" style={{ width: `${job.progress}%` }} />
-              </div>
-              <p className="text-xs text-fg-muted mt-1">{Math.round(job.progress)}% complete</p>
-            </div>
-          )}
-
-          {/* Conversion complete */}
-          {stage === "done" && file && outputBlob && (
-            <div className="mt-4 rounded-xl border border-success/30 bg-success/10 px-4 py-3">
-              <div className="flex items-center gap-2 text-success font-semibold">
-                <IcCheck className="w-5 h-5" /> Conversion Complete
-              </div>
-              <div className="mt-2 space-y-1 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-fg-muted">Original size:</span>
-                  <span className="font-medium text-fg">{fmtMB(file.size)}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-fg-muted">Output size:</span>
-                  <span className="font-medium text-fg">{fmtMB(outputBlob.size)}</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Action buttons */}
-          {canSubmit && (
-            <button
-              type="button"
-              onClick={() => void handleConvert()}
-              className="mt-4 w-full inline-flex items-center justify-center gap-2 text-sm font-semibold py-3 rounded-xl transition-colors"
-              style={{ background: "var(--primary)", color: "var(--on-primary)" }}
-            >
-              Convert
-            </button>
-          )}
-
-          {stage === "processing" && (
-            <button
-              type="button"
-              disabled
-              className="mt-4 w-full inline-flex items-center justify-center gap-2 text-sm font-semibold py-3 rounded-xl"
-              style={{ background: "var(--surface-3)", color: "var(--fg-subtle)", cursor: "not-allowed" }}
-            >
-              <Spinner />
-            </button>
-          )}
-
-          {stage === "done" && (
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={handleDownload}
-                className="inline-flex items-center justify-center gap-2 text-sm font-semibold py-3 rounded-xl"
-                style={{ background: "var(--primary)", color: "var(--on-primary)" }}
-              >
-                <IcDownload /> Download Converted MP3
-              </button>
-              <button
-                type="button"
-                onClick={convertAgain}
-                className="inline-flex items-center justify-center gap-2 text-fg text-sm font-semibold py-3 rounded-xl border border-line hover:bg-surface-2 transition-colors"
-              >
-                Convert Again
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
+        ) : (
+          <StageEmpty icon="note" title="Your MP3 appears here">
+            Add a file on the left and pick a quality. 192 kbps is right for most music.
+          </StageEmpty>
+        )
+      }
+    />
   );
 }

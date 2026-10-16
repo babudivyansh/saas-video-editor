@@ -10,6 +10,8 @@ import { useModelOverrides } from "./useModelOverrides";
 import type { ImageParam } from "@/lib/models/types";
 import { Tooltip } from "@/app/components/ui/Tooltip";
 import { Modal } from "@/app/components/ui/Modal";
+import { Button } from "@/app/components/ui/Button";
+import { ToolWorkspace, ToolBadge, ToolField, CostRow, StageEmpty, StageProgress } from "@/app/components/tools/ToolWorkspace";
 
 // Aspect ratios are per model (lib/models/imageModels.ts, from each provider's
 // schema). The old shared list offered "Original" and ratios most models ignored.
@@ -319,15 +321,14 @@ export default function ImageGeneratorTool() {
   }
 
   const modelName = modelEntry.displayName;
+  const price = priceOf(modelEntry, overrides);
 
   return (
-    <div className="mx-auto w-full max-w-[1440px] px-4 md:px-8 pb-12">
+    <>
       {/* Hidden file input */}
       <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleReferenceUpload} />
 
-      {/* Lightbox */}
-      {/* ui/Modal: Esc closes it now, focus is trapped, and the icon buttons
-          have names. */}
+      {/* ui/Modal: Esc closes it, focus is trapped, the icon buttons have names. */}
       {lightbox && (
         <Modal open onClose={() => setLightbox(null)} bare ariaLabel="Generated image" maxWidth="max-w-3xl" panelClassName="!bg-transparent !border-transparent !shadow-none">
           <div className="relative w-full">
@@ -357,266 +358,183 @@ export default function ImageGeneratorTool() {
         </Modal>
       )}
 
-      <div className="flex flex-col lg:flex-row gap-6 items-start">
-        {/* ── Left panel ──────────────────────────────────────────── */}
-        <div className="w-full lg:w-[660px] lg:flex-shrink-0">
-
-          {/* Controls row */}
-          <div className="flex items-end gap-3 mb-4">
-            <div className="flex-1">
-              <p className="text-[12px] font-semibold text-fg-muted mb-1.5">Model</p>
-              <ModelDropdown value={model} onChange={setModel} overrides={overrides} />
-            </div>
-            {supports("aspectRatio") && (modelEntry.aspectRatios?.length ?? 0) > 0 && (
-              <div>
-                <p className="text-[12px] font-semibold text-fg-muted mb-1.5">Ratio</p>
-                <RatioDropdown value={effectiveRatio} options={modelEntry.aspectRatios!} onChange={setRatio} />
-              </div>
-            )}
-            {/* Only models whose endpoint takes an input image offer one. None do
-                today: this upload used to show for every model but was never sent,
-                so "your prompt will edit that image" was untrue. */}
-            {modelEntry.imageInput !== "none" && (
-            <div>
-              <div className="flex items-center gap-1 mb-1.5">
-                <p className="text-[12px] font-semibold text-fg-muted">Reference</p>
-                <span className="text-fg-subtle cursor-help" title="Adding a reference image means your prompt will edit that image">
-                  <IcInfo />
-                </span>
-              </div>
-              {referencePreview ? (
-                <div className="relative w-[42px] h-[42px]">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={referencePreview} alt="reference" className="w-full h-full object-cover rounded-xl border border-line" />
-                  <button
-                    onClick={() => setReferencePreview(null)}
-                    className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-black/80 text-white flex items-center justify-center cursor-pointer"
-                  >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-2.5 h-2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
-                  </button>
-                </div>
-              ) : (
+      <ToolWorkspace
+        title="AI Image Generator"
+        icon="image"
+        badges={<ToolBadge>{creditLabel(price)}</ToolBadge>}
+        description="Describe a picture and the AI draws it."
+        controls={
+          <>
+            <ToolField label="Prompt" hint={
+              <span className="inline-flex items-center gap-1.5 tabular-nums">
+                {prompt.length.toLocaleString()} / 2,000
+                <Tooltip content="Be specific: subject, style, lighting, and mood all help. Enhance expands a short idea.">
+                  <span className="cursor-help text-fg-subtle"><IcInfo /></span>
+                </Tooltip>
+              </span>
+            }>
+              <div className="relative">
+                <textarea
+                  value={prompt}
+                  onChange={e => setPrompt(e.target.value)}
+                  onKeyDown={onKeyDown}
+                  placeholder="Describe the image you want to create…"
+                  aria-label="Prompt"
+                  rows={5}
+                  maxLength={2000}
+                  className="w-full resize-none rounded-xl border border-line bg-surface-1 px-3.5 py-3 pb-11 text-[13.5px] leading-relaxed text-fg outline-none transition placeholder:text-fg-subtle focus:border-primary/60 focus:ring-2 focus:ring-primary/25"
+                />
                 <button
-                  onClick={() => fileRef.current?.click()}
-                  className="w-[42px] h-[42px] rounded-xl border-2 border-dashed border-line-strong hover:border-gray-400 text-fg-subtle hover:text-fg-muted flex items-center justify-center transition-colors cursor-pointer"
+                  type="button"
+                  onClick={enhancePrompt}
+                  disabled={!prompt.trim() || enhancing}
+                  className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-lg border border-line bg-panel px-2.5 py-1.5 text-[12px] font-semibold text-fg-muted transition-colors hover:bg-surface-3 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  <IcImage />
-                </button>
-              )}
-            </div>
-            )}
-          </div>
-
-          {/* Dynamic per-model parameters */}
-          {supports("negativePrompt") && (
-            <div className="mb-4">
-              <p className="text-[12px] font-semibold text-fg-muted mb-1.5">Negative Prompt</p>
-              <input
-                value={negativePrompt}
-                onChange={e => setNegativePrompt(e.target.value)}
-                placeholder="Things to avoid in the image..."
-                className="w-full rounded-xl border border-line px-3.5 py-2.5 text-[13px] text-fg placeholder:text-fg-subtle outline-none focus:border-brand/60 focus:ring-2 focus:ring-primary/25 transition"
-              />
-            </div>
-          )}
-
-          {(supports("seed") || supports("guidanceScale") || supports("steps")) && (
-            <div className="mb-4">
-              <button
-                onClick={() => setShowAdvanced(a => !a)}
-                className="flex items-center gap-1 text-[12px] font-semibold text-fg-muted hover:text-fg cursor-pointer"
-              >
-                Advanced <IcChevron />
-              </button>
-              {showAdvanced && (
-                <div className="mt-2 flex gap-3">
-                  {supports("seed") && (
-                    <div className="flex-1">
-                      <p className="text-[11px] text-fg-subtle mb-1">Seed</p>
-                      <input
-                        type="number"
-                        value={seed}
-                        onChange={e => setSeed(e.target.value)}
-                        placeholder="Random"
-                        className="w-full rounded-lg border border-line px-2.5 py-1.5 text-[12.5px] outline-none focus:border-brand/60"
-                      />
-                    </div>
-                  )}
-                  {supports("guidanceScale") && (
-                    <div className="flex-1">
-                      <p className="text-[11px] text-fg-subtle mb-1">Guidance</p>
-                      <input
-                        type="number"
-                        value={guidanceScale}
-                        onChange={e => setGuidanceScale(e.target.value)}
-                        placeholder="Default"
-                        className="w-full rounded-lg border border-line px-2.5 py-1.5 text-[12.5px] outline-none focus:border-brand/60"
-                      />
-                    </div>
-                  )}
-                  {supports("steps") && (
-                    <div className="flex-1">
-                      <p className="text-[11px] text-fg-subtle mb-1">Steps</p>
-                      <input
-                        type="number"
-                        value={steps}
-                        onChange={e => setSteps(e.target.value)}
-                        placeholder="Default"
-                        className="w-full rounded-lg border border-line px-2.5 py-1.5 text-[12.5px] outline-none focus:border-brand/60"
-                      />
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Preview area */}
-          <div className="rounded-2xl border border-line bg-surface-2 mb-4 overflow-hidden" style={{ minHeight: 340 }}>
-            {generating ? (
-              <div className="flex flex-col items-center justify-center h-full min-h-[340px] gap-4">
-                <div className="w-14 h-14 rounded-full bg-panel border border-line flex items-center justify-center shadow-sm">
-                  <Spinner className="w-6 h-6 text-brand" />
-                </div>
-                <div className="text-center">
-                  <p className="text-[14px] font-bold text-fg">Generating your image…</p>
-                  <p className="text-[12.5px] text-fg-subtle mt-1">Using {modelName}</p>
-                </div>
-                <button
-                  onClick={() => void job.cancel()}
-                  className="text-[12px] font-medium text-fg-subtle hover:text-error transition-colors cursor-pointer"
-                >
-                  Cancel
+                  {enhancing ? <Spinner className="w-3 h-3" /> : <IcSparkle />}
+                  Enhance prompt
                 </button>
               </div>
-            ) : currentImage ? (
-              <div className="relative group">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={currentImage} alt="Generated" className="w-full rounded-2xl" />
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors rounded-2xl" />
-                <div className="absolute top-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <a
-                    href={currentImage}
-                    download="generated-image.png"
-                    aria-label="Download image"
-                    onClick={(e) => { e.preventDefault(); void saveImage(currentImage); }}
-                    className="w-8 h-8 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center transition-colors"
-                  >
-                    <IcDownload />
-                  </a>
-                </div>
+            </ToolField>
+
+            <div className="flex items-end gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-fg-subtle">Model</p>
+                <ModelDropdown value={model} onChange={setModel} overrides={overrides} />
               </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full min-h-[340px] gap-3 text-center px-8">
-                <div className="w-14 h-14 rounded-full bg-panel border border-line flex items-center justify-center shadow-sm text-fg-subtle">
-                  <IcSparkle />
-                </div>
+              {supports("aspectRatio") && (modelEntry.aspectRatios?.length ?? 0) > 0 && (
                 <div>
-                  <p className="text-[15px] font-bold text-fg">Ready to create something amazing?</p>
-                  <p className="text-[13px] text-brand mt-1">Enter a prompt below and let AI bring your ideas to life</p>
+                  <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-fg-subtle">Shape</p>
+                  <RatioDropdown value={effectiveRatio} options={modelEntry.aspectRatios!} onChange={setRatio} />
                 </div>
+              )}
+              {/* Only models whose endpoint takes an input image offer one. */}
+              {modelEntry.imageInput !== "none" && (
+                <div>
+                  <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-fg-subtle">Reference</p>
+                  {referencePreview ? (
+                    <div className="relative h-[42px] w-[42px]">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={referencePreview} alt="reference" className="h-full w-full rounded-xl border border-line object-cover" />
+                      <button type="button" aria-label="Remove reference" onClick={() => setReferencePreview(null)}
+                              className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-black/80 text-white">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="h-2.5 w-2.5" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                      </button>
+                    </div>
+                  ) : (
+                    <button type="button" aria-label="Add a reference image" onClick={() => fileRef.current?.click()}
+                            className="flex h-[42px] w-[42px] items-center justify-center rounded-xl border-2 border-dashed border-line-strong text-fg-subtle transition-colors hover:text-fg-muted">
+                      <IcImage />
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {supports("negativePrompt") && (
+              <ToolField label="Avoid">
+                <input
+                  value={negativePrompt}
+                  onChange={e => setNegativePrompt(e.target.value)}
+                  placeholder="Things to keep out of the image…"
+                  aria-label="Negative prompt"
+                  className="w-full rounded-xl border border-line bg-surface-1 px-3.5 py-2.5 text-[13px] text-fg outline-none transition placeholder:text-fg-subtle focus:border-primary/60 focus:ring-2 focus:ring-primary/25"
+                />
+              </ToolField>
+            )}
+
+            {(supports("seed") || supports("guidanceScale") || supports("steps")) && (
+              <div>
+                <button type="button" onClick={() => setShowAdvanced(a => !a)} aria-expanded={showAdvanced}
+                        className="flex items-center gap-1 text-[12px] font-semibold text-fg-muted hover:text-fg">
+                  Advanced <IcChevron />
+                </button>
+                {showAdvanced && (
+                  <div className="mt-2 flex gap-3">
+                    {supports("seed") && (
+                      <label className="flex-1">
+                        <span className="mb-1 block text-[11px] text-fg-subtle">Seed</span>
+                        <input type="number" value={seed} onChange={e => setSeed(e.target.value)} placeholder="Random"
+                               className="w-full rounded-lg border border-line bg-surface-1 px-2.5 py-1.5 text-[12.5px] outline-none focus:border-primary/60" />
+                      </label>
+                    )}
+                    {supports("guidanceScale") && (
+                      <label className="flex-1">
+                        <span className="mb-1 block text-[11px] text-fg-subtle">Guidance</span>
+                        <input type="number" value={guidanceScale} onChange={e => setGuidanceScale(e.target.value)} placeholder="Default"
+                               className="w-full rounded-lg border border-line bg-surface-1 px-2.5 py-1.5 text-[12.5px] outline-none focus:border-primary/60" />
+                      </label>
+                    )}
+                    {supports("steps") && (
+                      <label className="flex-1">
+                        <span className="mb-1 block text-[11px] text-fg-subtle">Steps</span>
+                        <input type="number" value={steps} onChange={e => setSteps(e.target.value)} placeholder="Default"
+                               className="w-full rounded-lg border border-line bg-surface-1 px-2.5 py-1.5 text-[12.5px] outline-none focus:border-primary/60" />
+                      </label>
+                    )}
+                  </div>
+                )}
               </div>
             )}
-          </div>
-
-          {/* Prompt */}
-          <div className="flex items-center gap-1.5 mb-2">
-            <p className="text-[13.5px] font-bold text-fg">Prompt</p>
-            <Tooltip content="Be specific: subject, style, lighting, and mood all help. Try the Enhance button below to expand a short idea.">
-              <span className="text-fg-subtle cursor-help"><IcInfo /></span>
-            </Tooltip>
-          </div>
-          <div className="relative">
-            <textarea
-              value={prompt}
-              onChange={e => setPrompt(e.target.value)}
-              onKeyDown={onKeyDown}
-              placeholder="Describe the image you want to create..."
-              rows={6}
-              className="w-full rounded-xl border border-line px-4 py-3 text-[13.5px] leading-relaxed text-fg placeholder:text-fg-subtle outline-none focus:border-brand/60 focus:ring-2 focus:ring-primary/25 transition resize-none pb-10"
-            />
-            {/* Enhance Prompt */}
-            <button
-              onClick={enhancePrompt}
-              disabled={!prompt.trim() || enhancing}
-              className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-lg border border-line bg-panel hover:bg-surface-2 px-2.5 py-1.5 text-[12px] font-semibold text-fg-muted transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-            >
-              {enhancing && <Spinner className="w-3 h-3" />}
-              Enhance Prompt
-              {!enhancing && <IcChevron />}
-            </button>
-          </div>
-
-          {error && <p className="text-[12px] text-error mt-2">{error}</p>}
-          {job.status === "error" && job.error && <p className="text-[12px] text-error mt-2">{job.error}</p>}
-          {job.status === "cancelled" && (
-            <p className="text-[12px] text-fg-subtle mt-2">Cancelled — your credit was refunded.</p>
-          )}
-
-          {/* Generate button */}
-          <button
-            onClick={() => void generate()}
-            disabled={!prompt.trim() || generating}
-            className={`mt-4 w-full inline-flex items-center justify-center gap-2 rounded-xl py-3 text-[14px] font-bold transition-colors ${
-              prompt.trim() && !generating
-                ? "bg-brand hover:bg-brand-dark text-on-primary cursor-pointer"
-                : "bg-surface-3 text-fg-subtle cursor-not-allowed"
-            }`}
-          >
-            {generating ? <><Spinner /> Generating…</> : "Generate Image"}
-            {!generating && prompt.trim() && (
-              <kbd className="ml-1 hidden sm:inline-block text-[11px] font-semibold bg-white/20 rounded px-1.5 py-0.5">{modKey}+Enter</kbd>
-            )}
-          </button>
-          {!user && (
-            <p className="text-[12px] text-fg-subtle mt-2 text-center">You&apos;ll be asked to sign in to generate.</p>
-          )}
-        </div>
-
-        {/* ── Right panel: Recent Generations ─────────────────────── */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-[15px] font-bold text-fg">Recent Generations</h2>
-            {generations.length > 0 && (
-              <button
-                onClick={() => persistGenerations([])}
-                className="text-[12.5px] font-semibold text-brand hover:text-brand cursor-pointer"
-              >
-                Clear all
+          </>
+        }
+        footer={
+          <>
+            {error && <p role="alert" className="text-[12px] text-error">{error}</p>}
+            {job.status === "error" && job.error && <p role="alert" className="text-[12px] text-error">{job.error}</p>}
+            {job.status === "cancelled" && <p className="text-[12px] text-fg-subtle">Cancelled — your credit was refunded.</p>}
+            <CostRow right={user ? `You have ${user.credits.toLocaleString()}` : undefined}>
+              {modelName} · <span className="font-semibold text-fg">{creditLabel(price)}</span>
+            </CostRow>
+            <Button type="button" className="w-full" onClick={() => void generate()} disabled={!prompt.trim() || generating} loading={generating}>
+              {generating ? "Generating…" : <>Generate image <kbd className="ml-1 hidden rounded bg-black/15 px-1.5 py-0.5 text-[11px] font-semibold sm:inline-block">{modKey}+Enter</kbd></>}
+            </Button>
+            {!user && <p className="text-center text-[12px] text-fg-subtle">You&apos;ll be asked to sign in to generate.</p>}
+          </>
+        }
+        stageActions={
+          currentImage && !generating ? (
+            <Button type="button" size="sm" variant="secondary" onClick={() => void saveImage(currentImage)}>
+              <span className="inline-flex items-center gap-2"><IcDownload /> Download</span>
+            </Button>
+          ) : undefined
+        }
+        stage={
+          generating ? (
+            <StageProgress label={`Generating with ${modelName}…`} progress={job.progress} onCancel={() => void job.cancel()} cancelLabel="Cancel" />
+          ) : currentImage ? (
+            <div className="flex flex-1 flex-col gap-2">
+              <button type="button" onClick={() => setLightbox(generations[0] ?? null)} className="flex flex-1 items-center justify-center overflow-hidden rounded-xl border border-line bg-surface-1" aria-label="View larger">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={currentImage} alt="Generated" className="max-h-[640px] w-full object-contain" />
               </button>
-            )}
-          </div>
-
-          {generations.length === 0 ? (
-            /* Empty placeholders (dashed boxes like crayo) */
-            <div className="grid grid-cols-3 gap-2">
-              {Array.from({ length: 9 }).map((_, i) => (
-                <div key={i} className="aspect-square rounded-xl border-2 border-dashed border-line bg-surface-2" />
-              ))}
+              <p className="text-[12px] text-fg-subtle">Saved to your Assets</p>
             </div>
           ) : (
-            <div className="grid grid-cols-3 gap-2">
-              {generations.map(g => (
-                <button
-                  key={g.id}
-                  onClick={() => setLightbox(g)}
-                  className="aspect-square rounded-xl overflow-hidden border border-line hover:border-line-strong hover:shadow-md transition-all cursor-pointer relative group"
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={g.imageUrl} alt={g.prompt} className="w-full h-full object-cover" />
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-end p-2 opacity-0 group-hover:opacity-100">
-                    <p className="text-white text-[10px] leading-tight line-clamp-2">{g.prompt}</p>
-                  </div>
-                </button>
-              ))}
-              {/* Filler placeholders to keep grid shape */}
-              {generations.length < 9 && Array.from({ length: Math.max(0, 9 - generations.length) }).map((_, i) => (
-                <div key={`ph-${i}`} className="aspect-square rounded-xl border-2 border-dashed border-line bg-surface-2" />
-              ))}
+            <StageEmpty icon="image" title="Your image appears here">
+              Write a prompt on the left — try Enhance prompt to turn a short idea into a detailed one.
+            </StageEmpty>
+          )
+        }
+        below={
+          generations.length > 0 ? (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-fg-subtle">Recent generations</p>
+                <button type="button" onClick={() => persistGenerations([])} className="text-[12px] font-medium text-fg-muted hover:text-fg">Clear list</button>
+              </div>
+              <div className="flex gap-2.5 overflow-x-auto pb-1">
+                {generations.map(g => (
+                  <button key={g.id} type="button" onClick={() => setLightbox(g)} title={g.prompt}
+                          className="h-24 w-24 flex-shrink-0 overflow-hidden rounded-lg border border-line transition-colors hover:border-line-strong">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={g.imageUrl} alt={g.prompt} className="h-full w-full object-cover" />
+                  </button>
+                ))}
+              </div>
             </div>
-          )}
-        </div>
-      </div>
-    </div>
+          ) : undefined
+        }
+      />
+    </>
   );
 }

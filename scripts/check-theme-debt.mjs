@@ -132,10 +132,10 @@ const BUDGET = {
   // 30 -> 26: Studio shell + home redesign dropped the old tinted cards and skeletons.
   // 26 -> 23: homepage SocialProof / HowItWorks / FAQ lost their bg-gray-50/60
   // bands so every landing section sits on the one page background.
-  "raw-gray": 9, /* AI tools audit 2026-10-14 (was 16) */ /* dashboard AI Tools hub: toolPreviews.tsx deleted (was 20) */ /* stage 6: recovery-code placeholder */ // audit 2026-09-29 stage 5: cookie preferences on tokens. Was: // 31 -> 30: PlansModal lost its subscription coupon field (and its hover:bg-gray-800)
+  "raw-gray": 6, /* AI tools workspace layout 2026-10-16 (was 9) */ /* AI tools audit 2026-10-14 (was 16) */ /* dashboard AI Tools hub: toolPreviews.tsx deleted (was 20) */ /* stage 6: recovery-code placeholder */ // audit 2026-09-29 stage 5: cookie preferences on tokens. Was: // 31 -> 30: PlansModal lost its subscription coupon field (and its hover:bg-gray-800)
   // 5 -> 4: same deletion.
   "bg-white": 0, // 1 -> 0: the GST receipt rewrite dropped the last print:bg-white
-  "raw-slate": 4, /* toolPreviews.tsx deleted (was 5) */ // audit 2026-09-29 stage 7 (pastel chips, old brand hex, editor violet → tokens)
+  "raw-slate": 1, /* AI tools workspace layout 2026-10-16 (was 4) */ /* toolPreviews.tsx deleted (was 5) */ // audit 2026-09-29 stage 7 (pastel chips, old brand hex, editor violet → tokens)
   "raw-zinc": 0,
   "raw-blue": 0,
   "raw-red": 0, /* AI tools audit 2026-10-14 (was 6) */ /* toolPreviews.tsx deleted (was 10) */ // audit 2026-09-29 stage 7 (pastel chips, old brand hex, editor violet → tokens)
