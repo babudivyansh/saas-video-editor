@@ -4,6 +4,7 @@ import { useAuth } from "@/app/components/AuthContext";
 import { useJobPolling } from "@/app/components/useJobPolling";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 import { Button } from "@/app/components/ui/Button";
+import { ToolWorkspace, ToolBadge, ToolField, CostRow, Segmented, StageEmpty } from "@/app/components/tools/ToolWorkspace";
 
 // The YouTube and Instagram downloader pages (2026-10-14 tools audit). They
 // were two near-identical copies; Instagram buffered the whole download inside
@@ -38,6 +39,12 @@ export interface DownloaderToolProps {
   footnote: string;
 }
 
+// The heights lib/downloader-route.ts can deliver (Q_ORDER), plus "best".
+const QUALITY_STEPS = [
+  ["best", "Best"], ["2160", "4K"], ["1440", "1440p"], ["1080", "1080p"], ["720", "720p"],
+  ["480", "480p"], ["360", "360p"], ["240", "240p"], ["144", "144p"],
+] as const;
+
 function formatDuration(seconds: number) {
   if (!seconds) return "";
   const h = Math.floor(seconds / 3600);
@@ -53,15 +60,6 @@ function formatCount(n: number, suffix: string) {
   return `${n} ${suffix}`;
 }
 
-function IcDownload() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
-      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-      <polyline points="7 10 12 15 17 10" />
-      <line x1="12" y1="15" x2="12" y2="3" />
-    </svg>
-  );
-}
 
 export default function DownloaderTool(props: DownloaderToolProps) {
   const { slug } = props;
@@ -73,6 +71,10 @@ export default function DownloaderTool(props: DownloaderToolProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [activeQuality, setActiveQuality] = useState<string | null>(null);
+  const [format, setFormat] = useState<"video" | "audio">("video");
+  const [quality, setQuality] = useState<string | null>(null);
+  const [permission, setPermission] = useState(false);
+  const [history, setHistory] = useState<{ id: string; title: string; label: string }[]>([]);
   const submittingRef = useRef(false);
   const downloadedForJobId = useRef<string | null>(null);
 
@@ -90,6 +92,7 @@ export default function DownloaderTool(props: DownloaderToolProps) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error((data as { error?: string }).error ?? "Couldn't load this link.");
       setInfo(data as MediaInfo);
+      setQuality(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong");
     } finally {
@@ -149,6 +152,8 @@ export default function DownloaderTool(props: DownloaderToolProps) {
         // Revoking straight after click() can cancel the download in some
         // browsers — give it time to start.
         setTimeout(() => URL.revokeObjectURL(href), 60_000);
+        const label = activeQuality === "audio" ? "MP3" : activeQuality === "best" ? "MP4 · best" : `MP4 · ${activeQuality === "2160" ? "4K" : `${activeQuality}p`}`;
+        setHistory((prev) => [{ id: job.jobId!, title: info.title, label }, ...prev].slice(0, 5));
       } catch (e) {
         setError(e instanceof Error ? e.message : "Download failed");
       }
@@ -157,126 +162,148 @@ export default function DownloaderTool(props: DownloaderToolProps) {
   }, [job.status, job.jobId, token, fireReviewPrompt]);
 
   const busy = job.status === "processing";
+  const videoFormats = info?.formats.filter((f) => f.quality !== "audio") ?? [];
+  const hasAudio = info?.formats.some((f) => f.quality === "audio") ?? false;
+  const available = new Set(videoFormats.map((f) => f.quality));
+  const selectedQuality = format === "audio" ? "audio" : (quality && (quality === "best" || available.has(quality)) ? quality : "best");
+  const maxHeight = videoFormats.reduce((m, f) => Math.max(m, Number(f.quality) || 0), 0);
+  const canDownload = !!info && !busy && permission && (format === "audio" ? hasAudio : videoFormats.length > 0 || !hasAudio);
 
   return (
-    <div className="min-h-full bg-surface-2">
-      <div className="mx-auto w-full max-w-2xl px-4 sm:px-6 py-8">
-        <div className="flex items-center gap-3 mb-1">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white flex-shrink-0" style={{ background: props.iconBackground }}>
-            {props.icon}
-          </div>
-          <div>
-            <h1 className="text-[22px] font-extrabold text-fg tracking-tight leading-tight">{props.title}</h1>
-            <p className="text-[13px] text-fg-subtle">1 credit per download · No watermark · {props.formatsLine}</p>
-          </div>
-        </div>
+    <ToolWorkspace
+      title={props.title}
+      icon={slug === "youtube-downloader" ? "youtube" : "instagram"}
+      badges={<ToolBadge>1 credit</ToolBadge>}
+      description={props.intro}
+      controls={
+        <>
+          <ToolField label={props.urlLabel}>
+            <div className="flex gap-2">
+              <input
+                id={`${slug}-url`}
+                type="url"
+                value={url}
+                aria-label={props.urlLabel}
+                onChange={(e) => { setUrl(e.target.value); setInfo(null); setError(""); }}
+                onKeyDown={(e) => { if (e.key === "Enter") void fetchInfo(); }}
+                placeholder={props.placeholder}
+                className="min-w-0 flex-1 rounded-xl border border-line bg-surface-1 px-3.5 py-2.5 text-sm text-fg placeholder:text-fg-subtle focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+              />
+              <Button type="button" variant="secondary" onClick={() => void fetchInfo()} disabled={!url.trim()} loading={loading}>
+                {loading ? "Checking…" : "Check"}
+              </Button>
+            </div>
+          </ToolField>
 
-        <p className="text-[13.5px] text-fg-muted mt-3 mb-7">{props.intro}</p>
+          {info && (
+            <>
+              <ToolField label="Format">
+                <Segmented label="Format" value={format} onChange={setFormat}
+                           options={hasAudio ? ([["video", "MP4 video"], ["audio", "MP3 audio"]] as const) : ([["video", "MP4 video"]] as const)} />
+              </ToolField>
+              {format === "video" && videoFormats.length > 0 && (
+                <ToolField label="Video quality" hint={maxHeight > 0 ? `This one goes up to ${maxHeight >= 2160 ? "4K" : `${maxHeight}p`}` : undefined}>
+                  <div role="radiogroup" aria-label="Video quality" className="grid grid-cols-3 gap-1.5 rounded-xl border border-line bg-surface-1 p-1">
+                    {QUALITY_STEPS.map(([q, label]) => {
+                      const enabled = q === "best" || available.has(q);
+                      const on = selectedQuality === q;
+                      return (
+                        <label key={q} className={`rounded-lg px-2 py-1.5 text-center text-[12.5px] font-semibold transition-colors ${on ? "bg-primary/15 text-fg ring-1 ring-primary/50" : "text-fg-muted hover:text-fg"} ${enabled ? "cursor-pointer" : "pointer-events-none opacity-35"}`}>
+                          <input type="radio" name={`${slug}-quality`} value={q} checked={on} disabled={!enabled || busy} onChange={() => setQuality(q)} className="sr-only" />
+                          {label}
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <span className="text-[11.5px] text-fg-subtle">Lower quality downloads faster — same 1 credit.</span>
+                </ToolField>
+              )}
+            </>
+          )}
 
-        <div className="bg-panel rounded-2xl border border-line shadow-sm p-5 mb-5">
-          <label htmlFor={`${slug}-url`} className="text-xs font-semibold text-fg-muted uppercase tracking-wide mb-2 block">
-            {props.urlLabel}
+          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-line bg-surface-1 px-3.5 py-3">
+            <input type="checkbox" checked={permission} onChange={(e) => setPermission(e.target.checked)} className="mt-0.5 h-4 w-4 flex-shrink-0 cursor-pointer accent-[var(--primary)]" />
+            <span className="text-[12.5px] leading-relaxed text-fg-muted">I own this video or have the creator&apos;s permission to download it.</span>
           </label>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <input
-              id={`${slug}-url`}
-              type="url"
-              value={url}
-              onChange={(e) => { setUrl(e.target.value); setInfo(null); setError(""); }}
-              onKeyDown={(e) => { if (e.key === "Enter") void fetchInfo(); }}
-              placeholder={props.placeholder}
-              className="flex-1 bg-surface-1 border border-line rounded-xl px-4 py-2.5 text-sm text-fg placeholder:text-fg-subtle focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
-            />
-            <Button type="button" onClick={() => void fetchInfo()} disabled={!url.trim()} loading={loading}>
-              {loading ? "Fetching…" : "Get info"}
-            </Button>
-          </div>
-          {!user && <p className="mt-2 text-xs text-fg-subtle">You&apos;ll be asked to sign in to download.</p>}
-
+        </>
+      }
+      footer={
+        <>
           {(error || (job.status === "error" && job.error)) && (
-            <p role="alert" className="mt-3 text-sm text-error bg-error/10 border border-error/30 rounded-xl px-4 py-2.5">
-              {error || job.error}
-            </p>
+            <p role="alert" className="rounded-xl border border-error/30 bg-error/10 px-3.5 py-2.5 text-sm text-error">{error || job.error}</p>
           )}
-          {job.status === "cancelled" && (
-            <p className="mt-3 text-sm text-fg-muted bg-surface-2 border border-line rounded-xl px-4 py-2.5">
-              Cancelled — your credit was refunded.
-            </p>
-          )}
-        </div>
-
-        {info && (
-          <div className="bg-panel rounded-2xl border border-line shadow-sm overflow-hidden">
-            <div className="flex gap-4 p-5 border-b border-line">
+          {job.status === "cancelled" && <p className="text-sm text-fg-muted">Cancelled — your credit was refunded.</p>}
+          <CostRow right={user ? `You have ${user.credits.toLocaleString()}` : undefined}>
+            <span className="font-semibold text-fg">1 credit</span> · refunded if it fails
+          </CostRow>
+          <Button type="button" className="w-full" onClick={() => void download(selectedQuality)} disabled={!canDownload} loading={busy}>
+            {busy ? `Downloading… ${Math.round(job.progress)}%` : info ? `Download ${format === "audio" ? "MP3" : "MP4"}` : "Check the link first"}
+          </Button>
+          {!user && <p className="text-center text-xs text-fg-subtle">You&apos;ll be asked to sign in to download.</p>}
+          <p className="text-[11.5px] text-fg-subtle">{props.footnote}</p>
+        </>
+      }
+      stageTitle="Download"
+      stage={
+        info ? (
+          <div className="flex flex-1 flex-col gap-4">
+            <div className="flex flex-col gap-4 rounded-xl border border-line bg-surface-1 p-4 sm:flex-row">
               {info.thumbnail && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={info.thumbnail} alt="" className="w-28 h-20 object-cover rounded-xl flex-shrink-0 bg-surface-3" />
+                <img src={info.thumbnail} alt="" className="aspect-video w-full flex-shrink-0 rounded-lg bg-surface-3 object-cover sm:w-72" />
               )}
-              <div className="flex-1 min-w-0 flex flex-col justify-center">
-                <h2 className="text-[15px] font-bold text-fg leading-snug line-clamp-2">{info.title}</h2>
-                <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-1.5 text-xs text-fg-subtle">
+              <div className="flex min-w-0 flex-1 flex-col justify-center gap-1.5">
+                <h3 className="line-clamp-2 text-[16px] font-bold leading-snug text-fg">{info.title}</h3>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fg-subtle">
                   {info.author && <span className="text-fg-muted">{props.authorPrefix ?? ""}{info.author}</span>}
                   {info.duration > 0 && <span>{formatDuration(info.duration)}</span>}
                   {info.viewCount > 0 && <span>{formatCount(info.viewCount, "views")}</span>}
                   {info.likeCount > 0 && <span>{formatCount(info.likeCount, "likes")}</span>}
                 </div>
+                <p className="text-[12.5px] text-fg-muted">{format === "audio" ? "MP3 audio" : `MP4 · ${selectedQuality === "best" ? "best available" : selectedQuality === "2160" ? "4K" : `${selectedQuality}p`}`}</p>
               </div>
             </div>
-
-            <div className="p-5">
-              <p className="text-xs font-semibold text-fg-subtle uppercase tracking-wide mb-3">Choose a format · 1 credit</p>
-              <div className="flex flex-wrap gap-2.5">
-                {info.formats.map((fmt) => {
-                  const active = busy && activeQuality === fmt.quality;
-                  return (
-                    <button
-                      key={fmt.quality}
-                      type="button"
-                      onClick={() => void download(fmt.quality)}
-                      disabled={busy}
-                      aria-busy={active}
-                      className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border transition-colors disabled:opacity-50 disabled:cursor-wait outline-none focus-visible:ring-2 focus-visible:ring-primary/60 ${
-                        fmt.quality === "audio"
-                          ? "bg-primary/10 border-primary/30 text-fg hover:bg-primary/15"
-                          : "bg-surface-1 border-line text-fg hover:bg-surface-3 hover:border-line-strong"
-                      }`}
-                    >
-                      <IcDownload />
-                      {active ? `Downloading… ${job.progress}%` : fmt.label}
-                    </button>
-                  );
-                })}
-              </div>
-              {busy && (
-                <div className="mt-3 flex items-center gap-3">
-                  <div className="flex-1 h-1.5 rounded-full bg-surface-3 overflow-hidden">
-                    <div className="h-full bg-primary transition-all duration-300" style={{ width: `${job.progress}%` }} />
-                  </div>
-                  <button type="button" onClick={() => void job.cancel()} className="text-xs font-medium text-fg-subtle hover:text-error transition-colors flex-shrink-0">
-                    Cancel
-                  </button>
+            {busy && (
+              <div className="flex flex-col gap-2 rounded-xl border border-primary/40 bg-primary/5 p-4">
+                <div className="flex items-center justify-between text-[13px]"><b className="text-fg">Downloading · {Math.round(job.progress)}%</b>
+                  <button type="button" onClick={() => void job.cancel()} className="text-xs font-medium text-fg-subtle hover:text-error">Cancel</button>
                 </div>
-              )}
-              <p className="text-xs text-fg-subtle mt-4">{props.footnote}</p>
+                <div className="h-2 overflow-hidden rounded-full bg-surface-3"><div className="h-full bg-primary transition-all duration-300" style={{ width: `${job.progress}%` }} /></div>
+                <span className="text-[11.5px] text-fg-subtle">You can leave this page; come back to pick up the file.</span>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="flex flex-1 flex-col gap-4">
+            <StageEmpty icon={slug === "youtube-downloader" ? "youtube" : "instagram"} title="Paste a link to see the video here">
+              You&apos;ll see the title and length, and pick the format and quality, before any credit is used.
+            </StageEmpty>
+            <div className="rounded-xl border border-line bg-surface-1 p-4">
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-fg-subtle">Supported links</p>
+              <ul className="space-y-1.5 text-xs text-fg-muted">
+                {props.examples.map((ex) => (
+                  <li key={ex} className="flex items-center gap-2"><span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-primary" /><span className="break-all font-mono">{ex}</span></li>
+                ))}
+              </ul>
             </div>
           </div>
-        )}
-
-        {!info && !loading && (
-          <div className="mt-2 bg-panel rounded-2xl border border-line p-5">
-            <p className="text-xs font-semibold text-fg-subtle uppercase tracking-wide mb-3">Supported links</p>
-            <ul className="space-y-1.5 text-xs text-fg-muted">
-              {props.examples.map((ex) => (
-                <li key={ex} className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />
-                  <span className="font-mono break-all">{ex}</span>
-                </li>
+        )
+      }
+      below={
+        history.length > 0 ? (
+          <div className="flex flex-col gap-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-fg-subtle">Downloaded this session</p>
+            <div className="flex flex-col gap-2">
+              {history.map((h) => (
+                <div key={h.id} className="flex items-center gap-3 rounded-xl border border-line bg-surface-1 p-3 text-[13px]">
+                  <span className="min-w-0 flex-1 truncate font-medium text-fg">{h.title}</span>
+                  <span className="text-fg-subtle">{h.label}</span>
+                </div>
               ))}
-            </ul>
-            <p className="text-xs text-fg-subtle mt-4">Only download videos you own or have permission to use.</p>
+            </div>
           </div>
-        )}
-      </div>
-    </div>
+        ) : undefined
+      }
+    />
   );
 }

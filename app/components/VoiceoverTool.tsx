@@ -9,6 +9,8 @@ import { VOICES, voiceBySlug, type Voice } from "@/app/components/voice-catalog"
 import { voiceoverCredits } from "@/lib/audio-pricing";
 import { DEFAULT_VOICE_SLUG } from "@/lib/voices/catalog";
 import { Modal } from "@/app/components/ui/Modal";
+import { Button } from "@/app/components/ui/Button";
+import { ToolWorkspace, ToolBadge, ToolField, CostRow } from "@/app/components/tools/ToolWorkspace";
 
 function IcInfo() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" className="w-3.5 h-3.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>;
@@ -42,12 +44,6 @@ function fmtTime(totalSec: number): string {
 function pct(val: number) { return `${Math.round(val * 100)}%`; }
 
 // ── Icons ───────────────────────────────────────────────────────────────────
-function IcSwap() {
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M7 16l-4-4 4-4M3 12h13M17 8l4 4-4 4M21 12H8" /></svg>;
-}
-function IcGear() {
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z" /></svg>;
-}
 function IcPlay() {
   return <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5"><path d="M8 5v14l11-7z" /></svg>;
 }
@@ -327,76 +323,6 @@ function VoicePickerModal({
   );
 }
 
-// ── Settings popover ─────────────────────────────────────────────────────────
-function SettingsPopover({
-  exaggeration, setExaggeration,
-  stability, setStability,
-  similarity, setSimilarity,
-  onClose,
-}: {
-  exaggeration: number; setExaggeration: (v: number) => void;
-  stability: number; setStability: (v: number) => void;
-  similarity: number; setSimilarity: (v: number) => void;
-  onClose: () => void;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
-    }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [onClose]);
-
-  return (
-    <div ref={ref} className="absolute right-0 top-12 z-30 w-80 rounded-2xl border border-line bg-panel p-5 shadow-2xl">
-      <div className="flex items-center justify-between mb-4">
-        <p className="text-[14px] font-bold text-fg">Voice Settings</p>
-        <button onClick={onClose} className="text-fg-subtle hover:text-fg cursor-pointer"><IcX /></button>
-      </div>
-
-      {/* Exaggeration */}
-      <div className="mb-4">
-        <div className="flex items-center justify-between mb-1.5">
-          <label className="text-[13px] font-semibold text-fg">Exaggeration</label>
-          <span className="text-[12px] font-medium text-fg-muted tabular-nums">{pct(exaggeration)}</span>
-        </div>
-        <input type="range" min={0} max={1} step={0.01} value={exaggeration}
-          onChange={(e) => setExaggeration(Number(e.target.value))}
-          className="w-full accent-blue-600 cursor-pointer h-1.5"
-        />
-      </div>
-
-      {/* Stability */}
-      <div className="mb-1.5">
-        <div className="flex items-center justify-between mb-1.5">
-          <label className="text-[13px] font-semibold text-fg">Stability</label>
-          <span className="text-[12px] font-medium text-fg-muted tabular-nums">{pct(stability)}</span>
-        </div>
-        <input type="range" min={0} max={1} step={0.01} value={stability}
-          onChange={(e) => setStability(Number(e.target.value))}
-          className="w-full accent-blue-600 cursor-pointer h-1.5"
-        />
-        <p className="text-[11px] text-fg-subtle mt-1.5">Lower values create more varied speech</p>
-      </div>
-
-      {/* Similarity */}
-      <div className="mt-4">
-        <div className="flex items-center justify-between mb-1.5">
-          <label className="text-[13px] font-semibold text-fg">Similarity</label>
-          <span className="text-[12px] font-medium text-fg-muted tabular-nums">{pct(similarity)}</span>
-        </div>
-        <input type="range" min={0} max={1} step={0.01} value={similarity}
-          onChange={(e) => setSimilarity(Number(e.target.value))}
-          className="w-full accent-blue-600 cursor-pointer h-1.5"
-        />
-        <p className="text-[11px] text-fg-subtle mt-1.5">Higher values sound more like the original voice</p>
-      </div>
-    </div>
-  );
-}
-
 // ── Player card ──────────────────────────────────────────────────────────────
 function PlayerCard({
   item, isActive, isPlaying, progress, onToggle,
@@ -460,7 +386,6 @@ export default function VoiceoverTool() {
   const [similarity, setSimilarity] = useState(0.75);
 
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const busy = job.status === "processing";
 
@@ -580,7 +505,7 @@ export default function VoiceoverTool() {
   const canGenerate = chars > 0 && chars <= MAX_CHARS && !busy;
 
   return (
-    <div className="mx-auto w-full max-w-[1440px] px-8 pb-12">
+    <>
       {/* Shared audio for history playback */}
       <audio
         ref={audioRef}
@@ -590,7 +515,6 @@ export default function VoiceoverTool() {
         onPlay={() => setIsPlaying(true)}
       />
 
-      {/* Voice picker modal */}
       {pickerOpen && (
         <VoicePickerModal
           current={voiceSlug}
@@ -601,141 +525,118 @@ export default function VoiceoverTool() {
         />
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,460px)] gap-6 items-start">
-        {/* ── Left: editor ───────────────────────────────────────────── */}
-        <div className="rounded-2xl border border-line bg-panel p-5">
-          {/* Voice selector row */}
-          <div className="flex items-center gap-2 mb-5">
-            <button
-              onClick={() => { setPickerOpen(true); setSettingsOpen(false); }}
-              className="flex-1 flex items-center gap-2.5 rounded-xl border border-line bg-panel px-3.5 py-2.5 hover:border-line-strong transition-colors cursor-pointer"
-            >
-              <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: voice.color }} />
-              <span className="text-[14px] font-semibold text-fg">{voice.name}</span>
-              <span className="text-[12px] text-fg-subtle">· {voice.gender} · {voice.age}</span>
-              <span className="ml-auto text-fg-subtle"><IcSwap /></span>
-            </button>
-            <div className="relative">
+      <ToolWorkspace
+        title="AI Voiceover"
+        icon="mic"
+        badges={<ToolBadge>1 credit / 500 chars</ToolBadge>}
+        description="Turn a script into a natural voiceover."
+        controls={
+          <>
+            <ToolField label="Voice">
               <button
-                onClick={() => { setSettingsOpen((o) => !o); }}
-                className="w-10 h-10 rounded-xl border border-line text-fg-muted hover:text-fg hover:border-line-strong flex items-center justify-center transition-colors cursor-pointer"
-                aria-label="Voice settings"
+                type="button"
+                onClick={() => setPickerOpen(true)}
+                className="flex w-full items-center gap-2.5 rounded-xl border border-line bg-surface-1 px-3.5 py-3 text-left transition-colors hover:border-line-strong"
               >
-                <IcGear />
+                <VoiceAvatar voice={voice} size={34} />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[14px] font-semibold text-fg">{voice.name}</span>
+                  <span className="block text-[12px] text-fg-subtle">{voice.gender} · {voice.age}</span>
+                </span>
+                <span className="text-[12px] font-semibold text-fg-muted">Change</span>
               </button>
-              {settingsOpen && (
-                <SettingsPopover
-                  exaggeration={exaggeration} setExaggeration={setExaggeration}
-                  stability={stability} setStability={setStability}
-                  similarity={similarity} setSimilarity={setSimilarity}
-                  onClose={() => setSettingsOpen(false)}
-                />
+            </ToolField>
+
+            <details className="group rounded-xl border border-line bg-surface-1 px-3.5 py-3">
+              <summary className="flex cursor-pointer list-none items-center justify-between text-[13px] font-semibold text-fg">
+                Voice settings
+                <span className="text-[12px] font-normal text-fg-subtle group-open:hidden">Exaggeration {pct(exaggeration)} · Stability {pct(stability)}</span>
+              </summary>
+              <div className="mt-3 flex flex-col gap-4">
+                {([
+                  ["Exaggeration", exaggeration, setExaggeration, undefined],
+                  ["Stability", stability, setStability, "Lower values create more varied speech"],
+                  ["Similarity", similarity, setSimilarity, "Higher values sound more like the original voice"],
+                ] as const).map(([label, value, set, hint]) => (
+                  <label key={label} className="flex flex-col gap-1.5">
+                    <span className="flex items-center justify-between text-[12.5px] font-medium text-fg">{label}<span className="tabular-nums text-fg-muted">{pct(value)}</span></span>
+                    <input type="range" min={0} max={1} step={0.01} value={value} onChange={(e) => set(Number(e.target.value))} className="h-1.5 w-full cursor-pointer accent-[var(--primary)]" />
+                    {hint && <span className="text-[11px] text-fg-subtle">{hint}</span>}
+                  </label>
+                ))}
+              </div>
+            </details>
+          </>
+        }
+        footer={
+          <>
+            {error && <p role="alert" className="text-[12.5px] text-error">{error}</p>}
+            {job.status === "error" && job.error && <p role="alert" className="text-[12.5px] text-error">{job.error}</p>}
+            {job.status === "cancelled" && <p className="text-[12.5px] text-fg-subtle">Cancelled — your credit was refunded.</p>}
+            <CostRow right={user ? `You have ${user.credits.toLocaleString()}` : undefined}>
+              {chars > 0 && chars <= MAX_CHARS
+                ? <>{chars.toLocaleString()} characters · <span className="font-semibold text-fg">{voiceoverCredits(chars)} credit{voiceoverCredits(chars) === 1 ? "" : "s"}</span></>
+                : <>1 credit per 500 characters · up to {MAX_CHARS.toLocaleString()}</>}
+            </CostRow>
+            <Button type="button" className="w-full" onClick={() => void generate()} disabled={!canGenerate} loading={busy}>
+              {busy ? "Generating…" : <>Generate voiceover <kbd className="ml-1 hidden rounded bg-black/15 px-1.5 py-0.5 text-[11px] font-semibold sm:inline-block">{modKey}+Enter</kbd></>}
+            </Button>
+            {busy && (
+              <button type="button" onClick={() => void job.cancel()} className="text-center text-[12px] font-medium text-fg-subtle transition-colors hover:text-error">Cancel</button>
+            )}
+            {!user && <p className="text-center text-[12px] text-fg-subtle">You&apos;ll be asked to sign in to generate.</p>}
+          </>
+        }
+        stageTitle="Script"
+        stageActions={
+          <span className="inline-flex items-center gap-1.5 text-[12px] font-medium tabular-nums text-fg-subtle">
+            {chars.toLocaleString()} / {MAX_CHARS.toLocaleString()} · about {fmtTime(estSec)}
+            <Tooltip content="Add punctuation for natural pauses — commas and periods control pacing more than any voice setting.">
+              <span className="cursor-help"><IcInfo /></span>
+            </Tooltip>
+          </span>
+        }
+        stage={
+          <div className="flex flex-1 flex-col gap-3">
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Title (optional)"
+              aria-label="Voiceover title"
+              maxLength={120}
+              className="w-full rounded-xl border border-line bg-surface-1 px-3.5 py-2.5 text-[14px] text-fg outline-none transition placeholder:text-fg-subtle focus:border-primary focus:ring-2 focus:ring-primary/25"
+            />
+            <div className="flex flex-1 flex-col">
+              <textarea
+                value={script}
+                onChange={(e) => setScript(e.target.value)}
+                onKeyDown={onKeyDown}
+                placeholder="Type or paste your script. Commas and full stops control the pacing."
+                aria-label="Script"
+                className="min-h-[300px] w-full flex-1 resize-none rounded-xl border border-line bg-surface-1 px-4 py-3.5 text-[16px] leading-relaxed text-fg outline-none transition placeholder:text-fg-subtle focus:border-primary focus:ring-2 focus:ring-primary/25"
+              />
+            </div>
+            {chars > MAX_CHARS && <p className="text-[12px] text-error">Script exceeds the {MAX_CHARS.toLocaleString()} character limit.</p>}
+          </div>
+        }
+        below={
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-fg-subtle">Recent takes</p>
+              {history.length > 0 && (
+                <button type="button" onClick={() => persistHistory([])} className="text-[12px] font-medium text-fg-muted hover:text-fg">Clear list</button>
               )}
             </div>
-          </div>
-
-          {/* Title */}
-          <label className="block text-[14px] font-bold text-fg mb-1.5">Type your title here</label>
-          <input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Enter a title for your voiceover"
-            maxLength={120}
-            className="w-full rounded-xl border border-line px-3.5 py-2.5 text-[14px] text-fg placeholder:text-fg-subtle outline-none focus:border-brand focus:ring-2 focus:ring-primary/25 transition mb-5"
-          />
-
-          {/* Script */}
-          <div className="flex items-center justify-between mb-1.5">
-            <div className="flex items-center gap-1.5">
-              <label className="text-[14px] font-bold text-fg">Type your script here</label>
-              <Tooltip content="Add punctuation for natural pauses — commas and periods control pacing more than any voice setting.">
-                <span className="text-fg-subtle cursor-help"><IcInfo /></span>
-              </Tooltip>
-            </div>
-            <span className="text-[12px] text-fg-subtle font-medium tabular-nums">
-              {chars} · {fmtTime(estSec)}
-              {/* Same function the route charges with — 1 credit per 500 characters. */}
-              {chars > 0 && chars <= MAX_CHARS && <> · {voiceoverCredits(chars)} credit{voiceoverCredits(chars) === 1 ? "" : "s"}</>}
-            </span>
-          </div>
-          <textarea
-            value={script}
-            onChange={(e) => setScript(e.target.value)}
-            onKeyDown={onKeyDown}
-            placeholder="Enter text here"
-            rows={11}
-            className="w-full rounded-xl border border-line px-3.5 py-3 text-[14px] leading-relaxed text-fg placeholder:text-fg-subtle outline-none focus:border-brand focus:ring-2 focus:ring-primary/25 transition resize-none"
-          />
-          {chars > MAX_CHARS && (
-            <p className="text-[12px] text-error mt-1.5">Script exceeds the {MAX_CHARS.toLocaleString()} character limit.</p>
-          )}
-          {error && <p className="text-[12.5px] text-error mt-2">{error}</p>}
-          {job.status === "error" && job.error && (
-            <p className="text-[12.5px] text-error mt-2">{job.error}</p>
-          )}
-          {job.status === "cancelled" && (
-            <p className="text-[12.5px] text-fg-subtle mt-2">Cancelled — your credit was refunded.</p>
-          )}
-
-          {/* Generate */}
-          <button
-            onClick={() => void generate()}
-            disabled={!canGenerate}
-            className={`mt-5 w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-[14px] font-bold transition-colors ${
-              canGenerate ? "bg-brand hover:bg-brand-dark text-on-primary cursor-pointer" : "bg-surface-3 text-fg-subtle cursor-not-allowed"
-            }`}
-          >
-            {busy ? (
-              <><Spinner /> Generating…</>
-            ) : (
-              <>
-                Generate voiceover
-                <kbd className="ml-1 hidden sm:inline-block text-[11px] font-semibold bg-white/20 rounded px-1.5 py-0.5">{modKey}+Enter</kbd>
-              </>
-            )}
-          </button>
-          {busy && (
-            <button
-              onClick={() => void job.cancel()}
-              className="mt-1.5 w-full text-center text-[12px] font-medium text-fg-subtle hover:text-error transition-colors cursor-pointer"
-            >
-              Cancel
-            </button>
-          )}
-          {!user && (
-            <p className="text-[12px] text-fg-subtle mt-2 text-center">You&apos;ll be asked to sign in to generate.</p>
-          )}
-        </div>
-
-        {/* ── Right: recent voiceovers ───────────────────────────────── */}
-        <div className="rounded-2xl border border-line bg-panel p-5 min-h-[520px] flex flex-col">
-          <div className="flex items-start justify-between">
-            <div>
-              <h2 className="text-[15px] font-bold text-fg">Recent Voiceovers</h2>
-              <p className="text-[12.5px] text-fg-subtle mt-0.5">Select and download a script to generate voiceover</p>
-            </div>
-            {history.length > 0 && (
-              <button onClick={() => persistHistory([])} className="text-[12.5px] font-semibold text-brand hover:text-brand cursor-pointer">Clear all</button>
-            )}
-          </div>
-
-          <div className="mt-4 flex-1">
-            {busy && history.length === 0 && (
-              <div className="rounded-xl border border-line bg-panel p-4 flex items-center gap-3 text-fg-muted">
-                <Spinner className="w-5 h-5" /> <span className="text-[13.5px]">Generating your narration…</span>
+            {busy && (
+              <div className="flex items-center gap-3 rounded-xl border border-line bg-surface-1 p-3.5 text-fg-muted">
+                <Spinner className="h-5 w-5" /> <span className="text-[13.5px]">Generating your narration…</span>
               </div>
             )}
             {history.length === 0 && !busy ? (
-              <div className="h-full min-h-[380px] flex flex-col items-center justify-center text-center">
-                <div className="w-20 h-20 rounded-2xl bg-surface-3 flex items-center justify-center text-gray-300 mb-4">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-9 h-9"><path d="M3 10v4M7 6v12M11 3v18M15 7v10M19 10v4M23 11v2" /></svg>
-                </div>
-                <p className="text-[16px] font-extrabold text-fg">No Output Yet</p>
-                <p className="text-[13px] text-fg-subtle mt-1">First, generate a narration.</p>
-              </div>
+              <p className="rounded-xl border border-dashed border-line-strong px-4 py-5 text-center text-[13px] text-fg-subtle">Your voiceovers will be listed here, ready to play and download. They&apos;re also saved to Assets.</p>
             ) : (
-              <div className="space-y-2.5">
-                {history.map((item) => (
+              <div className="grid gap-2.5 sm:grid-cols-2">
+                {history.slice(0, 6).map((item) => (
                   <PlayerCard
                     key={item.id}
                     item={item}
@@ -748,8 +649,8 @@ export default function VoiceoverTool() {
               </div>
             )}
           </div>
-        </div>
-      </div>
-    </div>
+        }
+      />
+    </>
   );
 }

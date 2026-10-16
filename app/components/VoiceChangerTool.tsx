@@ -7,32 +7,13 @@ import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptPro
 import { VOICES, voiceBySlug, type Voice } from "@/app/components/voice-catalog";
 import { useUploadEntitlement } from "@/app/hooks/useUploadEntitlement";
 import { Modal } from "@/app/components/ui/Modal";
+import { Button } from "@/app/components/ui/Button";
+import { ToolWorkspace, ToolBadge, ToolField, CostRow, FileDrop, StageEmpty, StageProgress, RecentResults } from "@/app/components/tools/ToolWorkspace";
 
 // Priced by length since 2026-09-26 — the route charges voiceFxCredits(duration).
 const VOICE_CHANGER_RATE = AUDIO_RATE_LABEL["voice-changer"];
 
 // ── Icons ────────────────────────────────────────────────────────────────────
-function IcMic() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-      <rect x="9" y="2" width="6" height="11" rx="3" /><path d="M5 10a7 7 0 0014 0M12 19v3M8 22h8" />
-    </svg>
-  );
-}
-function IcSwap() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-      <path d="M7 16l-4-4 4-4M3 12h13M17 8l4 4-4 4M21 12H8" />
-    </svg>
-  );
-}
-function IcCloud() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8">
-      <path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z" />
-    </svg>
-  );
-}
 function IcX() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
@@ -253,8 +234,7 @@ export default function VoiceChangerTool() {
   const [removeNoise, setRemoveNoise] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [showPicker, setShowPicker] = useState(false);
-  const [dragging, setDragging] = useState(false);
-  const [compareView, setCompareView] = useState<"before" | "after">("after");
+  const [pickError, setPickError] = useState("");
 
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   // Set alongside downloadUrl in the response handler below rather than
@@ -263,7 +243,6 @@ export default function VoiceChangerTool() {
   const [downloadFilename, setDownloadFilename] = useState("voice-changed.mp3");
   const downloadedForJobId = useRef<string | null>(null);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
   // Closes the window between a click and the state update that disables the
   // button — two rapid clicks could otherwise both pass the disabled check
   // and fire two charged requests.
@@ -277,14 +256,15 @@ export default function VoiceChangerTool() {
 
   function handleFileChange(file: File | null) {
     if (!file) return;
+    setPickError("");
     if (uploadMaxBytes != null && file.size > uploadMaxBytes) {
+      setPickError(`That file is too large — the limit is ${MAX_MB_LABEL}.`);
       job.reset();
       return;
     }
     if (originalPreviewUrl) URL.revokeObjectURL(originalPreviewUrl);
     setAudioFile(file);
     setOriginalPreviewUrl(URL.createObjectURL(file));
-    setCompareView("after");
     job.reset();
     if (downloadUrl) { URL.revokeObjectURL(downloadUrl); setDownloadUrl(null); }
   }
@@ -368,6 +348,9 @@ export default function VoiceChangerTool() {
     })();
   }, [job.status, job.jobId, token, refreshUser, fireReviewPrompt]);
 
+  const busy = job.status === "processing";
+  const done = job.status === "done" && !!downloadUrl;
+
   return (
     <>
       {showPicker && (
@@ -378,223 +361,102 @@ export default function VoiceChangerTool() {
         />
       )}
 
-      <div className="flex items-start justify-center min-h-[calc(100vh-120px)] px-4 py-10">
-        <div className="w-full max-w-[520px]">
-          <div className="bg-panel rounded-2xl border border-line shadow-sm overflow-hidden">
+      <ToolWorkspace
+        title="AI Voice Changer"
+        icon="wave"
+        badges={<ToolBadge>{VOICE_CHANGER_RATE}</ToolBadge>}
+        description="Re-voice a recording while keeping your timing and emotion."
+        controls={
+          <>
+            <ToolField label="Recording" hint="up to 90 seconds">
+              <FileDrop
+                accept={ACCEPTED}
+                title="Click or drag audio or video here"
+                hint={<>MP3, WAV, M4A, OGG, AAC, MP4, MOV, WEBM · up to {MAX_MB_LABEL}</>}
+                file={audioFile}
+                onFile={handleFileChange}
+                onClear={busy ? undefined : () => { setAudioFile(null); setPickError(""); job.reset(); }}
+                disabled={busy}
+                inputLabel="Upload audio or video"
+              />
+              {pickError && <p role="alert" className="text-[12.5px] text-error">{pickError}</p>}
+            </ToolField>
 
-            {/* Card header */}
-            <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-100">
-              <div className="w-9 h-9 rounded-xl bg-surface-3 flex items-center justify-center text-fg-muted">
-                <IcMic />
-              </div>
-              <div>
-                <h1 className="text-sm font-semibold text-fg leading-tight">AI Voice Changer</h1>
-                <p className="text-xs text-fg-subtle mt-0.5">Transform any voice in audio or video files</p>
-              </div>
-            </div>
-
-            <div className="px-6 py-5 flex flex-col gap-5">
-
-              {/* Target Voice */}
-              <div>
-                <label className="block text-xs font-semibold text-fg-muted uppercase tracking-wide mb-2">
-                  Target Voice
-                </label>
-                <button
-                  onClick={() => setShowPicker(true)}
-                  className="w-full flex items-center gap-3 rounded-xl border border-line bg-panel px-4 py-3 hover:bg-surface-2 transition-colors text-left"
-                >
-                  <VoiceAvatar voice={selectedVoice} size={32} />
-                  <span className="flex-1 text-sm font-medium text-fg">{selectedVoice.name}</span>
-                  <span className="text-fg-subtle"><IcSwap /></span>
-                </button>
-              </div>
-
-              {/* Upload File */}
-              <div>
-                <label className="block text-xs font-semibold text-fg-muted uppercase tracking-wide mb-2">
-                  Upload File
-                </label>
-
-                {audioFile ? (
-                  <div className="flex items-center gap-3 rounded-xl border border-line bg-surface-2 px-4 py-3">
-                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-brand flex-shrink-0">
-                      <IcMic />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-fg truncate">{audioFile.name}</p>
-                      <p className="text-[11px] text-fg-subtle">{(audioFile.size / 1024 / 1024).toFixed(2)} MB</p>
-                    </div>
-                    <button
-                      aria-label="Remove file"
-                      onClick={() => { setAudioFile(null); job.reset(); }}
-                      className="p-1 rounded-md text-fg-subtle hover:text-fg-muted hover:bg-slate-200 transition-colors"
-                    >
-                      <IcX />
-                    </button>
-                  </div>
-                ) : (
-                  <div
-                    onClick={() => fileInputRef.current?.click()}
-                    role="button"
-                    tabIndex={0}
-                    aria-label="Upload audio or video"
-                    onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInputRef.current?.click(); } }}
-                    onDragOver={e => { e.preventDefault(); setDragging(true); }}
-                    onDragLeave={() => setDragging(false)}
-                    onDrop={e => {
-                      e.preventDefault();
-                      setDragging(false);
-                      handleFileChange(e.dataTransfer.files[0] ?? null);
-                    }}
-                    className={`rounded-xl border-2 border-dashed px-6 py-8 flex flex-col items-center gap-3 cursor-pointer transition-colors ${
-                      dragging ? "border-brand bg-tint-blue" : "border-line bg-surface-2 hover:border-slate-300 hover:bg-surface-3"
-                    }`}
-                  >
-                    <div className="text-fg-subtle"><IcCloud /></div>
-                    <div className="text-center">
-                      <p className="text-sm font-semibold text-fg">Upload audio/video</p>
-                      <p className="text-xs text-fg-subtle mt-1">Drag and drop or click to browse</p>
-                    </div>
-                    <p className="text-[11px] text-fg-subtle text-center leading-relaxed">
-                      .mp3, .wav, .m4a, .ogg, .aac, .mp4, .mov, .avi, .webm &bull; Max {MAX_MB_LABEL} &middot; up to 90 seconds
-                    </p>
-                  </div>
-                )}
-
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept={ACCEPTED}
-                  className="hidden"
-                  onChange={e => handleFileChange(e.target.files?.[0] ?? null)}
-                />
-              </div>
-
-              {/* Remove background noise */}
-              <label className="flex items-center gap-2.5 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={removeNoise}
-                  onChange={e => setRemoveNoise(e.target.checked)}
-                  className="w-4 h-4 rounded border-line accent-primary cursor-pointer"
-                />
-                <span className="text-sm text-fg-muted">Remove background noise</span>
-              </label>
-
-              {/* Speed */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-semibold text-fg-muted uppercase tracking-wide">Speed</label>
-                  <span className="text-xs font-medium text-fg-muted tabular-nums">{speed.toFixed(2)}x</span>
-                </div>
-                <input
-                  type="range"
-                  min={0.7}
-                  max={1.2}
-                  step={0.01}
-                  value={speed}
-                  onChange={e => setSpeed(parseFloat(e.target.value))}
-                  className="w-full accent-primary"
-                />
-              </div>
-
-              {/* Progress */}
-              {job.status === "processing" && (
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs text-fg-muted">Changing voice…</span>
-                    <span className="text-xs font-medium text-fg-muted">{job.progress}%</span>
-                  </div>
-                  <div className="h-1.5 bg-surface-3 rounded-full overflow-hidden">
-                    <div className="h-full bg-brand rounded-full transition-all duration-300" style={{ width: `${job.progress}%` }} />
-                  </div>
-                  <button
-                    onClick={() => void job.cancel()}
-                    className="mt-2 text-xs font-medium text-fg-subtle hover:text-error transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              )}
-
-              {/* Error */}
-              {job.status === "error" && job.error && (
-                <div className="flex items-center justify-between gap-2 text-xs text-error bg-error/10 border border-error/40 rounded-lg px-3 py-2">
-                  <span>{job.error}</span>
-                  <button onClick={() => void handleSubmit()} className="font-semibold underline underline-offset-2 hover:text-error flex-shrink-0">
-                    Retry
-                  </button>
-                </div>
-              )}
-
-              {job.status === "cancelled" && (
-                <p className="text-xs text-fg-muted bg-surface-2 border border-line rounded-lg px-3 py-2">
-                  Cancelled — your credits were refunded.
-                </p>
-              )}
-
-              {/* Before/after comparison + download */}
-              {job.status === "done" && downloadUrl && (
-                <div className="space-y-2">
-                  <div className="inline-flex rounded-lg border border-line p-0.5 bg-surface-2">
-                    <button
-                      onClick={() => setCompareView("before")}
-                      className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${compareView === "before" ? "bg-panel text-fg shadow-sm" : "text-fg-muted"}`}
-                    >
-                      Before
-                    </button>
-                    <button
-                      onClick={() => setCompareView("after")}
-                      className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${compareView === "after" ? "bg-panel text-fg shadow-sm" : "text-fg-muted"}`}
-                    >
-                      After
-                    </button>
-                  </div>
-                  {originalPreviewUrl && (
-                    <audio
-                      key={compareView}
-                      src={compareView === "before" ? originalPreviewUrl : downloadUrl}
-                      controls
-                      className="w-full"
-                    />
-                  )}
-                  <a
-                    href={downloadUrl}
-                    download={downloadFilename}
-                    className="flex items-center justify-center gap-2 w-full rounded-xl border border-success/30 bg-success/10 text-success text-sm font-semibold py-2.5 hover:bg-success/15 transition-colors"
-                  >
-                    <IcDownload /> Download again
-                  </a>
-                </div>
-              )}
-
-              {/* Submit */}
+            <ToolField label="New voice">
               <button
-                onClick={handleSubmit}
-                disabled={!audioFile || job.status === "processing"}
-                className="w-full rounded-xl bg-brand hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed text-on-primary text-sm font-semibold py-3 transition-opacity flex items-center justify-center gap-2"
+                type="button"
+                onClick={() => setShowPicker(true)}
+                className="flex w-full items-center gap-3 rounded-xl border border-line bg-surface-1 px-3.5 py-3 text-left transition-colors hover:border-line-strong"
               >
-                {job.status === "processing" ? (
-                  <>
-                    <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                    </svg>
-                    Processing…
-                  </>
-                ) : "Change Voice"}
+                <VoiceAvatar voice={selectedVoice} size={32} />
+                <span className="flex-1 text-sm font-medium text-fg">{selectedVoice.name}</span>
+                <span className="text-[12px] font-semibold text-fg-muted">Change</span>
               </button>
+            </ToolField>
 
-              {user && (
-                <p className="text-center text-[11px] text-fg-subtle">
-                  {VOICE_CHANGER_RATE} (min 1) &bull; You have {user.credits} credit{user.credits !== 1 ? "s" : ""}
-                </p>
-              )}
+            <ToolField label="Speed" hint={<span className="tabular-nums">{speed.toFixed(2)}×</span>}>
+              <input
+                type="range" min={0.7} max={1.2} step={0.01} value={speed}
+                onChange={(e) => setSpeed(parseFloat(e.target.value))}
+                aria-label="Speed"
+                className="w-full accent-[var(--primary)]"
+              />
+            </ToolField>
+
+            <label className="flex cursor-pointer select-none items-center justify-between gap-3 rounded-xl border border-line bg-surface-1 px-3.5 py-3">
+              <span className="text-[13px] text-fg">Remove background noise</span>
+              <input type="checkbox" checked={removeNoise} onChange={(e) => setRemoveNoise(e.target.checked)} className="h-4 w-4 cursor-pointer accent-[var(--primary)]" />
+            </label>
+          </>
+        }
+        footer={
+          <>
+            {job.status === "error" && job.error && (
+              <div role="alert" className="flex items-center justify-between gap-2 rounded-lg bg-error/10 px-3 py-2 text-xs text-error">
+                <span>{job.error}</span>
+                <button type="button" onClick={() => void handleSubmit()} className="flex-shrink-0 font-semibold underline underline-offset-2">Retry</button>
+              </div>
+            )}
+            {job.status === "cancelled" && <p className="text-xs text-fg-muted">Cancelled — your credits were refunded.</p>}
+            <CostRow right={user ? `You have ${user.credits.toLocaleString()}` : undefined}>
+              <span className="font-semibold text-fg">{VOICE_CHANGER_RATE}</span> · minimum 1
+            </CostRow>
+            <Button type="button" className="w-full" onClick={() => void handleSubmit()} disabled={!audioFile || busy} loading={busy}>
+              {busy ? "Processing…" : "Change voice"}
+            </Button>
+          </>
+        }
+        stageTitle="Compare"
+        stageActions={
+          done ? (
+            <a href={downloadUrl!} download={downloadFilename} className="inline-flex items-center gap-2 rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-fg hover:bg-surface-3">
+              <IcDownload /> Download MP3
+            </a>
+          ) : undefined
+        }
+        stage={
+          busy ? (
+            <StageProgress label="Changing the voice…" progress={job.progress} onCancel={() => void job.cancel()} cancelLabel="Cancel" />
+          ) : originalPreviewUrl && audioFile ? (
+            <div className="flex flex-1 flex-col gap-3">
+              <div className="flex flex-col gap-2 rounded-xl border border-line bg-surface-1 p-4">
+                <p className="text-[12px] font-semibold text-fg-muted">Original · {audioFile.name}</p>
+                <audio src={originalPreviewUrl} controls className="w-full" />
+              </div>
+              <div className={`flex flex-col gap-2 rounded-xl border p-4 ${done ? "border-primary/50 bg-primary/5" : "border-dashed border-line-strong bg-surface-1"}`}>
+                <p className="text-[12px] font-semibold text-fg-muted">Changed · {selectedVoice.name}</p>
+                {done ? <audio src={downloadUrl!} controls className="w-full" /> : <p className="text-[13px] text-fg-subtle">Press “Change voice” to hear it here.</p>}
+              </div>
+              {done && <p className="text-[12px] text-fg-subtle">Downloaded and saved to your Assets</p>}
             </div>
-          </div>
-        </div>
-      </div>
+          ) : (
+            <StageEmpty icon="wave" title="Before and after appear here">
+              Add a recording on the left, pick a voice, and compare the two side by side.
+            </StageEmpty>
+          )
+        }
+        below={user ? <RecentResults source="voice-changer" refreshKey={downloadUrl} /> : undefined}
+      />
     </>
   );
 }
