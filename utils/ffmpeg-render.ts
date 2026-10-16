@@ -837,3 +837,50 @@ export function detectSilences(
     proc.on("error", (err) => { clearWatchdog(); reject(err); });
   });
 }
+
+// ── Colour stats (editor: "Match colours") ───────────────────────────────
+
+export interface FrameColorStats { y: number; spread: number; sat: number; u: number; v: number }
+
+/** Per-frame stats out of a `signalstats,metadata=mode=print` log. */
+export function parseSignalStatsLog(log: string): FrameColorStats[] {
+  const col = (key: string) => [...log.matchAll(new RegExp(`signalstats[.]${key}=(-?[0-9.]+)`, "g"))].map((m) => parseFloat(m[1]));
+  const y = col("YAVG"), lo = col("YLOW"), hi = col("YHIGH"), sat = col("SATAVG"), u = col("UAVG"), v = col("VAVG");
+  const n = Math.min(y.length, lo.length, hi.length, sat.length, u.length, v.length);
+  const out: FrameColorStats[] = [];
+  for (let i = 0; i < n; i++) out.push({ y: y[i], spread: hi[i] - lo[i], sat: sat[i], u: u[i], v: v[i] });
+  return out;
+}
+
+/**
+ * Colour stats of [startSec, startSec + durationSec] of a video, sampled at
+ * 2 fps on a small copy, after `look` (ffmpeg filters, e.g. the clip's filter
+ * preset and fine-tune) — so the numbers describe what the viewer sees.
+ */
+export function measureColorStats(
+  input: string,
+  opts: { startSec: number; durationSec: number; look?: string[] },
+  timeoutMs = 120_000,
+): Promise<FrameColorStats[]> {
+  const vf = ["fps=2", "scale=320:-2", ...(opts.look ?? []), "signalstats", "metadata=mode=print"].join(",");
+  return new Promise((resolve, reject) => {
+    const proc = spawnFfmpeg(ffmpegBin!, [
+      "-hide_banner", "-nostats",
+      "-ss", String(Math.max(0, opts.startSec)),
+      "-t", String(Math.max(0.5, opts.durationSec)),
+      "-i", input,
+      "-an", "-vf", vf,
+      "-f", "null", "-",
+    ], { stdio: ["ignore", "ignore", "pipe"] });
+    let buf = "";
+    const clearWatchdog = killAfterTimeout(proc, timeoutMs, () => reject(new Error("colour measurement timed out")));
+    proc.stderr.on("data", (chunk: Buffer) => { buf += chunk.toString(); });
+    proc.on("close", (code) => {
+      clearWatchdog();
+      const frames = parseSignalStatsLog(buf);
+      if (code !== 0 && frames.length === 0) { reject(new Error(`ffmpeg exited ${code}`)); return; }
+      resolve(frames);
+    });
+    proc.on("error", (err) => { clearWatchdog(); reject(err); });
+  });
+}

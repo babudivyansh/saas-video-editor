@@ -13,6 +13,7 @@ import type { EffectPreset, FilterPreset, TransitionPreset, VideoAdjust, VideoCl
 import { EFFECT_PRESETS, FILTER_PRESETS, MAX_FADE_SEC, NEUTRAL_ADJUST, SPEED_OPTIONS, TRANSITION_PRESETS } from "@/lib/editor/types";
 import { Button, FieldRow, NumberField, PillGroup, PropertyCard, Slider, Switch } from "../ui";
 import { isNeutral, withAdjust } from "@/lib/editor/video-look";
+import MatchColoursCard from "./MatchColoursCard";
 
 export default function VideoClipProps({ clip, activeTab }: { clip: VideoClip; activeTab: string }) {
   const updateClip = useEditorStore((s) => s.updateClip);
@@ -90,6 +91,7 @@ export default function VideoClipProps({ clip, activeTab }: { clip: VideoClip; a
             <Button variant="subtle" size="sm" className="flex-1" onClick={() => applyLookToAll({ filter: clip.filter, adjust: clip.adjust })}>Use on all video clips</Button>
           </div>
         </PropertyCard>
+        <MatchColoursCard clip={clip} />
       </div>
     );
   }

@@ -187,6 +187,6 @@ describe("effect window, strength and colour fine-tune", () => {
   it("adds eq/colorbalance for the fine-tune", () => {
     const fc = fcOf(doc([videoClip({ id: "v1", adjust: { brightness: 0.1, contrast: 1, saturation: 1.2, warmth: 0.4 } })]));
     expect(fc).toContain("eq=brightness=0.1:contrast=1:saturation=1.2");
-    expect(fc).toContain("colorbalance=rs=0.06");
+    expect(fc).toContain("colorbalance=rm=0.06");
   });
 });

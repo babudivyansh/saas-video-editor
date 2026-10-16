@@ -20,7 +20,9 @@ export function adjustFilters(a: VideoAdjust | undefined): string[] {
   }
   if (a.warmth !== 0) {
     const k = a.warmth * 0.15;
-    out.push(`colorbalance=rs=${fmt(k)}:gs=${fmt(k * 0.15)}:bs=${fmt(-k)}`);
+    // Midtones (rm/bm): the shadows variant (rs/bs) barely moves a normally
+    // lit picture, so warmth showed in the preview but not the export.
+    out.push(`colorbalance=rm=${fmt(k)}:gm=${fmt(k * 0.15)}:bm=${fmt(-k)}`);
   }
   return out;
 }

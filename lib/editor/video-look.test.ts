@@ -12,7 +12,7 @@ describe("adjust", () => {
 
   it("builds eq and colorbalance filters and a CSS approximation", () => {
     const a = { brightness: 0.1, contrast: 1.2, saturation: 1.5, warmth: 0.5 };
-    expect(adjustFilters(a)).toEqual(["eq=brightness=0.1:contrast=1.2:saturation=1.5", "colorbalance=rs=0.075:gs=0.011:bs=-0.075"]);
+    expect(adjustFilters(a)).toEqual(["eq=brightness=0.1:contrast=1.2:saturation=1.5", "colorbalance=rm=0.075:gm=0.011:bm=-0.075"]);
     expect(adjustCss(a)).toBe("brightness(1.1) contrast(1.2) saturate(1.5) sepia(0.175)");
   });
 });
