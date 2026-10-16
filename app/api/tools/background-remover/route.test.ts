@@ -30,6 +30,7 @@ vi.mock("@/lib/quests", () => ({ markQuestComplete: vi.fn() }));
 vi.mock("@/lib/job-routes", () => ({
   createJobStatusHandler: () => vi.fn(),
   createJobCancelHandler: () => vi.fn(),
+  idempotencyResponse: () => null,
 }));
 vi.mock("@/lib/with-rate-limit", () => ({ withRateLimit: (h: unknown) => h }));
 vi.mock("fs", () => ({ default: { writeFileSync: vi.fn(), unlinkSync: vi.fn() } }));

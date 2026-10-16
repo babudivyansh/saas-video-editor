@@ -11,7 +11,7 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import { randomUUID } from "crypto";
-import { createJobStatusHandler, createJobCancelHandler, type CancellableJob } from "@/lib/job-routes";
+import { createJobStatusHandler, createJobCancelHandler, idempotencyResponse, type CancellableJob } from "@/lib/job-routes";
 
 export const maxDuration = 300;
 
@@ -218,6 +218,8 @@ async function handleGET(req: NextRequest) {
     idempotencyKey,
     log: { generationType: "video", prompt: cleanUrl },
   });
+  const replayed = idempotencyResponse(charge, jobs);
+  if (replayed) return replayed;
   if (!charge.ok) {
     if (charge.reason === "tool_disabled") {
       return NextResponse.json({ error: "YouTube downloader is temporarily disabled." }, { status: 503 });

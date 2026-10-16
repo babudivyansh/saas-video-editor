@@ -10,7 +10,7 @@ import { voiceoverCredits } from "@/lib/audio-pricing";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
-import { createJobStatusHandler, createJobCancelHandler, type CancellableJob } from "@/lib/job-routes";
+import { createJobStatusHandler, createJobCancelHandler, idempotencyResponse, type CancellableJob } from "@/lib/job-routes";
 import { saveToolResult } from "@/lib/tool-results";
 
 export const maxDuration = 120;
@@ -90,6 +90,8 @@ async function handlePOST(req: NextRequest) {
     idempotencyKey: body.idempotencyKey,
     log: { generationType: "audio", prompt: text, estimatedCostUsd: (text.length / 1000) * 0.05 },
   });
+  const replayed = idempotencyResponse(charge, jobs);
+  if (replayed) return replayed;
   if (!charge.ok) {
     if (charge.reason === "tool_disabled") {
       return NextResponse.json({ error: "Voiceover generation is temporarily disabled." }, { status: 503 });
