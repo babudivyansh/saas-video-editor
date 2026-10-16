@@ -123,6 +123,12 @@ export interface AudioClip extends ClipBase {
   assetId: string;
   srcIn: number;
   volume: number; // 0..1
+  fadeIn?: number; // seconds of fade-up at the clip start (0..MAX_FADE_SEC)
+  fadeOut?: number; // seconds of fade-down at the clip end
+  /** Music bed: dip under speech (speech = caption word timings). */
+  duck?: boolean;
+  /** Level while ducked, as a fraction of `volume` (0.05..1, default 0.3). */
+  duckLevel?: number;
 }
 
 // Image overlay clip. Also used for stickers (same shape, just a smaller
@@ -495,6 +501,10 @@ export function validateDoc(doc: unknown): string | null {
     if (typeof a.assetId !== "string" || !a.assetId) return "audio clip missing assetId";
     if (!isFiniteNonNeg(a.srcIn)) return "audio clip invalid srcIn";
     if (typeof a.volume !== "number" || a.volume < 0 || a.volume > 1) return "audio clip invalid volume";
+    if (a.fadeIn !== undefined && (!isFiniteNonNeg(a.fadeIn) || a.fadeIn > MAX_FADE_SEC)) return "audio clip invalid fadeIn";
+    if (a.fadeOut !== undefined && (!isFiniteNonNeg(a.fadeOut) || a.fadeOut > MAX_FADE_SEC)) return "audio clip invalid fadeOut";
+    if (a.duck !== undefined && typeof a.duck !== "boolean") return "audio clip invalid duck";
+    if (a.duckLevel !== undefined && !isFiniteInRange(a.duckLevel, 0.05, 1)) return "audio clip invalid duckLevel";
   }
   for (const im of d.tracks.image) {
     if (typeof im.assetId !== "string" || !im.assetId) return "image clip missing assetId";
