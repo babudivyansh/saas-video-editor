@@ -53,13 +53,14 @@ export const CATEGORY_LABELS: Record<ToolCategory, string> = {
   free: "Free Tools",
 };
 
-// Free tools + downloaders (no credits required).
+// Free tools (no credits; a daily limit). The downloaders cost a credit, so
+// they sit with the video tools now — they were listed here as free.
 export const FREE_FEATURES: FeatureLink[] = [
-  { title: "Audio Balancer", desc: "Balance left & right audio channels", href: "/dashboard/tools/free/audio-balancer", slug: "audio-balancer", icon: "balance", appGroup: "free", category: "free" },
-  { title: "Video Compressor", desc: "Shrink video size without quality loss", href: "/dashboard/tools/free/video-compressor", slug: "video-compressor", icon: "compress", appGroup: "free", category: "free" },
+  { title: "Audio Balancer", desc: "Fix one-sided audio or even out loudness", href: "/dashboard/tools/free/audio-balancer", slug: "audio-balancer", icon: "balance", appGroup: "free", category: "free" },
+  { title: "Video Compressor", desc: "Shrink video files for sharing", href: "/dashboard/tools/free/video-compressor", slug: "video-compressor", icon: "compress", appGroup: "free", category: "free" },
   { title: "MP3 Converter", desc: "Convert any media file to MP3", href: "/dashboard/tools/free/mp3-converter", slug: "mp3-converter", icon: "note", appGroup: "free", category: "free" },
-  { title: "YouTube Downloader", desc: "Download YouTube videos in a click", href: "/dashboard/tools/youtube-downloader", slug: "youtube-downloader", icon: "youtube", appGroup: "free", category: "free" },
-  { title: "Instagram Downloader", desc: "Save Reels, posts & IGTV", href: "/dashboard/tools/instagram-downloader", slug: "instagram-downloader", icon: "instagram", appGroup: "free", category: "free" },
+  { title: "YouTube Downloader", desc: "Download YouTube videos in a click", href: "/dashboard/tools/youtube-downloader", slug: "youtube-downloader", icon: "youtube", appGroup: "video", category: "video" },
+  { title: "Instagram Downloader", desc: "Save Reels, posts & IGTV", href: "/dashboard/tools/instagram-downloader", slug: "instagram-downloader", icon: "instagram", appGroup: "video", category: "video" },
 ];
 
 // Video creation workflows (faceless videos, clipping, editing).
@@ -72,9 +73,9 @@ export const VIDEO_TOOLS: FeatureLink[] = [
 // AI tools (single-purpose generators / enhancers).
 export const AI_TOOLS: FeatureLink[] = [
   { title: "AI Image Generator", desc: "High-quality AI images in seconds", href: "/dashboard/tools/image-generator", slug: "ai-image-generator", icon: "image", appGroup: "image", homeRank: 5, category: "ai" },
-  { title: "AI Voiceover", desc: "Lifelike voiceovers · 50+ narrators", href: "/dashboard/tools/voiceover", slug: "ai-voiceover", icon: "mic", appGroup: "audio", costKey: "voiceover", homeRank: 4, category: "ai" },
-  { title: "AI Face Swap", desc: "Swap faces in photos & videos", href: "/dashboard/tools/face-swap", slug: "ai-face-swap", icon: "face", appGroup: "video", costKey: "face-swap", category: "ai" },
-  { title: "Background Remover", desc: "Remove image / video backgrounds", href: "/dashboard/tools/background-remover", slug: "background-remover", icon: "eraser", appGroup: "image", homeRank: 6, category: "ai" },
+  { title: "AI Voiceover", desc: "Lifelike voiceovers · 20+ narrators", href: "/dashboard/tools/voiceover", slug: "ai-voiceover", icon: "mic", appGroup: "audio", costKey: "voiceover", homeRank: 4, category: "ai" },
+  { title: "AI Face Swap", desc: "Swap faces in photos", href: "/dashboard/tools/face-swap", slug: "ai-face-swap", icon: "face", appGroup: "video", costKey: "face-swap", category: "ai" },
+  { title: "Background Remover", desc: "Remove image backgrounds", href: "/dashboard/tools/background-remover", slug: "background-remover", icon: "eraser", appGroup: "image", homeRank: 6, category: "ai" },
   { title: "AI Voice Changer", desc: "Change any voice with AI", href: "/dashboard/tools/voice-changer", slug: "ai-voice-changer", icon: "wave", appGroup: "audio", costKey: "voice-changer", homeRank: 2, category: "ai" },
   { title: "AI Vocal Remover", desc: "Strip vocals from audio or video", href: "/dashboard/tools/vocal-remover", slug: "ai-vocal-remover", icon: "music", appGroup: "audio", costKey: "vocal-remover", category: "ai" },
   { title: "AI Speech Enhancer", desc: "Clean up & enhance any audio", href: "/dashboard/tools/enhance-speech", slug: "ai-speech-enhancer", icon: "sparkle", appGroup: "audio", costKey: "enhance-speech", category: "ai" },

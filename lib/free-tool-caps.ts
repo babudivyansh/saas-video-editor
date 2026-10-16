@@ -6,7 +6,10 @@
 // Enforced in each tool route via checkFreeToolDailyCap() below, which wraps
 // lib/rate-limit's fixed-window Redis counter with an 86400s window.
 
-import { rateLimit } from "@/lib/rate-limit";
+import { NextRequest, NextResponse } from "next/server";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { getAuthUser, type TokenPayload } from "@/lib/auth";
+import { getToolConfig } from "@/lib/tool-config";
 
 export const FREE_TOOL_DAILY_CAPS: Record<string, number> = {
   "audio-balancer": 10,
@@ -15,6 +18,9 @@ export const FREE_TOOL_DAILY_CAPS: Record<string, number> = {
   "youtube-downloader": 25,
   "instagram-downloader": 25,
 };
+
+/** Extra per-hour limit for callers with no session, keyed by IP. */
+const ANONYMOUS_PER_HOUR = 5;
 
 export async function checkFreeToolDailyCap(
   toolSlug: string,
@@ -26,12 +32,47 @@ export async function checkFreeToolDailyCap(
   return { allowed, remaining, cap };
 }
 
+// `error` is what every tool screen displays, so it is the sentence — it used
+// to be the code "daily_limit_reached", shown to users verbatim. It also used
+// to promise "upgrade for unlimited access", which no plan gives.
 export function freeToolCapResponseBody(toolSlug: string, cap: number) {
   return {
-    error: "daily_limit_reached",
-    message: `You've hit today's free limit for this tool (${cap} uses). It resets within 24 hours — or upgrade for unlimited access.`,
+    error: `You've used today's ${cap} free uses of this tool. The limit resets within 24 hours.`,
+    code: "daily_limit_reached",
     toolSlug,
     cap,
-    upgradeUrl: "/pricing",
   };
+}
+
+/**
+ * Everything a free tool route checks before reading its upload: the admin
+ * kill switch (these routes never called getToolConfig, so disabling one in
+ * /admin did nothing), a per-hour IP limit for anonymous callers, and the
+ * daily cap — per USER when signed in. Every cap used to be keyed by IP even
+ * for signed-in users, so people behind one office, campus or carrier NAT
+ * shared a single allowance. Returns the caller's session, or the response to
+ * return as-is.
+ */
+export async function freeToolGate(
+  req: NextRequest,
+  toolSlug: string,
+): Promise<{ auth: TokenPayload | null } | NextResponse> {
+  const cfg = await getToolConfig(toolSlug);
+  if (!cfg.enabled) {
+    return NextResponse.json({ error: "This tool is temporarily disabled. Please try again later." }, { status: 503 });
+  }
+
+  const auth = await getAuthUser(req);
+  const ip = getClientIp(req);
+  if (!auth) {
+    const hourly = await rateLimit(`${toolSlug}:ip:${ip}`, ANONYMOUS_PER_HOUR, 3600);
+    if (!hourly.allowed) {
+      return NextResponse.json({ error: "Too many requests — sign in, or try again in an hour." }, { status: 429 });
+    }
+  }
+
+  const daily = await checkFreeToolDailyCap(toolSlug, auth ? `user:${auth.userId}` : `ip:${ip}`);
+  if (!daily.allowed) return NextResponse.json(freeToolCapResponseBody(toolSlug, daily.cap), { status: 429 });
+
+  return { auth };
 }

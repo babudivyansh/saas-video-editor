@@ -1,16 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
-import { resolveVoiceId } from "@/utils/voice-ids";
+import { resolveToolVoice } from "@/lib/voices/registry";
 import { synthesizeVoice, isElevenLabsConfigured } from "@/utils/elevenlabs";
 import { logger } from "@/lib/logger";
 import { withRateLimit } from "@/lib/with-rate-limit";
 
 export const maxDuration = 30;
 
-const PREVIEW_TEXT = "This is the AI voice of BlogVerse.";
+// It said "This is the AI voice of BlogVerse." — another product's name — to
+// every user who previewed a voice without a hosted sample.
+const PREVIEW_TEXT = "Hi! This is how your videos will sound with my voice on Clipiro.";
 
-// Generates a short TTS sample for the voice picker preview buttons.
-// No auth required — it's just a demo phrase, cached on the client per slug.
+// Generates a short TTS sample for the voice picker preview buttons, for a
+// voice with no provider-hosted sample. Pickers play the hosted `previewUrl`
+// when there is one (free and instant); this is the paid fallback.
 //
 // Goes through the shared synthesizeVoice() wrapper (same as real
 // generation) rather than a hand-rolled fetch — it used to call the plain
@@ -22,10 +25,6 @@ async function handlePOST(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  if (!isElevenLabsConfigured()) {
-    return NextResponse.json({ error: "Voice generation is not configured" }, { status: 503 });
-  }
-
   let slug = "";
   try {
     const body = await req.json();
@@ -36,10 +35,19 @@ async function handlePOST(req: NextRequest) {
 
   if (!slug) return NextResponse.json({ error: "slug is required" }, { status: 400 });
 
-  const voiceId = resolveVoiceId(slug);
+  // Catalogue voices or the caller's own clones — an unknown string used to pass straight through
+  // to ElevenLabs as a raw voice id.
+  const voice = await resolveToolVoice(auth.userId, slug);
+  if (!voice) {
+    return NextResponse.json({ error: "Unknown voice" }, { status: 400 });
+  }
+
+  if (!isElevenLabsConfigured()) {
+    return NextResponse.json({ error: "Voice generation is not configured" }, { status: 503 });
+  }
 
   try {
-    const { audioBuffer } = await synthesizeVoice(PREVIEW_TEXT, voiceId);
+    const { audioBuffer } = await synthesizeVoice(PREVIEW_TEXT, voice.providerVoiceId);
     return new Response(new Uint8Array(audioBuffer), {
       headers: {
         "Content-Type": "audio/mpeg",

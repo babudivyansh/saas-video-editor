@@ -1,14 +1,17 @@
+import { saveMediaUpload } from "@/lib/media-upload";
+import { userMessage, rawErrorText } from "@/lib/user-facing-error";
+import { logger } from "@/lib/logger";
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { markQuestComplete } from "@/lib/quests";
-import { getMediaDurationSec } from "@/utils/ffmpeg-render";
+import { trimAudioForProvider, runFFmpegArgs } from "@/utils/ffmpeg-render";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { withRetry } from "@/lib/with-retry";
 import { env } from "@/lib/env";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress } from "@/lib/credits";
 import { vocalRemoverCredits } from "@/lib/audio-pricing";
-import { resolveUploadPolicy, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
-import { createJobStatusHandler, createJobCancelHandler, type CancellableJob } from "@/lib/job-routes";
+import { resolveUploadPolicy, readUploadForm, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
+import { createJobStatusHandler, createJobCancelHandler, idempotencyResponse, type CancellableJob } from "@/lib/job-routes";
 import { saveToolResult } from "@/lib/tool-results";
 import os from "os";
 import path from "path";
@@ -31,7 +34,11 @@ interface Job extends CancellableJob {
   userId: string;
   inputPath: string;
   createdAt: number;
+  /** The vocals stem, saved to Assets alongside the instrumental download. */
+  meta?: { vocalsUrl: string | null };
 }
+
+interface Stems { instrumental: string; vocals: string | null }
 
 const g = globalThis as unknown as { __vocalRemoverJobs?: Map<string, Job> };
 const jobs: Map<string, Job> = g.__vocalRemoverJobs ?? (g.__vocalRemoverJobs = new Map());
@@ -88,14 +95,27 @@ async function falSubmit(audioUrl: string): Promise<string> {
   return data.request_id as string;
 }
 
-async function falPollUntilDone(requestId: string): Promise<string> {
-  // Must stay safely under this route's maxDuration (300s) — a 10-minute
-  // internal deadline let the platform kill the request first, silently
-  // orphaning the job (stuck "processing" forever, credit never refunded)
-  // instead of this function's own catch block ever getting a chance to
-  // run. Same fix already applied to face-swap/background-remover/
-  // image-generator this engagement.
-  const deadline = Date.now() + 240 * 1000;
+/** Fetch a fal output and re-encode it to MP3 at `outPath`. */
+async function downloadAsMp3(url: string, outPath: string, tmpName: string): Promise<void> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Failed to download result from fal.ai (${res.status})`);
+  const rawPath = path.join(os.tmpdir(), tmpName);
+  fs.writeFileSync(rawPath, Buffer.from(await res.arrayBuffer()));
+  try {
+    await runFFmpegArgs(["-y", "-i", rawPath, "-vn", "-c:a", "libmp3lame", "-b:a", "320k", outPath]);
+  } finally {
+    try { fs.unlinkSync(rawPath); } catch { /* ignore */ }
+  }
+}
+
+async function falPollUntilDone(requestId: string): Promise<Stems> {
+  // This polls inside the job's detached background promise, AFTER the POST
+  // has already returned its jobId — the route's maxDuration does not apply
+  // to it. A 90s deadline here only meant that any fal queue backlog failed
+  // and refunded the job while fal still finished (and billed) the request.
+  // The server-restart case is covered by reconcileOrphanedToolJobs (15 min).
+  // Separation takes longer than the image models, hence 8 minutes.
+  const deadline = Date.now() + 8 * 60 * 1000;
   while (Date.now() < deadline) {
     await new Promise(r => setTimeout(r, 5000));
     const statusRes = await fetch(
@@ -118,14 +138,17 @@ async function falPollUntilDone(requestId: string): Promise<string> {
         result?.no_vocals?.url ??
         (result?.audio_url as string | undefined);
       if (!url) throw new Error("No accompaniment URL in fal.ai result");
-      return url;
+      // The vocals stem is half of what people use this for (acapellas); it
+      // used to be thrown away.
+      const vocals = (result?.stems?.vocals?.url ?? result?.vocals?.url ?? null) as string | null;
+      return { instrumental: url, vocals };
     }
     if (status === "FAILED") {
       const err = statusData.error ?? "fal.ai separation failed";
       throw new Error(typeof err === "string" ? err : JSON.stringify(err));
     }
   }
-  throw new Error("fal.ai vocal removal timed out after 10 minutes");
+  throw new Error("fal.ai vocal removal timed out after 8 minutes");
 }
 
 async function handlePOST(req: NextRequest) {
@@ -138,17 +161,13 @@ async function handlePOST(req: NextRequest) {
     return NextResponse.json({ error: "Vocal removal is not configured (missing FAL_KEY)" }, { status: 503 });
   }
 
-  let formData: FormData;
-  try {
-    formData = await req.formData();
-  } catch {
-    return NextResponse.json({ error: "Invalid multipart body" }, { status: 400 });
-  }
+  const policy = await resolveUploadPolicy(auth.userId, "vocal-remover");
+  const formData = await readUploadForm(req, policy);
+  if (formData instanceof NextResponse) return formData;
 
   const file = formData.get("file") as File | null;
   if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 });
 
-  const policy = await resolveUploadPolicy(auth.userId, "vocal-remover");
   try {
     assertWithinUploadPolicy(policy, file.size);
   } catch (e) {
@@ -159,21 +178,26 @@ async function handlePOST(req: NextRequest) {
   }
 
   const jobId = randomUUID();
-  const ext = (file.name.split(".").pop() ?? "mp3").toLowerCase();
-  const inputPath = path.join(os.tmpdir(), `${jobId}-input.${ext}`);
   const outputPath = path.join(os.tmpdir(), `${jobId}-output.mp3`);
+  const providerPath = path.join(os.tmpdir(), `${jobId}-provider.mp3`);
   const downloadName = `instrumental-${file.name.replace(/\.[^.]+$/, "")}.mp3`;
 
   // Write to disk first so we can probe duration BEFORE charging.
-  fs.writeFileSync(inputPath, Buffer.from(await file.arrayBuffer()));
+  // Safe temp extension + container allow-list (lib/media-upload.ts).
+  const saved = await saveMediaUpload(file, jobId, "mp3");
+  if (saved instanceof NextResponse) return saved;
+  const { inputPath } = saved;
 
-  const durationSec = await getMediaDurationSec(inputPath);
-  if (durationSec > MAX_DURATION_SEC) {
+  // 0 means ffmpeg could not probe the file. It used to fall through to the
+  // 1-credit minimum while the whole file still went to fal — the same hole
+  // voice-changer already closed.
+  const durationSec = saved.durationSec;
+  if (durationSec <= 0 || durationSec > MAX_DURATION_SEC) {
     try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
-    return NextResponse.json(
-      { error: `Audio is too long (${Math.round(durationSec)}s). Max is ${MAX_DURATION_SEC / 60} minutes.` },
-      { status: 400 },
-    );
+    const message = durationSec <= 0
+      ? "Couldn't read this file's duration — it may be corrupted or an unsupported format."
+      : `Audio is too long (${Math.round(durationSec)}s). Max is ${MAX_DURATION_SEC / 60} minutes.`;
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 
   const idempotencyKey = (formData.get("idempotencyKey") as string | null) ?? undefined;
@@ -187,6 +211,11 @@ async function handlePOST(req: NextRequest) {
     idempotencyKey,
     log: { generationType: "audio", estimatedCostUsd: durationSec * AUDIO_COST_USD_PER_SEC },
   });
+  const replayed = idempotencyResponse(charge, jobs);
+  if (replayed) {
+    try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
+    return replayed;
+  }
   if (!charge.ok) {
     try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
     if (charge.reason === "tool_disabled") {
@@ -213,10 +242,10 @@ async function handlePOST(req: NextRequest) {
     try {
       job.progress = 10;
 
-      // Upload file to fal.ai storage
-      const fileBuffer = fs.readFileSync(inputPath);
-      const mimeType = file.type || "audio/mpeg";
-      const falUrl = await uploadToFal(fileBuffer, mimeType);
+      // Upload to fal.ai storage — the billed length only, never the raw file
+      // (its header duration is what we charged for, and it can lie).
+      await trimAudioForProvider(inputPath, providerPath, durationSec, "320k");
+      const falUrl = await uploadToFal(fs.readFileSync(providerPath), "audio/mpeg");
       job.progress = 15;
 
       // Submit to Demucs queue
@@ -230,9 +259,9 @@ async function handlePOST(req: NextRequest) {
         if (job.generationId) void updateGenerationProgress(job.generationId, job.progress);
       }, 8000);
 
-      let resultUrl: string;
+      let stems: Stems;
       try {
-        resultUrl = await falPollUntilDone(requestId);
+        stems = await falPollUntilDone(requestId);
       } finally {
         clearInterval(progressTimer);
       }
@@ -240,11 +269,11 @@ async function handlePOST(req: NextRequest) {
       if ((job.status as string) === "cancelled") return;
       job.progress = 90;
 
-      // Download the instrumental track
-      const dlRes = await fetch(resultUrl);
-      if (!dlRes.ok) throw new Error("Failed to download result from fal.ai");
-      const audioBuffer = Buffer.from(await dlRes.arrayBuffer());
-      fs.writeFileSync(outputPath, audioBuffer);
+      // Download the instrumental track. Re-encoded to a real MP3: fal's stem
+      // format isn't guaranteed, and it used to be saved as-is under an
+      // .mp3 name and an audio/mpeg type.
+      await downloadAsMp3(stems.instrumental, outputPath, `${jobId}-instrumental-raw`);
+      const audioBuffer = fs.readFileSync(outputPath);
       // The local file serves the web's download; this keeps the result past a
       // restart, on the Generation and in the user's Assets.
       await saveToolResult({
@@ -257,6 +286,30 @@ async function handlePOST(req: NextRequest) {
         durationMs: Math.round(durationSec * 1000),
       });
 
+      // The vocals stem goes to Assets too (no generationId: the Generation's
+      // result is the instrumental). Best-effort — the job already succeeded.
+      let vocalsUrl: string | null = null;
+      if (stems.vocals) {
+        const vocalsPath = path.join(os.tmpdir(), `${jobId}-vocals.mp3`);
+        try {
+          await downloadAsMp3(stems.vocals, vocalsPath, `${jobId}-vocals-raw`);
+          const saved = await saveToolResult({
+            userId: job.userId,
+            toolSlug: "vocal-remover",
+            source: { buffer: fs.readFileSync(vocalsPath) },
+            mimeType: "audio/mpeg",
+            name: downloadName.replace(/^instrumental-/, "vocals-"),
+            durationMs: Math.round(durationSec * 1000),
+          });
+          vocalsUrl = saved.url;
+        } catch (e) {
+          logger.warn("vocal-remover", "vocals stem not saved", { reason: (e as Error).message });
+        } finally {
+          try { fs.unlinkSync(vocalsPath); } catch { /* ignore */ }
+        }
+      }
+      job.meta = { vocalsUrl };
+
       job.progress = 100;
       job.status = "done";
       if (job.generationId) {
@@ -266,16 +319,18 @@ async function handlePOST(req: NextRequest) {
     } catch (err) {
       if ((job.status as string) === "cancelled") return;
       job.status = "error";
-      job.error = err instanceof Error ? err.message : "Vocal removal failed";
+      logger.error("vocal-remover", "job failed", err);
+      job.error = userMessage(err, "We couldn't separate the vocals in this file. Your credits were refunded — please try again.");
       if (!job.refunded) {
         job.refunded = true;
         try {
           await refundCredits({ userId: job.userId, amount: job.creditCost, generationId: job.generationId });
-          if (job.generationId) await markGenerationStatus(job.generationId, "failed", job.error);
+          if (job.generationId) await markGenerationStatus(job.generationId, "failed", rawErrorText(err));
         } catch { /* swallow */ }
       }
     } finally {
       try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
+      try { fs.unlinkSync(providerPath); } catch { /* ignore */ }
     }
   })();
 
@@ -288,7 +343,7 @@ export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy:
 
 export const GET = withRateLimit(
   createJobStatusHandler(jobs, { contentType: "audio/mpeg", deleteOnDownload: true }),
-  { limit: 30, windowSec: 60, keyBy: "user", name: "tools:vocal-remover:status" },
+  { limit: 60, windowSec: 60, keyBy: "user", name: "tools:vocal-remover:status" },
 );
 
 export const DELETE = withRateLimit(
