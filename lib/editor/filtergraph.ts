@@ -24,6 +24,7 @@ import {
 } from "./types";
 import { docDuration, videoSegments } from "./doc-utils";
 import { clipDuckSegments, musicVolumeFilter, speechRangesFromCaptions } from "./music-envelope";
+import { keyframeExpr } from "./keyframes";
 
 export interface ClipInput {
   /** local downloaded file path */
@@ -337,18 +338,24 @@ export function buildFilterGraph(input: FiltergraphInput): FiltergraphResult {
     // as the midpoint; "left"/"right" instead treat t.x as the anchor edge —
     // this is the one place preview and export intentionally diverge, since
     // the canvas always block-centers on t.x for drag-to-position ergonomics.
+    // Keyframed clips: x, y, size and opacity are expressions in t (the same
+    // piecewise-linear curve the preview interpolates — lib/editor/keyframes.ts).
+    const animated = (t.keyframes?.length ?? 0) > 0;
+    const X = animated ? `(${keyframeExpr(t, "x", num)})` : num(t.x);
+    const Y = animated ? `(${keyframeExpr(t, "y", num)})` : num(t.y);
     const xExpr =
-      t.align === "left" ? `(w*${num(t.x)})` :
-      t.align === "right" ? `(w*${num(t.x)})-text_w` :
-      `(w*${num(t.x)})-(text_w/2)`;
+      t.align === "left" ? `(w*${X})` :
+      t.align === "right" ? `(w*${X})-text_w` :
+      `(w*${X})-(text_w/2)`;
+    const q = (e: string) => (animated ? `'${e}'` : e);
 
     const baseParts = [
       `textfile='${escapeFilterPath(textFile)}'`,
       `fontfile='${escapeFilterPath(font)}'`,
-      `fontsize=${fontSize}`,
+      animated ? `fontsize='${num(t.fontSizePct * H)}*(${keyframeExpr(t, "scale", num)})'` : `fontsize=${fontSize}`,
       `fontcolor=${color}`,
-      `x=${xExpr}`,
-      `y=(h*${num(t.y)})-(text_h/2)`,
+      `x=${q(xExpr)}`,
+      `y=${q(`(h*${Y})-(text_h/2)`)}`,
       `enable='between(t,${num(t.timelineStart)},${num(t.timelineStart + t.duration)})'`,
     ];
     if (t.bgColor) baseParts.push(`box=1`, `boxcolor=${t.bgColor}@0.75`, `boxborderw=14`);
@@ -363,7 +370,7 @@ export function buildFilterGraph(input: FiltergraphInput): FiltergraphResult {
         `shadowcolor=${t.shadow.color}@${num(t.shadow.opacity)}`,
       );
     }
-    baseParts.push(`alpha=${num(t.opacity ?? 1)}`); // alpha=1 is drawtext's own default — a no-op for docs that never set opacity
+    baseParts.push(animated ? `alpha='${keyframeExpr(t, "opacity", num)}'` : `alpha=${num(t.opacity ?? 1)}`); // alpha=1 is drawtext's own default — a no-op for docs that never set opacity
     // Only emit line_spacing when the doc explicitly sets lineHeight — drawtext's
     // own default (no param) is what every pre-existing doc already rendered
     // with, so defaulting this to 1.2 here would silently reflow legacy exports.
@@ -379,7 +386,7 @@ export function buildFilterGraph(input: FiltergraphInput): FiltergraphResult {
     // stacking both looks smudged).
     if (t.bold && !t.strokeColor) {
       const offset = Math.max(1, Math.round(fontSize * 0.02));
-      const offsetParts = baseParts.map((p) => (p.startsWith("x=") ? `x=${xExpr}+${offset}` : p));
+      const offsetParts = baseParts.map((p) => (p.startsWith("x=") ? `x=${q(`${xExpr}+${offset}`)}` : p));
       filters.push(`${videoOut}drawtext=${offsetParts.join(":")}[vtb${i}]`);
       videoOut = `[vtb${i}]`;
     }

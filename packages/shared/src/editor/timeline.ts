@@ -116,7 +116,22 @@ export interface TextClip extends ClipBase {
   entrance?: { type: TextEntrancePreset; duration: number; delay: number } | null;
   loop?: { type: TextLoopPreset; speed: number } | null;
   exit?: { type: TextExitPreset; duration: number; delay: number } | null;
+  /**
+   * Keyframes (sorted by t, clip-local seconds). When present they drive x, y,
+   * size and opacity over time in preview AND export, overriding the static
+   * values; values are interpolated linearly between keyframes.
+   */
+  keyframes?: TextKeyframe[];
 }
+
+export interface TextKeyframe {
+  t: number; // seconds from the clip start
+  x: number; // 0..1
+  y: number; // 0..1
+  scale: number; // multiplier on fontSizePct, 0.2..5
+  opacity: number; // 0..1
+}
+export const MAX_TEXT_KEYFRAMES = 20;
 
 export interface AudioClip extends ClipBase {
   type: "audio";
@@ -481,6 +496,13 @@ export function validateDoc(doc: unknown): string | null {
       return "text clip invalid letterSpacingPx";
     if (t.rotationDeg !== undefined && !isFiniteInRange(t.rotationDeg, -180, 180))
       return "text clip invalid rotationDeg";
+    if (t.keyframes !== undefined) {
+      if (!Array.isArray(t.keyframes) || t.keyframes.length > MAX_TEXT_KEYFRAMES) return "text clip invalid keyframes";
+      for (const k of t.keyframes) {
+        if (typeof k !== "object" || k === null || !isFiniteNonNeg(k.t) || !isFiniteInRange(k.x, 0, 1) || !isFiniteInRange(k.y, 0, 1) || !isFiniteInRange(k.scale, 0.2, 5) || !isFiniteInRange(k.opacity, 0, 1))
+          return "text clip invalid keyframe";
+      }
+    }
 
     for (const [field, presets] of [
       ["entrance", TEXT_ENTRANCE_PRESETS],
