@@ -1,13 +1,16 @@
+import { saveMediaUpload } from "@/lib/media-upload";
+import { userMessage, rawErrorText } from "@/lib/user-facing-error";
+import { logger } from "@/lib/logger";
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
-import { getMediaDurationSec } from "@/utils/ffmpeg-render";
+import { trimAudioForProvider } from "@/utils/ffmpeg-render";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { fetchElevenLabs } from "@/utils/elevenlabs";
 import { env } from "@/lib/env";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress } from "@/lib/credits";
 import { voiceFxCredits } from "@/lib/audio-pricing";
-import { resolveUploadPolicy, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
-import { createJobStatusHandler, createJobCancelHandler, type CancellableJob } from "@/lib/job-routes";
+import { resolveUploadPolicy, readUploadForm, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
+import { createJobStatusHandler, createJobCancelHandler, idempotencyResponse, type CancellableJob } from "@/lib/job-routes";
 import { saveToolResult } from "@/lib/tool-results";
 import os from "os";
 import path from "path";
@@ -52,17 +55,13 @@ async function handlePOST(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  let formData: FormData;
-  try {
-    formData = await req.formData();
-  } catch {
-    return NextResponse.json({ error: "Invalid multipart body" }, { status: 400 });
-  }
+  const policy = await resolveUploadPolicy(auth.userId, "enhance-speech");
+  const formData = await readUploadForm(req, policy);
+  if (formData instanceof NextResponse) return formData;
 
   const file = formData.get("file") as File | null;
   if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 });
 
-  const policy = await resolveUploadPolicy(auth.userId, "enhance-speech");
   try {
     assertWithinUploadPolicy(policy, file.size);
   } catch (e) {
@@ -73,21 +72,26 @@ async function handlePOST(req: NextRequest) {
   }
 
   const jobId = randomUUID();
-  const ext = (file.name.split(".").pop() ?? "mp3").toLowerCase();
-  const inputPath = path.join(os.tmpdir(), `${jobId}-input.${ext}`);
   const outputPath = path.join(os.tmpdir(), `${jobId}-output.mp3`);
+  const providerPath = path.join(os.tmpdir(), `${jobId}-provider.mp3`);
   const downloadName = `enhanced-${file.name.replace(/\.[^.]+$/, "")}.mp3`;
 
   // Write to disk first so we can probe duration BEFORE charging.
-  fs.writeFileSync(inputPath, Buffer.from(await file.arrayBuffer()));
+  // Safe temp extension + container allow-list (lib/media-upload.ts).
+  const saved = await saveMediaUpload(file, jobId, "mp3");
+  if (saved instanceof NextResponse) return saved;
+  const { inputPath } = saved;
 
-  const durationSec = await getMediaDurationSec(inputPath);
-  if (durationSec > MAX_DURATION_SEC) {
+  // 0 means ffmpeg could not probe the file. It used to fall through to the
+  // 1-credit minimum while the whole file still went to ElevenLabs (~$0.20/min)
+  // — the same hole voice-changer already closed.
+  const durationSec = saved.durationSec;
+  if (durationSec <= 0 || durationSec > MAX_DURATION_SEC) {
     try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
-    return NextResponse.json(
-      { error: `Audio is too long (${Math.round(durationSec)}s). Max is ${MAX_DURATION_SEC / 60} minutes.` },
-      { status: 400 },
-    );
+    const message = durationSec <= 0
+      ? "Couldn't read this file's duration — it may be corrupted or an unsupported format."
+      : `Audio is too long (${Math.round(durationSec)}s). Max is ${MAX_DURATION_SEC / 60} minutes.`;
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 
   const idempotencyKey = (formData.get("idempotencyKey") as string | null) ?? undefined;
@@ -101,6 +105,11 @@ async function handlePOST(req: NextRequest) {
     idempotencyKey,
     log: { generationType: "audio", estimatedCostUsd: durationSec * AUDIO_COST_USD_PER_SEC },
   });
+  const replayed = idempotencyResponse(charge, jobs);
+  if (replayed) {
+    try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
+    return replayed;
+  }
   if (!charge.ok) {
     try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
     if (charge.reason === "tool_disabled") {
@@ -127,9 +136,12 @@ async function handlePOST(req: NextRequest) {
     try {
       job.progress = 20;
 
+      // The billed length only, never the raw file (its header duration is
+      // what we charged for, and it can lie).
+      await trimAudioForProvider(inputPath, providerPath, durationSec);
       const elForm = new FormData();
-      const blob = new Blob([fs.readFileSync(inputPath)], { type: file.type || "audio/mpeg" });
-      elForm.append("audio", blob, file.name);
+      const blob = new Blob([fs.readFileSync(providerPath)], { type: "audio/mpeg" });
+      elForm.append("audio", blob, "audio.mp3");
 
       job.progress = 30;
       if (job.generationId) void updateGenerationProgress(job.generationId, job.progress);
@@ -167,16 +179,18 @@ async function handlePOST(req: NextRequest) {
     } catch (err) {
       if ((job.status as string) === "cancelled") return;
       job.status = "error";
-      job.error = err instanceof Error ? err.message : "Enhancement failed";
+      logger.error("enhance-speech", "job failed", err);
+      job.error = userMessage(err, "We couldn't enhance this audio. Your credits were refunded — please try again.");
       if (!job.refunded) {
         job.refunded = true;
         try {
           await refundCredits({ userId: job.userId, amount: job.creditCost, generationId: job.generationId });
-          if (job.generationId) await markGenerationStatus(job.generationId, "failed", job.error);
+          if (job.generationId) await markGenerationStatus(job.generationId, "failed", rawErrorText(err));
         } catch { /* swallow */ }
       }
     } finally {
       try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
+      try { fs.unlinkSync(providerPath); } catch { /* ignore */ }
     }
   })();
 
@@ -188,7 +202,7 @@ export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy:
 
 export const GET = withRateLimit(
   createJobStatusHandler(jobs, { contentType: "audio/mpeg", deleteOnDownload: true }),
-  { limit: 30, windowSec: 60, keyBy: "user", name: "tools:enhance-speech:status" },
+  { limit: 60, windowSec: 60, keyBy: "user", name: "tools:enhance-speech:status" },
 );
 
 export const DELETE = withRateLimit(

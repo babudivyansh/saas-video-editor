@@ -7,6 +7,17 @@ import { ToolIcon } from "@/app/components/toolIcons";
 import { EmptyState } from "@/app/components/ui/EmptyState";
 import { readRecentTools, recordRecentTool } from "@/app/components/dashboard/recentTools";
 import { TOOL_COSTS, IMAGE_GENERATOR_STARTING_CREDIT_COST } from "@/lib/tool-costs";
+import { voiceFxCredits } from "@/lib/audio-pricing";
+import { subtitleRemoverCredits } from "@/lib/subtitle-remover-pricing";
+
+// The cheapest a run can actually cost, where that differs from creditCost.
+// The duration-priced tools store their per-MINUTE rate there, so the badge
+// read "From 8 credits" for a clip that costs 1-2.
+const MIN_CREDITS: Record<string, number> = {
+  "voice-changer": voiceFxCredits(1),
+  "enhance-speech": voiceFxCredits(1),
+  "subtitle-remover": subtitleRemoverCredits(0),
+};
 
 // The AI Tools hub: every single-purpose tool, rendered from the registry
 // (featureLinks.ts) so a new tool appears here, in search and on the public
@@ -21,9 +32,13 @@ function useBadge() {
     // Badges read the billing registries rather than restating numbers here: the
     // old hardcoded copies drifted from what users were actually charged. The
     // multi-model image tool shows its cheapest model's price.
-    const cost = TOOL_COSTS[tool.costKey ?? tool.slug];
-    if (cost?.requiredTier) return { label: t("proBadge"), tone: "pro" };
-    const credits = tool.slug === "ai-image-generator" ? IMAGE_GENERATOR_STARTING_CREDIT_COST : (cost?.creditCost ?? 0);
+    const key = tool.costKey ?? tool.slug;
+    const cost = TOOL_COSTS[key];
+    const credits = tool.slug === "ai-image-generator"
+      ? IMAGE_GENERATOR_STARTING_CREDIT_COST
+      : (MIN_CREDITS[key] ?? cost?.creditCost ?? 0);
+    // Pro tools show their price too, not just the plan.
+    if (cost?.requiredTier) return { label: `${t("proBadge")} · ${t("fromCredits", { count: credits })}`, tone: "pro" };
     if (credits === 0) return { label: t("freeBadge"), tone: "free" };
     return { label: t("fromCredits", { count: credits }), tone: "credits" };
   };

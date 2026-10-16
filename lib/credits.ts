@@ -400,9 +400,18 @@ export interface ChargeCreditsParams {
 }
 
 export type ChargeCreditsResult =
-  | { ok: true; balance: number; generationId?: string }
+  /**
+   * `replay: true` means this key was already charged by an earlier request
+   * from the same user and NOTHING was charged now. The caller must not do
+   * paid work as if this were a fresh charge — return the original job
+   * instead — and must never refund on a replay's behalf: the refund would
+   * restore the ORIGINAL charge and make that earlier result free.
+   */
+  | { ok: true; balance: number; generationId?: string; replay?: boolean }
   | { ok: false; reason: "insufficient_credits"; balance: number }
-  | { ok: false; reason: "tool_disabled" };
+  | { ok: false; reason: "tool_disabled" }
+  /** The key belongs to another user's generation. */
+  | { ok: false; reason: "idempotency_conflict" };
 
 export async function chargeCredits(params: ChargeCreditsParams): Promise<ChargeCreditsResult> {
   const toolCfg = await getToolConfig(params.toolSlug);
@@ -414,8 +423,12 @@ export async function chargeCredits(params: ChargeCreditsParams): Promise<Charge
       select: { id: true, userId: true },
     });
     if (existing) {
-      const user = await prisma.user.findUnique({ where: { id: existing.userId }, select: { credits: true } });
-      return { ok: true, balance: user?.credits ?? 0, generationId: existing.id };
+      // The key is client-supplied: matching it proves nothing about who is
+      // asking. Before this check, any caller could replay another user's
+      // key and get an uncharged "ok" (and a refund-from-nothing on failure).
+      if (existing.userId !== params.userId) return { ok: false, reason: "idempotency_conflict" };
+      const balances = await getBalances(params.userId);
+      return { ok: true, balance: balances.total, generationId: existing.id, replay: true };
     }
   }
 
@@ -471,10 +484,11 @@ export async function chargeCredits(params: ChargeCreditsParams): Promise<Charge
         await restoreSpend({ userId: params.userId, refId: generationId, reason: "refund:idempotency-race" });
         const winner = await prisma.generation.findUnique({
           where: { idempotencyKey: params.idempotencyKey },
-          select: { id: true },
+          select: { id: true, userId: true },
         });
+        if (winner && winner.userId !== params.userId) return { ok: false, reason: "idempotency_conflict" };
         const balances = await getBalances(params.userId);
-        return { ok: true, balance: balances.total, generationId: winner?.id };
+        return { ok: true, balance: balances.total, generationId: winner?.id, replay: true };
       }
       // Otherwise best-effort — logging must never block a successful charge.
     }
@@ -531,6 +545,12 @@ export interface RefundCreditsParams {
 
 export async function refundCredits(params: RefundCreditsParams): Promise<void> {
   if (params.generationId) {
+    // A refund is only ever owed to the user who was charged. Without this, a
+    // generation id reaching here under another user's id (a replayed
+    // idempotency key) fell through to the legacy grant below and minted
+    // purchased credits for someone who had spent nothing.
+    const gen = await prisma.generation.findUnique({ where: { id: params.generationId }, select: { userId: true } });
+    if (gen && gen.userId !== params.userId) return;
     // Whether this charge is in the ledger at all — decided BEFORE restoring,
     // because afterwards a second call can't tell "legacy, never ledgered"
     // from "already refunded": both restore 0.

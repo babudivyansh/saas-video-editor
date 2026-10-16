@@ -1,11 +1,15 @@
+import { userMessage, rawErrorText } from "@/lib/user-facing-error";
+import { logger } from "@/lib/logger";
 import { NextRequest, NextResponse } from "next/server";
 import { runFFmpegArgs, runFFmpegWithProgress, getMediaDimensions } from "@/utils/ffmpeg-render";
 import { cropScaleFilter } from "@/lib/crop";
 import { getAuthUser } from "@/lib/auth";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress } from "@/lib/credits";
-import { resolveUploadPolicy, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
-import { createJobStatusHandler, createJobCancelHandler, type CancellableJob } from "@/lib/job-routes";
+import { saveMediaUpload } from "@/lib/media-upload";
+import { saveToolResult } from "@/lib/tool-results";
+import { resolveUploadPolicy, readUploadForm, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
+import { createJobStatusHandler, createJobCancelHandler, idempotencyResponse, type CancellableJob } from "@/lib/job-routes";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -14,6 +18,12 @@ import { randomUUID } from "crypto";
 export const maxDuration = 300;
 
 const CREDIT_COST = 1;
+// One export takes this many clips at most. The file loop below used to be
+// unbounded: one 1-credit request could carry any number of plan-sized files,
+// all held in memory and then re-encoded one after another.
+const MAX_CLIPS = 5;
+// Total length of the finished export.
+const MAX_TOTAL_SEC = 10 * 60;
 
 type CropAspect = "original" | "9:16" | "1:1" | "16:9";
 type Rotation = 0 | 90 | 180 | 270;
@@ -96,19 +106,22 @@ async function handlePOST(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  let formData: FormData;
-  try {
-    formData = await req.formData();
-  } catch {
-    return NextResponse.json({ error: "Invalid multipart body" }, { status: 400 });
-  }
+  const policy = await resolveUploadPolicy(auth.userId, "cut-and-crop");
+  const formData = await readUploadForm(req, policy, MAX_CLIPS);
+  if (formData instanceof NextResponse) return formData;
 
-  // Parse trims and crop
+  // Parse trims and crop. Each trim must be a pair of finite numbers — a bad
+  // entry used to throw inside the job, after the charge.
   let trims: Trim[];
   try {
-    trims = JSON.parse((formData.get("trims") as string) ?? "[]");
+    const parsed: unknown = JSON.parse((formData.get("trims") as string) ?? "[]");
+    if (!Array.isArray(parsed) || !parsed.every((t) =>
+      t && typeof t === "object" && Number.isFinite((t as Trim).start) && Number.isFinite((t as Trim).end))) {
+      throw new Error("bad trims");
+    }
+    trims = parsed as Trim[];
   } catch {
-    return NextResponse.json({ error: "Invalid trims JSON" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid trims" }, { status: 400 });
   }
   const crop = ((formData.get("crop") as string) ?? "original") as CropAspect;
   if (!["original", "9:16", "1:1", "16:9"].includes(crop)) {
@@ -126,11 +139,13 @@ async function handlePOST(req: NextRequest) {
     files.push(f);
   }
   if (files.length === 0) return NextResponse.json({ error: "No files provided" }, { status: 400 });
+  if (files.length > MAX_CLIPS) {
+    return NextResponse.json({ error: `You can add up to ${MAX_CLIPS} clips per export.` }, { status: 400 });
+  }
   if (files.length !== trims.length) {
     return NextResponse.json({ error: "Trims/files count mismatch" }, { status: 400 });
   }
 
-  const policy = await resolveUploadPolicy(auth.userId, "cut-and-crop");
   for (const f of files) {
     try {
       assertWithinUploadPolicy(policy, f.size);
@@ -145,6 +160,27 @@ async function handlePOST(req: NextRequest) {
     }
   }
 
+  // Save and check every clip BEFORE charging: safe temp extensions, a real
+  // media container (lib/media-upload.ts), and the total output length.
+  const jobId = randomUUID();
+  const inputPaths: string[] = [];
+  const trimmedPaths: string[] = [];
+  const discardInputs = () => { for (const p of inputPaths) { try { fs.unlinkSync(p); } catch { /* ignore */ } } };
+  let totalSec = 0;
+  for (let i = 0; i < files.length; i++) {
+    const saved = await saveMediaUpload(files[i], jobId, "mp4", `in-${i}`);
+    if (saved instanceof NextResponse) { discardInputs(); return saved; }
+    inputPaths.push(saved.inputPath);
+    trimmedPaths.push(path.join(os.tmpdir(), `${jobId}-trim-${i}.mp4`));
+    const start = Math.max(0, trims[i].start);
+    const end = saved.durationSec > 0 ? Math.min(trims[i].end, saved.durationSec) : trims[i].end;
+    totalSec += Math.max(0.1, end - start);
+  }
+  if (totalSec > MAX_TOTAL_SEC) {
+    discardInputs();
+    return NextResponse.json({ error: `The finished video can be up to ${MAX_TOTAL_SEC / 60} minutes long. Trim your clips and try again.` }, { status: 400 });
+  }
+
   const idempotencyKey = (formData.get("idempotencyKey") as string | null) ?? undefined;
   const charge = await chargeCredits({
     userId: auth.userId,
@@ -153,24 +189,16 @@ async function handlePOST(req: NextRequest) {
     idempotencyKey,
     log: { generationType: "video" },
   });
+  const replayed = idempotencyResponse(charge, jobs);
+  if (replayed) { discardInputs(); return replayed; }
   if (!charge.ok) {
+    discardInputs();
     if (charge.reason === "tool_disabled") {
       return NextResponse.json({ error: "Cut & Crop is temporarily disabled." }, { status: 503 });
     }
     return NextResponse.json({ error: "Insufficient credits" }, { status: 402 });
   }
 
-  // Write input files to tmp
-  const jobId = randomUUID();
-  const inputPaths: string[] = [];
-  const trimmedPaths: string[] = [];
-  for (let i = 0; i < files.length; i++) {
-    const ext = (files[i].name.split(".").pop() ?? "mp4").toLowerCase();
-    const ip = path.join(os.tmpdir(), `${jobId}-in-${i}.${ext}`);
-    fs.writeFileSync(ip, Buffer.from(await files[i].arrayBuffer()));
-    inputPaths.push(ip);
-    trimmedPaths.push(path.join(os.tmpdir(), `${jobId}-trim-${i}.mp4`));
-  }
   const concatListPath = path.join(os.tmpdir(), `${jobId}-concat.txt`);
   const outputPath = path.join(os.tmpdir(), `${jobId}-output.mp4`);
   const downloadName = `cut-and-crop-${Date.now()}.mp4`;
@@ -250,6 +278,10 @@ async function handlePOST(req: NextRequest) {
 
       if ((job.status as string) === "cancelled") return;
 
+      // Kept in the user's Assets and on the Generation, so a failed or
+      // interrupted browser download no longer loses a paid export.
+      await saveToolResult({ userId: job.userId, generationId: job.generationId, toolSlug: "cut-and-crop", source: { filePath: outputPath }, mimeType: "video/mp4", name: downloadName });
+
       job.progress = 100;
       job.status = "done";
       if (job.generationId) {
@@ -259,12 +291,13 @@ async function handlePOST(req: NextRequest) {
     } catch (err) {
       if ((job.status as string) === "cancelled") return;
       job.status = "error";
-      job.error = err instanceof Error ? err.message : "Export failed";
+      logger.error("cut-and-crop", "job failed", err);
+      job.error = userMessage(err, "We couldn't export this video. Your credit was refunded — check the clips and try again.");
       if (!job.refunded) {
         job.refunded = true;
         try {
           await refundCredits({ userId: job.userId, amount: job.creditCost, generationId: job.generationId });
-          if (job.generationId) await markGenerationStatus(job.generationId, "failed", job.error);
+          if (job.generationId) await markGenerationStatus(job.generationId, "failed", rawErrorText(err));
         } catch { /* swallow */ }
       }
     } finally {
@@ -281,8 +314,10 @@ async function handlePOST(req: NextRequest) {
 export const POST = withRateLimit(handlePOST, { limit: 30, windowSec: 60, keyBy: "user", name: "tools:cut-and-crop" });
 
 export const GET = withRateLimit(
-  createJobStatusHandler(jobs, { contentType: "video/mp4", deleteOnDownload: true }),
-  { limit: 30, windowSec: 60, keyBy: "user", name: "tools:cut-and-crop:status" },
+  // Not deleted on download: a retry after a dropped download must still work.
+  // sweep() reclaims the file after 30 minutes; the copy in Assets stays.
+  createJobStatusHandler(jobs, { contentType: "video/mp4", deleteOnDownload: false }),
+  { limit: 60, windowSec: 60, keyBy: "user", name: "tools:cut-and-crop:status" },
 );
 
 export const DELETE = withRateLimit(
