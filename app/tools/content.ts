@@ -55,7 +55,7 @@ const COMMERCIAL_FAQ: ToolFaq = {
 const FREE_TOOL_FAQ: ToolFaq = {
   question: "Is this really free?",
   answer:
-    "Yes — this tool runs without spending credits on every plan, including the free one. Create an account and use it as much as you need.",
+    "Yes — it spends no credits, on every plan including the free one. There is a generous daily limit per account so it stays fast for everyone.",
 };
 
 export const TOOL_CONTENT: Record<string, ToolContent> = {
@@ -163,22 +163,22 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
 
   "ai-voiceover": {
     h1: "Narrate anything in a voice that sounds real",
-    metaTitle: "AI Voiceover Generator — 50+ Narrators",
+    metaTitle: "AI Voiceover Generator — 20+ Narrators",
     metaDescription:
-      "Turn a script into a natural-sounding voiceover with 50+ narrators across multiple languages. Captions sync automatically.",
-    lede: "Paste a script, pick from more than fifty narrators, and get natural-sounding audio back in seconds — with captions already timed to it.",
+      "Turn a script into a natural-sounding voiceover with 20+ narrators across accents and languages. Captions sync in the editor.",
+    lede: "Paste a script, pick from more than twenty narrators, and get natural-sounding audio back in seconds — ready to caption in the editor.",
     steps: [
       { title: "Paste your script", body: "Type or paste the text. Punctuation shapes the delivery, so commas and full stops are worth getting right." },
-      { title: "Choose a narrator", body: "Browse fifty-plus voices across accents and languages, and preview any of them before you spend a credit." },
+      { title: "Choose a narrator", body: "Browse twenty-plus voices across accents and languages, and preview any of them before you spend a credit." },
       { title: "Generate", body: "Download the audio or send it straight to the editor, where captions can be generated in sync with it." },
     ],
     benefits: [
-      { title: "Fifty-plus voices", body: "Enough range to give different channels and formats their own identity instead of reusing one recognisable narrator." },
+      { title: "Twenty-plus voices", body: "Enough range to give different channels and formats their own identity instead of reusing one recognisable narrator." },
       { title: "Captions that match", body: "Because the timing comes from the generated audio, captions land on the word rather than near it." },
       { title: "Multiple languages", body: "Narrate in several languages to take the same script to a different audience." },
     ],
     faqs: [
-      { question: "How many voices are there?", answer: "Over fifty narrators, spanning a range of accents and several languages. You can preview any voice before generating." },
+      { question: "How many voices are there?", answer: "More than twenty narrators, spanning a range of accents and several languages. You can preview any voice before generating." },
       { question: "Can I generate in other languages?", answer: "Yes — multiple languages are supported, with narrators suited to each." },
       COMMERCIAL_FAQ,
       CREDITS_FAQ,
@@ -186,19 +186,19 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
   },
 
   "ai-face-swap": {
-    h1: "Swap a face and keep it believable in motion",
-    metaTitle: "AI Face Swap for Photos and Video",
+    h1: "Swap a face into a photo in seconds",
+    metaTitle: "AI Face Swap for Photos",
     metaDescription:
-      "Swap a face into a photo or a video clip with AI. Tracks across frames and matches lighting so the result holds up in motion.",
-    lede: "Put one face onto another in a photo or a clip. The swap tracks frame to frame and relights to the scene, so it holds up when the head turns.",
+      "Put one face onto the person in another photo with AI. Upload two images, confirm you have permission, and get the swapped photo back in seconds.",
+    lede: "Put one face onto the person in another photo. Use clear, front-facing shots and the result blends into the original image.",
     steps: [
-      { title: "Upload the target", body: "Add the photo or video clip you want to change." },
+      { title: "Upload the target", body: "Add the photo you want to change." },
       { title: "Add the face", body: "Upload a clear, well-lit reference of the face to swap in. Front-facing works best." },
-      { title: "Generate", body: "The swap is applied across every frame and the result saves to your asset library." },
+      { title: "Generate", body: "Confirm you have permission to use both faces, and the swapped photo saves to your asset library." },
     ],
     benefits: [
-      { title: "Video, not just stills", body: "The face is tracked frame to frame, so it stays locked as the head turns." },
-      { title: "Lighting matched", body: "The swapped face is relit to the target scene, which is what usually gives a bad swap away." },
+      { title: "Seconds, not an editing session", body: "No masking or manual blending — upload two photos and you're done." },
+      { title: "Built-in consent check", body: "Every swap asks you to confirm you have permission to use the faces involved." },
       { title: "Straight into an edit", body: "Results drop into your asset library, ready for the timeline." },
     ],
     faqs: [
@@ -210,24 +210,24 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
   },
 
   "background-remover": {
-    h1: "Cut out the background, video included",
-    metaTitle: "AI Background Remover for Images and Video",
+    h1: "Cut the background out of any photo",
+    metaTitle: "AI Background Remover for Images",
     metaDescription:
-      "Cut the background out of a photo or a video clip automatically — clean edges around hair and motion, transparent output ready to composite.",
-    lede: "Remove the background from a photo or a whole clip in one pass, with edges clean enough around hair and motion to composite straight onto something else.",
+      "Cut the background out of a photo automatically — clean edges around hair, transparent PNG output ready to composite.",
+    lede: "Remove the background from a photo in one pass, with edges clean enough around hair to composite straight onto something else.",
     steps: [
-      { title: "Upload", body: "Add an image or a video clip — the same tool handles both." },
+      { title: "Upload", body: "Add a PNG, JPG or WEBP image up to 10 MB." },
       { title: "Let it cut", body: "The subject is detected and separated automatically. No manual masking or green screen needed." },
       { title: "Export", body: "Download with a transparent background, or drop it onto a new background in the editor." },
     ],
     benefits: [
-      { title: "Video as well as stills", body: "Most background removers stop at images. This one tracks the subject across a whole clip." },
-      { title: "Holds up on hair and motion", body: "The edges that usually betray a cutout — hair, fast movement — are where the model does its most careful work." },
+      { title: "One credit a photo", body: "Cheap enough to cut out every thumbnail subject, not just the important ones." },
+      { title: "Holds up on hair", body: "The edges that usually betray a cutout — hair and fine detail — are where the model does its most careful work." },
       { title: "No green screen", body: "Shoot against whatever wall you have and remove it afterwards." },
     ],
     faqs: [
-      { question: "Does it work on video?", answer: "Yes — images and video clips both, with the subject tracked across frames." },
-      { question: "What format is the output?", answer: "Transparent PNG for images and a transparent-capable video format for clips, so you can composite them onto a new background." },
+      { question: "Does it work on video?", answer: "Not yet — it works on still images (PNG, JPG, WEBP)." },
+      { question: "What format is the output?", answer: "A transparent PNG, so you can composite the subject onto a new background." },
       CREDITS_FAQ,
       COMMERCIAL_FAQ,
     ],
@@ -299,7 +299,7 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
     ],
     faqs: [
       { question: "Will it fix badly clipped audio?", answer: "It will improve it, but distortion from clipping is lost information — it cannot be fully recovered. Recording at a sensible level still matters." },
-      { question: "Does it work on video files?", answer: "Yes. Upload the video and the enhanced audio is applied to it." },
+      { question: "Does it work on video files?", answer: "Yes. Upload the video and you get its cleaned-up audio back as an MP3, ready to drop under the video in the editor. Clips can be up to 90 seconds." },
       CREDITS_FAQ,
       COMMERCIAL_FAQ,
     ],
@@ -309,21 +309,21 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
     h1: "Erase burned-in captions and start over",
     metaTitle: "AI Subtitle Remover — Erase Hardcoded Captions",
     metaDescription:
-      "Erase hardcoded subtitles from a video with AI inpainting that reconstructs what was behind them, so you can recaption in your own style.",
-    lede: "Remove hardcoded subtitles and rebuild what was behind them, so you can recaption in your own style instead of stacking text on text.",
+      "Find and blur out hardcoded subtitles in a video with AI text detection, so you can recaption in your own style. Videos up to 10 minutes.",
+    lede: "AI finds the burned-in captions and blurs them out where they appear, so you can recaption in your own style instead of stacking text on text.",
     steps: [
       { title: "Upload the video", body: "Add the clip with the burned-in subtitles." },
-      { title: "Mark the caption area", body: "Indicate where the text sits. Most videos keep captions in one consistent band." },
-      { title: "Remove", body: "The area is inpainted frame by frame and the cleaned video saves to your library." },
+      { title: "Pick the caption area", body: "Bottom third for most videos, or anywhere to catch text wherever it appears." },
+      { title: "Remove", body: "Detected captions are blurred out for exactly as long as they're on screen, and the cleaned video saves to your library." },
     ],
     benefits: [
-      { title: "Reconstructs, not blurs", body: "Rather than covering the text with a bar, it rebuilds the image underneath." },
+      { title: "Only where the text is", body: "The blur follows the detected captions in place and time — the rest of the frame is untouched." },
       { title: "Recaption in your own style", body: "Repurpose footage that arrived captioned without ending up with two competing sets of text." },
       { title: "Frame-accurate", body: "Applied across every frame, so the removal does not flicker in and out." },
     ],
     faqs: [
       { question: "Which plans include it?", answer: "Subtitle Remover is available on Pro and Studio." },
-      { question: "Does it work with busy backgrounds?", answer: "Yes, though results are strongest over simpler areas. Text sitting over fine, fast-moving detail is the hardest case." },
+      { question: "Does it work with busy backgrounds?", answer: "The captions are blurred rather than redrawn, so over busy backgrounds you'll see a soft patch where the text was. If no text is found, you get your credits back." },
       CREDITS_FAQ,
       COMMERCIAL_FAQ,
     ],
@@ -333,7 +333,7 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
     h1: "Never open a blank editor again",
     metaTitle: "AI Content Idea Generator for Creators",
     metaDescription:
-      "Generate video ideas, hooks, and angles tailored to your niche and format — costs 1 credit per run.",
+      "Generate video ideas, hooks, and angles tailored to your niche and format — free, with a daily allowance on every plan.",
     lede: "Describe your niche and get back ideas with hooks and angles written for short-form — not a list of topics you still have to figure out.",
     steps: [
       { title: "Describe your channel", body: "Your niche, your audience, the format you post in." },
@@ -343,10 +343,10 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
     benefits: [
       { title: "Hooks, not just topics", body: "A topic is not a video. Each idea comes with an angle and an opening line." },
       { title: "Shaped to your niche", body: "Ideas are grounded in what you actually post about rather than generic advice." },
-      { title: "One credit a run", body: "Cheap enough to use as a habit whenever you sit down to plan." },
+      { title: "Free to use", body: "No credits — free accounts get 5 runs a day and paid plans 50, enough to make it a habit." },
     ],
     faqs: [
-      { question: "How much does it cost?", answer: "One credit per run." },
+      { question: "How much does it cost?", answer: "Nothing. Free accounts get 5 runs a day and paid plans get 50." },
       { question: "Can I use it for any niche?", answer: "Yes. The more specific your description, the more usable the output." },
       CREDITS_FAQ,
       CANCEL_FAQ,
@@ -368,7 +368,7 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
     benefits: [
       { title: "Free on every plan", body: "Uses no credits, including on the free plan." },
       { title: "Fixes one-sided audio", body: "Recordings that came out entirely on the left or right are recovered to both channels." },
-      { title: "Works on video too", body: "Hand it a video file and the corrected audio is applied back to it." },
+      { title: "Takes video files too", body: "Hand it a video file and you get the corrected audio back as an MP3." },
     ],
     faqs: [
       FREE_TOOL_FAQ,
@@ -383,15 +383,15 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
     metaTitle: "Free Video Compressor — Reduce File Size Online",
     metaDescription:
       "Compress video to get under an upload limit while keeping it looking good. Free, no credits, no watermark.",
-    lede: "Large file slowing you down? Shrink it while keeping the picture crisp. Free, and it costs no credits.",
+    lede: "Large file slowing you down? Shrink it to share or upload — you choose how much quality to trade for size. Free, and it costs no credits.",
     steps: [
       { title: "Upload your video", body: "Drop in the file you need to make smaller." },
-      { title: "Choose how hard to compress", body: "Trade size against quality, with a preview of the result before you commit." },
+      { title: "Choose size vs quality", body: "Pick how small to go, and optionally a lower resolution for an even smaller file." },
       { title: "Download", body: "Take the smaller file — no watermark, no account tier required." },
     ],
     benefits: [
       { title: "Free on every plan", body: "No credits, on the free plan included." },
-      { title: "Quality-aware", body: "Compresses to a target size while protecting detail, rather than uniformly degrading the whole file." },
+      { title: "Five clear levels", body: "From smallest file to best quality, plus resolutions from 1080p down to 240p." },
       { title: "Gets you under the limit", body: "Built for the case where a platform, an email, or a client portal will not accept what you have." },
     ],
     faqs: [
@@ -407,7 +407,7 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
     metaTitle: "Free MP3 Converter — Video and Audio to MP3",
     metaDescription:
       "Pull the audio out of a video or convert between audio formats. Free, no credits, no watermark.",
-    lede: "Convert a video or any audio format to MP3 without losing quality. Free, and it costs no credits.",
+    lede: "Convert a video or any audio format to MP3 at the bitrate you choose, up to 320 kbps. Free, and it costs no credits.",
     steps: [
       { title: "Upload", body: "Add a video or an audio file in any common format." },
       { title: "Convert", body: "The audio is extracted and encoded to MP3." },
@@ -428,46 +428,46 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
 
   "youtube-downloader": {
     h1: "Download a YouTube video, ready to clip",
-    metaTitle: "Free YouTube Video Downloader",
+    metaTitle: "YouTube Video Downloader",
     metaDescription:
-      "Paste a YouTube URL and download the video, ready to clip or edit. Free, no credits, no watermark.",
-    lede: "Paste a link and get the file at the quality you choose — straight into AutoClip or onto the editor timeline. Free, and it costs no credits.",
+      "Paste a YouTube URL and download the video or its audio, ready to clip or edit. One credit per download, no watermark.",
+    lede: "Paste a link and get the file at the quality you choose, or just the audio as MP3. One credit per download, no watermark.",
     steps: [
       { title: "Paste the link", body: "Drop in the YouTube URL." },
       { title: "Pick a quality", body: "Choose the resolution you need." },
-      { title: "Download", body: "Save the file, or send it straight into AutoClip to start clipping." },
+      { title: "Download", body: "Save the file, then upload it to AutoClip or the editor to start clipping." },
     ],
     benefits: [
-      { title: "Free on every plan", body: "No credits, on the free plan included." },
-      { title: "The first step of a clipping workflow", body: "Downloading is usually step one before AutoClip. Doing both in one place saves a round trip." },
+      { title: "One credit, refunded on failure", body: "A download that doesn't complete costs nothing." },
+      { title: "The first step of a clipping workflow", body: "Downloading is usually step one before AutoClip, and both live in the same account." },
       { title: "Quality you choose", body: "Grab the highest resolution available, or a smaller file if that is all you need." },
     ],
     faqs: [
-      FREE_TOOL_FAQ,
+      { question: "How much does a download cost?", answer: "One credit per download, refunded automatically if it fails. Videos up to 20 minutes." },
       { question: "What am I allowed to download?", answer: "Only content you own or have permission to use. Downloading and reposting someone else's video without rights breaches YouTube's terms and, usually, copyright law — that is on you, not on the tool." },
-      { question: "Can I send it straight to AutoClip?", answer: "Yes. Downloads land in your asset library, so any tool can pick them up." },
+      { question: "Can I send it straight to AutoClip?", answer: "Save the download, then upload it to AutoClip — or give AutoClip the YouTube link directly." },
       CANCEL_FAQ,
     ],
   },
 
   "instagram-downloader": {
     h1: "Save Reels and posts at original quality",
-    metaTitle: "Free Instagram Video Downloader — Reels and Posts",
+    metaTitle: "Instagram Video Downloader — Reels and Posts",
     metaDescription:
-      "Download Instagram Reels, posts, and IGTV videos in their original quality. Free, no credits, no watermark.",
-    lede: "Paste a link and download Reels, posts or IGTV as the source file rather than a re-encoded capture. Free, and it costs no credits.",
+      "Download public Instagram Reels, posts, and IGTV videos at the best quality available. One credit per download, no watermark.",
+    lede: "Paste a link and download a public Reel, post or IGTV video as the source file rather than a screen capture. One credit per download.",
     steps: [
       { title: "Paste the link", body: "Drop in the Instagram URL for a Reel, post, or IGTV video." },
       { title: "Fetch", body: "The media is pulled at the best quality available." },
-      { title: "Download", body: "Save it, or take it straight into the editor." },
+      { title: "Download", body: "Save the video, or just its audio as MP3." },
     ],
     benefits: [
-      { title: "Free on every plan", body: "No credits, on the free plan included." },
+      { title: "One credit, refunded on failure", body: "A download that doesn't complete costs nothing." },
       { title: "Original quality", body: "Grabs the source file rather than a re-encoded screen capture." },
       { title: "Reels, posts, and IGTV", body: "One tool for all three formats." },
     ],
     faqs: [
-      FREE_TOOL_FAQ,
+      { question: "How much does a download cost?", answer: "One credit per download, refunded automatically if it fails. Videos up to 20 minutes." },
       { question: "What am I allowed to download?", answer: "Only your own content, or content you have permission to use. Reposting someone else's video without rights breaches Instagram's terms and, usually, copyright law." },
       { question: "Does it work on private accounts?", answer: "No — only publicly accessible posts." },
       CANCEL_FAQ,

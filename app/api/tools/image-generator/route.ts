@@ -1,3 +1,4 @@
+import { userMessage, rawErrorText, UserFacingError } from "@/lib/user-facing-error";
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { getAuthUser } from "@/lib/auth";
@@ -9,10 +10,20 @@ import { withRateLimit } from "@/lib/with-rate-limit";
 import { getImageModel, resolveImageAspectRatio, providerAspectRatio } from "@/lib/models/imageModels";
 import { falSubmit, falPollUntilDone, extractResultUrl } from "@/lib/fal";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress, checkModelAccess } from "@/lib/credits";
-import { createJobStatusHandler, createJobCancelHandler, type CancellableJob } from "@/lib/job-routes";
+import { createJobStatusHandler, createJobCancelHandler, idempotencyResponse, type CancellableJob } from "@/lib/job-routes";
 import { saveToolResult } from "@/lib/tool-results";
 
 export const maxDuration = 120;
+
+const MAX_PROMPT_CHARS = 2000;
+
+function clampNum(v: unknown, min: number, max: number): number | undefined {
+  return typeof v === "number" && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : undefined;
+}
+function clampInt(v: unknown, min: number, max: number): number | undefined {
+  const n = clampNum(v, min, max);
+  return n === undefined ? undefined : Math.round(n);
+}
 
 // Result is an S3 URL, not a local file — there's nothing to stream via the
 // download=1 path every other job-based tool uses, so outputPath/downloadName
@@ -59,6 +70,11 @@ async function handlePOST(req: NextRequest) {
 
   const prompt = (body.prompt ?? "").trim();
   if (!prompt) return NextResponse.json({ error: "Prompt is required" }, { status: 400 });
+  // Uncapped, the whole prompt was stored on Generation.prompt and sent to the
+  // provider.
+  if (prompt.length > MAX_PROMPT_CHARS) {
+    return NextResponse.json({ error: `Keep the prompt under ${MAX_PROMPT_CHARS} characters.` }, { status: 400 });
+  }
 
   const modelEntry = getImageModel(body.model);
 
@@ -101,6 +117,8 @@ async function handlePOST(req: NextRequest) {
     idempotencyKey: body.idempotencyKey,
     log: { modelId: modelEntry.id, generationType: "image", prompt, estimatedCostUsd: modelEntry.costUsd },
   });
+  const replayed = idempotencyResponse(charge, jobs);
+  if (replayed) return replayed;
   if (!charge.ok) {
     if (charge.reason === "tool_disabled") {
       return NextResponse.json({ error: "Image generation is temporarily disabled." }, { status: 503 });
@@ -129,10 +147,12 @@ async function handlePOST(req: NextRequest) {
       if (modelEntry.integration === "fal") {
         const bodyValues: Partial<Record<typeof modelEntry.supportedParameters[number], string | number>> = {
           aspectRatio: aspectRatio ? providerAspectRatio(modelEntry, aspectRatio) : undefined,
-          negativePrompt: body.negativePrompt,
-          seed: body.seed,
-          guidanceScale: body.guidanceScale,
-          steps: body.steps,
+          // Clamped to sane ranges: these went to fal exactly as sent, and
+          // a large step count raises the provider's cost and latency.
+          negativePrompt: typeof body.negativePrompt === "string" ? body.negativePrompt.slice(0, MAX_PROMPT_CHARS) : undefined,
+          seed: clampInt(body.seed, 0, 2 ** 32 - 1),
+          guidanceScale: clampNum(body.guidanceScale, 0, 20),
+          steps: clampInt(body.steps, 1, 50),
         };
         const input: Record<string, unknown> = {};
         for (const p of modelEntry.supportedParameters) {
@@ -153,9 +173,9 @@ async function handlePOST(req: NextRequest) {
         }, 3000);
         let raw: unknown;
         try {
-          // Must stay safely under this route's maxDuration (120s), so the
-          // route's own catch can refund instead of the platform killing it.
-          raw = await falPollUntilDone(modelEntry.falEndpoint, requestId, { deadlineMs: 90_000 });
+          // Runs after the response was sent, so maxDuration doesn't bound it;
+          // a 90s deadline failed (and refunded) jobs fal still billed for.
+          raw = await falPollUntilDone(modelEntry.falEndpoint, requestId, { deadlineMs: 5 * 60_000 });
         } finally {
           clearInterval(ticker);
         }
@@ -176,10 +196,11 @@ async function handlePOST(req: NextRequest) {
         let geminiRes: Response | null = null;
         for (let attempt = 0; attempt < 3; attempt++) {
           geminiRes = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${env.GEMINI_API_KEY}`,
+            // Key in a header, not the URL — URLs end up in proxy and APM logs.
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent",
             {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY ?? "" },
               body: JSON.stringify({
                 contents: [{ parts: [{ text: prompt }] }],
                 ...(aspectRatio ? { generationConfig: { imageConfig: { aspectRatio } } } : {}),
@@ -199,8 +220,8 @@ async function handlePOST(req: NextRequest) {
           logger.error("image-generator", `gemini-2.5-flash-image error ${geminiRes?.status}`, err);
           const msg = geminiRes?.status === 503
             ? "Image service is busy right now. Please try again in a moment."
-            : "Image generation failed. Please try again.";
-          throw new Error(msg);
+            : "Image generation failed. Your credits were refunded — please try again.";
+          throw new UserFacingError(msg);
         }
 
         job.progress = 75;
@@ -241,12 +262,12 @@ async function handlePOST(req: NextRequest) {
       if ((job.status as string) === "cancelled") return;
       logger.error("image-generator", "job failed", err);
       job.status = "error";
-      job.error = err instanceof Error ? err.message : "Image generation failed. Please try again.";
+      job.error = userMessage(err, "Image generation failed. Your credits were refunded — please try again.");
       if (!job.refunded) {
         job.refunded = true;
         try {
           await refundCredits({ userId: auth.userId, amount: CREDIT_COST, generationId: job.generationId });
-          if (job.generationId) await markGenerationStatus(job.generationId, "failed", job.error);
+          if (job.generationId) await markGenerationStatus(job.generationId, "failed", rawErrorText(err));
         } catch { /* swallow */ }
       }
     }
@@ -260,7 +281,7 @@ export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy:
 
 export const GET = withRateLimit(
   createJobStatusHandler(jobs, { contentType: "image/png", deleteOnDownload: false }),
-  { limit: 30, windowSec: 60, keyBy: "user", name: "tools:image-generator:status" },
+  { limit: 60, windowSec: 60, keyBy: "user", name: "tools:image-generator:status" },
 );
 
 export const DELETE = withRateLimit(

@@ -5,14 +5,15 @@ import { withRateLimit } from "@/lib/with-rate-limit";
 import { withRetry } from "@/lib/with-retry";
 import { chargeCredits, refundCredits, markGenerationStatus } from "@/lib/credits";
 import { getUserTier } from "@/lib/auth";
-import { takeFairUse } from "@/lib/fair-use";
+import { takeFairUse, releaseFairUse } from "@/lib/fair-use";
+import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
 
-// maxDuration=30 must stay ahead of withRetry's worst case below (3 attempts
-// x 8s + backoff ~= 25.5s) — the previous 20s-per-attempt budget could
-// exceed 30s on retry, letting the platform kill the request before this
-// route's own catch/refund logic ever ran.
-export const maxDuration = 30;
+// maxDuration must stay ahead of withRetry's worst case below (2 attempts x
+// 20s + backoff). Gemini 2.5 Flash regularly takes longer than the old 8s
+// per-attempt budget, and every timeout used to cost a free user one of their
+// five daily uses.
+export const maxDuration = 60;
 
 // Free since 2026-09-26 (one Gemini call, well under $0.001) under a daily
 // fair-use cap — lib/fair-use.ts. Still routed through chargeCredits at 0 so
@@ -51,7 +52,17 @@ async function handlePOST(req: NextRequest) {
     idempotencyKey: body.idempotencyKey,
     log: { generationType: "utility", prompt: topic },
   });
+  // A replayed key was charged (and answered) by an earlier request; running
+  // Gemini again would be unmetered work, and failing it would refund that
+  // earlier request. There is no job to hand back, so refuse it.
+  if (!charge.ok || charge.replay) await releaseFairUse(auth.userId, "brainstormer");
+  if (charge.ok && charge.replay) {
+    return NextResponse.json({ error: "This request was already submitted." }, { status: 409 });
+  }
   if (!charge.ok) {
+    if (charge.reason === "idempotency_conflict") {
+      return NextResponse.json({ error: "This request could not be accepted. Please try again." }, { status: 409 });
+    }
     if (charge.reason === "tool_disabled") {
       return NextResponse.json({ error: "Brainstormer is temporarily disabled." }, { status: 503 });
     }
@@ -61,7 +72,8 @@ async function handlePOST(req: NextRequest) {
 
   try {
     const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    // JSON mode: the model returns the array itself, no markdown fences.
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash", generationConfig: { responseMimeType: "application/json" } });
 
     const prompt = `You are a viral content strategist for short-form video creators. Generate exactly 5 creative and highly engaging content ideas.
 
@@ -78,7 +90,7 @@ Rules:
 
     const result = await withRetry(
       (signal) => model.generateContent(prompt, { signal }),
-      { timeoutMs: 8_000 },
+      { timeoutMs: 20_000, maxAttempts: 2 },
     );
     const raw = result.response.text().trim();
 
@@ -99,11 +111,16 @@ Rules:
     return NextResponse.json({ ideas });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Generation failed";
+    logger.error("brainstormer", "generation failed", err);
+    // Our failure, so it doesn't count against today's free uses.
+    await releaseFairUse(auth.userId, "brainstormer");
     try {
       await refundCredits({ userId: auth.userId, amount: CREDIT_COST, generationId });
       if (generationId) await markGenerationStatus(generationId, "failed", msg);
     } catch { /* swallow */ }
-    return NextResponse.json({ error: msg }, { status: 500 });
+    // The raw text ("Failed to parse AI response as JSON", provider errors)
+    // stays in the logs and on the Generation row.
+    return NextResponse.json({ error: "We couldn't come up with ideas just now. Please try again — this didn't use up one of today's uses." }, { status: 502 });
   }
 }
 

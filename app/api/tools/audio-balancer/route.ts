@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runFFmpegWithProgress } from "@/utils/ffmpeg-render";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
-import { checkFreeToolDailyCap, freeToolCapResponseBody } from "@/lib/free-tool-caps";
+import { freeToolGate } from "@/lib/free-tool-caps";
 import { createJobStatusHandler } from "@/lib/job-routes";
-import { getAuthUser } from "@/lib/auth";
-import { resolveUploadPolicy, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
+import { resolveUploadPolicy, readUploadForm, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
+import { saveMediaUpload } from "@/lib/media-upload";
+import { logger } from "@/lib/logger";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -14,6 +15,7 @@ export const maxDuration = 300;
 
 const MODE_FILTERS: Record<string, string[]> = {
   "left-only": ["-af", "pan=stereo|c0=c0|c1=c0"],
+  // EBU R128 loudness normalisation — shown as "Normalise loudness" in the UI.
   "balance-center": ["-af", "loudnorm=I=-23:TP=-2:LRA=7"],
   "right-only": ["-af", "pan=stereo|c0=c1|c1=c1"],
 };
@@ -42,35 +44,23 @@ function sweep() {
 }
 
 export async function POST(req: NextRequest) {
-  const limit = await rateLimit(`audio-balancer:ip:${getClientIp(req)}`, 5, 3600);
-  if (!limit.allowed) {
-    return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
-  }
-  const daily = await checkFreeToolDailyCap("audio-balancer", `ip:${getClientIp(req)}`);
-  if (!daily.allowed) {
-    return NextResponse.json(freeToolCapResponseBody("audio-balancer", daily.cap), { status: 429 });
-  }
+  // Kill switch, then per-user (or anonymous per-IP) caps.
+  const gate = await freeToolGate(req, "audio-balancer");
+  if (gate instanceof NextResponse) return gate;
 
   sweep();
 
-  let formData: FormData;
-  try {
-    formData = await req.formData();
-  } catch {
-    return NextResponse.json({ error: "Invalid multipart body" }, { status: 400 });
-  }
+  // Callable anonymously (only the /dashboard/tools/free/* pages are
+  // login-gated). A session gets the caller's real plan cap, anyone else
+  // ANONYMOUS_MAX_BYTES. Resolved BEFORE the body is read, so an oversized
+  // upload is refused unparsed instead of after it is already held in memory.
+  const policy = await resolveUploadPolicy(gate.auth?.userId ?? null, "audio-balancer");
+  const formData = await readUploadForm(req, policy);
+  if (formData instanceof NextResponse) return formData;
 
   const file = formData.get("file") as File | null;
   if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 });
 
-  // This route is intentionally callable anonymously (IP-rate-limited free
-  // tool, no login wall on the API itself — only /dashboard/tools/free/* is
-  // login-gated at the page level). When a session IS present, resolve the
-  // real subscription tier so a logged-in paid user gets their actual plan
-  // cap instead of the flat feature ceiling; an anonymous caller only gets
-  // the feature's technical ceiling, since there's no plan to resolve.
-  const auth = await getAuthUser(req);
-  const policy = await resolveUploadPolicy(auth?.userId ?? null, "audio-balancer");
   try {
     assertWithinUploadPolicy(policy, file.size);
   } catch (e) {
@@ -84,12 +74,11 @@ export async function POST(req: NextRequest) {
   const filterArgs = MODE_FILTERS[mode] ?? MODE_FILTERS["balance-center"];
 
   const jobId = randomUUID();
-  const inputExt = (file.name.split(".").pop() ?? "mp4").toLowerCase();
-  const inputPath = path.join(os.tmpdir(), `${jobId}-input.${inputExt}`);
+  const saved = await saveMediaUpload(file, jobId, "mp4");
+  if (saved instanceof NextResponse) return saved;
+  const { inputPath } = saved;
   const outputPath = path.join(os.tmpdir(), `${jobId}-output.mp3`);
   const downloadName = `${file.name.replace(/\.[^.]+$/, "")}-balanced.mp3`;
-
-  fs.writeFileSync(inputPath, Buffer.from(await file.arrayBuffer()));
 
   const job: Job = {
     progress: 0, status: "processing", inputPath, outputPath, downloadName, createdAt: Date.now(),
@@ -101,7 +90,11 @@ export async function POST(req: NextRequest) {
     (pct) => { job.progress = pct; },
   )
     .then(() => { job.progress = 100; job.status = "done"; })
-    .catch((err) => { job.status = "error"; job.error = err instanceof Error ? err.message : "Balancing failed"; })
+    .catch((err) => {
+      logger.error("audio-balancer", "job failed", err);
+      job.status = "error";
+      job.error = "We couldn't process this file. Make sure it has an audio track and try again.";
+    })
     .finally(() => { try { fs.unlinkSync(inputPath); } catch {} });
 
   return NextResponse.json({ jobId }, { status: 202 });
