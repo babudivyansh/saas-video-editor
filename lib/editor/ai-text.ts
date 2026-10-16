@@ -74,7 +74,7 @@ export function autoLineBreaks(text: string, width = DEFAULT_WRAP_WIDTH): string
 // pattern matching, not a judgment call worth paying for. Whole-word only
 // (word boundaries), case-insensitive, multi-word phrases first so "you know"
 // doesn't leave a stray "know".
-const FILLER_PHRASES = [
+export const FILLER_PHRASES = [
   "you know", "i mean", "sort of", "kind of", "i guess", "at the end of the day",
   "um", "uh", "uhh", "umm", "like", "basically", "actually", "literally", "honestly", "actually,",
 ];

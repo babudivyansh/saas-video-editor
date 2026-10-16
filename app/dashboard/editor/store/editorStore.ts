@@ -11,6 +11,7 @@ import { DEFAULT_DOC, MIN_CLIP_DURATION, normalizeDoc } from "@/lib/editor/types
 import { placeCaptionClip, placeVideoClip, splitCaptionClip, splitVideoClip, videoClipAt } from "@/lib/editor/doc-utils";
 import { emptyHistory, pushHistory, redo, undo, type HistoryState } from "./history";
 import { realignWords } from "@/lib/editor/caption-words";
+import { rippleCut, type TimeRange } from "@/lib/editor/ripple-cut";
 
 // "conflict" = the server rejected our last save because a newer version (from
 // another tab/device) already landed — see app/dashboard/editor/hooks/useAutosave.ts.
@@ -108,6 +109,8 @@ interface EditorState {
   applyCaptionStyle: (patch: Partial<CaptionClip>) => void;
   /** Rewrites every caption's text with `edit` as one undo step, keeping word timings in step. Returns how many changed. */
   applyCaptionTextEdit: (edit: (text: string) => string) => number;
+  /** Cuts time ranges out of every track and closes the gaps, as one undo step. */
+  rippleCutRanges: (ranges: TimeRange[]) => void;
   updateClip: (track: TrackKind, clipId: string, patch: Record<string, unknown>, undoable?: boolean) => void;
   commitDrag: (before: TimelineDoc) => void;
   moveVideoClipTransient: (clipId: string, newStart: number) => void;
@@ -337,6 +340,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       set({ history: pushHistory(s.history, s.doc), doc: { ...s.doc, tracks: { ...s.doc.tracks, caption } }, saveState: "dirty" });
     }
     return changed;
+  },
+
+  rippleCutRanges: (ranges) => {
+    const s = get();
+    if (ranges.length === 0) return;
+    set({
+      history: pushHistory(s.history, s.doc),
+      doc: rippleCut(s.doc, ranges, () => crypto.randomUUID()),
+      selection: null,
+      saveState: "dirty",
+    });
   },
 
   updateClip: (track, clipId, patch, undoable = true) =>
