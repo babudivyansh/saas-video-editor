@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthUser } from "@/lib/auth";
+import { getAuthUser, getUserTier } from "@/lib/auth";
 import { withRateLimit } from "@/lib/with-rate-limit";
-import { ALLOWED_UPLOAD_MIME } from "@/lib/plans/tiers";
+import { ALLOWED_UPLOAD_MIME, TIER_LABEL, formatBytes, maxUploadBytesForTier } from "@/lib/plans/tiers";
+import { readMultipartWithin, MULTIPART_OVERHEAD_BYTES } from "@/lib/upload-policy";
 import { extensionForMime, sanitizeS3Key, uploadBufferToS3 } from "@/utils/s3-upload";
 import { serializeOneAsset } from "@/lib/asset-serialize";
 import {
@@ -23,12 +24,17 @@ async function handlePOST(req: NextRequest) {
 
   const skipAsset = new URL(req.url).searchParams.get("skipAsset") === "true";
 
-  let formData: FormData;
-  try {
-    formData = await req.formData();
-  } catch {
-    return NextResponse.json({ error: "Invalid multipart body" }, { status: 400 });
-  }
+  // Refuse a body over the plan's file cap before it is buffered (the exact
+  // size/quota checks below still run on the real bytes). This route is kept
+  // out of proxy.ts's matcher for the same reason: the proxy made Next hold
+  // the whole body in memory first. lib/upload-policy.ts readMultipartWithin.
+  const tier = await getUserTier(auth.userId);
+  const planMax = maxUploadBytesForTier(tier);
+  const formData = await readMultipartWithin(req, planMax + MULTIPART_OVERHEAD_BYTES, () => ({
+    error: `Your ${tier === "free" ? "Free" : TIER_LABEL[tier]} plan supports files up to ${formatBytes(planMax)}. Upgrade to upload larger files.`,
+    limitBytes: planMax,
+  }));
+  if (formData instanceof NextResponse) return formData;
 
   const file = formData.get("file") as File | null;
   if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 });

@@ -23,6 +23,7 @@ export const assetSourceSchema = z.enum([
   "background-remover",
   "face-swap",
   "subtitle-remover",
+  "cut-and-crop",
 ]);
 export type AssetSource = z.infer<typeof assetSourceSchema>;
 export const AI_SOURCES: readonly AssetSource[] = ["image-generator", "voiceover", "enhance-speech", "vocal-remover", "voice-changer", "background-remover", "face-swap", "subtitle-remover"];
