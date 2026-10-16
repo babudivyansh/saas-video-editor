@@ -71,6 +71,9 @@ vi.mock("@/lib/prisma", () => {
   };
   const client = {
     user,
+    // refundCredits checks the generation owner first; no row = proceed (the
+    // ownership refusal itself is pinned in credits.idempotency.test.ts).
+    generation: { findUnique: vi.fn(async () => null), update: vi.fn(async () => ({})) },
     creditTransaction: {
       create: vi.fn(async ({ data }: { data: (typeof ledger)[number] }) => { ledger.push(data); return data; }),
       findMany: vi.fn(async ({ where }: { where: { refId: string } }) =>

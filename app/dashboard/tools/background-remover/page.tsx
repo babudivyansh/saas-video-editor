@@ -1,5 +1,7 @@
 import BackgroundRemoverTool from "@/app/components/BackgroundRemoverTool";
 
+export const metadata = { title: "Background Remover" };
+
 export default function BackgroundRemoverPage() {
   return (
     <div className="min-h-full bg-surface-2">

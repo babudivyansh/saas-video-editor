@@ -457,7 +457,7 @@ export default function VoiceChangerTool() {
                       <p className="text-xs text-fg-subtle mt-1">Drag and drop or click to browse</p>
                     </div>
                     <p className="text-[11px] text-fg-subtle text-center leading-relaxed">
-                      .mp3, .wav, .m4a, .ogg, .aac, .mp4, .mov, .avi, .webm &bull; Max {MAX_MB_LABEL}
+                      .mp3, .wav, .m4a, .ogg, .aac, .mp4, .mov, .avi, .webm &bull; Max {MAX_MB_LABEL} &middot; up to 90 seconds
                     </p>
                   </div>
                 )}
@@ -530,7 +530,7 @@ export default function VoiceChangerTool() {
 
               {job.status === "cancelled" && (
                 <p className="text-xs text-fg-muted bg-surface-2 border border-line rounded-lg px-3 py-2">
-                  Cancelled — your credit was refunded.
+                  Cancelled — your credits were refunded.
                 </p>
               )}
 

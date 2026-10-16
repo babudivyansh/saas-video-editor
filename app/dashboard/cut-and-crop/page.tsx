@@ -6,6 +6,9 @@ import { useJobPolling } from "@/app/components/useJobPolling";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 import { computeMask, type Aspect } from "@/lib/crop";
 
+// Must match MAX_CLIPS in app/api/tools/cut-and-crop/route.ts.
+const MAX_CLIPS = 5;
+
 // ── Types ────────────────────────────────────────────────────────────────────
 interface Clip {
   id: string;
@@ -151,7 +154,8 @@ function IconZoomIn() {
 // ── Main ─────────────────────────────────────────────────────────────────────
 export default function CutAndCropPage() {
   const { user, token, openAuthModal, refreshUser } = useAuth();
-  const job = useJobPolling({ toolSlug: "cut-and-crop", token });
+  // Up to 5 clips re-encoded one after another — longer than the 10-minute default.
+  const job = useJobPolling({ toolSlug: "cut-and-crop", token, maxDurationMs: 30 * 60 * 1000 });
   const fireReviewPrompt = useReviewPromptTrigger();
 
   const [clips, setClips] = useState<Clip[]>([]);
@@ -260,10 +264,21 @@ export default function CutAndCropPage() {
   // File ingestion
   function handleFiles(list: FileList | null) {
     if (!list || list.length === 0) return;
+    const videos = Array.from(list).filter((file) => file.type.startsWith("video/"));
+    // The export route takes MAX_CLIPS files at most; refuse the rest here
+    // rather than letting the user build a timeline that can't be exported.
+    const room = Math.max(0, MAX_CLIPS - clips.length);
+    if (videos.length > room) {
+      setPreflightError(`You can add up to ${MAX_CLIPS} clips per export.`);
+    }
+    const accepted = videos.slice(0, room);
+    if (accepted.length === 0) {
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
     pushHistory();
     const added: Clip[] = [];
-    for (const file of Array.from(list)) {
-      if (!file.type.startsWith("video/")) continue;
+    for (const file of accepted) {
       const id = crypto.randomUUID();
       const url = URL.createObjectURL(file);
       added.push({ id, file, url, name: file.name, duration: 0, trimStart: 0, trimEnd: 0 });
@@ -494,9 +509,9 @@ export default function CutAndCropPage() {
     <div className="flex flex-col min-w-0 h-full overflow-hidden bg-panel">
 
         {/* ── Header ─────────────────────────────────────────────────────── */}
-        <header className="flex items-center gap-3 px-6 h-12 flex-shrink-0 border-b border-line bg-panel">
+        <header className="flex items-center gap-3 px-4 sm:px-6 h-12 flex-shrink-0 border-b border-line bg-panel">
           {/* Title */}
-          <span className="text-[15px] font-semibold text-fg">Cut &amp; Crop</span>
+          <h1 className="text-[15px] font-semibold text-fg whitespace-nowrap">Cut &amp; Crop</h1>
 
           <div className="flex-1" />
 
@@ -505,7 +520,7 @@ export default function CutAndCropPage() {
             {/* Exporting indicator */}
             {job.status === "processing" && (
               <div className="flex items-center gap-2 text-sm text-fg-muted">
-                <div className="w-3.5 h-3.5 border-2 border-line border-t-blue-600 rounded-full animate-spin" />
+                <div className="w-3.5 h-3.5 border-2 border-line border-t-primary rounded-full animate-spin" />
                 <span className="font-medium text-xs">{job.progress}%</span>
                 <button
                   onClick={() => void job.cancel()}
@@ -519,7 +534,7 @@ export default function CutAndCropPage() {
             {/* Error toast */}
             {(preflightError || (job.status === "error" && job.error)) && (
               <span
-                className="text-xs text-error bg-error/10 border border-error/30 rounded-xl px-3 py-1.5 max-w-[280px] truncate"
+                className="text-xs text-error bg-error/10 border border-error/30 rounded-xl px-3 py-1.5 max-w-[160px] sm:max-w-[280px] truncate"
                 title={preflightError ?? job.error ?? undefined}
               >
                 {preflightError ?? job.error}
@@ -542,7 +557,7 @@ export default function CutAndCropPage() {
               <a
                 href={outputUrl}
                 download={outputFilename}
-                className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-1.5 hover:bg-emerald-100 transition-colors"
+                className="text-xs font-semibold text-success bg-success/10 border border-success/30 rounded-xl px-3 py-1.5 hover:bg-success/15 transition-colors whitespace-nowrap"
               >
                 Download again
               </a>
@@ -681,7 +696,7 @@ export default function CutAndCropPage() {
           <div className="flex-shrink-0 bg-panel border-t border-line">
 
             {/* Controls bar */}
-            <div className="flex items-center gap-1 px-4 py-2 border-b border-line">
+            <div className="flex items-center gap-1 px-4 py-2 border-b border-line overflow-x-auto [&>*]:flex-shrink-0">
               {/* Transport */}
               <div className="flex items-center gap-0.5">
                 <button
@@ -695,6 +710,7 @@ export default function CutAndCropPage() {
                 <button
                   onClick={togglePlay}
                   disabled={!activeClip}
+                  aria-label={isPlaying ? "Pause" : "Play"}
                   className="w-8 h-8 flex items-center justify-center rounded-xl text-fg hover:bg-surface-3 disabled:opacity-30 transition-colors"
                 >
                   {isPlaying ? <IconPause /> : <IconPlay />}
@@ -710,6 +726,7 @@ export default function CutAndCropPage() {
                 <button
                   onClick={toggleMute}
                   title={muted ? "Unmute" : "Mute"}
+                  aria-label={muted ? "Unmute" : "Mute"}
                   className="w-8 h-8 flex items-center justify-center rounded-xl text-fg-muted hover:bg-surface-3 transition-colors"
                 >
                   {muted ? <IconMute /> : <IconVolume />}
@@ -717,7 +734,7 @@ export default function CutAndCropPage() {
               </div>
 
               {/* Time */}
-              <span className="text-xs font-mono text-fg-subtle ml-1 select-none tabular-nums">
+              <span className="text-xs font-mono text-fg-subtle ml-1 select-none tabular-nums whitespace-nowrap">
                 {fmt(currentTime)} / {fmt(totalDuration)}
               </span>
 
@@ -759,6 +776,7 @@ export default function CutAndCropPage() {
                 <select
                   value={crop}
                   onChange={e => setCrop(e.target.value as CropAspect)}
+                  aria-label="Crop aspect ratio"
                   className="appearance-none bg-transparent text-xs font-medium text-fg-muted outline-none cursor-pointer"
                 >
                   <option value="original">Original</option>
@@ -791,21 +809,22 @@ export default function CutAndCropPage() {
               </button>
 
               {/* Right side */}
-              <div className="ml-auto flex items-center gap-3">
-                {/* Zoom */}
-                <div className="flex items-center gap-1.5 text-fg-subtle">
-                  <button onClick={() => setZoom(z => Math.max(20, z - 10))} className="hover:text-fg-muted transition-colors"><IconZoomOut /></button>
+              <div className="ml-auto flex items-center gap-3 pl-2">
+                {/* Zoom — timeline width; not needed on a phone-width screen */}
+                <div className="hidden sm:flex items-center gap-1.5 text-fg-subtle">
+                  <button onClick={() => setZoom(z => Math.max(20, z - 10))} aria-label="Zoom out timeline" className="hover:text-fg-muted transition-colors"><IconZoomOut /></button>
                   <input
                     type="range" min={20} max={100} value={zoom}
                     onChange={e => setZoom(parseInt(e.target.value, 10))}
-                    className="w-20 accent-blue-600 h-1"
+                    aria-label="Timeline zoom"
+                    className="w-20 accent-[var(--primary)] h-1"
                   />
-                  <button onClick={() => setZoom(z => Math.min(100, z + 10))} className="hover:text-fg-muted transition-colors"><IconZoomIn /></button>
+                  <button onClick={() => setZoom(z => Math.min(100, z + 10))} aria-label="Zoom in timeline" className="hover:text-fg-muted transition-colors"><IconZoomIn /></button>
                 </div>
                 {/* Add */}
                 <button
                   onClick={onAddVideo}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-line text-fg-muted text-xs font-semibold hover:bg-surface-2 transition-colors"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-line text-fg-muted text-xs font-semibold hover:bg-surface-2 transition-colors whitespace-nowrap"
                 >
                   <IconPlus /> Add clip
                 </button>

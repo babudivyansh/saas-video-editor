@@ -153,3 +153,22 @@ export async function resolveVoiceRef(ref: string): Promise<ResolvedVoice> {
 
   throw new Error(`Unknown voice "${trimmed.slice(0, 40)}"`);
 }
+
+/**
+ * A voice a tool request may use on this user's behalf: any catalogue voice,
+ * or the raw provider id of a voice THIS user cloned (the mobile app sends
+ * those). Null for anything else — resolveVoiceRef alone lets any 20-character
+ * id through, which let a request use any voice on our ElevenLabs account
+ * (including other people's clones) and put arbitrary text into the provider
+ * URL (2026-10-14 tools audit).
+ */
+export async function resolveToolVoice(userId: string, ref: string): Promise<ResolvedVoice | null> {
+  const voice = await resolveVoiceRef(ref).catch(() => null);
+  if (!voice) return null;
+  if (voice.source === "catalog") return voice;
+  const own = await prisma.clonedVoice.findFirst({
+    where: { userId, elevenLabsVoiceId: voice.providerVoiceId },
+    select: { id: true },
+  });
+  return own ? voice : null;
+}
