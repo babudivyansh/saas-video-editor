@@ -8,6 +8,7 @@
 import { useEffect, useRef } from "react";
 import { useEditorStore } from "../store/editorStore";
 import { audioClipAt, docDuration, videoClipAt } from "@/lib/editor/doc-utils";
+import { clipDuckSegments, musicGainAt, speechRangesFromCaptions } from "@/lib/editor/music-envelope";
 import {
   EFFECT_PRESETS,
   FILTER_PRESETS,
@@ -114,6 +115,8 @@ export function usePlayback(registry: React.RefObject<MediaRegistry>) {
 
       // Audio track (music): same treatment.
       const activeAudio = audioClipAt(s.doc, t);
+      // Fades and the dip under speech, same envelope the export renders.
+      const duckSegs = activeAudio?.duck ? clipDuckSegments(activeAudio, speechRangesFromCaptions(s.doc)) : [];
       for (const [assetId, el] of reg.audios) {
         const isActive = activeAudio?.assetId === assetId;
         if (isActive && activeAudio) {
@@ -121,7 +124,7 @@ export function usePlayback(registry: React.RefObject<MediaRegistry>) {
           if (Math.abs(el.currentTime - target) > DRIFT_TOLERANCE) {
             el.currentTime = target;
           }
-          el.volume = activeAudio.volume;
+          el.volume = musicGainAt(activeAudio, t, duckSegs);
           if (s.playing && el.paused) el.play().catch(() => {});
           if (!s.playing && !el.paused) el.pause();
         } else if (!el.paused) {

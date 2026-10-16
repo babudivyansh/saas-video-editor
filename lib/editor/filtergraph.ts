@@ -23,6 +23,7 @@ import {
   TRANSITION_PRESETS,
 } from "./types";
 import { docDuration, videoSegments } from "./doc-utils";
+import { clipDuckSegments, musicVolumeFilter, speechRangesFromCaptions } from "./music-envelope";
 
 export interface ClipInput {
   /** local downloaded file path */
@@ -410,6 +411,7 @@ export function buildFilterGraph(input: FiltergraphInput): FiltergraphResult {
   let audioOut = baseAudio;
   if (doc.tracks.audio.length > 0) {
     const musicLabels: string[] = [];
+    const speech = speechRangesFromCaptions(doc);
     doc.tracks.audio.forEach((m, i) => {
       const n = inputIndex.get(m.assetId)!;
       const from = num(m.srcIn);
@@ -417,7 +419,7 @@ export function buildFilterGraph(input: FiltergraphInput): FiltergraphResult {
       const delayMs = Math.round(m.timelineStart * 1000);
       filters.push(
         `[${n}:a]atrim=start=${from}:end=${to},asetpts=PTS-STARTPTS,` +
-          `aformat=sample_rates=44100:channel_layouts=stereo,volume=${num(m.volume)},` +
+          `aformat=sample_rates=44100:channel_layouts=stereo,${musicVolumeFilter(m, clipDuckSegments(m, speech), num)},` +
           `adelay=${delayMs}|${delayMs}[m${i}]`,
       );
       musicLabels.push(`[m${i}]`);
