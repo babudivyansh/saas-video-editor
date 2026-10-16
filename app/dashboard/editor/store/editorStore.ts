@@ -59,6 +59,8 @@ interface EditorState {
   paletteOpen: boolean;
   /** Keyboard shortcuts sheet (title menu → Keyboard shortcuts, or ?). */
   shortcutsOpen: boolean;
+  /** Remove silences dialog. */
+  silenceOpen: boolean;
   saveState: SaveState;
   focusTextClipId: string | null; // set by "Add Text"/double-click-on-canvas to focus the Lexical editor in the properties panel
 
@@ -87,6 +89,7 @@ interface EditorState {
   setExportOpen: (open: boolean) => void;
   setPaletteOpen: (open: boolean) => void;
   setShortcutsOpen: (open: boolean) => void;
+  setSilenceOpen: (open: boolean) => void;
   requestTextFocus: (clipId: string) => void;
   clearTextFocus: () => void;
 
@@ -141,6 +144,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   exportOpen: false,
   paletteOpen: false,
   shortcutsOpen: false,
+  silenceOpen: false,
   saveState: "saved",
   focusTextClipId: null,
 
@@ -186,6 +190,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setExportOpen: (open) => set({ exportOpen: open, paletteOpen: false }),
   setPaletteOpen: (open) => set({ paletteOpen: open }),
   setShortcutsOpen: (open) => set({ shortcutsOpen: open, paletteOpen: false }),
+  setSilenceOpen: (open) => set({ silenceOpen: open, paletteOpen: false }),
   requestTextFocus: (clipId) => set({ focusTextClipId: clipId }),
   clearTextFocus: () => set({ focusTextClipId: null }),
 

@@ -5,7 +5,7 @@
 // that live in other panels.
 
 import React, { useState } from "react";
-import { Captions, Command, Sparkles } from "lucide-react";
+import { Captions, Command, Scissors, Sparkles } from "lucide-react";
 import { useEditorStore } from "../../store/editorStore";
 import { AI_TEXT_ACTIONS, applyFreeOperation, useAiText } from "../../hooks/useAiText";
 import type { AiTextOperation } from "@/lib/editor/ai-text";
@@ -19,6 +19,7 @@ export default function AiToolsPanel() {
   const updateClip = useEditorStore((s) => s.updateClip);
   const setActivePanel = useEditorStore((s) => s.setActivePanel);
   const setPaletteOpen = useEditorStore((s) => s.setPaletteOpen);
+  const setSilenceOpen = useEditorStore((s) => s.setSilenceOpen);
   const applyToCaptions = useEditorStore((s) => s.applyCaptionTextEdit);
   const { run, working, error } = useAiText();
   const [lang, setLang] = useState(LANGS[0]);
@@ -103,6 +104,9 @@ export default function AiToolsPanel() {
 
       <section className="flex flex-col gap-2">
         <p className="px-0.5 text-[11px] font-semibold uppercase tracking-wide text-editor-text-muted">More</p>
+        <button type="button" onClick={() => setSilenceOpen(true)} className="flex items-center gap-2.5 rounded-editor-md border border-editor-border bg-editor-card px-3 py-2.5 text-left text-[12.5px] text-editor-text hover:border-editor-border-strong">
+          <Scissors className="h-4 w-4 text-editor-accent" /> Remove silences <span className="ml-auto text-[11px] text-editor-text-faint">free</span>
+        </button>
         <button type="button" onClick={() => setActivePanel("caption")} className="flex items-center gap-2.5 rounded-editor-md border border-editor-border bg-editor-card px-3 py-2.5 text-left text-[12.5px] text-editor-text hover:border-editor-border-strong">
           <Captions className="h-4 w-4 text-editor-accent" /> Generate captions from speech
         </button>

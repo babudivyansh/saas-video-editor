@@ -49,6 +49,7 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
       { id: "paste", group: "Edit", label: "Paste at playhead", keys: "Ctrl V", run: s.pasteAtPlayhead },
       { id: "undo", group: "Edit", label: "Undo", keys: "Ctrl Z", run: s.undoAction },
       { id: "redo", group: "Edit", label: "Redo", keys: "Ctrl Y", run: s.redoAction },
+      { id: "silences", group: "Edit", label: "Remove silences (cut long pauses)", words: "pause quiet gap dead air trim tighten", disabled: s.doc.tracks.video.length === 0, run: () => s.setSilenceOpen(true) },
       { id: "fillers-cut", group: "Edit", label: `Cut filler words from the video${fillerCount ? ` (${fillerCount})` : ""}`, words: "um uh like you know remove clean", disabled: fillerCount === 0, run: () => s.rippleCutRanges(findFillerWords(s.doc).map((f) => ({ start: f.start, end: f.end }))) },
       { id: "fillers-captions", group: "Edit", label: "Remove filler words from captions only", words: "um uh like clean", disabled: s.doc.tracks.caption.length === 0, run: () => s.applyCaptionTextEdit(removeFillerWords) },
       { id: "snap", group: "Edit", label: s.snapEnabled ? "Turn snapping off" : "Turn snapping on", words: "magnet", run: s.toggleSnap },
