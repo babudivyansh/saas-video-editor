@@ -17,7 +17,7 @@ import { uploadBufferToS3, uploadFileToS3 } from "@/utils/s3-upload";
 // failure here is logged and never turns into a failed, refunded job. Over the
 // storage quota, the result is still recorded, just not added to the library.
 
-export type ToolResultSlug = "image-generator" | "voiceover" | "enhance-speech" | "vocal-remover" | "voice-changer" | "background-remover" | "face-swap" | "subtitle-remover";
+export type ToolResultSlug = "image-generator" | "voiceover" | "enhance-speech" | "vocal-remover" | "voice-changer" | "background-remover" | "face-swap" | "subtitle-remover" | "cut-and-crop";
 
 export interface ToolResultInput {
   userId: string;

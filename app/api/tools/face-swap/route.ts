@@ -1,3 +1,4 @@
+import { userMessage } from "@/lib/user-facing-error";
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { markQuestComplete } from "@/lib/quests";
@@ -18,6 +19,7 @@ import { createJobStatusHandler, createJobCancelHandler, idempotencyResponse, ty
 export const maxDuration = 120;
 
 const CREDIT_COST = 2;
+const IMAGE_EXT: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/jpg": "jpg", "image/webp": "webp", "image/gif": "gif" };
 const FAL_MODEL = "fal-ai/face-swap";
 
 interface Job extends CancellableJob {
@@ -70,13 +72,12 @@ async function submitToFal(swapImageUrl: string, baseImageUrl: string): Promise<
 }
 
 async function pollFal(requestId: string): Promise<string> {
-  // Must stay safely under this route's maxDuration (120s) — the surrounding
-  // upload/submit/download steps also eat into that budget, so this can't be
-  // anywhere close to 120s itself. A 5-minute internal deadline here used to
-  // let the platform kill the whole request first, silently orphaning the
-  // job (stuck "processing" forever, credit never refunded) instead of this
-  // function's own catch block getting the chance to run.
-  const deadline = Date.now() + 90 * 1000;
+  // This polls inside the job's detached background promise, AFTER the POST
+  // has already returned its jobId — the route's maxDuration does not apply
+  // to it. A 90s deadline here only meant that any fal queue backlog failed
+  // and refunded the job while fal still finished (and billed) the request.
+  // The server-restart case is covered by reconcileOrphanedToolJobs (15 min).
+  const deadline = Date.now() + 5 * 60 * 1000;
   while (Date.now() < deadline) {
     await new Promise(r => setTimeout(r, 3000));
     const statusRes = await fetch(
@@ -126,6 +127,16 @@ async function handlePOST(req: NextRequest) {
   const formData = await readUploadForm(req, policy, 2);
   if (formData instanceof NextResponse) return formData;
 
+  // Face swapping other people without their permission is the misuse this
+  // tool invites, so the person confirms consent on every run (web checkbox,
+  // mobile toggle) and the confirmation is recorded on the Generation row.
+  if ((formData.get("consent") as string | null) !== "1") {
+    return NextResponse.json(
+      { error: "Please confirm you have permission to use the faces in both photos." },
+      { status: 400 },
+    );
+  }
+
   const characterFile = formData.get("characterImage") as File | null;
   const targetFile    = formData.get("targetImage")    as File | null;
   if (!characterFile || !targetFile) {
@@ -153,7 +164,7 @@ async function handlePOST(req: NextRequest) {
     amount: CREDIT_COST,
     toolSlug: "face-swap",
     idempotencyKey,
-    log: { generationType: "image" },
+    log: { generationType: "image", prompt: "consent: user confirmed permission for both faces" },
   });
   const replayed = idempotencyResponse(charge, jobs);
   if (replayed) return replayed;
@@ -165,8 +176,9 @@ async function handlePOST(req: NextRequest) {
   }
 
   const jobId = randomUUID();
-  const charExt = (characterFile.name.split(".").pop() ?? "jpg").toLowerCase();
-  const targExt = (targetFile.name.split(".").pop() ?? "jpg").toLowerCase();
+  // From the allow-listed MIME types, never the user's filenames.
+  const charExt = IMAGE_EXT[characterFile.type] ?? "jpg";
+  const targExt = IMAGE_EXT[targetFile.type] ?? "jpg";
   const charPath = path.join(os.tmpdir(), `${jobId}-char.${charExt}`);
   const targPath = path.join(os.tmpdir(), `${jobId}-targ.${targExt}`);
   const outputPath = path.join(os.tmpdir(), `${jobId}-output.jpg`);
@@ -234,7 +246,7 @@ async function handlePOST(req: NextRequest) {
       const cause = err instanceof Error ? (err as NodeJS.ErrnoException).cause : undefined;
       logger.error("face-swap", `job failed: ${msg}`, cause ?? undefined);
       job.status = "error";
-      job.error = msg;
+      job.error = userMessage(err, "We couldn't swap the faces in these photos. Your credits were refunded — try clearer, front-facing photos.");
       if (!job.refunded) {
         job.refunded = true;
         try {
@@ -258,7 +270,7 @@ export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy:
 
 export const GET = withRateLimit(
   createJobStatusHandler(jobs, { contentType: "image/jpeg", deleteOnDownload: false }),
-  { limit: 30, windowSec: 60, keyBy: "user", name: "tools:face-swap:status" },
+  { limit: 60, windowSec: 60, keyBy: "user", name: "tools:face-swap:status" },
 );
 
 export const DELETE = withRateLimit(

@@ -5,7 +5,7 @@
 // free — but free and uncapped is an open tap on a paid API, so each gets a
 // per-user daily allowance instead of a price.
 
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimit, releaseRateLimit } from "@/lib/rate-limit";
 import type { TierId } from "@/lib/plans/tiers";
 
 export const FREE_TEXT_TOOLS = ["brainstormer", "editor-ai-text", "social-caption", "social-post-narration"] as const;
@@ -35,4 +35,13 @@ export async function takeFairUse(userId: string, tool: FreeTextTool, tier: Tier
       ? `You've used today's ${limit} free uses of this tool. Upgrade for ${FAIR_USE_PER_DAY.paid} a day, or try again tomorrow.`
       : `You've used today's ${limit} uses of this tool. It resets in 24 hours.`,
   };
+}
+
+/**
+ * Give back a use taken by takeFairUse for a call that failed on our side —
+ * a provider timeout or an unparseable answer must not cost the user one of
+ * their (five, on the free plan) daily uses.
+ */
+export async function releaseFairUse(userId: string, tool: FreeTextTool): Promise<void> {
+  await releaseRateLimit(`fair-use:${tool}:${userId}`).catch(() => { /* best-effort */ });
 }

@@ -260,9 +260,29 @@ export async function readUploadForm(
   policy: UploadPolicy,
   maxFiles = 1,
 ): Promise<FormData | NextResponse> {
-  // Every caller is excluded from proxy.ts's matcher (Next would otherwise
-  // buffer the whole body for the proxy before any of this runs — see the
-  // matcher there), so the proxy's maintenance gate runs here instead.
+  return readMultipartWithin(req, policy.effectiveMaxBytes * maxFiles + MULTIPART_OVERHEAD_BYTES, () => ({
+    error: bodyTooLargeMessage(policy),
+    limitBytes: policy.effectiveMaxBytes,
+    limitingFactor: policy.limitingFactor,
+    plan: policy.planLabel,
+    planMaxBytes: policy.planMaxBytes,
+    featureMaxBytes: policy.featureMaxBytes,
+  }));
+}
+
+/**
+ * The size-bounded multipart reader behind readUploadForm, for upload routes
+ * whose limit is not an UploadPolicy (the Asset Library's /api/upload).
+ *
+ * Every caller is excluded from proxy.ts's matcher (Next would otherwise
+ * buffer the whole body for the proxy before any of this runs — see the
+ * matcher there), so the proxy's maintenance gate runs here instead.
+ */
+export async function readMultipartWithin(
+  req: NextRequest,
+  limit: number,
+  tooLargeBody: () => Record<string, unknown>,
+): Promise<FormData | NextResponse> {
   const { getMaintenanceModeCached } = await import("@/lib/flags");
   const maint = await getMaintenanceModeCached().catch(() => ({ on: false, message: undefined }));
   if (maint.on && !(await requireAdmin(req).catch(() => null))) {
@@ -272,19 +292,7 @@ export async function readUploadForm(
     );
   }
 
-  const limit = policy.effectiveMaxBytes * maxFiles + MULTIPART_OVERHEAD_BYTES;
-  const tooLarge = () =>
-    NextResponse.json(
-      {
-        error: bodyTooLargeMessage(policy),
-        limitBytes: policy.effectiveMaxBytes,
-        limitingFactor: policy.limitingFactor,
-        plan: policy.planLabel,
-        planMaxBytes: policy.planMaxBytes,
-        featureMaxBytes: policy.featureMaxBytes,
-      },
-      { status: 413 },
-    );
+  const tooLarge = () => NextResponse.json(tooLargeBody(), { status: 413 });
 
   const declared = req.headers.get("content-length");
   try {

@@ -1,7 +1,9 @@
+import { saveMediaUpload } from "@/lib/media-upload";
+import { userMessage, rawErrorText } from "@/lib/user-facing-error";
 import { NextRequest, NextResponse } from "next/server";
 import { fal } from "@fal-ai/client";
 import { getAuthUser } from "@/lib/auth";
-import { runFFmpegArgs, runFFmpegWithProgress, getMediaDurationSec } from "@/utils/ffmpeg-render";
+import { runFFmpegArgs, runFFmpegWithProgress, getMediaDimensions } from "@/utils/ffmpeg-render";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { withRetry } from "@/lib/with-retry";
 import { logger } from "@/lib/logger";
@@ -28,6 +30,11 @@ const SAMPLE_FRAME_CAP = 90;
 const CLUSTER_TIME_GAP_MULTIPLIER = 2.5;
 const CLUSTER_IOU_THRESHOLD = 0.3;
 const MAX_CLUSTERS = 8;
+// Longest video accepted (the price is capped at 20 credits, see pricing).
+const MAX_DURATION_SEC = 10 * 60;
+// With area "bottom", only text whose centre is below this fraction of the
+// frame height counts as a caption.
+const BOTTOM_AREA_FROM = 0.55;
 // How many frames to OCR concurrently — bounded to avoid hammering fal.ai
 // with dozens of simultaneous requests for a single job.
 const OCR_CONCURRENCY = 4;
@@ -43,7 +50,7 @@ interface Job extends CancellableJob {
   userId: string;
   inputPath: string;
   createdAt: number;
-  meta?: { regionsDetected: number };
+  meta?: { regionsDetected: number; refunded: boolean };
 }
 
 const g = globalThis as unknown as { __subtitleRemoverJobs?: Map<string, Job> };
@@ -188,17 +195,18 @@ async function handlePOST(req: NextRequest) {
   }
 
   const jobId = randomUUID();
-  const inputExt = (videoFile.name.split(".").pop() ?? "mp4").toLowerCase();
-  const inputPath = path.join(os.tmpdir(), `${jobId}-input.${inputExt}`);
   const outputPath = path.join(os.tmpdir(), `${jobId}-output.mp4`);
   const downloadName = `subtitle-removed-${Date.now()}.mp4`;
 
-  fs.writeFileSync(inputPath, Buffer.from(await videoFile.arrayBuffer()));
+  // Safe temp extension + container allow-list (lib/media-upload.ts).
+  const saved = await saveMediaUpload(videoFile, jobId, "mp4");
+  if (saved instanceof NextResponse) return saved;
+  const { inputPath } = saved;
 
   // Probe duration BEFORE charging — an undetectable duration means ffmpeg
   // couldn't read this file at all (corrupt/unsupported), not a valid
   // zero-length clip, so reject rather than silently proceeding.
-  const durationSec = await getMediaDurationSec(inputPath);
+  const durationSec = saved.durationSec;
   if (durationSec <= 0) {
     try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
     return NextResponse.json(
@@ -206,6 +214,19 @@ async function handlePOST(req: NextRequest) {
       { status: 400 },
     );
   }
+  // The price tops out at 20 credits, so without a length cap a multi-hour
+  // video was a full re-encode on the shared server for the same price.
+  if (durationSec > MAX_DURATION_SEC) {
+    try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
+    return NextResponse.json(
+      { error: `This video is ${Math.round(durationSec / 60)} minutes long. Subtitle Remover handles up to ${MAX_DURATION_SEC / 60} minutes.` },
+      { status: 400 },
+    );
+  }
+
+  // Where the captions are: "bottom" (default) or "auto" (any text anywhere).
+  const area = (formData.get("area") as string | null) === "auto" ? "auto" : "bottom";
+  const frameHeight = area === "bottom" ? (await getMediaDimensions(inputPath)).h : 0;
 
   const idempotencyKey = (formData.get("idempotencyKey") as string | null) ?? undefined;
   const CREDIT_COST = creditCostForDuration(durationSec);
@@ -264,7 +285,8 @@ async function handlePOST(req: NextRequest) {
 
       // 2. OCR each sampled frame (small bounded concurrency), collecting
       // detected text regions with their timestamp.
-      const detections: DetectedRegion[] = [];
+      let detections: DetectedRegion[] = [];
+      let ocrFailures = 0;
       for (let i = 0; i < frameFiles.length; i += OCR_CONCURRENCY) {
         if ((job.status as string) === "cancelled") return;
         const batch = frameFiles.slice(i, i + OCR_CONCURRENCY);
@@ -273,7 +295,7 @@ async function handlePOST(req: NextRequest) {
         );
         for (const r of results) {
           if (r.status === "fulfilled") detections.push(...r.value);
-          else logger.error("subtitle-remover", "OCR call failed for a sampled frame", r.reason);
+          else { ocrFailures++; logger.error("subtitle-remover", "OCR call failed for a sampled frame", r.reason); }
         }
         job.progress = 10 + Math.round(((i + batch.length) / frameFiles.length) * 30);
         if (job.generationId) void updateGenerationProgress(job.generationId, job.progress);
@@ -281,13 +303,32 @@ async function handlePOST(req: NextRequest) {
 
       if ((job.status as string) === "cancelled") return;
 
+      // Every OCR call failing is an outage, not "no text in this video" — it
+      // used to fall through to the no-text path and charge in full.
+      if (frameFiles.length > 0 && ocrFailures === frameFiles.length) {
+        throw new Error(`all ${ocrFailures} OCR calls failed`);
+      }
+
+      // "Bottom third" (the default) ignores text higher in the frame, so
+      // titles, logos and signs aren't blurred along with the captions.
+      if (area === "bottom" && frameHeight > 0) {
+        detections = detections.filter((d) => d.y + d.h / 2 >= frameHeight * BOTTOM_AREA_FROM);
+      }
+
       // 3. Cluster detections into stable regions, and build a filter that
       // only touches the actual detected region(s) for the time range they
       // were seen in — never the whole frame, and never when nothing was
       // detected at all.
       const clusters = clusterRegions(detections, frameIntervalSec);
       const filter = buildDelogoFilter(clusters);
-      job.meta = { regionsDetected: clusters.length };
+      job.meta = { regionsDetected: clusters.length, refunded: clusters.length === 0 };
+
+      // Nothing to remove: the user gets their video back unchanged, so they
+      // are not charged for it.
+      if (clusters.length === 0 && !job.refunded) {
+        job.refunded = true;
+        await refundCredits({ userId: job.userId, amount: job.creditCost, generationId: job.generationId });
+      }
 
       job.progress = 45;
       const ffmpegArgs = filter
@@ -316,12 +357,13 @@ async function handlePOST(req: NextRequest) {
     } catch (err) {
       if ((job.status as string) === "cancelled") return;
       job.status = "error";
-      job.error = err instanceof Error ? err.message : "Subtitle removal failed";
+      logger.error("subtitle-remover", "job failed", err);
+      job.error = userMessage(err, "We couldn't remove the subtitles from this video. Your credits were refunded — please try again.");
       if (!job.refunded) {
         job.refunded = true;
         try {
           await refundCredits({ userId: job.userId, amount: job.creditCost, generationId: job.generationId });
-          if (job.generationId) await markGenerationStatus(job.generationId, "failed", job.error);
+          if (job.generationId) await markGenerationStatus(job.generationId, "failed", rawErrorText(err));
         } catch { /* swallow */ }
       }
     } finally {
@@ -338,7 +380,7 @@ export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy:
 
 export const GET = withRateLimit(
   createJobStatusHandler(jobs, { contentType: "video/mp4", deleteOnDownload: true }),
-  { limit: 30, windowSec: 60, keyBy: "user", name: "tools:subtitle-remover:status" },
+  { limit: 60, windowSec: 60, keyBy: "user", name: "tools:subtitle-remover:status" },
 );
 
 export const DELETE = withRateLimit(

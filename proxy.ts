@@ -217,9 +217,13 @@ export async function proxy(request: NextRequest) {
 // lib/upload-policy.ts: maintenance gate, then a size check before buffering);
 // each route does its own real auth. A new upload route must call
 // readUploadForm AND be listed here — lib/upload-policy.proxy.test.ts checks.
+// /api/upload (the Asset Library) is excluded the same way, through
+// readMultipartWithin; `(?![a-z0-9/_-])` keeps the match to that exact path,
+// so /api/upload-policy and the small JSON /api/upload/multipart/* routes
+// still run through the proxy.
 // The matcher has to be a literal: Next reads it statically.
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|api/tools/audio-balancer|api/tools/mp3-converter|api/tools/video-compressor|api/tools/background-remover|api/tools/face-swap|api/tools/subtitle-remover|api/tools/voice-changer|api/tools/vocal-remover|api/tools/enhance-speech|api/tools/cut-and-crop).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/upload(?![a-z0-9/_-])|api/tools/audio-balancer|api/tools/mp3-converter|api/tools/video-compressor|api/tools/background-remover|api/tools/face-swap|api/tools/subtitle-remover|api/tools/voice-changer|api/tools/vocal-remover|api/tools/enhance-speech|api/tools/cut-and-crop).*)",
   ],
 };

@@ -12,11 +12,11 @@ interface QualityOption {
 }
 
 const QUALITY_OPTIONS: QualityOption[] = [
-  { id: "minimum", label: "Minimum", sub: "Smallest file size" },
-  { id: "low", label: "Low", sub: "Good balance" },
-  { id: "medium", label: "Medium", sub: "Better quality" },
-  { id: "high", label: "High", sub: "High quality" },
-  { id: "maximum", label: "Maximum", sub: "Best quality" },
+  { id: "minimum", label: "64 kbps", sub: "Smallest file" },
+  { id: "low", label: "128 kbps", sub: "Speech" },
+  { id: "medium", label: "192 kbps", sub: "Recommended" },
+  { id: "high", label: "256 kbps", sub: "Music" },
+  { id: "maximum", label: "320 kbps", sub: "Best quality" },
 ];
 
 function fmtMB(bytes: number): string {
@@ -228,7 +228,7 @@ export default function Mp3ConverterTool() {
               <IcMp3 />
             </div>
             <div className="min-w-0">
-              <h2 className="font-bold text-fg text-[17px] leading-tight">Convert to MP3</h2>
+              <h1 className="font-bold text-fg text-[17px] leading-tight">MP3 Converter</h1>
               <p className="text-sm text-fg-muted mt-1">Upload an audio or video file to convert to MP3.</p>
             </div>
           </div>

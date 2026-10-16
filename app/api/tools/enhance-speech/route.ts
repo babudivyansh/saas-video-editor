@@ -1,6 +1,9 @@
+import { saveMediaUpload } from "@/lib/media-upload";
+import { userMessage, rawErrorText } from "@/lib/user-facing-error";
+import { logger } from "@/lib/logger";
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
-import { getMediaDurationSec, trimAudioForProvider } from "@/utils/ffmpeg-render";
+import { trimAudioForProvider } from "@/utils/ffmpeg-render";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { fetchElevenLabs } from "@/utils/elevenlabs";
 import { env } from "@/lib/env";
@@ -69,19 +72,20 @@ async function handlePOST(req: NextRequest) {
   }
 
   const jobId = randomUUID();
-  const ext = (file.name.split(".").pop() ?? "mp3").toLowerCase();
-  const inputPath = path.join(os.tmpdir(), `${jobId}-input.${ext}`);
   const outputPath = path.join(os.tmpdir(), `${jobId}-output.mp3`);
   const providerPath = path.join(os.tmpdir(), `${jobId}-provider.mp3`);
   const downloadName = `enhanced-${file.name.replace(/\.[^.]+$/, "")}.mp3`;
 
   // Write to disk first so we can probe duration BEFORE charging.
-  fs.writeFileSync(inputPath, Buffer.from(await file.arrayBuffer()));
+  // Safe temp extension + container allow-list (lib/media-upload.ts).
+  const saved = await saveMediaUpload(file, jobId, "mp3");
+  if (saved instanceof NextResponse) return saved;
+  const { inputPath } = saved;
 
   // 0 means ffmpeg could not probe the file. It used to fall through to the
   // 1-credit minimum while the whole file still went to ElevenLabs (~$0.20/min)
   // — the same hole voice-changer already closed.
-  const durationSec = await getMediaDurationSec(inputPath);
+  const durationSec = saved.durationSec;
   if (durationSec <= 0 || durationSec > MAX_DURATION_SEC) {
     try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
     const message = durationSec <= 0
@@ -175,12 +179,13 @@ async function handlePOST(req: NextRequest) {
     } catch (err) {
       if ((job.status as string) === "cancelled") return;
       job.status = "error";
-      job.error = err instanceof Error ? err.message : "Enhancement failed";
+      logger.error("enhance-speech", "job failed", err);
+      job.error = userMessage(err, "We couldn't enhance this audio. Your credits were refunded — please try again.");
       if (!job.refunded) {
         job.refunded = true;
         try {
           await refundCredits({ userId: job.userId, amount: job.creditCost, generationId: job.generationId });
-          if (job.generationId) await markGenerationStatus(job.generationId, "failed", job.error);
+          if (job.generationId) await markGenerationStatus(job.generationId, "failed", rawErrorText(err));
         } catch { /* swallow */ }
       }
     } finally {
@@ -197,7 +202,7 @@ export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy:
 
 export const GET = withRateLimit(
   createJobStatusHandler(jobs, { contentType: "audio/mpeg", deleteOnDownload: true }),
-  { limit: 30, windowSec: 60, keyBy: "user", name: "tools:enhance-speech:status" },
+  { limit: 60, windowSec: 60, keyBy: "user", name: "tools:enhance-speech:status" },
 );
 
 export const DELETE = withRateLimit(

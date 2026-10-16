@@ -140,7 +140,7 @@ describe("tools and export", () => {
     assetFindFirst.mockImplementation(async ({ where }: { where: { id: string } }) => ({ name: `${where.id}.jpg`, s3Key: `uploads/u1/${where.id}.jpg`, mimeType: "image/jpeg", size: 10, kind: "image" }));
     vi.stubGlobal("fetch", vi.fn(async () => new Response(new Uint8Array([1]))));
     web.faceSwap.mockResolvedValue(json({ jobId: "mem-4", generationId: "g4" }));
-    const res = await POST(req({ type: "face-swap", faceAssetId: "me", targetAssetId: "poster" }));
+    const res = await POST(req({ type: "face-swap", faceAssetId: "me", targetAssetId: "poster", consent: true }));
     expect(await res.json()).toEqual({ jobId: "gen_g4" });
     const form = await (web.faceSwap.mock.calls[0]![0] as NextRequest).formData();
     expect([(form.get("characterImage") as File).name, (form.get("targetImage") as File).name]).toEqual(["me.jpg", "poster.jpg"]);

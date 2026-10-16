@@ -477,6 +477,8 @@ export interface DurationProbe {
   /** Tail of ffmpeg's stderr, for the log. */
   stderrTail: string;
   fileBytes: number;
+  /** The demuxer ffmpeg picked ("mov,mp4,m4a,3gp,3g2,mj2"), when it opened the file. */
+  formatName?: string | null;
 }
 
 /**
@@ -514,6 +516,7 @@ export function probeMediaDuration(filePath: string, timeoutMs = 30_000): Promis
     proc.on("close", () => {
       clearWatchdog();
       const tail = stderrBuf.slice(-1200);
+      const formatName = /Input #0, (.+?), from /.exec(stderrBuf)?.[1] ?? null;
       const d = /Duration:\s*(\d+):(\d+):(\d+\.\d+)/.exec(stderrBuf);
       if (!d) {
         // "N/A" is ffmpeg's own answer for a container it opened but whose
@@ -522,7 +525,7 @@ export function probeMediaDuration(filePath: string, timeoutMs = 30_000): Promis
         const reason = /Duration:\s*N\/A/.test(stderrBuf)
           ? "ffmpeg opened the file but reported no duration"
           : "ffmpeg could not read the file";
-        resolve({ durationSec: null, reason, stderrTail: tail, fileBytes });
+        resolve({ durationSec: null, reason, stderrTail: tail, fileBytes, formatName });
         return;
       }
       resolve({
@@ -530,6 +533,7 @@ export function probeMediaDuration(filePath: string, timeoutMs = 30_000): Promis
         reason: "",
         stderrTail: "",
         fileBytes,
+        formatName,
       });
     });
 
@@ -553,6 +557,51 @@ export function probeMediaDuration(filePath: string, timeoutMs = 30_000): Promis
 export async function getMediaDurationSec(filePath: string, timeoutMs = 30_000): Promise<number> {
   return (await probeMediaDuration(filePath, timeoutMs)).durationSec ?? 0;
 }
+
+// Containers a user upload may be. ffmpeg PROBES the content, so a renamed file
+// is still opened as what it really is — and several demuxers it ships are not
+// media at all but indirection: hls/concat playlists name OTHER files and URLs
+// for ffmpeg to open (local file reads, and network fetches on builds whose
+// defaults allow it), image2/tty/lavfi and friends read or synthesise from
+// patterns. Allow-listing the real media containers shuts all of that out.
+const SAFE_UPLOAD_FORMATS = new Set([
+  "mov", "mp4", "m4a", "3gp", "3g2", "mj2", // ISO-BMFF family (one demuxer)
+  "matroska", "webm",
+  "avi", "flv", "mpegts", "mpeg", "asf",
+  "mp3", "wav", "w64", "aac", "flac", "ogg", "aiff", "caf", "amr",
+]);
+
+/** Allowed temp-file extensions for an upload. The extension also steers
+ * ffmpeg's detection (it refuses HLS without .m3u8), so it must never come
+ * straight from the user's filename. */
+export const SAFE_MEDIA_EXTENSIONS = new Set([
+  "mp4", "mov", "m4v", "m4a", "3gp", "webm", "mkv", "avi", "flv", "ts", "mpg", "mpeg", "wmv",
+  "mp3", "wav", "aac", "flac", "ogg", "oga", "opus", "aiff", "caf", "amr",
+]);
+
+/** The upload's extension if it is a known media extension, else `fallback`. */
+export function safeMediaExtension(fileName: string, fallback: string): string {
+  const ext = (fileName.split(".").pop() ?? "").toLowerCase();
+  return SAFE_MEDIA_EXTENSIONS.has(ext) ? ext : fallback;
+}
+
+export interface UploadProbe {
+  /** 0 when ffmpeg could not read a duration. */
+  durationSec: number;
+  formatName: string | null;
+  /** False for anything that isn't a plain media container — reject it before charging. */
+  safe: boolean;
+}
+
+/** Duration plus the container check, in the one ffmpeg run every tool route already makes. */
+export async function probeUploadedMedia(filePath: string): Promise<UploadProbe> {
+  const probe = await probeMediaDuration(filePath);
+  const formatName = probe.formatName ?? null;
+  const safe = !!formatName && formatName.split(",").every((n) => SAFE_UPLOAD_FORMATS.has(n.trim()));
+  return { durationSec: probe.durationSec ?? 0, formatName, safe };
+}
+
+export const UNSAFE_MEDIA_MESSAGE = "This file type isn't supported. Upload a regular audio or video file (MP4, MOV, WEBM, MP3, WAV…).";
 
 /**
  * Re-encode an upload to an audio-only MP3 no longer than `maxSec`, for the
