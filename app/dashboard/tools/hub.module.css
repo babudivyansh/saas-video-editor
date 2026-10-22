@@ -1,0 +1,213 @@
+/* AI Tools hub — looping before/after previews and the animated hero.
+   Colours come from the emerald tokens in app/globals.css only (no hex here:
+   scripts/check-theme-debt.mjs counts inline hex). Every loop runs on a 7s
+   cycle so a stage swap (mounted fresh on each tool) always starts at frame 0. */
+
+/* ── Before/after wipe ─────────────────────────────────────────────── */
+.ba { position: relative; overflow: hidden; isolation: isolate; background: var(--surface-3); }
+.layer { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.after { animation: wipe 7s cubic-bezier(.65, 0, .35, 1) infinite; }
+.bar {
+  position: absolute; top: 0; bottom: 0; left: 100%; width: 2px; margin-left: -1px; z-index: 2;
+  background: var(--primary);
+  box-shadow: 0 0 16px 2px color-mix(in srgb, var(--primary) 60%, transparent);
+  animation: bar 7s cubic-bezier(.65, 0, .35, 1) infinite;
+}
+.bar::after {
+  content: ""; position: absolute; top: 0; bottom: 0; left: 2px; width: 110px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--primary) 22%, transparent), transparent);
+}
+.thumb .bar::after { display: none; }
+.knob {
+  position: absolute; top: 50%; left: 50%; width: 36px; height: 36px; margin: -18px 0 0 -18px; z-index: 1;
+  border-radius: 50%; background: var(--primary); color: var(--on-primary);
+  display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgb(0 0 0 / .5);
+}
+.tag {
+  position: absolute; top: 14px; z-index: 3; height: 26px; padding: 0 10px; border-radius: 7px;
+  display: flex; align-items: center; font-size: 12px; font-weight: 600; white-space: nowrap;
+  background: color-mix(in srgb, var(--bg-deep) 75%, transparent); backdrop-filter: blur(6px); color: var(--fg);
+}
+.tagBefore { left: 14px; }
+.tagAfter { right: 14px; color: var(--primary); }
+.offset1 .after, .offset1 .bar, .offset1 .win { animation-delay: -1.2s; }
+.offset2 .after, .offset2 .bar, .offset2 .win { animation-delay: -2.4s; }
+@keyframes wipe {
+  0%, 14% { clip-path: inset(0 0 0 100%); }
+  46%, 66% { clip-path: inset(0 0 0 0); }
+  96%, 100% { clip-path: inset(0 0 0 100%); }
+}
+@keyframes bar {
+  0% { left: 100%; opacity: 0; }
+  6%, 14% { left: 100%; opacity: 1; }
+  46% { left: 0%; opacity: 1; }
+  50%, 62% { left: 0%; opacity: 0; }
+  66% { left: 0%; opacity: 1; }
+  96% { left: 100%; opacity: 1; }
+  100% { left: 100%; opacity: 0; }
+}
+
+/* Transparent-background checkerboard behind a cut-out. */
+.checker {
+  background-color: rgb(238 241 239);
+  background-image: conic-gradient(rgb(213 218 215) 25%, transparent 0 50%, rgb(213 218 215) 0 75%, transparent 0);
+  background-size: 20px 20px;
+}
+.thumb .checker { background-size: 8px 8px; }
+
+/* ── Smart-crop window ─────────────────────────────────────────────── */
+.crop { position: relative; overflow: hidden; background: var(--surface-3); }
+.win {
+  position: absolute; top: 6%; bottom: 6%; left: 3%; width: 94%; box-sizing: border-box;
+  border: 2px solid var(--primary); border-radius: 6px; box-shadow: 0 0 0 9999px transparent;
+  animation: win 7s cubic-bezier(.65, 0, .35, 1) infinite;
+}
+.thumb .win { border-width: 1.5px; }
+.winLabel {
+  position: absolute; top: 10px; left: 10px; height: 22px; padding: 0 8px; border-radius: 6px; white-space: nowrap;
+  display: flex; align-items: center; font: 600 12px var(--font-mono), monospace;
+  background: var(--primary); color: var(--on-primary);
+}
+@keyframes win {
+  0%, 12% { left: 3%; width: 94%; top: 6%; bottom: 6%; box-shadow: 0 0 0 9999px transparent; }
+  42%, 74% { left: 34%; width: 32%; top: 0%; bottom: 0%; box-shadow: 0 0 0 9999px color-mix(in srgb, var(--bg-deep) 72%, transparent); }
+  96%, 100% { left: 3%; width: 94%; top: 6%; bottom: 6%; box-shadow: 0 0 0 9999px transparent; }
+}
+
+/* ── Waveforms ─────────────────────────────────────────────────────── */
+.wave { display: flex; align-items: center; justify-content: center; gap: 5px; padding: 0 10%; box-sizing: border-box; }
+.thumb .wave { gap: 2px; padding: 0 8%; }
+.wave i { flex: 1; max-width: 7px; border-radius: 4px; display: block; }
+.noisy {
+  background-color: var(--surface-2);
+  background-image: radial-gradient(rgb(255 255 255 / .06) 1px, transparent 1.5px);
+  background-size: 6px 6px;
+}
+.noisy i { background: var(--fg-subtle); opacity: .7; animation: jitter .38s ease-in-out infinite alternate; }
+.clean { background: radial-gradient(80% 70% at 50% 50%, color-mix(in srgb, var(--emerald-brand) 18%, var(--bg)), var(--bg)); }
+.clean i { background: linear-gradient(180deg, var(--primary), var(--emerald-bright)); animation: pulse 1.4s ease-in-out infinite alternate; }
+@keyframes jitter { from { transform: scaleY(.5); } to { transform: scaleY(1.05); } }
+@keyframes pulse { from { transform: scaleY(.72); } to { transform: scaleY(1); } }
+
+/* ── Download ring ─────────────────────────────────────────────────── */
+.overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--bg-deep) 38%, transparent); }
+.stack { display: grid; place-items: center; }
+.stack > * { grid-area: 1 / 1; }
+.ring { stroke-dasharray: 126; stroke-dashoffset: 126; animation: ring 7s ease-in-out infinite; }
+.ringTrack { stroke: rgb(255 255 255 / .18); }
+.ringFill { stroke: var(--primary); }
+.loading { animation: loading 7s infinite; }
+.done { opacity: 0; animation: done 7s infinite; background: var(--primary); color: var(--on-primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+@keyframes ring { 0%, 8% { stroke-dashoffset: 126; } 62%, 100% { stroke-dashoffset: 0; } }
+@keyframes loading { 0%, 60% { opacity: 1; } 66%, 100% { opacity: 0; } }
+@keyframes done { 0%, 62% { opacity: 0; transform: scale(.6); } 68%, 100% { opacity: 1; transform: scale(1); } }
+
+/* ── Image generation ──────────────────────────────────────────────── */
+.genGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.genGrid img { width: 100%; height: 100%; object-fit: cover; display: block; animation: gen 7s ease-in-out infinite; }
+.genGrid img:nth-child(2) { animation-delay: .3s; }
+.genGrid img:nth-child(3) { animation-delay: .6s; }
+.genGrid img:nth-child(4) { animation-delay: .9s; }
+@keyframes gen {
+  0%, 10% { filter: blur(10px) saturate(.3); opacity: .35; }
+  38%, 86% { filter: none; opacity: 1; }
+  100% { filter: blur(10px) saturate(.3); opacity: .35; }
+}
+.typed {
+  display: inline-block; overflow: hidden; white-space: nowrap; vertical-align: bottom;
+  border-right: 2px solid var(--primary); animation: typed 7s steps(30) both;
+}
+@keyframes typed { 0% { width: 0; } 30%, 100% { width: 30ch; } }
+
+/* ── Stage ─────────────────────────────────────────────────────────── */
+.stage {
+  position: relative; overflow: hidden; border-radius: 24px; aspect-ratio: 16 / 11;
+  border: 1px solid var(--line-strong); background: var(--surface-1);
+  transition: transform .4s cubic-bezier(.2, .9, .25, 1.15), box-shadow .4s;
+}
+.stage:hover { transform: scale(1.015); box-shadow: 0 40px 90px rgb(0 0 0 / .6), 0 0 0 1px color-mix(in srgb, var(--primary) 30%, transparent); }
+.backdrop {
+  position: absolute; inset: -40px; width: calc(100% + 80px); height: calc(100% + 80px);
+  object-fit: cover; filter: blur(40px) brightness(.42) saturate(1.2);
+}
+.enter { animation: enter .6s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes enter { from { opacity: 0; transform: scale(1.04); } to { opacity: 1; transform: none; } }
+
+/* ── Tool rows: hover pop ──────────────────────────────────────────── */
+.row {
+  position: relative; border-radius: 14px;
+  transition: transform .28s cubic-bezier(.2, .9, .25, 1.25), background-color .2s, box-shadow .28s;
+}
+.row:hover, .row:focus-visible {
+  transform: scale(1.045); z-index: 3; background: var(--surface-1); border-bottom-color: transparent;
+  box-shadow: 0 22px 48px rgb(0 0 0 / .55), 0 0 0 1px color-mix(in srgb, var(--primary) 40%, transparent);
+}
+.card { transition: transform .28s cubic-bezier(.2, .9, .25, 1.25), box-shadow .28s, border-color .2s; }
+.card:hover, .card:focus-visible {
+  transform: translateY(-6px) scale(1.05);
+  box-shadow: 0 24px 50px rgb(0 0 0 / .55), 0 0 0 1px color-mix(in srgb, var(--primary) 40%, transparent);
+}
+
+/* Info dot: cost on hover for tools the user can already run. */
+.info {
+  position: relative; flex: none; width: 22px; height: 22px; border-radius: 50%;
+  border: 1px solid var(--line-strong); color: var(--fg-muted);
+  display: inline-flex; align-items: center; justify-content: center; font: 600 12px var(--font-mono), monospace;
+}
+.info::after {
+  content: attr(data-tip); position: absolute; bottom: calc(100% + 8px); right: -6px; z-index: 5; white-space: nowrap;
+  padding: 6px 9px; border-radius: 7px; background: var(--surface-3); border: 1px solid var(--line-strong);
+  font-size: 12px; font-weight: 500; font-family: var(--font-sans), sans-serif; color: var(--fg);
+  opacity: 0; transform: translateY(4px); transition: opacity .15s, transform .15s; pointer-events: none;
+}
+.row:hover .info, .row:focus-visible .info { color: var(--primary); border-color: color-mix(in srgb, var(--primary) 50%, transparent); }
+.row:hover .info::after, .row:focus-visible .info::after,
+.card:hover .info::after, .card:focus-visible .info::after { opacity: 1; transform: none; }
+
+/* ── Hero headline ─────────────────────────────────────────────────── */
+.word { display: inline-block; overflow: hidden; vertical-align: bottom; padding: 0 .02em .1em; margin-bottom: -.1em; }
+.word > span { display: inline-block; transform: translateY(110%); animation: rise 9s cubic-bezier(.2, .8, .2, 1) infinite; }
+@keyframes rise { 0% { transform: translateY(110%); } 7%, 86% { transform: translateY(0); } 94%, 100% { transform: translateY(-110%); } }
+.framed { position: relative; }
+.framed::before {
+  content: ""; position: absolute; inset: .06em -.12em -.02em; border: 2px solid var(--primary); border-radius: .14em;
+  opacity: 0; animation: frame 9s ease-in-out infinite;
+}
+@keyframes frame { 0%, 18% { opacity: 0; transform: scale(1.15); } 24%, 84% { opacity: 1; transform: scale(1); } 90%, 100% { opacity: 0; } }
+.word > .struck {
+  position: relative;
+  animation-name: rise, fade; animation-duration: 9s, 9s; animation-iteration-count: infinite, infinite;
+  animation-timing-function: cubic-bezier(.2, .8, .2, 1), ease;
+}
+.struck::after {
+  content: ""; position: absolute; left: -.04em; right: -.04em; top: 54%; height: .09em; border-radius: .05em;
+  background: var(--fg); transform: scaleX(0); transform-origin: left; animation: strike 9s cubic-bezier(.65, 0, .35, 1) infinite;
+}
+@keyframes strike { 0%, 30% { transform: scaleX(0); } 40%, 84% { transform: scaleX(1); } 90%, 100% { transform: scaleX(1); opacity: 0; } }
+@keyframes fade { 0%, 32% { color: var(--primary); } 42%, 100% { color: var(--fg-subtle); } }
+
+.introWord { display: inline-block; opacity: 0; filter: blur(8px); transform: translateY(6px); animation: intro 9s ease-out infinite; }
+@keyframes intro {
+  0% { opacity: 0; filter: blur(8px); transform: translateY(6px); }
+  6%, 84% { opacity: 1; filter: blur(0); transform: none; }
+  92%, 100% { opacity: 0; filter: blur(6px); transform: translateY(-4px); }
+}
+.introWord.lit { animation-name: intro, lit; animation-duration: 9s, 9s; animation-iteration-count: infinite, infinite; }
+@keyframes lit { 0%, 30% { color: var(--fg-muted); } 38%, 84% { color: var(--fg); } 100% { color: var(--fg-muted); } }
+.introWord.underlined { position: relative; animation-name: intro, lit; animation-duration: 9s, 9s; animation-iteration-count: infinite, infinite; }
+.underlined::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -2px; height: 2px; border-radius: 1px;
+  background: var(--primary); transform: scaleX(0); transform-origin: left; animation: underline 9s cubic-bezier(.65, 0, .35, 1) infinite;
+}
+@keyframes underline { 0%, 44% { transform: scaleX(0); } 52%, 84% { transform: scaleX(1); opacity: 1; } 92%, 100% { transform: scaleX(1); opacity: 0; } }
+
+/* Motion off: everything rests on its "after" frame, nothing zooms. */
+@media (prefers-reduced-motion: reduce) {
+  .after, .bar, .win, .ring, .loading, .done, .genGrid img, .typed, .enter,
+  .word > span, .framed::before, .struck::after, .introWord, .underlined::after,
+  .noisy i, .clean i { animation: none !important; }
+  .bar, .loading { display: none; }
+  .done { opacity: 1; }
+  .word > span, .introWord { transform: none; opacity: 1; filter: none; }
+  .row:hover, .row:focus-visible, .card:hover, .card:focus-visible, .stage:hover { transform: none; }
+}
