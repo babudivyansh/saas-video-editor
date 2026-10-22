@@ -5,11 +5,18 @@ import Link from "next/link";
 import { useReducedMotion } from "framer-motion";
 import { useAuth } from "@/app/components/AuthContext";
 import Reveal from "@/app/components/Reveal";
+import HeroRatingBadge from "@/app/components/landing/HeroRatingBadge";
+import { MINIMUM_REVIEWS_FOR_SCHEMA } from "@/app/reviews/schema";
+import type { ReviewSummary } from "@/lib/reviews/queries";
 
 const CTA_CLASS =
   "inline-flex items-center gap-2 rounded-full bg-brand px-8 py-4 text-base font-bold text-on-primary shadow-card transition-all duration-200 hover:scale-[1.02] hover:bg-brand-dark cursor-pointer";
 
-export default function Hero() {
+interface HeroProps {
+  reviewSummary: ReviewSummary;
+}
+
+export default function Hero({ reviewSummary }: HeroProps) {
   const { user, openAuthModal } = useAuth();
   const filmRef = useRef<HTMLVideoElement>(null);
   // Applied to the element rather than rendered as autoPlay/controls props:
@@ -52,9 +59,9 @@ export default function Hero() {
             in globals.css) it animates on the page itself. On lg it reaches 80px
             past the content padding on each side (the section clips overflow),
             but never so tall that it pushes the CTA below the fold: the width
-            is also capped at 16:9 of the viewport height minus ~15rem (navbar,
-            gap, button). */}
-        <Reveal className="w-full max-w-[1360px] lg:w-[min(calc(100%+160px),calc((100svh-15rem)*16/9))]">
+            is also capped at 16:9 of the viewport height minus ~17rem (navbar,
+            gap, button, rating badge). */}
+        <Reveal className="w-full max-w-[1360px] lg:w-[min(calc(100%+160px),calc((100svh-17rem)*16/9))]">
           <div className="hero-film-fade">
             <video
               ref={filmRef}
@@ -82,6 +89,11 @@ export default function Hero() {
             </button>
           )}
         </Reveal>
+
+        {/* Rating badge — hidden below MINIMUM_REVIEWS_FOR_SCHEMA to avoid a
+            thin, unconvincing average (same gate the SEO JSON-LD already
+            applies to aggregateRating). */}
+        {reviewSummary.count >= MINIMUM_REVIEWS_FOR_SCHEMA && <HeroRatingBadge summary={reviewSummary} />}
       </div>
     </section>
   );
