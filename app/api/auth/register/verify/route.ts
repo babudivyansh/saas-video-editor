@@ -11,6 +11,7 @@ import { consumeOtp } from "@/lib/otp";
 import { readPendingSignup, clearPendingSignup } from "@/lib/signup-pending";
 import { normalizeEmail } from "@/lib/auth-validation";
 import { greetingName } from "@/lib/display-name";
+import { notifyAdminsOfSignup } from "@/lib/admin/signup-alerts";
 
 // Same brute-force ceiling as the sign-in code: 5 guesses per address per
 // 10 minutes is room for a typo and nowhere near enough to guess 1 in 900k.
@@ -119,6 +120,14 @@ export async function POST(req: NextRequest) {
     sendWelcomeEmail(user.email, greetingName(pending.name), user.credits).catch(
       (e) => logger.error("register", "welcome email error", e),
     );
+    // Staff "new signup" email (Admin → Operations → Notifications). Never throws.
+    void notifyAdminsOfSignup({
+      userId: user.id,
+      email: user.email,
+      name: pending.name,
+      method: "email",
+      referralCode: referralOutcome?.applied ? referralOutcome.code : undefined,
+    });
 
     return res;
   } catch (err) {

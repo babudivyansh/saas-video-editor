@@ -618,3 +618,10 @@ export const assetModerateSchema = z
     reason: actionReason,
   })
   .strict();
+
+export const signupAlertsSchema = z
+  .object({
+    enabled: z.boolean(),
+    recipients: z.array(z.string().trim().email("Enter a valid email address").max(200)).max(20),
+  })
+  .strict();

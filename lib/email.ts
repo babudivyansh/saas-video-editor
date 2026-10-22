@@ -26,9 +26,9 @@ import { signTrackToken } from "@/lib/reviews/email-track-token";
 import { sendTemplate, type EmailAttachment } from "@/lib/email/send";
 import { APP_URL } from "@/lib/email/tokens";
 import type { SocialDigestAccount } from "@/lib/email/templates/social";
-import type { AdminDigestData, ContactMessageData } from "@/lib/email/templates/admin";
+import type { AdminDigestData, AdminNewSignupData, ContactMessageData } from "@/lib/email/templates/admin";
 
-export type { SocialDigestAccount, AdminDigestData, ContactMessageData };
+export type { SocialDigestAccount, AdminDigestData, AdminNewSignupData, ContactMessageData };
 
 /**
  * How an OTP email went out. "failed" is its own value: this used to report
@@ -435,6 +435,10 @@ export async function sendAdminAffiliatePayoutReadyEmail(
     ...d,
     minPayoutAmount: MIN_PAYOUT_AMOUNT,
   });
+}
+
+export async function sendAdminNewSignupEmail(to: string, d: AdminNewSignupData): Promise<void> {
+  await sendTemplate("admin-new-signup", to, d);
 }
 
 export async function sendNewsletterConfirmEmail(to: string, confirmUrl: string): Promise<void> {

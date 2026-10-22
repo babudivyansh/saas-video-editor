@@ -1,7 +1,7 @@
 "use client";
 
 // Operations control center: health overview, scheduled jobs (run / pause),
-// render queues, flags + maintenance, and the incident probes — one page,
+// render queues, flags + maintenance, staff email notifications, and the incident probes — one page,
 // one snapshot (GET /api/admin/ops), a tab per area. ?tab= deep-links a tab.
 
 import { Suspense, useCallback, useRef, useState } from "react";
@@ -17,10 +17,11 @@ import { JobsTab } from "./_components/JobsTab";
 import { QueuesTab } from "./_components/QueuesTab";
 import { FlagsTab } from "./_components/FlagsTab";
 import { ServicesTab } from "./_components/ServicesTab";
+import { NotificationsTab } from "./_components/NotificationsTab";
 import { IncidentTools } from "./_components/IncidentTools";
 import { jobState, type AssetsAdminData, type OpsData } from "./_components/types";
 
-const TAB_IDS = ["overview", "jobs", "queues", "services", "flags", "incident"] as const;
+const TAB_IDS = ["overview", "jobs", "queues", "services", "flags", "notifications", "incident"] as const;
 // A manual run that hasn't reported back in this long is given up on.
 const PENDING_TIMEOUT_MS = 10 * 60 * 1000;
 
@@ -137,6 +138,7 @@ function OpsConsole() {
           },
           { id: "services", label: "Services", content: <ServicesTab headers={headers} /> },
           { id: "flags", label: "Flags & maintenance", content: <FlagsTab data={d} headers={headers} /> },
+          { id: "notifications", label: "Notifications", content: <NotificationsTab headers={headers} /> },
           { id: "incident", label: "Incident tools", content: <IncidentTools headers={headers} /> },
         ]}
       />
