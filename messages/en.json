@@ -207,7 +207,57 @@
       "proBadge": "Pro",
       "fromCredits": "{count, plural, one {From # credit} other {From # credits}}",
       "noResults": "No tools match that search",
-      "noResultsHint": "Try a different word, or clear the search to see every tool."
+      "noResultsHint": "Try a different word, or clear the search to see every tool.",
+      "costTip": "{count, plural, one {From # credit per run} other {From # credits per run}}",
+      "hero": {
+        "eyebrow": "AI Tools",
+        "line1": "Fix the clip.",
+        "line2": "Skip the timeline.",
+        "introLead": "{count} single-purpose tools for",
+        "introHighlight": "video, voice and images.",
+        "introMid": "Each one shows you exactly what it does — on",
+        "introUnderline": "real footage."
+      },
+      "stories": {
+        "video": "Clean frames, right shape, any source.",
+        "image": "Thumbnails and stills without opening Photoshop.",
+        "audio": "Make every take sound like the good mic."
+      },
+      "stripTitle": "Writing & free utilities",
+      "stripNote": "No credits on anything marked Free",
+      "preview": {
+        "subBefore": "Video frame with burned-in subtitles",
+        "subAfter": "The same frame with the subtitles removed",
+        "withSubtitles": "With subtitles",
+        "clean": "Clean",
+        "cropAlt": "A wide 16:9 talking-head frame being reframed to vertical",
+        "tracking": "9:16 · tracking",
+        "original169": "Original 16:9",
+        "faceSource": "Source face",
+        "faceSwapped": "Swapped face",
+        "source": "Source",
+        "swapped": "Swapped",
+        "ytAlt": "A YouTube video downloading",
+        "igAlt": "An Instagram reel of a hiker on a coastal cliff being saved",
+        "reel": "Reel · 0:28",
+        "bgBefore": "A streamer in front of a room background",
+        "bgAfter": "The same streamer cut out on a transparent background",
+        "original": "Original",
+        "cutOut": "Cut-out",
+        "genPrompt": "a cyclist at golden hour, flat",
+        "genAlt": "Generated image {n}",
+        "noisy": "Room noise + echo",
+        "studioClean": "Studio clean",
+        "originalVoice": "Original voice",
+        "newVoice": "New voice",
+        "script": "Script",
+        "narrated": "Narrated",
+        "fullMix": "Full mix",
+        "instrumental": "Instrumental",
+        "deep": "Deep",
+        "natural": "Natural",
+        "voiceoverLine": "“Today I want to share three tips that helped me grow…”"
+      }
     }
     
   },
