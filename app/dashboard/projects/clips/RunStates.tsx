@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import PipelineNotice from "@/app/components/auto-clip/PipelineNotice";
 import type { ProjectClipsResponse } from "./model";
+import rs from "./runstate.module.css";
 
 // What a project's clips page shows before there are clips to list: the run is
 // still analyzing, it failed, it finished with nothing worth cutting, or the
@@ -81,14 +82,24 @@ export function ProjectRunState({ projectId, data }: { projectId: string; data: 
   if (clips.length === 0) {
     const slow = project.status === "analyzing" && !!project.updatedAt && nowMs - new Date(project.updatedAt).getTime() > 20 * 60 * 1000;
     return (
-      <div className={BOX}>
-        <div className="mx-auto mb-8 aspect-[9/16] w-[160px] overflow-hidden rounded-2xl bg-surface-3">
-          <div className="ac-shimmer h-full w-full" />
+      <div className={`${rs.stage} -mx-4 px-4 sm:-mx-8 sm:px-8`}>
+        <span className={rs.sweep} aria-hidden="true" />
+        <span className={rs.orb} aria-hidden="true" />
+        <div className="relative mx-auto flex max-w-3xl flex-col items-center gap-6 px-2 py-16 text-center">
+          <span className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-fg-muted">Listening to your video</span>
+          <h1 className="text-[36px] font-bold leading-[1.05] tracking-[-0.035em] text-fg sm:text-[52px]">
+            <span role="status" aria-live="polite">Finding your strongest moments</span>
+          </h1>
+          {/* What the analysis does, in turn. Not progress: the step reports none. */}
+          <div className={rs.lines} aria-hidden="true">
+            <span>Reading every word that’s said</span>
+            <span>Spotting hooks, punchlines and stories</span>
+            <span>Choosing clean start and end points</span>
+          </div>
+          <div className={rs.ghosts} aria-hidden="true"><span /><span /><span /><span /></div>
+          <p className="text-[15px] text-fg-muted">Usually 2–5 minutes for an hour of video. Clips appear here as soon as they’re cut.</p>
         </div>
-        <h1 className="mb-2 text-2xl font-semibold text-fg">
-          <span role="status" aria-live="polite">Finding your strongest moments</span>
-        </h1>
-        <p className="mb-6 text-[15px] text-fg-muted">Analyzing speech, pacing and engagement. Usually 2–5 minutes for an hour of video.</p>
+      <div className={`${BOX} relative pt-0`}>
         {slow && (
           <div role="status" className="mx-auto mb-6 max-w-md rounded-xl border border-warning/40 bg-tint-amber px-4 py-3 text-left text-[13px] text-fg">
             This is taking longer than usual, most likely because other videos are ahead of it in the queue. If it doesn&rsquo;t
@@ -97,6 +108,7 @@ export function ProjectRunState({ projectId, data }: { projectId: string; data: 
         )}
         <p className="text-[13px] text-fg-subtle">You can leave this page. Your clips will be here when you come back.</p>
         <div className="mt-6"><PipelineNotice warnings={project.warnings} /></div>
+      </div>
       </div>
     );
   }

@@ -102,7 +102,9 @@ export function FileDrop({
 
   if (file) {
     return (
-      <div className="flex items-center gap-3 rounded-xl border border-line bg-surface-1 p-3">
+      // launch-sweep (globals.css): the Home launch box's running edge light,
+      // shown while a file is chosen.
+      <div className="launch-sweep relative flex items-center gap-3 rounded-xl border border-line bg-surface-1 p-3">
         <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-surface-3 text-fg-muted">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5" aria-hidden="true"><path d="M14 3H6a2 2 0 00-2 2v14a2 2 0 002 2h12a2 2 0 002-2V9z" /><path d="M14 3v6h6" /></svg>
         </span>

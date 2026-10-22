@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
+import Link from "next/link";
+import rs from "./runstate.module.css";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Breadcrumbs from "@/app/components/ui/Breadcrumbs";
@@ -138,6 +140,9 @@ export function ClipsView({ source }: { source: ClipsSource }) {
   const title = project?.title ?? collection?.name ?? "";
   const heading = source.kind === "project" ? project?.instructions?.trim() || "All clips" : collection?.name ?? "";
   const readyCount = all.filter(isReady).length;
+  const renderPct = all.length
+    ? Math.round(all.reduce((sum, c) => sum + (c.status === "ready" || c.status === "failed" ? 100 : Math.max(0, Math.min(100, c.progress))), 0) / all.length)
+    : 0;
   const filtering = activeFilterCount(filters) > 0;
 
   if (source.kind === "project" && data) {
@@ -199,6 +204,22 @@ export function ClipsView({ source }: { source: ClipsSource }) {
               <option key={s} value={s}>{SORT_LABELS[s]}</option>
             ))}
           </select>
+          {source.kind === "project" && readyCount > 0 && (
+            <>
+              <Link
+                href={`/dashboard/projects/${source.id}/review`}
+                className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-3.5 text-sm font-semibold text-on-primary outline-none hover:bg-primary-hover focus-visible:ring-2 focus-visible:ring-primary/60"
+              >
+                Review clips
+              </Link>
+              <Link
+                href={`/dashboard/projects/${source.id}/share`}
+                className="inline-flex h-10 items-center gap-2 rounded-xl border border-line bg-surface-2 px-3.5 text-sm font-medium text-fg outline-none hover:bg-surface-3 focus-visible:ring-2 focus-visible:ring-primary/60"
+              >
+                Post or download
+              </Link>
+            </>
+          )}
           {source.kind === "project" && readyCount > 1 && (
             <a
               href={`/api/projects/${source.id}/clips/download-all`}
@@ -213,9 +234,13 @@ export function ClipsView({ source }: { source: ClipsSource }) {
       {project && <PipelineNotice warnings={project.warnings} />}
       {project?.status === "completed" && <ScorePerformanceBanner />}
       {project && project.status !== "completed" && project.status !== "failed" && (
-        <p role="status" className="text-sm text-fg-muted">
-          {readyCount} of {all.length} clips ready. The rest appear here as they finish.
-        </p>
+        <div className="flex flex-col gap-2">
+          <p role="status" className="text-sm text-fg-muted">
+            {readyCount} of {all.length} clips ready. The rest appear here as they finish.
+          </p>
+          {/* Real progress: the average of the clips' own render progress. */}
+          <div className={rs.bar} aria-hidden="true"><i style={{ width: `${renderPct}%` }} /></div>
+        </div>
       )}
 
       {query.error && !(query.error instanceof ApiError && query.error.status === 404) && (

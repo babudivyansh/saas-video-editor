@@ -22,6 +22,7 @@ import { CAPTION_RENDER_PRICING_DEFAULTS, type CaptionRenderPricing } from "@/li
 import { IcFilm, IcCloud, IcFile, IcX, IcSparkle, apiFetch, ASPECTS } from "./_components/shared";
 import { clipEditorHref, projectHref } from "@/lib/project-links";
 import { sourceDurationError, sourceFileError } from "@/lib/autoclip-source";
+import { FlowHeader, PresetCards, QuestionHeading, StepFooter, flowStyles as fs, type FlowStep, type Preset, type PresetId } from "./_components/FlowParts";
 
 // Mirrors the limits printed on the drop zone (and enforced server-side).
 
@@ -183,6 +184,21 @@ function AutoClipFlow() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
 
+  // One question at a time (design C). A retry already has its video and was
+  // set up once, so it opens on the last step, ready to Generate.
+  const [step, setStep] = useState<FlowStep>(() => (params.get("retry") ? 3 : 1));
+  const [preset, setPreset] = useState<PresetId | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { scrollRef.current?.scrollTo({ top: 0 }); }, [step]);
+  const applyPreset = useCallback((p: Preset) => {
+    setPreset(p.id);
+    if (!p.apply) return;
+    const len = LENGTH_PRESETS.find((l) => l.id === p.apply!.length)!;
+    setClipCount(p.apply.clipCount);
+    setMinDuration(len.min); setMaxDuration(len.max);
+    setSpeakerMode(p.apply.speakerMode);
+  }, []);
+
   const handleFile = useCallback((f: File) => {
     // Checked here because a drop bypasses the input's `accept`, and the
     // server only said no after the whole upload had finished.
@@ -303,7 +319,7 @@ function AutoClipFlow() {
     setInstructions(""); setCaptionsOn(true); setCaptionTemplateId(DEFAULT_TEMPLATE_ID);
     setReframingPreset("balanced"); setRemoveSilence(false); setSilenceThresholdMs(400); setRemoveFillers(false);
     setSmartAutoReframe(true); setZoomStrength("medium"); setSpeakerMode("auto"); setSmoothness(50); setTrackingSpeed(50); setAnimatedCaptions(true);
-    setAdvancedOpen(false);
+    setAdvancedOpen(false); setStep(1); setPreset(null);
     router.push("/dashboard/create/auto-clip");
   }, [reset, handleClearFile, router]);
 
@@ -315,13 +331,15 @@ function AutoClipFlow() {
   if (resumeProjectId || genStatus === "uploading" || genStatus === "creating" || genStatus === "rendering" || (genStatus === "completed" && genProjectId)) {
     const heading = resumeProjectId ? "Opening your project…" : genStatus === "uploading" ? "Uploading your video…" : "Starting your run…";
     return (
-      <div className="h-full overflow-y-auto" style={{ background: "var(--surface)" }}>
-        <div className="mx-auto max-w-xl px-6 pb-32 pt-20 text-center">
+      <div className={`relative h-full overflow-hidden ${fs.page}`}>
+        {!resumeProjectId && <span className={fs.topbar} aria-hidden="true" />}
+        <span className={fs.orb} aria-hidden="true" />
+        <div className="relative mx-auto max-w-xl px-6 pb-32 pt-24 text-center">
           <div className="relative mx-auto mb-8 w-[160px] overflow-hidden rounded-2xl" style={{ aspectRatio: "9/16", background: "linear-gradient(160deg, var(--surface-3), var(--bg))" }}>
             <div className="ac-shimmer absolute inset-0" />
           </div>
-          <h1 className="mb-2 text-2xl font-extrabold text-ink"><span role="status" aria-live="polite">{heading}</span></h1>
-          {!resumeProjectId && <p className="text-[15px] text-ink-soft">Keep this tab open until the upload finishes. After that you can leave.</p>}
+          <h1 className="mb-3 text-[32px] font-bold tracking-[-0.03em] text-fg sm:text-[40px]"><span role="status" aria-live="polite">{heading}</span></h1>
+          {!resumeProjectId && <p className="text-[15px] text-fg-muted">Keep this tab open until the upload finishes. After that you can leave.</p>}
         </div>
       </div>
     );
@@ -329,222 +347,275 @@ function AutoClipFlow() {
   // "completed" with no project id has nothing to open either.
   if (genStatus === "failed" || genStatus === "completed") {
     return (
-      <div className="h-full overflow-y-auto" style={{ background: "var(--surface)" }}>
-        <div className="mx-auto max-w-xl px-6 pb-32 pt-20 text-center">
-          <h1 className="mb-2 text-2xl font-extrabold text-ink">Something went wrong</h1>
-          <p className="mb-7 text-[15px] text-ink-soft">{genError ?? "We couldn't start this run. Try again."}</p>
+      <div className={`h-full overflow-y-auto ${fs.page}`}>
+        <div className="mx-auto max-w-xl px-6 pb-32 pt-24 text-center">
+          <h1 className="mb-2 text-[32px] font-bold tracking-[-0.03em] text-fg">Something went wrong</h1>
+          <p className="mb-7 text-[15px] text-fg-muted">{genError ?? "We couldn't start this run. Try again."}</p>
           <Button variant="secondary" onClick={handleReset}>Start over</Button>
         </div>
       </div>
     );
   }
 
+  const hasSource = !!file || !!importedUrl || !!pickedAsset || !!retryProject;
+  const lengthLabel = LENGTH_PRESETS.find((p) => p.id === lengthPreset)?.label ?? "15–60s";
+  const choiceSummary = `${clipCount} clip${clipCount === 1 ? "" : "s"} · ${lengthLabel} · ${aspectRatio} · ${captionsOn ? "captions on" : "no captions"}`;
+
+  const sourceBlock = file && videoPreviewUrl ? (
+    <div className="launch-sweep relative flex items-center gap-4 rounded-[20px] border border-line bg-surface-1 p-4">
+      <video src={`${videoPreviewUrl}#t=0.1`} preload="metadata" muted playsInline className="w-28 rounded-xl bg-black object-cover" style={{ aspectRatio: "16/9" }} />
+      <div className="min-w-0 flex-1"><div className="flex items-center gap-2 text-sm font-semibold text-fg"><IcFile /><span className="truncate">{file.name}</span></div><p className="mt-0.5 text-xs text-fg-muted">Ready to analyze</p></div>
+      <button onClick={handleClearFile} aria-label="Remove video" className="flex h-9 w-9 items-center justify-center rounded-lg border border-line text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg"><IcX /></button>
+    </div>
+  ) : importedUrl ? (
+    <div className="launch-sweep relative flex items-center gap-4 rounded-[20px] border border-line bg-surface-1 p-4">
+      <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-tint-emerald text-brand"><IcCloud /></span>
+      <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-fg">{importedTitle}</p><p className="mt-0.5 text-xs text-fg-muted">Downloaded from your link when analysis starts.</p></div>
+      <button onClick={() => { setImportedUrl(null); setImportedTitle(null); }} aria-label="Use a different source" className="flex h-9 w-9 items-center justify-center rounded-lg border border-line text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg"><IcX /></button>
+    </div>
+  ) : retryProject ? (
+    <div className="launch-sweep relative flex items-center gap-4 rounded-[20px] border border-line bg-surface-1 p-4">
+      <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-tint-emerald text-brand"><IcFilm /></span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold text-fg">{retryProject.name ?? "Your video"}</p>
+        <p className="mt-0.5 text-xs text-fg-muted">Trying this video again. Adjust anything below, then Generate.</p>
+      </div>
+      <button onClick={() => { setRetryProject(null); setStep(1); }} aria-label="Use a different source" className="flex h-9 w-9 items-center justify-center rounded-lg border border-line text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg"><IcX /></button>
+    </div>
+  ) : pickedAsset ? (
+    <div className="launch-sweep relative flex items-center gap-4 rounded-[20px] border border-line bg-surface-1 p-4">
+      <video src={`${pickedAsset.url}#t=0.1`} preload="metadata" muted playsInline className="w-28 rounded-xl bg-black object-cover" style={{ aspectRatio: "16/9" }} />
+      <div className="min-w-0 flex-1"><div className="flex items-center gap-2 text-sm font-semibold text-fg"><IcFile /><span className="truncate">{pickedAsset.name}</span></div><p className="mt-0.5 text-xs text-fg-muted">From your Assets library</p></div>
+      <button onClick={() => setPickedAsset(null)} aria-label="Use a different source" className="flex h-9 w-9 items-center justify-center rounded-lg border border-line text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg"><IcX /></button>
+    </div>
+  ) : null;
+
+  const alerts = (
+    <>
+      {durationError && <p role="alert" className="rounded-xl border border-error/40 bg-error/10 px-3 py-2 text-xs font-medium text-error">{durationError}</p>}
+      {importError && <p role="alert" className="rounded-xl border border-error/40 bg-error/10 px-3 py-2 text-xs font-medium text-error">{importError}</p>}
+    </>
+  );
+
+  const SEG_ON = "border-primary/50 bg-primary/10 text-primary";
+  const SEG_OFF = "border-line bg-surface-1 text-fg-muted hover:bg-surface-2 hover:text-fg";
+
   return (
-    <div className="h-full overflow-y-auto" style={{ background: "var(--surface)" }}>
-      <div className="max-w-[720px] mx-auto px-6 pt-12 pb-32">
-        <h1 className="text-[32px] font-extrabold tracking-tight text-ink mb-2">AutoClip</h1>
-        <p className="text-base text-ink-soft mb-8 max-w-[52ch]">Add a long video. We find the moments worth posting and cut them into ready-to-publish clips.</p>
-
-        {/* Source: file or URL */}
+    <div
+      ref={scrollRef}
+      className={`h-full overflow-y-auto ${fs.page} ${dragging && step === 1 ? fs.dropping : ""}`}
+      onDragOver={step === 1 ? (e) => { e.preventDefault(); setDragging(true); } : undefined}
+      onDragLeave={step === 1 ? (e) => { if (e.currentTarget === e.target) setDragging(false); } : undefined}
+      onDrop={step === 1 ? (e) => { e.preventDefault(); setDragging(false); if (e.dataTransfer.files?.[0]) handleFile(e.dataTransfer.files[0]); } : undefined}
+    >
+      <div className="flex min-h-full flex-col">
+        <FlowHeader step={step} minutesBalance={minutesBalance} />
         <input ref={inputRef} type="file" accept="video/mp4,video/mov,video/quicktime,video/webm" className="hidden" onChange={(e) => { if (e.target.files?.[0]) handleFile(e.target.files[0]); }} />
-        {file && videoPreviewUrl ? (
-          <div className="rounded-[20px] border border-card-border bg-panel p-4 flex items-center gap-4">
-            <video src={videoPreviewUrl} className="w-28 rounded-xl object-cover bg-black" style={{ aspectRatio: "16/9" }} />
-            <div className="flex-1 min-w-0"><div className="flex items-center gap-2 text-sm font-semibold text-ink"><IcFile /><span className="truncate">{file.name}</span></div><p className="text-xs text-ink-soft mt-0.5">Ready to analyze</p></div>
-            <button onClick={handleClearFile} aria-label="Remove video" className="w-9 h-9 rounded-lg border border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink transition-colors flex items-center justify-center"><IcX /></button>
-          </div>
-        ) : importedUrl ? (
-          <div className="rounded-[20px] border border-card-border bg-panel p-4 flex items-center gap-4">
-            <span className="w-12 h-12 rounded-xl bg-tint-blue text-brand flex items-center justify-center"><IcCloud /></span>
-            <div className="flex-1 min-w-0"><p className="text-sm font-semibold text-ink truncate">{importedTitle}</p><p className="text-xs text-ink-soft mt-0.5">Downloaded from your link when analysis starts.</p></div>
-            <button onClick={() => { setImportedUrl(null); setImportedTitle(null); }} aria-label="Use a different source" className="w-9 h-9 rounded-lg border border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink transition-colors flex items-center justify-center"><IcX /></button>
-          </div>
-        ) : retryProject ? (
-          <div className="rounded-[20px] border border-line bg-panel p-4 flex items-center gap-4">
-            <span className="w-12 h-12 rounded-xl bg-tint-emerald text-brand flex items-center justify-center"><IcFilm /></span>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-fg truncate">{retryProject.name ?? "Your video"}</p>
-              <p className="text-xs text-fg-muted mt-0.5">Trying this video again. Adjust anything below, then Generate.</p>
-            </div>
-            <button onClick={() => setRetryProject(null)} aria-label="Use a different source" className="w-9 h-9 rounded-lg border border-line text-fg-muted hover:bg-surface-2 hover:text-fg transition-colors flex items-center justify-center"><IcX /></button>
-          </div>
-        ) : pickedAsset ? (
-          <div className="rounded-[20px] border border-card-border bg-panel p-4 flex items-center gap-4">
-            <video src={pickedAsset.url} className="w-28 rounded-xl object-cover bg-black" style={{ aspectRatio: "16/9" }} />
-            <div className="flex-1 min-w-0"><div className="flex items-center gap-2 text-sm font-semibold text-ink"><IcFile /><span className="truncate">{pickedAsset.name}</span></div><p className="text-xs text-ink-soft mt-0.5">From your Assets library</p></div>
-            <button onClick={() => setPickedAsset(null)} aria-label="Use a different source" className="w-9 h-9 rounded-lg border border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink transition-colors flex items-center justify-center"><IcX /></button>
-          </div>
-        ) : (
-          <>
-            {/* A real button, so it is reachable by keyboard and announced. It
-                was a clickable div with an inline #fff background, which on the
-                dark theme put near-white text on white: an invisible heading. */}
-            <button
-              type="button"
-              onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-              onDragLeave={() => setDragging(false)}
-              onDrop={(e) => { e.preventDefault(); setDragging(false); if (e.dataTransfer.files?.[0]) handleFile(e.dataTransfer.files[0]); }}
-              onClick={() => inputRef.current?.click()}
-              className={`w-full rounded-[20px] border border-dashed px-6 py-11 flex flex-col items-center gap-3 text-center cursor-pointer transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${dragging ? "border-brand bg-tint-emerald" : "border-line bg-surface-2 hover:border-brand"}`}
-            >
-              <span className="w-12 h-12 rounded-2xl bg-tint-emerald text-brand flex items-center justify-center"><IcCloud /></span>
-              <span className="text-base font-semibold text-fg">Drop a video here, or choose a file</span>
-              <span className="text-[13px] text-fg-muted">MP4, MOV or WebM · up to 500 MB · 1 min to 1 h 30 m</span>
-            </button>
-            <div className="flex items-center justify-center gap-2.5 mt-4">
-              <AssetField accept={["video"]} label="Choose from Assets" onSelect={(asset) => { handleClearFile(); setImportedUrl(null); setImportedTitle(null); setPickedAsset(asset); }} />
-            </div>
-            <div className="flex items-center gap-3 my-5">
-              <div className="flex-1 h-px bg-card-border" />
-              <span className="text-xs font-semibold text-ink-soft/70 uppercase tracking-widest">or</span>
-              <div className="flex-1 h-px bg-card-border" />
-            </div>
-            <UrlImportField initialUrl={launchUrl ?? undefined} onImported={(info) => { setImportedUrl(info.url); setImportedTitle(info.title); }} />
-          </>
-        )}
 
-        {durationError && <p role="alert" className="mt-3 rounded-xl border border-error/40 bg-error/10 px-3 py-2 text-xs font-medium text-error">{durationError}</p>}
-        {importError && <p role="alert" className="mt-3 rounded-xl border border-error/40 bg-error/10 px-3 py-2 text-xs font-medium text-error">{importError}</p>}
-        {paymentBlock && (
-          <div role="alert" className="mt-3 rounded-xl border border-warning/40 bg-tint-amber px-4 py-3 flex flex-wrap items-center gap-3 text-sm">
-            <p className="flex-1 min-w-[16rem] text-fg">
-              {paymentBlock.kind === "free_limit"
-                ? paymentBlock.message
-                : paymentBlock.kind === "minutes"
-                  ? `This video needs ${paymentBlock.required ?? "more"} Clip Minutes${paymentBlock.balance != null ? ` and you have ${paymentBlock.balance}` : ""}. Nothing was charged.${paymentBlock.overflowCredits ? ` Tick "pay the rest in AI credits" below to cover it with ${paymentBlock.overflowCredits} credit${paymentBlock.overflowCredits === 1 ? "" : "s"}.` : ""}`
-                  : `You need ${paymentBlock.required ?? "more"} credits to start this run${paymentBlock.balance != null ? ` and you have ${paymentBlock.balance}` : ""}. Nothing was charged.`}
-            </p>
-            {paymentBlock.kind === "minutes" ? (
-              // Minute packs sell on the billing overlay's Top Up tab.
-              <Button size="sm" onClick={() => openBilling({ tab: "topup" })}>Top up minutes</Button>
-            ) : paymentBlock.kind === "free_limit" ? (
-              <a href={paymentBlock.upgradeUrl} className="font-bold text-brand hover:underline">See plans</a>
-            ) : (
-              <Button size="sm" onClick={() => creditModal.open({ required: paymentBlock.required, balance: paymentBlock.balance, action: "Auto Clips" })}>Top up</Button>
-            )}
-            <button onClick={clearPaymentBlock} aria-label="Dismiss" className="text-fg-muted hover:text-fg"><IcX /></button>
-          </div>
-        )}
-
-        {/* Essentials */}
-        <div className="mt-8 rounded-[20px] border border-card-border bg-panel p-6 flex flex-col gap-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            <div>
-              <p id="ac-length-label" className="text-[13px] font-semibold text-ink block mb-2">Clip length</p>
-              <div role="group" aria-labelledby="ac-length-label" className="flex gap-1.5">
-                {LENGTH_PRESETS.map((p) => (
-                  <button key={p.id} type="button" aria-pressed={lengthPreset === p.id} onClick={() => { setMinDuration(p.min); setMaxDuration(p.max); }}
-                    className={`flex-1 rounded-[10px] border py-2.5 text-[13px] font-semibold transition-colors ${lengthPreset === p.id ? "grad-brand text-on-primary shadow-glow border-transparent" : "bg-panel border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink"}`}>
-                    {p.label}
-                  </button>
-                ))}
+        <main className="flex flex-1 flex-col items-center gap-9 px-6 pb-16 pt-10">
+          {step === 1 && (
+            <>
+              <QuestionHeading step={1} before="What are we " accent="clipping" after=" today?" />
+              <div className={`${fs.rise} flex w-full max-w-[760px] flex-col gap-3`} style={{ animationDelay: ".08s" }}>
+                {sourceBlock ?? (
+                  <>
+                    {/* A real button, so it is reachable by keyboard and announced. */}
+                    <button
+                      type="button"
+                      onClick={() => inputRef.current?.click()}
+                      className={`flex w-full cursor-pointer flex-col items-center gap-3 rounded-[24px] border border-dashed px-6 py-10 text-center transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 ${dragging ? "border-primary bg-tint-emerald" : "border-line-strong bg-surface-1 hover:border-primary/60"}`}
+                    >
+                      <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-on-primary"><IcCloud /></span>
+                      <span className="text-lg font-semibold text-fg">Drop a video anywhere, or choose a file</span>
+                      <span className="text-[13px] text-fg-muted">MP4, MOV or WebM · up to 500 MB · 1 min to 1 h 30 m</span>
+                    </button>
+                    <div className="flex items-center justify-center gap-2.5">
+                      <AssetField accept={["video"]} label="Choose from Assets" onSelect={(asset) => { handleClearFile(); setImportedUrl(null); setImportedTitle(null); setPickedAsset(asset); }} />
+                    </div>
+                    <div className="my-1 flex items-center gap-3">
+                      <div className="h-px flex-1 bg-line" />
+                      <span className="text-xs font-semibold uppercase tracking-widest text-fg-subtle">or</span>
+                      <div className="h-px flex-1 bg-line" />
+                    </div>
+                    <UrlImportField initialUrl={launchUrl ?? undefined} onImported={(info) => { setImportedUrl(info.url); setImportedTitle(info.title); }} />
+                  </>
+                )}
+                {alerts}
               </div>
-            </div>
-            <div>
-              <p id="ac-count-label" className="text-[13px] font-semibold text-ink block mb-2">How many clips</p>
-              <div className="flex items-center gap-3 border border-card-border rounded-[10px] px-3 py-1.5">
-                <button onClick={() => setClipCount((c) => Math.max(1, c - 1))} aria-label="Fewer clips" className="w-8 h-8 rounded-lg border border-card-border text-ink hover:bg-tint-blue transition-colors">−</button>
-                <span className="flex-1 text-center text-sm font-bold text-ink" aria-live="polite" aria-labelledby="ac-count-label">{clipCount}</span>
-                <button onClick={() => setClipCount((c) => Math.min(20, c + 1))} aria-label="More clips" className="w-8 h-8 rounded-lg border border-card-border text-ink hover:bg-tint-blue transition-colors">+</button>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <p id="ac-aspect-label" className="text-[13px] font-semibold text-ink block mb-2">Aspect ratio</p>
-            <div role="group" aria-labelledby="ac-aspect-label" className="flex gap-2">
-              {ASPECTS.map((a) => (
-                <button key={a.value} type="button" aria-pressed={aspectRatio === a.value} onClick={() => setAspectRatio(a.value)} className={`inline-flex items-center gap-2 rounded-[10px] border px-3.5 py-2.5 text-[13px] font-semibold transition-colors ${aspectRatio === a.value ? "grad-brand text-on-primary shadow-glow border-transparent" : "bg-panel border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink"}`}>
-                  <span className={`${a.box} border-[1.5px] border-current rounded-[2px]`} />{a.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between gap-4">
-            <div><p className="text-[13px] font-semibold text-ink">Captions</p><p className="text-xs text-ink-soft mt-0.5">Burned in, word-by-word — style below.</p></div>
-            <Switch checked={captionsOn} onChange={setCaptionsOn} label="Captions" />
-          </div>
-          {captionsOn && (
-            <CaptionStyleGrid
-              value={captionTemplateId}
-              onChange={setCaptionTemplateId}
-              onTemplatesLoaded={(list) =>
-                setPremiumTemplateIds(new Set(list.filter((t) => t.requiresRender).map((t) => t.id)))
-              }
-            />
+              <PresetCards value={preset} onChange={applyPreset} />
+            </>
           )}
 
-          <div className="h-px bg-card-border" />
-
-          <button type="button" aria-expanded={advancedOpen} aria-controls="ac-advanced" onClick={() => setAdvancedOpen((o) => !o)} className="flex items-center justify-between w-full text-left">
-            <span className="flex flex-col"><span className="text-[13px] font-semibold text-ink">Advanced</span><span className="text-xs text-ink-soft">Reframe, camera motion, zoom, speaker mode, audio cleanup, instructions</span></span>
-            <span className="text-[12px] font-semibold text-brand">{advancedOpen ? "Hide" : "Show"}</span>
-          </button>
-          {advancedOpen && (
-            <div id="ac-advanced" className="ac-panel-in flex flex-col gap-5 border-t border-card-border pt-5">
-              <ReframeAndCutsControls
-                smartAutoReframe={smartAutoReframe} setSmartAutoReframe={setSmartAutoReframe}
-                reframingPreset={reframingPreset} setReframingPreset={setReframingPreset}
-                zoomStrength={zoomStrength} setZoomStrength={setZoomStrength}
-                speakerMode={speakerMode} setSpeakerMode={setSpeakerMode}
-                smoothness={smoothness} setSmoothness={setSmoothness}
-                trackingSpeed={trackingSpeed} setTrackingSpeed={setTrackingSpeed}
-                removeSilence={removeSilence} setRemoveSilence={setRemoveSilence}
-                silenceThresholdMs={silenceThresholdMs} setSilenceThresholdMs={setSilenceThresholdMs}
-                removeFillers={removeFillers} setRemoveFillers={setRemoveFillers}
-              />
-              {captionsOn && (
-                <div className="flex items-center justify-between rounded-xl border border-card-border p-3">
-                  <div><p className="text-[12.5px] font-semibold text-ink">Animated subtitles</p><p className="text-[11px] text-ink-soft">Highlight words with dynamic sizes and colours as they&apos;re spoken.</p></div>
-                  <Switch checked={animatedCaptions} onChange={setAnimatedCaptions} label="Animated subtitles" />
+          {step === 2 && (
+            <>
+              <QuestionHeading step={2} before="How should it " accent="look" after="?" />
+              <div className={`${fs.rise} flex w-full max-w-[760px] flex-col gap-6 rounded-[24px] border border-line bg-surface-1 p-6`} style={{ animationDelay: ".08s" }}>
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                  <div>
+                    <p id="ac-length-label" className="mb-2 block text-[13px] font-semibold text-fg">Clip length</p>
+                    <div role="group" aria-labelledby="ac-length-label" className="flex gap-1.5">
+                      {LENGTH_PRESETS.map((p) => (
+                        <button key={p.id} type="button" aria-pressed={lengthPreset === p.id} onClick={() => { setMinDuration(p.min); setMaxDuration(p.max); }}
+                          className={`flex-1 rounded-[10px] border py-2.5 text-[13px] font-semibold transition-colors ${lengthPreset === p.id ? SEG_ON : SEG_OFF}`}>
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p id="ac-count-label" className="mb-2 block text-[13px] font-semibold text-fg">How many clips</p>
+                    <div className="flex items-center gap-3 rounded-[10px] border border-line px-3 py-1.5">
+                      <button onClick={() => setClipCount((c) => Math.max(1, c - 1))} aria-label="Fewer clips" className="h-8 w-8 rounded-lg border border-line text-fg transition-colors hover:bg-surface-2">−</button>
+                      <span className="flex-1 text-center text-sm font-bold text-fg tabular-nums" aria-live="polite" aria-labelledby="ac-count-label">{clipCount}</span>
+                      <button onClick={() => setClipCount((c) => Math.min(20, c + 1))} aria-label="More clips" className="h-8 w-8 rounded-lg border border-line text-fg transition-colors hover:bg-surface-2">+</button>
+                    </div>
+                  </div>
                 </div>
-              )}
-              <div>
-                <label htmlFor="ac-instructions" className="text-[12px] font-bold text-ink-soft uppercase tracking-wider block mb-2">Instructions (optional)</label>
-                <textarea id="ac-instructions" value={instructions} onChange={(e) => setInstructions(e.target.value)} rows={3} maxLength={MAX_INSTRUCTIONS_CHARS} placeholder="e.g. Focus on funny moments, avoid silent parts, prioritize high-energy sections…" className="w-full rounded-xl border border-card-border bg-panel px-3 py-3 text-sm text-ink placeholder:text-ink-soft/50 focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/30 transition-all resize-none" />
-              </div>
-            </div>
-          )}
-        </div>
 
-        <div className="flex items-center gap-4 mt-7 flex-wrap">
-          <button onClick={handleGenerate} disabled={!canGenerate} aria-busy={submitting || undefined} className="inline-flex items-center gap-2.5 grad-brand shadow-glow hover:shadow-glow-hover hover:brightness-105 text-on-primary text-base font-bold px-8 py-4 rounded-[14px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-            <IcSparkle /> {submitting ? "Starting…" : "Generate clips"}
-          </button>
-          {/* There is no review step any more, so this is the LAST moment a
-              price can be shown before money is spent. It has to be itemised
-              and it has to be honest about the premium caption line, which is
-              by far the largest number here. */}
-          <div className="text-[13px] text-ink-soft">
-            <span className="font-semibold text-ink">
-              {runCost.minutes != null
-                ? `Uses ${runCost.minutes} Clip Minute${runCost.minutes === 1 ? "" : "s"}`
-                : "Uses 1 Clip Minute per minute of video"}
-            </span>
-            {runCost.captionCredits > 0 && <> + up to {runCost.captionCredits} AI credits for premium captions</>}
-            <span className="block text-[12px] mt-0.5">
-              Any number of clips from one video. Re-running the same video within 7 days is free,
-              and a failed run is refunded in full.
-            </span>
-            {minutesBalance != null && (
-              <span className={`block text-[12px] mt-0.5 ${minutesShort > 0 ? "text-warning font-semibold" : ""}`}>
-                Your balance: {minutesBalance} Clip Minute{minutesBalance === 1 ? "" : "s"}
-                {balance != null && <> · {balance} AI credit{balance === 1 ? "" : "s"}</>}
-                {minutesShort > 0 && ` (${minutesShort} short)`}
-              </span>
-            )}
-            <Checkbox
-              className="mt-1.5 text-[12px]"
-              checked={allowCreditOverflow}
-              onChange={setAllowCreditOverflow}
-              showLabel
-              label={`If I run out of minutes, pay the rest in AI credits (${OVERFLOW_MINUTES_PER_CREDIT} minutes = 1 credit${
-                minutesShort > 0 ? `, ${overflowCreditsFor(minutesShort)} credit${overflowCreditsFor(minutesShort) === 1 ? "" : "s"} for this video` : ""
-              })`}
-            />
-          </div>
-        </div>
+                <div>
+                  <p id="ac-aspect-label" className="mb-2 block text-[13px] font-semibold text-fg">Aspect ratio</p>
+                  <div role="group" aria-labelledby="ac-aspect-label" className="flex gap-2">
+                    {ASPECTS.map((a) => (
+                      <button key={a.value} type="button" aria-pressed={aspectRatio === a.value} onClick={() => setAspectRatio(a.value)} className={`inline-flex items-center gap-2 rounded-[10px] border px-3.5 py-2.5 text-[13px] font-semibold transition-colors ${aspectRatio === a.value ? SEG_ON : SEG_OFF}`}>
+                        <span className={`${a.box} rounded-[2px] border-[1.5px] border-current`} />{a.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between gap-4">
+                  <div><p className="text-[13px] font-semibold text-fg">Captions</p><p className="mt-0.5 text-xs text-fg-muted">Burned in, word-by-word — pick a style below.</p></div>
+                  <Switch checked={captionsOn} onChange={setCaptionsOn} label="Captions" />
+                </div>
+                {captionsOn && (
+                  <CaptionStyleGrid
+                    value={captionTemplateId}
+                    onChange={setCaptionTemplateId}
+                    onTemplatesLoaded={(list) =>
+                      setPremiumTemplateIds(new Set(list.filter((t) => t.requiresRender).map((t) => t.id)))
+                    }
+                  />
+                )}
+              </div>
+            </>
+          )}
+
+          {step === 3 && (
+            <>
+              <QuestionHeading step={3} before="Ready to " accent="clip" after="?" />
+              <div className={`${fs.rise} flex w-full max-w-[760px] flex-col gap-4`} style={{ animationDelay: ".08s" }}>
+                {sourceBlock}
+                <div className="flex flex-wrap items-center gap-2 rounded-[20px] border border-line bg-surface-1 px-4 py-3">
+                  <span className="text-[13px] font-semibold text-fg">{choiceSummary}</span>
+                  <button type="button" onClick={() => setStep(2)} className="ml-auto text-[13px] font-semibold text-primary hover:underline">Change</button>
+                </div>
+                {alerts}
+                {paymentBlock && (
+                  <div role="alert" className="flex flex-wrap items-center gap-3 rounded-xl border border-warning/40 bg-tint-amber px-4 py-3 text-sm">
+                    <p className="min-w-[16rem] flex-1 text-fg">
+                      {paymentBlock.kind === "free_limit"
+                        ? paymentBlock.message
+                        : paymentBlock.kind === "minutes"
+                          ? `This video needs ${paymentBlock.required ?? "more"} Clip Minutes${paymentBlock.balance != null ? ` and you have ${paymentBlock.balance}` : ""}. Nothing was charged.${paymentBlock.overflowCredits ? ` Tick "pay the rest in AI credits" below to cover it with ${paymentBlock.overflowCredits} credit${paymentBlock.overflowCredits === 1 ? "" : "s"}.` : ""}`
+                          : `You need ${paymentBlock.required ?? "more"} credits to start this run${paymentBlock.balance != null ? ` and you have ${paymentBlock.balance}` : ""}. Nothing was charged.`}
+                    </p>
+                    {paymentBlock.kind === "minutes" ? (
+                      // Minute packs sell on the billing overlay's Top Up tab.
+                      <Button size="sm" onClick={() => openBilling({ tab: "topup" })}>Top up minutes</Button>
+                    ) : paymentBlock.kind === "free_limit" ? (
+                      <a href={paymentBlock.upgradeUrl} className="font-bold text-brand hover:underline">See plans</a>
+                    ) : (
+                      <Button size="sm" onClick={() => creditModal.open({ required: paymentBlock.required, balance: paymentBlock.balance, action: "Auto Clips" })}>Top up</Button>
+                    )}
+                    <button onClick={clearPaymentBlock} aria-label="Dismiss" className="text-fg-muted hover:text-fg"><IcX /></button>
+                  </div>
+                )}
+
+                <div className="flex flex-col gap-5 rounded-[20px] border border-line bg-surface-1 p-5">
+                  <button type="button" aria-expanded={advancedOpen} aria-controls="ac-advanced" onClick={() => setAdvancedOpen((o) => !o)} className="flex w-full items-center justify-between text-left">
+                    <span className="flex flex-col"><span className="text-[13px] font-semibold text-fg">Advanced</span><span className="text-xs text-fg-muted">Reframe, camera motion, zoom, speaker mode, audio cleanup, instructions</span></span>
+                    <span className="text-[12px] font-semibold text-brand">{advancedOpen ? "Hide" : "Show"}</span>
+                  </button>
+                  {advancedOpen && (
+                    <div id="ac-advanced" className="ac-panel-in flex flex-col gap-5 border-t border-line pt-5">
+                      <ReframeAndCutsControls
+                        smartAutoReframe={smartAutoReframe} setSmartAutoReframe={setSmartAutoReframe}
+                        reframingPreset={reframingPreset} setReframingPreset={setReframingPreset}
+                        zoomStrength={zoomStrength} setZoomStrength={setZoomStrength}
+                        speakerMode={speakerMode} setSpeakerMode={setSpeakerMode}
+                        smoothness={smoothness} setSmoothness={setSmoothness}
+                        trackingSpeed={trackingSpeed} setTrackingSpeed={setTrackingSpeed}
+                        removeSilence={removeSilence} setRemoveSilence={setRemoveSilence}
+                        silenceThresholdMs={silenceThresholdMs} setSilenceThresholdMs={setSilenceThresholdMs}
+                        removeFillers={removeFillers} setRemoveFillers={setRemoveFillers}
+                      />
+                      {captionsOn && (
+                        <div className="flex items-center justify-between rounded-xl border border-line p-3">
+                          <div><p className="text-[12.5px] font-semibold text-fg">Animated subtitles</p><p className="text-[11px] text-fg-muted">Highlight words with dynamic sizes and colours as they&apos;re spoken.</p></div>
+                          <Switch checked={animatedCaptions} onChange={setAnimatedCaptions} label="Animated subtitles" />
+                        </div>
+                      )}
+                      <div>
+                        <label htmlFor="ac-instructions" className="mb-2 block text-[12px] font-bold uppercase tracking-wider text-fg-muted">Instructions (optional)</label>
+                        <textarea id="ac-instructions" value={instructions} onChange={(e) => setInstructions(e.target.value)} rows={3} maxLength={MAX_INSTRUCTIONS_CHARS} placeholder="e.g. Focus on funny moments, avoid silent parts, prioritize high-energy sections…" className="w-full resize-none rounded-xl border border-line bg-surface-2 px-3 py-3 text-sm text-fg transition-all placeholder:text-fg-subtle focus:border-primary/60 focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* There is no review step after this, so this is the LAST moment a
+                    price can be shown before money is spent. It has to be itemised
+                    and honest about the premium caption line. */}
+                <div className="rounded-[20px] border border-line bg-surface-1 p-5 text-[13px] text-fg-muted">
+                  <span className="font-semibold text-fg">
+                    {runCost.minutes != null
+                      ? `Uses ${runCost.minutes} Clip Minute${runCost.minutes === 1 ? "" : "s"}`
+                      : "Uses 1 Clip Minute per minute of video"}
+                  </span>
+                  {runCost.captionCredits > 0 && <> + up to {runCost.captionCredits} AI credits for premium captions</>}
+                  <span className="mt-0.5 block text-[12px]">
+                    Any number of clips from one video. Re-running the same video within 7 days is free,
+                    and a failed run is refunded in full.
+                  </span>
+                  {minutesBalance != null && (
+                    <span className={`mt-0.5 block text-[12px] ${minutesShort > 0 ? "font-semibold text-warning" : ""}`}>
+                      Your balance: {minutesBalance} Clip Minute{minutesBalance === 1 ? "" : "s"}
+                      {balance != null && <> · {balance} AI credit{balance === 1 ? "" : "s"}</>}
+                      {minutesShort > 0 && ` (${minutesShort} short)`}
+                    </span>
+                  )}
+                  <Checkbox
+                    className="mt-1.5 text-[12px]"
+                    checked={allowCreditOverflow}
+                    onChange={setAllowCreditOverflow}
+                    showLabel
+                    label={`If I run out of minutes, pay the rest in AI credits (${OVERFLOW_MINUTES_PER_CREDIT} minutes = 1 credit${
+                      minutesShort > 0 ? `, ${overflowCreditsFor(minutesShort)} credit${overflowCreditsFor(minutesShort) === 1 ? "" : "s"} for this video` : ""
+                    })`}
+                  />
+                </div>
+              </div>
+            </>
+          )}
+        </main>
+
+        {step === 1 && (
+          <StepFooter hint={hasSource ? "Next: how should it look?" : "Add a video to continue"}>
+            <Button onClick={() => setStep(2)} disabled={!hasSource || !!durationError}>Continue →</Button>
+          </StepFooter>
+        )}
+        {step === 2 && (
+          <StepFooter hint="Next: review and generate" onBack={() => setStep(1)}>
+            <Button onClick={() => setStep(3)}>Continue →</Button>
+          </StepFooter>
+        )}
+        {step === 3 && (
+          <StepFooter hint={choiceSummary} onBack={() => setStep(2)}>
+            <button onClick={handleGenerate} disabled={!canGenerate} aria-busy={submitting || undefined} className="inline-flex items-center gap-2.5 rounded-full bg-primary px-7 py-3.5 text-base font-bold text-on-primary transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-40">
+              <IcSparkle /> {submitting ? "Starting…" : "Generate clips"}
+            </button>
+          </StepFooter>
+        )}
       </div>
     </div>
   );
