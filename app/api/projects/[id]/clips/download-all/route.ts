@@ -38,8 +38,16 @@ async function handleGET(req: NextRequest, { params }: { params: Promise<{ id: s
   });
   if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
 
+  // Optional ?ids=a,b,c: just those clips (the share page's kept set). Always
+  // scoped to this project, so a foreign id simply matches nothing.
+  const ids = (req.nextUrl.searchParams.get("ids") ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .slice(0, 100);
+
   const clips = await prisma.clip.findMany({
-    where: { projectId, status: "ready", videoUrl: { not: null } },
+    where: { projectId, status: "ready", videoUrl: { not: null }, ...(ids.length ? { id: { in: ids } } : {}) },
     orderBy: [{ score: { sort: "desc", nulls: "last" } }, { index: "asc" }],
     select: { index: true, title: true, videoUrl: true },
   });

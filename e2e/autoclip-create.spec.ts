@@ -72,10 +72,16 @@ test("a run refused for Clip Minutes stays on the form, says why, and leaves no 
   });
 
   await page.goto("/dashboard/create/auto-clip");
-  await expect(page.getByText(/Your balance: 4 Clip Minutes · 5 AI credits/)).toBeVisible({ timeout: 90_000 });
+  // One question at a time: the source, then the look, then Generate.
+  await expect(page.getByRole("heading", { name: "What are we clipping today?" })).toBeVisible({ timeout: 90_000 });
 
   await page.getByRole("button", { name: "Choose from Assets" }).first().click();
   await page.getByText("e2e-source.mp4").click();
+  await page.getByRole("button", { name: /Continue/ }).click();
+  await expect(page.getByRole("heading", { name: "How should it look?" })).toBeVisible();
+  await page.getByRole("button", { name: /Continue/ }).click();
+  await expect(page.getByRole("heading", { name: "Ready to clip?" })).toBeVisible();
+  await expect(page.getByText(/Your balance: 4 Clip Minutes · 5 AI credits/)).toBeVisible();
   // The library asset's stored 600s duration prices the run before Generate.
   await expect(page.getByText("Uses 10 Clip Minutes")).toBeVisible();
   await expect(page.getByText(/(6 short)/)).toBeVisible();
@@ -106,6 +112,8 @@ test("a failed run offers Try again on the same video, keeping the user on the f
   await page.getByRole("link", { name: "Try again" }).click();
   await expect(page).toHaveURL(/\/dashboard\/create\/auto-clip\?retry=p-failed/);
 
+  // A retry already has its video and settings, so it opens on the last question.
+  await expect(page.getByRole("heading", { name: "Ready to clip?" })).toBeVisible();
   await expect(page.getByText(/Trying this video again/)).toBeVisible();
   await expect(page.getByRole("button", { name: /Generate clips/ })).toBeEnabled();
 });

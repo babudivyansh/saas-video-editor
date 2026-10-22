@@ -1,0 +1,102 @@
+/* AutoClip create flow (design C: one question at a time). Tokens only — no
+   hex here, scripts/check-theme-debt.mjs counts inline hex. */
+
+.page {
+  background:
+    radial-gradient(70% 50% at 50% 0%, color-mix(in srgb, var(--emerald-brand) 16%, transparent), transparent 70%),
+    var(--bg);
+}
+
+/* Progress dots in the header: one per question. */
+.dots { display: flex; gap: 6px; }
+.dot { width: 28px; height: 4px; border-radius: 2px; background: var(--line-strong); transition: background-color .3s; }
+.dotOn { background: var(--primary); }
+
+/* Letter reveal: a soft edge sweeps left→right uncovering the line, holds,
+   then sweeps back right→left, forever. */
+.reveal {
+  display: inline-block;
+  padding: 0 .04em .1em;
+  -webkit-mask-image: linear-gradient(90deg, black 45%, transparent 55%);
+  mask-image: linear-gradient(90deg, black 45%, transparent 55%);
+  -webkit-mask-size: 220% 100%;
+  mask-size: 220% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  animation: reveal 9s cubic-bezier(.45, 0, .55, 1) infinite;
+}
+@keyframes reveal {
+  0% { -webkit-mask-position: 100% 0; mask-position: 100% 0; }
+  32%, 68% { -webkit-mask-position: 0 0; mask-position: 0 0; }
+  100% { -webkit-mask-position: 100% 0; mask-position: 100% 0; }
+}
+.accent { position: relative; display: inline-block; color: var(--primary); }
+.accent::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: .02em; height: .08em; border-radius: .04em;
+  background: var(--primary); transform: scaleX(0); transform-origin: left;
+  animation: underline 9s cubic-bezier(.65, 0, .35, 1) infinite;
+}
+@keyframes underline {
+  0%, 30% { transform: scaleX(0); }
+  38%, 66% { transform: scaleX(1); }
+  70%, 100% { transform: scaleX(0); transform-origin: right; }
+}
+.caret {
+  display: inline-block; width: .07em; height: .8em; margin-left: .08em; vertical-align: -.04em;
+  background: var(--primary); animation: blink 1s steps(1) infinite;
+}
+@keyframes blink { 50% { opacity: 0; } }
+.eyebrow { display: inline-block; animation: eyebrow 9s ease infinite; }
+@keyframes eyebrow {
+  0% { opacity: 0; letter-spacing: .4em; }
+  10%, 80% { opacity: 1; letter-spacing: .14em; }
+  95%, 100% { opacity: 0; }
+}
+
+/* Cards and panels rise in, staggered by inline animation-delay. */
+.rise { animation: rise .7s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+
+.preset {
+  transition: transform .3s cubic-bezier(.2, .9, .25, 1.25), border-color .2s, box-shadow .2s;
+}
+.preset:hover { transform: translateY(-6px); border-color: color-mix(in srgb, var(--primary) 40%, transparent); }
+.presetOn {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 12%, transparent);
+}
+
+/* A fanned stack of three tiles on each preset card. */
+.fan { display: flex; align-items: flex-end; height: 96px; }
+.fan > span {
+  width: 52px; height: 92px; border-radius: 10px; margin-left: -14px;
+  border: 2px solid var(--bg); box-shadow: 0 8px 20px rgb(0 0 0 / .5);
+  background: linear-gradient(160deg, var(--surface-3), var(--bg));
+  display: flex; align-items: center; justify-content: center; color: var(--primary);
+}
+.fan > span:first-child { margin-left: 0; transform: rotate(-8deg); }
+.fan > span:nth-child(3) { transform: rotate(8deg); }
+
+/* Whole-page drop target while a file is dragged over step 1. */
+.dropping { outline: 2px dashed var(--primary); outline-offset: -12px; }
+
+/* Upload / starting screen: a breathing glow behind the headline. */
+.orb {
+  position: absolute; left: 50%; top: 40%; width: 560px; height: 560px; margin: -280px 0 0 -280px; border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--emerald-brand) 22%, transparent), transparent 65%);
+  animation: breathe 4s ease-in-out infinite; pointer-events: none;
+}
+@keyframes breathe { 50% { transform: scale(1.12); opacity: .7; } }
+.topbar {
+  position: absolute; left: 0; top: 0; height: 3px;
+  background: linear-gradient(90deg, var(--emerald-bright), var(--primary));
+  animation: topbar 14s linear infinite;
+}
+@keyframes topbar { from { width: 20%; } to { width: 80%; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal, .accent::after, .caret, .eyebrow, .rise, .orb, .topbar { animation: none !important; }
+  .reveal { -webkit-mask-image: none; mask-image: none; }
+  .accent::after { transform: scaleX(1); }
+  .preset:hover { transform: none; }
+}

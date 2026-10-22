@@ -76,6 +76,10 @@ function ImageDropZone({
       <p className="text-[12px] text-fg-subtle mb-2">{sublabel}</p>
 
       {slot.file && slot.preview ? (
+        // launch-sweep (globals.css) runs a light along the edges while a photo
+        // is chosen. It sits 1px outside the box, so it lives on this wrapper,
+        // not on the overflow-hidden frame inside.
+        <div className="launch-sweep relative">
         <div className="relative rounded-xl overflow-hidden border border-line bg-surface-2 aspect-square">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={slot.preview} alt={label} className="w-full h-full object-cover" />
@@ -89,6 +93,7 @@ function ImageDropZone({
               <IcX />
             </button>
           )}
+        </div>
         </div>
       ) : (
         <>
