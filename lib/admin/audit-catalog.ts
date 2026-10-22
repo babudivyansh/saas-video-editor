@@ -164,6 +164,7 @@ const EXACT: Record<string, Row> = {
   "tool.updated": ["Changed tool settings for", "config", "change", "tool", "Tool availability or cost changed."],
   "model.override_updated": ["Changed AI model settings for", "config", "money", "model", "Model availability or credit cost changed."],
   "autoclip_calibration.toggled": ["Toggled AutoClip calibration", "config", "change", "none", "Automatic virality-weight calibration was switched."],
+  "signup_alerts.updated": ["Changed new-signup email alerts", "config", "change", "none", "The new-signup staff email was switched or its recipients changed."],
   "autoclip_calibration.recalibrated": ["Recalibrated AutoClip virality weights", "config", "change", "none", "Scoring weights were recomputed from engagement."],
 
   // ── Social ──

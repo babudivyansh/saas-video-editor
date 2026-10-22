@@ -9,6 +9,7 @@ import { logger } from "@/lib/logger";
 import { grantFreeTierMinutes } from "@/lib/minutes";
 import { attributeReferral } from "@/lib/affiliate";
 import { getClientIp } from "@/lib/rate-limit";
+import { notifyAdminsOfSignup } from "@/lib/admin/signup-alerts";
 
 // Google sign-in after Google has vouched for the person — shared by the web
 // redirect flow (app/api/auth/callback/google) and the Android app's ID-token
@@ -96,6 +97,9 @@ export async function signInWithGoogleProfile(req: NextRequest, profile: GoogleP
       // The rightmost trusted hop, not the client-supplied leftmost one.
       signupIp: (() => { const ip = getClientIp(req); return ip === "unknown" ? null : ip; })(),
     });
+
+    // Staff "new signup" email (Admin → Operations → Notifications). Never throws.
+    void notifyAdminsOfSignup({ userId: user.id, email, name, method: "google" });
   } else {
     // Existing account. If its address was never verified, whoever created
     // it may not own the inbox — they could have registered this address

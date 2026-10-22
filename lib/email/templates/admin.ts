@@ -132,3 +132,36 @@ export function affiliatePayoutReady(d: AdminAffiliatePayoutReadyData): EmailDoc
     ],
   };
 }
+
+export interface AdminNewSignupData {
+  userId: string;
+  name: string | null;
+  email: string;
+  method: "email" | "google";
+  referralCode?: string;
+  /** Pre-formatted by the caller, like the security alerts' `time`. */
+  signedUpAt: string;
+}
+
+export function newSignup(d: AdminNewSignupData): EmailDocument {
+  const who = d.name || d.email;
+  const method = d.method === "google" ? "Google" : "Email & password";
+  return {
+    subject: `New signup: ${who}`,
+    preheader: `${d.email} just created a ${PRODUCT_NAME} account (${method}).`,
+    blocks: [
+      { kind: "heading", text: "New signup" },
+      {
+        kind: "kv",
+        rows: [
+          { label: "Name", value: d.name || "—" },
+          { label: "Email", value: d.email },
+          { label: "Signed up with", value: method },
+          ...(d.referralCode ? [{ label: "Referral code", value: d.referralCode }] : []),
+          { label: "When", value: d.signedUpAt },
+        ],
+      },
+      { kind: "button", href: `${APP_URL}/admin/users/${encodeURIComponent(d.userId)}`, label: "Open in admin" },
+    ],
+  };
+}

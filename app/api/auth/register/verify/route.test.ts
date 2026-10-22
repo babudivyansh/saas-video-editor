@@ -23,6 +23,9 @@ vi.mock("@/lib/marketing-analytics", () => ({ recordSignupAttribution: vi.fn(asy
 const sendWelcomeEmail = vi.fn(async () => {});
 vi.mock("@/lib/email", () => ({ sendWelcomeEmail }));
 
+const notifyAdminsOfSignup = vi.fn(async () => {});
+vi.mock("@/lib/admin/signup-alerts", () => ({ notifyAdminsOfSignup }));
+
 const attributeReferral = vi.fn(async () => null);
 vi.mock("@/lib/affiliate", () => ({ attributeReferral }));
 
@@ -76,6 +79,9 @@ describe("POST /api/auth/register/verify", () => {
     }));
     expect(clearPendingSignup).toHaveBeenCalledWith("new@test.com");
     expect(sendWelcomeEmail).toHaveBeenCalledWith("new@test.com", "New", 10);
+    expect(notifyAdminsOfSignup).toHaveBeenCalledWith({
+      userId: "new-user-1", email: "new@test.com", name: "New User", method: "email", referralCode: undefined,
+    });
   });
 
   it("creates nothing on a wrong code", async () => {
@@ -84,6 +90,7 @@ describe("POST /api/auth/register/verify", () => {
     expect(res.status).toBe(401);
     expect(create).not.toHaveBeenCalled();
     expect(clearPendingSignup).not.toHaveBeenCalled();
+    expect(notifyAdminsOfSignup).not.toHaveBeenCalled();
   });
 
   it("reports an expired signup so the client can go back to the form", async () => {
@@ -138,6 +145,7 @@ describe("POST /api/auth/register/verify", () => {
       newUser: { id: "new-user-1", name: "New User" },
     }));
     expect(data.referral).toEqual({ applied: true, code: "JOH-N4X2" });
+    expect(notifyAdminsOfSignup).toHaveBeenCalledWith(expect.objectContaining({ referralCode: "JOH-N4X2" }));
     expect(JSON.stringify(data)).not.toContain("owner@test.com");
   });
 

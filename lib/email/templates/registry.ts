@@ -744,6 +744,31 @@ export const EMAIL_REGISTRY: Record<string, TemplateEntry<never>> = {
       },
     },
   }),
+  "admin-new-signup": entry({
+    id: "admin-new-signup",
+    title: "New signup (internal)",
+    group: "admin",
+    category: "transactional",
+    trigger: "A new account is created (email or Google); toggled in Admin → Operations → Notifications",
+    build: admin.newSignup,
+    samples: {
+      email: {
+        userId: "usr_123",
+        name: "Aarav Sharma",
+        email: "aarav@example.com",
+        method: "email" as const,
+        referralCode: "AARAV20",
+        signedUpAt: "22 October 2026, 14:05 IST",
+      },
+      google: {
+        userId: "usr_456",
+        name: null,
+        email: "priya@example.com",
+        method: "google" as const,
+        signedUpAt: "22 October 2026, 14:07 IST",
+      },
+    },
+  }),
 
   // ── Newsletter ────────────────────────────────────────────────────────────
   "newsletter-confirm": entry({

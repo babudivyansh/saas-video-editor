@@ -25,6 +25,7 @@ vi.mock("@/lib/rate-limit", () => ({ rateLimit: vi.fn(async () => ({ allowed: tr
 vi.mock("@/lib/affiliate", () => ({ attributeReferral: vi.fn(async () => {}) }));
 vi.mock("@/lib/marketing-analytics", () => ({ recordSignupAttribution: vi.fn(async () => {}) }));
 vi.mock("@/lib/email", () => ({ sendWelcomeEmail: vi.fn(async () => {}) }));
+vi.mock("@/lib/admin/signup-alerts", () => ({ notifyAdminsOfSignup: vi.fn(async () => {}) }));
 vi.mock("@/lib/two-factor-ticket", () => ({ mintTwoFactorTicket: vi.fn(async () => "ticket-123") }));
 vi.mock("@/lib/auth", () => ({
   setSessionCookie: vi.fn(),

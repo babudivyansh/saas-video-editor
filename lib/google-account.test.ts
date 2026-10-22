@@ -7,6 +7,7 @@ vi.mock("@/lib/account-claim", () => ({ claimUnverifiedAccount: vi.fn() }));
 vi.mock("@/lib/minutes", () => ({ grantFreeTierMinutes: vi.fn() }));
 vi.mock("@/lib/affiliate", () => ({ attributeReferral: vi.fn() }));
 vi.mock("@/lib/rate-limit", () => ({ getClientIp: () => "unknown" }));
+vi.mock("@/lib/admin/signup-alerts", () => ({ notifyAdminsOfSignup: vi.fn() }));
 
 const { GoogleTokenError, resetGoogleCertCache, verifyGoogleIdToken } = await import("./google-account");
 
