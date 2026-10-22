@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
-import Image from "next/image";
+import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useReducedMotion } from "framer-motion";
 import { useAuth } from "@/app/components/AuthContext";
 import Reveal from "@/app/components/Reveal";
 import { Modal } from "@/app/components/ui/Modal";
@@ -21,6 +21,17 @@ interface HeroProps {
 export default function Hero({ reviewSummary }: HeroProps) {
   const { user, openAuthModal } = useAuth();
   const [demoOpen, setDemoOpen] = useState(false);
+  const filmRef = useRef<HTMLVideoElement>(null);
+  // Applied to the element rather than rendered as autoPlay/controls props:
+  // the server can't know the preference, and the hook already reports it on
+  // the client's first render, so rendering from it is a hydration mismatch.
+  const reduceMotion = useReducedMotion() === true;
+  useEffect(() => {
+    const film = filmRef.current;
+    if (!film || !reduceMotion) return;
+    film.pause();
+    film.controls = true;
+  }, [reduceMotion]);
 
   return (
     <section className="relative overflow-hidden font-sans">
@@ -109,82 +120,28 @@ export default function Hero({ reviewSummary }: HeroProps) {
           </div>
         </Reveal>
 
-        {/* Hero visual: editor mockup (CSS-drawn — replaced with a real editor
-            screenshot once the browser editor ships) */}
+        {/* Hero visual: the Clipiro launch film, rendered from the Claude Design
+            project "Clipiro Launch Film" to a silent 108s loop. Muted + playsInline
+            is what lets browsers autoplay it; reduced-motion visitors get it
+            paused on the poster with controls instead. */}
         <Reveal delay={300} className="w-full">
           <div className="mx-auto mt-8 w-full max-w-5xl">
             <ShowcaseGlow>
-            <div className="overflow-hidden rounded-2xl border border-card-border bg-panel shadow-2xl">
-              {/* Faux window chrome */}
-              <div className="flex items-center gap-1.5 border-b border-line bg-surface-2 px-4 py-3">
-                <span className="h-3 w-3 rounded-full bg-line-strong" />
-                <span className="h-3 w-3 rounded-full bg-line-strong" />
-                <span className="h-3 w-3 rounded-full bg-line-strong" />
-                <span className="ml-3 inline-flex items-center gap-1.5 rounded-md bg-panel px-3 py-1 text-xs text-fg-subtle ring-1 ring-line">
-                  clipiro.com/editor
-                </span>
+              <div className="overflow-hidden rounded-2xl border border-card-border bg-black shadow-2xl">
+                <video
+                  ref={filmRef}
+                  className="block aspect-video w-full"
+                  src="/hero/launch-film.mp4"
+                  poster="/hero/launch-film-poster.jpg"
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  preload="auto"
+                  aria-label="Clipiro product film: AutoClip, image generation, voice, editing tools and exports"
+                />
               </div>
-              {/* Editor mockup: sidebar / preview / properties + timeline */}
-              <div className="flex h-[300px] gap-2 bg-surface p-3 sm:h-[380px]" aria-hidden="true">
-                {/* Left sidebar: media bin */}
-                <div className="hidden w-40 flex-col gap-2 rounded-xl border border-card-border bg-panel p-2 sm:flex">
-                  <div className="h-2 w-16 rounded-full bg-surface-3" />
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {["/hero/thumb-1.jpg", "/hero/thumb-2.jpg", "/hero/thumb-3.jpg", "/hero/thumb-4.jpg"].map((src, i) => (
-                      <div key={src} className="relative aspect-video overflow-hidden rounded-md bg-surface-3">
-                        <Image src={src} alt="" fill sizes="80px" className="object-cover" priority={i === 0} />
-                      </div>
-                    ))}
-                  </div>
-                  <div className="mt-1 h-2 w-20 rounded-full bg-surface-3" />
-                  <div className="h-2 w-14 rounded-full bg-surface-3" />
-                </div>
-                {/* Center: preview + timeline */}
-                <div className="flex flex-1 flex-col gap-2">
-                  <div className="relative flex flex-1 items-center justify-center rounded-xl bg-black">
-                    <div className="relative flex aspect-[9/16] h-[85%] items-center justify-center overflow-hidden rounded-lg">
-                      <Image src="/hero/preview.jpg" alt="" fill sizes="220px" className="object-cover" priority />
-                      <span className="relative flex h-10 w-10 items-center justify-center rounded-full bg-white/85">
-                        <PlayIcon className="h-4 w-4 translate-x-[1px] text-brand-deep" />
-                      </span>
-                    </div>
-                    <span className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded bg-black/60 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">
-                      Captions on point
-                    </span>
-                  </div>
-                  {/* Timeline */}
-                  <div className="flex flex-col gap-1.5 rounded-xl border border-card-border bg-panel p-2">
-                    <div className="flex h-5 items-center gap-1">
-                      <div className="h-full w-2/5 rounded bg-brand/70" />
-                      <div className="h-full w-1/4 rounded bg-brand/50" />
-                      <div className="h-full w-1/3 rounded bg-brand/60" />
-                    </div>
-                    <div className="flex h-3.5 items-center gap-1">
-                      <div className="ml-[10%] h-full w-1/4 rounded bg-warning/80" />
-                      <div className="ml-[15%] h-full w-1/5 rounded bg-warning/50" />
-                    </div>
-                    <div className="flex h-3.5 items-center">
-                      <div className="h-full w-3/4 rounded bg-success/50" />
-                    </div>
-                  </div>
-                </div>
-                {/* Right: properties */}
-                <div className="hidden w-36 flex-col gap-2 rounded-xl border border-card-border bg-panel p-2 md:flex">
-                  <div className="h-2 w-14 rounded-full bg-surface-3" />
-                  <div className="h-7 rounded-md border border-card-border bg-surface" />
-                  <div className="h-7 rounded-md border border-card-border bg-surface" />
-                  <div className="mt-1 h-2 w-10 rounded-full bg-surface-3" />
-                  <div className="h-2 rounded-full bg-brand/40" />
-                  <div className="mt-auto h-8 rounded-lg bg-brand" />
-                </div>
-              </div>
-            </div>
             </ShowcaseGlow>
-            {/* Floating feature badge */}
-            <div className="absolute -bottom-5 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full border border-line bg-panel px-5 py-2.5 shadow-lg">
-              <CheckIcon className="h-4 w-4 text-success" />
-              <span className="text-sm font-semibold text-fg">Auto captions & viral-moment detection</span>
-            </div>
           </div>
         </Reveal>
       </div>
