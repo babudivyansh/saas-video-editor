@@ -66,7 +66,7 @@ export default async function HomePage() {
       <div className="min-h-screen bg-bg text-fg font-sans">
         <SiteNavbar />
         <main>
-          <Hero reviewSummary={reviewSummary} />
+          <Hero />
           <SocialProof />
           {testimonials.length > 0 && <TestimonialWall summary={reviewSummary} reviews={testimonials} />}
           <Features />
