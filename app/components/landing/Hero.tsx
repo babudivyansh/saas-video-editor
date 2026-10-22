@@ -5,12 +5,18 @@ import Link from "next/link";
 import { useReducedMotion } from "framer-motion";
 import { useAuth } from "@/app/components/AuthContext";
 import Reveal from "@/app/components/Reveal";
+import { ArrowRightIcon } from "@/app/components/landing/icons";
 import HeroRatingBadge from "@/app/components/landing/HeroRatingBadge";
 import { MINIMUM_REVIEWS_FOR_SCHEMA } from "@/app/reviews/schema";
 import type { ReviewSummary } from "@/lib/reviews/queries";
 
+// Lime glow under the CTA that blooms on hover. A coloured box-shadow rather
+// than ShowcaseGlow: it has to hug the pill, not sit behind a frame.
 const CTA_CLASS =
-  "inline-flex items-center gap-2 rounded-full bg-brand px-8 py-4 text-base font-bold text-on-primary shadow-card transition-all duration-200 hover:scale-[1.02] hover:bg-brand-dark cursor-pointer";
+  "group inline-flex items-center gap-2.5 rounded-full bg-brand px-10 py-5 text-lg font-bold text-on-primary cursor-pointer " +
+  "shadow-[0_0_36px_-8px_color-mix(in_oklab,var(--primary)_70%,transparent)] transition-all duration-200 " +
+  "hover:scale-[1.03] hover:bg-brand-dark hover:shadow-[0_0_56px_-6px_color-mix(in_oklab,var(--primary)_85%,transparent)] " +
+  "outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-4 focus-visible:ring-offset-bg";
 
 interface HeroProps {
   reviewSummary: ReviewSummary;
@@ -59,9 +65,9 @@ export default function Hero({ reviewSummary }: HeroProps) {
             in globals.css) it animates on the page itself. On lg it reaches 80px
             past the content padding on each side (the section clips overflow),
             but never so tall that it pushes the CTA below the fold: the width
-            is also capped at 16:9 of the viewport height minus ~17rem (navbar,
-            gap, button, rating badge). */}
-        <Reveal className="w-full max-w-[1360px] lg:w-[min(calc(100%+160px),calc((100svh-17rem)*16/9))]">
+            is also capped at 16:9 of the viewport height minus ~15rem (navbar,
+            button, reassurance line; the button overlaps the film by ~2rem). */}
+        <Reveal className="w-full max-w-[1360px] lg:w-[min(calc(100%+160px),calc((100svh-15rem)*16/9))]">
           <div className="hero-film-fade">
             <video
               ref={filmRef}
@@ -78,22 +84,37 @@ export default function Hero({ reviewSummary }: HeroProps) {
           </div>
         </Reveal>
 
-        <Reveal delay={120}>
+        {/* CTA: pulled up into the film's feathered bottom edge so it reads as
+            the film's call to action instead of floating in the dark band
+            below it, with the reassurance and rating on one line under it. */}
+        <Reveal delay={120} className="relative z-10 -mt-4 flex flex-col items-center gap-4 lg:-mt-14">
           {user ? (
             <Link href="/dashboard" className={CTA_CLASS}>
-              Try Clipiro
+              Try Clipiro free
+              <ArrowRightIcon className="h-5 w-5 transition-transform duration-200 group-hover:translate-x-1" />
             </Link>
           ) : (
             <button type="button" onClick={() => openAuthModal("register")} className={CTA_CLASS}>
-              Try Clipiro
+              Try Clipiro free
+              <ArrowRightIcon className="h-5 w-5 transition-transform duration-200 group-hover:translate-x-1" />
             </button>
           )}
+          <div className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-sm text-fg-muted">
+            <span>Free plan</span>
+            <span aria-hidden="true">·</span>
+            <span>No credit card</span>
+            {/* Rating badge — hidden below MINIMUM_REVIEWS_FOR_SCHEMA to avoid a
+                thin, unconvincing average (same gate the SEO JSON-LD already
+                applies to aggregateRating). */}
+            {reviewSummary.count >= MINIMUM_REVIEWS_FOR_SCHEMA && (
+              <>
+                {/* Below sm the rating wraps onto its own line; a leading dot there would dangle. */}
+                <span aria-hidden="true" className="hidden sm:inline">·</span>
+                <HeroRatingBadge summary={reviewSummary} />
+              </>
+            )}
+          </div>
         </Reveal>
-
-        {/* Rating badge — hidden below MINIMUM_REVIEWS_FOR_SCHEMA to avoid a
-            thin, unconvincing average (same gate the SEO JSON-LD already
-            applies to aggregateRating). */}
-        {reviewSummary.count >= MINIMUM_REVIEWS_FOR_SCHEMA && <HeroRatingBadge summary={reviewSummary} />}
       </div>
     </section>
   );
