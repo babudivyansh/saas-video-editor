@@ -6,7 +6,6 @@ import { useReducedMotion } from "framer-motion";
 import { useAuth } from "@/app/components/AuthContext";
 import Reveal from "@/app/components/Reveal";
 import { Modal } from "@/app/components/ui/Modal";
-import ShowcaseGlow from "@/app/components/marketing/ShowcaseGlow";
 import { PlayIcon, CheckIcon } from "@/app/components/landing/icons";
 import HeroRatingBadge from "@/app/components/landing/HeroRatingBadge";
 import { MINIMUM_REVIEWS_FOR_SCHEMA } from "@/app/reviews/schema";
@@ -123,25 +122,25 @@ export default function Hero({ reviewSummary }: HeroProps) {
         {/* Hero visual: the Clipiro launch film, rendered from the Claude Design
             project "Clipiro Launch Film" to a silent 108s loop. Muted + playsInline
             is what lets browsers autoplay it; reduced-motion visitors get it
-            paused on the poster with controls instead. */}
-        <Reveal delay={300} className="w-full">
-          <div className="mx-auto mt-8 w-full max-w-5xl">
-            <ShowcaseGlow>
-              <div className="overflow-hidden rounded-2xl border border-card-border bg-black shadow-2xl">
-                <video
-                  ref={filmRef}
-                  className="block aspect-video w-full"
-                  src="/hero/launch-film.mp4"
-                  poster="/hero/launch-film-poster.jpg"
-                  autoPlay
-                  muted
-                  loop
-                  playsInline
-                  preload="auto"
-                  aria-label="Clipiro product film: AutoClip, image generation, voice, editing tools and exports"
-                />
-              </div>
-            </ShowcaseGlow>
+            paused on the poster with controls instead.
+            Deliberately unframed: the film's backdrop is the page's own --bg
+            (#050908), so with no border/box and feathered edges (.hero-film-fade
+            in globals.css) it animates on the page itself. On lg it reaches 80px
+            past the content padding on each side (the section clips overflow). */}
+        <Reveal delay={300} className="w-full max-w-[1360px] lg:w-[calc(100%+160px)]">
+          <div className="hero-film-fade mt-4">
+            <video
+              ref={filmRef}
+              className="block aspect-video w-full"
+              src="/hero/launch-film.mp4"
+              poster="/hero/launch-film-poster.jpg"
+              autoPlay
+              muted
+              loop
+              playsInline
+              preload="auto"
+              aria-label="Clipiro product film: AutoClip, image generation, voice, editing tools and exports"
+            />
           </div>
         </Reveal>
       </div>
