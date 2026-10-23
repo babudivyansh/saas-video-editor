@@ -39,14 +39,17 @@ function IcMenu({ open }: { open: boolean }) {
 }
 
 // Step-up sign-in: even with a valid dashboard session, /admin requires a
-// fresh email-code verification (8h window). The screen mirrors the real
-// server-side gate — every /api/admin/* call 403s until elevated.
+// fresh emailed code plus the admin's authenticator code (8h window). The
+// screen mirrors the real server-side gate — every /api/admin/* call 403s
+// until elevated, and elevation is refused while 2FA is off.
 function AdminGate({ email, onElevated }: { email: string; onElevated: () => void }) {
   const { token } = useAuth();
   const [sent, setSent] = useState(false);
   const [code, setCode] = useState("");
+  const [totp, setTotp] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [needsTwoFactor, setNeedsTwoFactor] = useState(false);
 
   async function post(body: object) {
     return fetch("/api/admin/elevate", {
@@ -65,6 +68,8 @@ function AdminGate({ email, onElevated }: { email: string; onElevated: () => voi
       if (res.ok) {
         setSent(true);
         setMsg(d.channel === "dev-console" ? "Dev mode: the code was printed in the server console." : `Code sent to ${email}.`);
+      } else if (d.code === "two_factor_required") {
+        setNeedsTwoFactor(true);
       } else {
         setMsg(d.error ?? "Couldn't send the code.");
       }
@@ -78,7 +83,7 @@ function AdminGate({ email, onElevated }: { email: string; onElevated: () => voi
     setBusy(true);
     setMsg(null);
     try {
-      const res = await post({ action: "verify", code: code.trim() });
+      const res = await post({ action: "verify", code: code.trim(), totp: totp.trim() });
       const d = await res.json().catch(() => ({}));
       if (res.ok) onElevated();
       else setMsg(d.error ?? "Verification failed.");
@@ -95,7 +100,16 @@ function AdminGate({ email, onElevated }: { email: string; onElevated: () => voi
         <p className="text-sm text-fg-muted mb-5">
           For your security the admin console needs a fresh verification, even when you&apos;re already signed in.
         </p>
-        {!sent ? (
+        {needsTwoFactor ? (
+          <div className="space-y-3">
+            <p className="text-sm text-fg">
+              The admin console needs two-factor authentication. Turn it on, then come back here.
+            </p>
+            <Button href="/dashboard?settings=security" variant="primary" className="w-full">
+              Turn on two-factor authentication
+            </Button>
+          </div>
+        ) : !sent ? (
           <Button onClick={sendCode} disabled={busy} variant="primary" className="w-full">
             {busy ? "Sending…" : `Email a code to ${email}`}
           </Button>
@@ -107,10 +121,18 @@ function AdminGate({ email, onElevated }: { email: string; onElevated: () => voi
               onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
               inputMode="numeric"
               placeholder="6-digit code"
-              aria-label="Verification code"
+              aria-label="Code from your email"
               className="w-full text-center text-2xl font-bold tracking-[0.5em] border border-line rounded-xl py-2.5"
             />
-            <Button type="submit" disabled={busy || code.length !== 6} variant="primary" className="w-full">
+            <input
+              value={totp}
+              onChange={(e) => setTotp(e.target.value.replace(/[^dA-Za-z-]/g, "").slice(0, 11))}
+              autoComplete="one-time-code"
+              placeholder="Authenticator code"
+              aria-label="Code from your authenticator app, or a recovery code"
+              className="w-full text-center text-lg font-semibold tracking-[0.2em] border border-line rounded-xl py-2.5"
+            />
+            <Button type="submit" disabled={busy || code.length !== 6 || totp.length < 6} variant="primary" className="w-full">
               {busy ? "Verifying…" : "Enter admin console"}
             </Button>
             <Button type="button" onClick={sendCode} disabled={busy} variant="link" className="text-fg-subtle hover:text-brand">

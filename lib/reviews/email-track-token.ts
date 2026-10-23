@@ -31,7 +31,7 @@ export function signTrackToken(userId: string, stage: DripStage): string {
 
 export function verifyTrackToken(token: string): { userId: string; stage: DripStage } | null {
   try {
-    const payload = jwt.verify(token, JWT_SECRET) as Partial<TrackTokenPayload>;
+    const payload = jwt.verify(token, JWT_SECRET, { algorithms: ["HS256"] }) as Partial<TrackTokenPayload>;
     if (payload.purpose !== PURPOSE || !payload.userId || !payload.stage) return null;
     return { userId: payload.userId, stage: payload.stage };
   } catch {

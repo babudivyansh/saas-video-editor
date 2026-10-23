@@ -25,11 +25,16 @@ export async function POST(req: NextRequest) {
     }
 
     const ip = getClientIp(req);
-    const [idLimit, ipLimit] = await Promise.all([
-      rateLimit(`login:id:${email}`, 8, 900),
+    // The tight per-account limit is keyed by account AND address: keyed by
+    // account alone, anyone could lock the real owner out of password sign-in
+    // with 8 bad guesses. The account-wide ceiling still stops a guess spread
+    // across many addresses, but is far out of reach of a single annoyed one.
+    const [idIpLimit, idLimit, ipLimit] = await Promise.all([
+      rateLimit(`login:id-ip:${email}:${ip}`, 8, 900),
+      rateLimit(`login:id:${email}`, 40, 900),
       rateLimit(`login:ip:${ip}`, 30, 900),
     ]);
-    if (!idLimit.allowed || !ipLimit.allowed) {
+    if (!idIpLimit.allowed || !idLimit.allowed || !ipLimit.allowed) {
       return NextResponse.json(
         { error: "Too many attempts. Please try again in a few minutes." },
         { status: 429 },

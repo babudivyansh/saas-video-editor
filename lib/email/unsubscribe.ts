@@ -39,7 +39,7 @@ export function signUnsubToken(userId: string, category: NotificationCategory): 
 
 export function verifyUnsubToken(token: string): { userId: string; category: NotificationCategory } | null {
   try {
-    const payload = jwt.verify(token, env.JWT_SECRET) as Partial<UnsubPayload>;
+    const payload = jwt.verify(token, env.JWT_SECRET, { algorithms: ["HS256"] }) as Partial<UnsubPayload>;
     if (payload.purpose !== PURPOSE || !payload.userId || !payload.category) return null;
     return { userId: payload.userId, category: payload.category };
   } catch {

@@ -10,6 +10,7 @@ import { grantMinutes, setSubscriptionMinutes, type MinuteBucket } from "@/lib/m
 import { cancelExistingSubscriptionForSwitch } from "@/lib/billing/subscription-switch";
 import { logger } from "@/lib/logger";
 import { rateLimit } from "@/lib/rate-limit";
+import { verifySecondFactor } from "@/lib/two-factor-verify";
 
 export const PATCH = withAdmin<{ id: string }>(async (req, { admin, params }) => {
   const { id } = params;
@@ -21,6 +22,20 @@ export const PATCH = withAdmin<{ id: string }>(async (req, { admin, params }) =>
 
   if ("monthlyCredits" in body) data.monthlyCredits = body.monthlyCredits;
   if ("role" in body) data.role = body.role;
+
+  if (body.role === "ADMIN") {
+    const actor = await prisma.user.findUnique({
+      where: { id: admin.userId },
+      select: { id: true, email: true, name: true, twoFactorSecretEnc: true },
+    });
+    const second = actor ? await verifySecondFactor(actor, body.totp!) : "invalid";
+    if (second !== "ok") {
+      return NextResponse.json(
+        { error: second === "locked" ? "Too many incorrect authenticator codes. Try again in 15 minutes." : "Wrong authenticator code." },
+        { status: second === "locked" ? 429 : 401 },
+      );
+    }
+  }
 
   // Balance changes never go into `data`. User.credits is a DENORMALIZED total
   // of the three bucket columns, and lib/credits.ts's spendCredits recomputes

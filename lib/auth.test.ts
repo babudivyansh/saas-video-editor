@@ -49,6 +49,14 @@ vi.mock("@/lib/redis", () => ({
     incrWithExpire: vi.fn(async () => 1),
   },
 }));
+// The strict variants (used by revocation) share the same store.
+{
+  const { redis } = await import("@/lib/redis");
+  const r = redis as unknown as Record<string, (...a: unknown[]) => unknown>;
+  r.getStrict = (key) => r.get(key);
+  r.setStrict = (key, value, ttl) => r.set(key, value, "EX", ttl);
+  r.delStrict = (key) => r.del(key);
+}
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
