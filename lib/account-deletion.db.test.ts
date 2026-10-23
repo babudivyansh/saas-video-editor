@@ -11,7 +11,7 @@ vi.mock("@/lib/redis", () => ({ redis: { del: vi.fn(async () => {}) } }));
 vi.mock("@/lib/auth", () => ({ invalidateAllSessions: vi.fn(async () => {}) }));
 vi.mock("@/lib/billing/cancel-on-account-lifecycle", () => ({ cancelRazorpaySubscriptionBestEffort: vi.fn(async () => {}) }));
 vi.mock("@/utils/elevenlabs", () => ({ deleteClonedVoice: vi.fn(async () => {}) }));
-vi.mock("@/utils/s3-upload", () => ({ deleteS3Object: vi.fn(async () => {}) }));
+vi.mock("@/utils/s3-upload", () => ({ deleteS3Object: vi.fn(async () => {}), deleteS3Prefix: vi.fn(async () => 0) }));
 
 const { prisma } = await import("@/lib/prisma");
 const { hardDeleteUserAccount } = await import("@/lib/account-deletion");

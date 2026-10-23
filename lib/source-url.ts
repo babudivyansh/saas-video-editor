@@ -19,6 +19,7 @@ import { prisma } from "@/lib/prisma";
 import { getAssetReadUrl } from "@/utils/s3-upload";
 import { logger } from "@/lib/logger";
 import { isPrivateHostLiteral } from "@/utils/network-guard";
+import { ownBucketKey } from "@/lib/signed-media";
 
 /**
  * Recover the S3 object key from a stored media URL.
@@ -160,6 +161,25 @@ export async function classifySource(
 export async function freshSourceUrl(storedUrl: string, ownerUserId: string): Promise<string> {
   const source = await classifySource(storedUrl, ownerUserId);
   return source.kind === "owned" ? source.url : storedUrl;
+}
+
+/**
+ * A client-displayable URL for a CLIENT-SETTABLE media column
+ * (Project.uploadedVideoUrl / musicUrl / backgroundUrl, User.avatarUrl,
+ * BrandKit.logoUrl). The bucket is private, so the stored unsigned URL no
+ * longer loads; but a client can store any key in these columns, so a fresh
+ * signature is only minted when `ownerUserId` provably owns the object. A
+ * foreign key, another bucket, or a third-party URL comes back unchanged —
+ * which for a foreign key is a 403, exactly what it should be.
+ *
+ * `ownerUserId` is the owner of the row the URL came from, read server-side.
+ */
+export async function resignOwnedMediaUrl(url: string | null, ownerUserId: string): Promise<string | null> {
+  if (!url) return null;
+  const key = ownBucketKey(url);
+  if (!key) return url;
+  if (!(await ownsKey(ownerUserId, key))) return url;
+  return getAssetReadUrl(key).catch(() => url);
 }
 
 /**

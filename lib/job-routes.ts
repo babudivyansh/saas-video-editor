@@ -3,6 +3,7 @@ import fs from "fs";
 import { Readable } from "stream";
 import { getAuthUser } from "@/lib/auth";
 import { attachmentDisposition } from "@/utils/content-disposition";
+import { resignMediaUrl } from "@/lib/signed-media";
 import { refundCredits, cancelGeneration, markGenerationStatus, type ChargeCreditsResult } from "@/lib/credits";
 
 // Shared GET (poll/download) handler for the ~12 tool routes that each run
@@ -106,9 +107,20 @@ export function createJobStatusHandler<J extends PollableJob>(
       progress: Math.round(job.progress),
       status: job.status,
       error: job.error,
-      ...(job.meta ? { meta: job.meta } : {}),
+      ...(job.meta ? { meta: await signMetaUrls(job.meta) } : {}),
     });
   };
+}
+
+// Routes put the S3 URL of a saved result in meta (voiceover's audioUrl, …).
+// That is the stored, unsigned form, and the bucket is private: sign every
+// top-level value that points at our bucket. meta is server-written, never
+// client input, so no ownership check is needed.
+async function signMetaUrls(meta: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const entries = await Promise.all(
+    Object.entries(meta).map(async ([k, v]) => [k, typeof v === "string" ? await resignMediaUrl(v) : v] as const),
+  );
+  return Object.fromEntries(entries);
 }
 
 export interface CancellableJob extends PollableJob {

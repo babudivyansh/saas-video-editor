@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { ZipWriter } from "@/lib/zip-writer";
 import { logger } from "@/lib/logger";
+import { fetchableMediaUrl } from "@/lib/signed-media";
 
 // GET /api/projects/[id]/clips/download-all
 // Streams every ready clip as one zip.
@@ -67,7 +68,8 @@ async function handleGET(req: NextRequest, { params }: { params: Promise<{ id: s
     let included = 0;
 
     for (const [i, clip] of clips.entries()) {
-      const res = await fetch(clip.videoUrl!);
+      // Presigned — the bucket is private, so the stored unsigned URL is a 403.
+      const res = await fetch(await fetchableMediaUrl(clip.videoUrl!, 600));
       if (!res.ok) {
         logger.warn("auto-clip", `skipping clip ${clip.index} in bulk download (${res.status})`);
         continue;

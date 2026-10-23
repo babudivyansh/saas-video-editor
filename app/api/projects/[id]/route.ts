@@ -6,7 +6,8 @@ import { invalidateDashboardSummary } from "@/lib/dashboard-summary-cache";
 import { parseS3Url } from "@/lib/s3-url";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { collectProjectMediaKeys, deleteUnreferencedKeys } from "@/lib/storage-cleanup";
-import { sourceUrlError } from "@/lib/source-url";
+import { resignOwnedMediaUrl, sourceUrlError } from "@/lib/source-url";
+import { resignMediaUrl } from "@/lib/signed-media";
 import { snapshotDoc } from "@/lib/project-versions";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -15,7 +16,20 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id } = await params;
   const project = await prisma.project.findFirst({ where: { id, userId: auth.userId } });
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json({ project });
+  return NextResponse.json({ project: await withSignedMedia(project) });
+}
+
+// The bucket is private, so stored unsigned media URLs need a signature before
+// the client can load them. videoUrl is server-written (the export); the rest
+// are client-settable, so they are only signed for objects the owner owns.
+async function withSignedMedia<T extends { userId: string; videoUrl: string | null; uploadedVideoUrl: string | null; musicUrl: string | null; backgroundUrl: string }>(p: T): Promise<T> {
+  return {
+    ...p,
+    videoUrl: await resignMediaUrl(p.videoUrl),
+    uploadedVideoUrl: await resignOwnedMediaUrl(p.uploadedVideoUrl, p.userId),
+    musicUrl: await resignOwnedMediaUrl(p.musicUrl, p.userId),
+    backgroundUrl: (await resignOwnedMediaUrl(p.backgroundUrl || null, p.userId)) ?? p.backgroundUrl,
+  };
 }
 
 async function handlePATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

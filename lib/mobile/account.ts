@@ -22,6 +22,7 @@ import { prisma } from "@/lib/prisma";
 import { RANKS, TOTAL_XP, earnedXpFor, xpToLevel } from "@/lib/quest-config";
 import { startedResumableWhere } from "@/lib/project-activity";
 import { resignMediaUrl } from "@/lib/signed-media";
+import { resignOwnedMediaUrl } from "@/lib/source-url";
 import { TOOL_COSTS } from "@/lib/tool-costs";
 import { getAllToolConfigs } from "@/lib/tool-config";
 
@@ -71,7 +72,7 @@ export async function buildAccount(userId: string): Promise<Account | null> {
     referralPercent(userId),
   ]);
   return {
-    user: { id: user.id, name: user.name ?? "", email: user.email, avatarUrl: await resignMediaUrl(user.avatarUrl), hasPassword: user.hasPassword },
+    user: { id: user.id, name: user.name ?? "", email: user.email, avatarUrl: await resignOwnedMediaUrl(user.avatarUrl, user.id), hasPassword: user.hasPassword },
     plan: {
       tier: plan.tier,
       term: paid ? ((user.plan?.intervalMonths ?? 1) >= 12 ? "yearly" : "monthly") : null,

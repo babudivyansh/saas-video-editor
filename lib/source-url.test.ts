@@ -24,7 +24,7 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
-const { s3KeyFromStoredUrl, freshSourceUrl } = await import("./source-url");
+const { s3KeyFromStoredUrl, freshSourceUrl, resignOwnedMediaUrl } = await import("./source-url");
 
 const KEY = "uploads/user-1/abc-123.mp4";
 const EXPIRED_QS =
@@ -129,6 +129,37 @@ describe("freshSourceUrl", () => {
     // "user-10" must not satisfy a check for "user-1".
     const url = `https://saas-video-editor-assets.s3.ap-south-1.amazonaws.com/uploads/user-10/x.mp4`;
     await expect(freshSourceUrl(url, "user-1")).resolves.toBe(url);
+    expect(getAssetReadUrl).not.toHaveBeenCalled();
+  });
+});
+
+// Display-side signing of CLIENT-SETTABLE columns (avatarUrl, uploadedVideoUrl,
+// logoUrl). With the bucket private, a signature is the only way to read an
+// object — so signing another tenant's key here would be the leak itself.
+describe("resignOwnedMediaUrl", () => {
+  const BUCKET_URL = "https://saas-video-editor-assets.s3.ap-south-1.amazonaws.com";
+
+  it("signs an object under the owner's own prefix", async () => {
+    await expect(resignOwnedMediaUrl(`${BUCKET_URL}/uploads/user-1/a.png`, "user-1"))
+      .resolves.toBe("https://signed.invalid/uploads/user-1/a.png?fresh=1");
+  });
+
+  it("signs an object the owner holds an Asset row for", async () => {
+    assetRows.value = [{ userId: "user-1", s3Key: "renders/p1/clip-0.mp4" }];
+    await expect(resignOwnedMediaUrl(`${BUCKET_URL}/renders/p1/clip-0.mp4`, "user-1"))
+      .resolves.toBe("https://signed.invalid/renders/p1/clip-0.mp4?fresh=1");
+  });
+
+  it("never signs another tenant's key — the stored (now 403) URL comes back", async () => {
+    const foreign = `${BUCKET_URL}/uploads/user-2/secret.mp4`;
+    await expect(resignOwnedMediaUrl(foreign, "user-1")).resolves.toBe(foreign);
+    expect(getAssetReadUrl).not.toHaveBeenCalled();
+  });
+
+  it("passes a third-party avatar and null through untouched", async () => {
+    const google = "https://lh3.googleusercontent.com/a/abc";
+    await expect(resignOwnedMediaUrl(google, "user-1")).resolves.toBe(google);
+    await expect(resignOwnedMediaUrl(null, "user-1")).resolves.toBeNull();
     expect(getAssetReadUrl).not.toHaveBeenCalled();
   });
 });

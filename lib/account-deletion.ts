@@ -27,6 +27,7 @@ import { cancelRazorpaySubscriptionBestEffort } from "@/lib/billing/cancel-on-ac
 import { collectProjectMediaKeys, collectUserAssetKeys, deleteUnreferencedKeys } from "@/lib/storage-cleanup";
 import { s3KeyFromStoredUrl } from "@/lib/source-url";
 import { deleteClonedVoice } from "@/utils/elevenlabs";
+import { deleteS3Prefix } from "@/utils/s3-upload";
 import { tombstoneEmail } from "@/lib/account-tombstone";
 
 export type DeleteAccountResult =
@@ -82,6 +83,9 @@ export const RETAINED_USER_MODELS = [
   "Referral",
 ] as const;
 
+/** Per-user S3 folders written by lib/account-export.ts and lib/asset-zip.ts. */
+const USER_SCRATCH_PREFIXES = ["exports", "zips"] as const;
+
 export async function hardDeleteUserAccount(userId: string): Promise<DeleteAccountResult> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -135,6 +139,15 @@ export async function hardDeleteUserAccount(userId: string): Promise<DeleteAccou
     invalidateAllSessions(userId),
     redis.del(`credits:${userId}`),
     deleteUnreferencedKeys([...new Set(storageKeys)], `account ${userId}`),
+    // No row points at these, so key-by-key cleanup never found them: the
+    // account-data exports (the whole account as JSON) and asset zips. The
+    // bucket lifecycle rule (docs/ops/s3-private-bucket.md) expires both after
+    // a day regardless; this removes them the moment the account goes.
+    ...USER_SCRATCH_PREFIXES.map((dir) =>
+      deleteS3Prefix(`${dir}/${userId}/`).catch((e: unknown) =>
+        logger.warn("account-deletion", `${dir}/ cleanup failed for ${userId}`, { reason: (e as Error).message }),
+      ),
+    ),
     ...voices.map((v) =>
       deleteClonedVoice(v.elevenLabsVoiceId).catch((e: unknown) =>
         logger.warn("account-deletion", `ElevenLabs voice delete failed for ${v.elevenLabsVoiceId}`, { reason: (e as Error).message }),

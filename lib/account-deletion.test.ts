@@ -43,6 +43,9 @@ vi.mock("@/lib/logger", () => ({ logger: { warn: vi.fn(), error: vi.fn(), info: 
 const deleteClonedVoice = vi.fn(async () => {});
 vi.mock("@/utils/elevenlabs", () => ({ deleteClonedVoice: (...a: unknown[]) => (deleteClonedVoice as unknown as (...x: unknown[]) => unknown)(...a) }));
 
+const deleteS3Prefix = vi.fn(async () => 0);
+vi.mock("@/utils/s3-upload", () => ({ deleteS3Prefix: (...a: unknown[]) => (deleteS3Prefix as unknown as (...x: unknown[]) => unknown)(...a) }));
+
 const cancelRazorpaySubscriptionBestEffort = vi.fn(async () => {});
 vi.mock("@/lib/billing/cancel-on-account-lifecycle", () => ({
   cancelRazorpaySubscriptionBestEffort: (...a: unknown[]) =>
@@ -87,6 +90,24 @@ describe("hardDeleteUserAccount — no billing history", () => {
     await hardDeleteUserAccount("u1");
     expect(deleteUnreferencedKeys).toHaveBeenCalledWith(["assets/a.mp4", "renders/p.mp4", "avatars/u1.png"], "account u1");
     expect(called("emailLog", "deleteMany")[0].args).toEqual({ where: { OR: [{ userId: "u1" }, { recipient: "jane@example.com" }] } });
+  });
+});
+
+describe("hardDeleteUserAccount — per-user S3 folders no row points at", () => {
+  it("deletes the account-export and asset-zip prefixes, scoped by a trailing slash", async () => {
+    await hardDeleteUserAccount("u1");
+    expect(deleteS3Prefix.mock.calls.map((c) => (c as unknown[])[0]).sort()).toEqual(["exports/u1/", "zips/u1/"]);
+  });
+
+  it("does so on the anonymise path too", async () => {
+    purchaseCount = 1;
+    await hardDeleteUserAccount("u1");
+    expect(deleteS3Prefix).toHaveBeenCalledWith("exports/u1/");
+  });
+
+  it("still completes when the prefix delete fails", async () => {
+    deleteS3Prefix.mockRejectedValueOnce(new Error("s3 down"));
+    expect(await hardDeleteUserAccount("u1")).toEqual({ ok: true, mode: "deleted" });
   });
 });
 

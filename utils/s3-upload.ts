@@ -9,6 +9,8 @@ import {
   CompleteMultipartUploadCommand,
   AbortMultipartUploadCommand,
   CopyObjectCommand,
+  ListObjectsV2Command,
+  DeleteObjectsCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import fs from "fs";
@@ -65,9 +67,19 @@ export async function uploadBufferToS3(
   return `https://${BUCKET}.s3.${env.AWS_REGION}.amazonaws.com/${key}`;
 }
 
+// Signatures are minted against a time window, not "now". With a private
+// bucket, every poll of a list endpoint re-signs its media; a URL that changed
+// on each poll (X-Amz-Date is per-second) would make a <video> reload and
+// defeat the browser cache. Within one window the URL is byte-identical; the
+// lifetime is stretched by the window so a URL is still valid for at least
+// `expiresIn` seconds after it was handed out.
+const SIGNING_WINDOW_SEC = 15 * 60;
+
 export async function getPresignedUrl(key: string, expiresIn = 3600): Promise<string> {
   const cmd = new GetObjectCommand({ Bucket: BUCKET, Key: key });
-  return getSignedUrl(s3, cmd, { expiresIn });
+  const windowMs = SIGNING_WINDOW_SEC * 1000;
+  const signingDate = new Date(Math.floor(Date.now() / windowMs) * windowMs);
+  return getSignedUrl(s3, cmd, { expiresIn: expiresIn + SIGNING_WINDOW_SEC, signingDate });
 }
 
 export async function getPresignedUploadUrl(
@@ -91,6 +103,29 @@ export function s3KeyToPublicUrl(key: string): string {
 
 export async function deleteS3Object(key: string): Promise<void> {
   await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
+}
+
+/** Deletes every object under `prefix` (which must end in "/", so
+ * "exports/u1/" can never also match "exports/u10/"). Returns how many were
+ * deleted. For per-user folders no DB row points at — account exports and
+ * asset zips — which key-by-key cleanup cannot find. */
+export async function deleteS3Prefix(prefix: string): Promise<number> {
+  if (!prefix.endsWith("/") || prefix.split("/").filter(Boolean).length < 2) {
+    throw new Error(`refusing to delete an unscoped S3 prefix: ${prefix}`);
+  }
+  let deleted = 0;
+  let token: string | undefined;
+  do {
+    const page = await s3.send(new ListObjectsV2Command({ Bucket: BUCKET, Prefix: prefix, ContinuationToken: token }));
+    const keys = (page.Contents ?? []).flatMap((o) => (o.Key ? [{ Key: o.Key }] : []));
+    if (keys.length) {
+      // ListObjectsV2 pages hold at most 1,000 keys, DeleteObjects's limit.
+      await s3.send(new DeleteObjectsCommand({ Bucket: BUCKET, Delete: { Objects: keys, Quiet: true } }));
+      deleted += keys.length;
+    }
+    token = page.IsTruncated ? page.NextContinuationToken : undefined;
+  } while (token);
+  return deleted;
 }
 
 /** Streams an S3 object straight to a local path — used by background jobs
