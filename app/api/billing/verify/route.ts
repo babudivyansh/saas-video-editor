@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-import Razorpay from "razorpay";
+import { createRazorpay } from "@/lib/billing/razorpay-client";
 import { getAuthUser } from "@/lib/auth";
 import { fulfillPayment, type FulfillNotes } from "@/lib/fulfillment";
 import { env } from "@/lib/env";
 import { withRateLimit } from "@/lib/with-rate-limit";
 
-const razorpay = new Razorpay({
-  key_id: env.RAZORPAY_KEY_ID,
-  key_secret: env.RAZORPAY_KEY_SECRET,
-});
+const razorpay = createRazorpay();
 
 // Client-callback verification. The Razorpay checkout `handler` posts the
 // payment id/order id/signature here on success; we verify the signature and
