@@ -11,7 +11,8 @@ import { sendCreditsRefilledEmail } from "@/lib/email";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
 import { cronSecretMatches } from "@/lib/cron-auth";
-import Razorpay from "razorpay";
+import type Razorpay from "razorpay";
+import { createRazorpay } from "@/lib/billing/razorpay-client";
 import { nextRefillAfter } from "@/lib/billing/term";
 import { greetingName } from "@/lib/display-name";
 import { withCronTracking } from "@/lib/cron-tracking";
@@ -21,10 +22,7 @@ import { withCronTracking } from "@/lib/cron-tracking";
 // key_id is absent.
 let razorpayClient: Razorpay | null = null;
 function getRazorpay(): Razorpay {
-  razorpayClient ??= new Razorpay({
-    key_id: env.RAZORPAY_KEY_ID,
-    key_secret: env.RAZORPAY_KEY_SECRET,
-  });
+  razorpayClient ??= createRazorpay();
   return razorpayClient;
 }
 

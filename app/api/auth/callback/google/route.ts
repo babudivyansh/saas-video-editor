@@ -13,6 +13,7 @@ import { recordSignupAttribution } from "@/lib/marketing-analytics";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { withNextParam } from "@/lib/safe-redirect";
 import { decodeNextFromState, toInlineScriptJson } from "@/lib/oauth-state";
+import { FETCH_TIMEOUT } from "@/lib/fetch-timeout";
 
 export async function GET(req: NextRequest) {
   try {
@@ -64,6 +65,7 @@ export async function GET(req: NextRequest) {
         redirect_uri: redirectUri,
         grant_type: "authorization_code",
       }),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT.auth),
     });
 
     if (!tokenResponse.ok) {
@@ -77,6 +79,7 @@ export async function GET(req: NextRequest) {
     // 2. Fetch user profile from Google
     const profileResponse = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
       headers: { Authorization: `Bearer ${access_token}` },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT.auth),
     });
 
     if (!profileResponse.ok) {

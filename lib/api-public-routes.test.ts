@@ -55,4 +55,20 @@ describe("isPublicApiRoute", () => {
     expect(isPublicApiRoute("/api/email/send")).toBe(false);
     expect(isPublicApiRoute("/api/webhooks/stripe")).toBe(false);
   });
+
+  it("does not un-gate a sibling that only shares an entry's letters", () => {
+    expect(isPublicApiRoute("/api/auth/login")).toBe(true);
+    expect(isPublicApiRoute("/api/auth/login-history")).toBe(false);
+    expect(isPublicApiRoute("/api/plans-internal")).toBe(false);
+  });
+
+  it("still covers the paths below an entry", () => {
+    expect(isPublicApiRoute("/api/auth/register/verify")).toBe(true);
+    expect(isPublicApiRoute("/api/webhooks/submagic/some-token")).toBe(true);
+    expect(isPublicApiRoute("/api/tools/audio-balancer/job-123")).toBe(true);
+  });
+
+  it("un-gates the ElevenLabs dubbing webhook, which signs its own requests", () => {
+    expect(isPublicApiRoute("/api/webhooks/elevenlabs")).toBe(true);
+  });
 });

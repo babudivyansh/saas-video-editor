@@ -34,7 +34,7 @@ export type LinkVerification =
 export async function verifyReportLink(token: string): Promise<LinkVerification> {
   let jti: string;
   try {
-    const payload = jwt.verify(token, env.JWT_SECRET) as { jti?: string; purpose?: string; accountId?: string };
+    const payload = jwt.verify(token, env.JWT_SECRET, { algorithms: ["HS256"] }) as { jti?: string; purpose?: string; accountId?: string };
     if (payload.purpose !== "social-report") return { ok: false, reason: "invalid" };
 
     // Legacy tokens carried the accountId directly and have no row. They are

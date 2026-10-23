@@ -3,6 +3,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { env } from "@/lib/env";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { getAuthUser } from "@/lib/auth";
+import { withRetry } from "@/lib/with-retry";
 
 // An image prompt, not an essay. Without a cap this was a free, general-purpose
 // LLM endpoint for anyone who could rotate IPs.
@@ -38,9 +39,13 @@ async function handlePOST(req: NextRequest) {
   const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
   const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-  const result = await model.generateContent(
-    `You are an expert AI image prompt engineer. Rewrite the following image prompt to be more detailed, vivid, and descriptive. Add specific details about lighting, style, atmosphere, colors, and composition. Keep the core subject and intent identical. Return ONLY the enhanced prompt text — no explanations, no quotes, no prefixes.\n\nOriginal prompt: ${prompt}`
-  );
+  const instruction =
+    `You are an expert AI image prompt engineer. Rewrite the following image prompt to be more detailed, vivid, and descriptive. Add specific details about lighting, style, atmosphere, colors, and composition. Keep the core subject and intent identical. Return ONLY the enhanced prompt text — no explanations, no quotes, no prefixes.\n\nOriginal prompt: ${prompt}`;
+  // Worst case 2 x 12s + backoff, inside maxDuration (30s).
+  const result = await withRetry((signal) => model.generateContent(instruction, { signal }), {
+    timeoutMs: 12_000,
+    maxAttempts: 2,
+  });
 
   const enhanced = result.response.text().trim();
   return NextResponse.json({ prompt: enhanced });

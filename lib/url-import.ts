@@ -84,6 +84,7 @@ export async function probeSourceUrl(url: string): Promise<{ title: string; dura
     noWarnings: true,
     noPlaylist: true,
     skipDownload: true,
+    socketTimeout: 30, // seconds; a stalled host fails the probe instead of hanging it
   })) as unknown as ProbeInfo;
 
   return {
@@ -138,6 +139,7 @@ export async function importSourceFromUrl(args: {
       mergeOutputFormat: "mp4",
       noPlaylist: true,
       noWarnings: true,
+      socketTimeout: 30, // seconds without data before yt-dlp gives up
       // Abort the download itself once it would exceed the tier's cap,
       // instead of only checking st.size AFTER the full file has already
       // landed on disk — a high-bitrate source within the duration cap could

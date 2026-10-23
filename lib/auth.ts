@@ -113,8 +113,11 @@ function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
-async function readSessions(userId: string): Promise<SessionRecord[]> {
-  const raw = await redis.get(sessionsKey(userId));
+// strict: revocation paths. A read that silently returned the empty fallback
+// during an outage, then a write back of that, would "revoke" nothing while
+// reporting success (lib/redis.ts, STRICT).
+async function readSessions(userId: string, strict = false): Promise<SessionRecord[]> {
+  const raw = strict ? await redis.getStrict(sessionsKey(userId)) : await redis.get(sessionsKey(userId));
   if (!raw) return [];
   let records: SessionRecord[];
   try {
@@ -126,16 +129,18 @@ async function readSessions(userId: string): Promise<SessionRecord[]> {
   return records.filter((r) => r.expiresAt > now);
 }
 
-async function writeSessions(userId: string, records: SessionRecord[]): Promise<void> {
+async function writeSessions(userId: string, records: SessionRecord[], strict = false): Promise<void> {
   if (records.length === 0) {
-    await redis.del(sessionsKey(userId));
+    if (strict) await redis.delStrict(sessionsKey(userId));
+    else await redis.del(sessionsKey(userId));
     return;
   }
   // The key lives as long as its longest session: a 60-day mobile session
   // must not vanish because a 7-day web session wrote the key last.
   const longest = Math.max(...records.map((r) => r.expiresAt));
   const ttl = Math.max(1, Math.ceil((longest - Date.now()) / 1000));
-  await redis.set(sessionsKey(userId), JSON.stringify(records), "EX", ttl);
+  if (strict) await redis.setStrict(sessionsKey(userId), JSON.stringify(records), ttl);
+  else await redis.set(sessionsKey(userId), JSON.stringify(records), "EX", ttl);
 }
 
 export interface SessionMeta {
@@ -170,18 +175,18 @@ export async function listSessions(userId: string): Promise<SessionInfo[]> {
 }
 
 export async function invalidateOneSession(userId: string, sessionId: string): Promise<void> {
-  const records = await readSessions(userId);
-  await writeSessions(userId, records.filter((r) => r.sessionId !== sessionId));
+  const records = await readSessions(userId, true);
+  await writeSessions(userId, records.filter((r) => r.sessionId !== sessionId), true);
 }
 
 /** Kills every session, or every session except one (e.g. the one that just changed the password). */
 export async function invalidateAllSessions(userId: string, exceptSessionId?: string): Promise<void> {
   if (!exceptSessionId) {
-    await redis.del(sessionsKey(userId));
+    await redis.delStrict(sessionsKey(userId));
     return;
   }
-  const records = await readSessions(userId);
-  await writeSessions(userId, records.filter((r) => r.sessionId === exceptSessionId));
+  const records = await readSessions(userId, true);
+  await writeSessions(userId, records.filter((r) => r.sessionId === exceptSessionId), true);
 }
 
 // Back-compat name for admin call sites that want everything gone (suspend,
@@ -401,11 +406,11 @@ export async function refreshMobileSession(refreshToken: string): Promise<Mobile
 export async function revokeMobileSession(refreshToken: string): Promise<{ userId: string; sessionId: string } | null> {
   const ids = parseRefreshToken(refreshToken);
   if (!ids) return null;
-  const records = await readSessions(ids.userId);
+  const records = await readSessions(ids.userId, true);
   const hash = hashToken(refreshToken);
   const record = records.find((r) => r.sessionId === ids.sessionId && (r.refreshHash === hash || r.retiredRefreshHashes?.includes(hash)));
   if (!record) return null;
-  await writeSessions(ids.userId, records.filter((r) => r.sessionId !== ids.sessionId));
+  await writeSessions(ids.userId, records.filter((r) => r.sessionId !== ids.sessionId), true);
   return ids;
 }
 

@@ -14,6 +14,7 @@
 
 import { GiphyFetch } from "@giphy/js-fetch-api";
 import { env } from "@/lib/env";
+import { FETCH_TIMEOUT } from "@/lib/fetch-timeout";
 
 export interface StockItem {
   id: string;
@@ -40,7 +41,7 @@ export async function searchStockImages(query: string, page = 1): Promise<StockI
 
   const res = await fetch(
     `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=24&page=${page}`,
-    { headers: { Authorization: key } },
+    { headers: { Authorization: key }, signal: AbortSignal.timeout(FETCH_TIMEOUT.api) },
   );
   if (!res.ok) throw new Error(`Pexels image search failed (${res.status})`);
   const data = await res.json();
@@ -68,7 +69,7 @@ export async function searchStockVideos(query: string, page = 1, orientation?: S
 
   const res = await fetch(
     `https://api.pexels.com/videos/search?query=${encodeURIComponent(query)}&per_page=24&page=${page}${orientation ? `&orientation=${orientation}` : ""}`,
-    { headers: { Authorization: key } },
+    { headers: { Authorization: key }, signal: AbortSignal.timeout(FETCH_TIMEOUT.api) },
   );
   if (!res.ok) throw new Error(`Pexels video search failed (${res.status})`);
   const data = await res.json();
@@ -103,6 +104,7 @@ export async function searchStockAudio(query: string, page = 1): Promise<StockIt
   const res = await fetch(
     `https://api.jamendo.com/v3.0/tracks/?client_id=${clientId}&format=json&limit=24&offset=${offset}` +
       `&search=${encodeURIComponent(query)}&audioformat=mp32`,
+    { signal: AbortSignal.timeout(FETCH_TIMEOUT.api) },
   );
   if (!res.ok) throw new Error(`Jamendo search failed (${res.status})`);
   const data = await res.json();

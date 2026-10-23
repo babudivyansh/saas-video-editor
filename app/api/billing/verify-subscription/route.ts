@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-import Razorpay from "razorpay";
+import type Razorpay from "razorpay";
+import { createRazorpay } from "@/lib/billing/razorpay-client";
 import { getAuthUser } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
@@ -11,7 +12,7 @@ import { startTrialOnAuthentication, type AuthenticatedSubscription } from "@/li
 // Razorpay env absent, and the SDK throws at construction without a key.
 let client: Razorpay | null = null;
 function razorpay(): Razorpay {
-  client ??= new Razorpay({ key_id: env.RAZORPAY_KEY_ID, key_secret: env.RAZORPAY_KEY_SECRET });
+  client ??= createRazorpay();
   return client;
 }
 

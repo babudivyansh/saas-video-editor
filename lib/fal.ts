@@ -1,5 +1,6 @@
 import { withRetry } from "@/lib/with-retry";
 import { env } from "@/lib/env";
+import { FETCH_TIMEOUT } from "@/lib/fetch-timeout";
 
 // Generic FAL queue client — submit a job, poll it to completion, and extract
 // the result URL. Used by the image generator; a hand-rolled copy of the same
@@ -37,17 +38,18 @@ export async function falPollUntilDone(
   const pollIntervalMs = opts?.pollIntervalMs ?? 5000;
   while (Date.now() < deadline) {
     await new Promise((r) => setTimeout(r, pollIntervalMs));
+    // A stalled poll counts as a missed one; the loop deadline still applies.
     const statusRes = await fetch(
       `https://queue.fal.run/${endpoint}/requests/${requestId}/status`,
-      { headers: falAuth() },
-    );
-    if (!statusRes.ok) continue;
+      { headers: falAuth(), signal: AbortSignal.timeout(FETCH_TIMEOUT.api) },
+    ).catch(() => null);
+    if (!statusRes?.ok) continue;
     const statusData = await statusRes.json();
     const status = statusData.status as string;
     if (status === "COMPLETED") {
       const resultRes = await fetch(
         `https://queue.fal.run/${endpoint}/requests/${requestId}`,
-        { headers: falAuth() },
+        { headers: falAuth(), signal: AbortSignal.timeout(FETCH_TIMEOUT.api) },
       );
       if (!resultRes.ok) throw new Error("fal.ai result fetch failed");
       return resultRes.json();
