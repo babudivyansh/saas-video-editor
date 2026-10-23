@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 
 vi.mock("@/lib/with-rate-limit", () => ({ withRateLimit: (handler: unknown) => handler }));
 
-const sendContactMessageEmail = vi.fn(async () => {});
+const sendContactMessageEmail = vi.fn(async (..._args: unknown[]) => true);
 vi.mock("@/lib/email", () => ({ sendContactMessageEmail }));
 
 let admins: { email: string }[] = [{ email: "admin1@clipiro.com" }];
@@ -72,9 +72,23 @@ describe("POST /api/contact", () => {
 
   it("still returns 200 when one admin's email fails to send", async () => {
     admins = [{ email: "admin1@clipiro.com" }, { email: "admin2@clipiro.com" }];
-    sendContactMessageEmail.mockRejectedValueOnce(new Error("smtp down")).mockResolvedValueOnce(undefined);
+    sendContactMessageEmail.mockRejectedValueOnce(new Error("smtp down")).mockResolvedValueOnce(true);
     const res = await POST(post(VALID));
     expect(res.status).toBe(200);
+  });
+
+  it("returns 502 when no admin copy was delivered", async () => {
+    admins = [{ email: "admin1@clipiro.com" }, { email: "admin2@clipiro.com" }];
+    sendContactMessageEmail.mockRejectedValueOnce(new Error("smtp down")).mockResolvedValueOnce(false);
+    const res = await POST(post(VALID));
+    expect(res.status).toBe(502);
+    expect((await res.json()).error).toMatch(/couldn't send/);
+  });
+
+  it("returns 502 when there are no admins to notify", async () => {
+    admins = [];
+    const res = await POST(post(VALID));
+    expect(res.status).toBe(502);
   });
 
   it("rejects unexpected keys (strict schema)", async () => {

@@ -47,9 +47,10 @@ const VALUES = [
 ];
 
 const STATS = [
-  { value: "50+", label: "AI Narrator Voices" },
+  // Same figures as the homepage SocialProof strip — keep the two in step.
+  { value: "20+", label: "AI Narrator Voices" },
   { value: "3", label: "Export Aspect Ratios" },
-  { value: "4", label: "Platforms Supported" },
+  { value: "3", label: "Platforms Supported" },
   { value: "Free", label: "Plan Available" },
 ];
 
@@ -95,8 +96,8 @@ export default function AboutPage() {
         id="stats"
         className="border-b border-card-border bg-surface"
         eyebrow="Impact"
-        title="Loved by creators worldwide"
-        lede="Clipiro speeds up the video creation pipeline, so that growth and audience scaling are achieved automatically."
+        title="Built for creators who post every day"
+        lede="Clipiro speeds up the video pipeline, so you spend your time on ideas instead of timelines."
       >
         <ul className="grid grid-cols-2 gap-4 sm:gap-5 lg:grid-cols-4">
           {STATS.map((s) => (

@@ -2,14 +2,6 @@
 
 import React from "react";
 import Reveal from "@/app/components/Reveal";
-import { LinkedInIcon, XIcon, GitHubIcon } from "@/app/components/landing/icons";
-
-// NOTE: social URLs are placeholders — replace with the founder's real profiles.
-const SOCIALS = [
-  { label: "LinkedIn", href: "#", icon: <LinkedInIcon className="h-4 w-4" /> },
-  { label: "X (Twitter)", href: "#", icon: <XIcon className="h-4 w-4" /> },
-  { label: "GitHub", href: "#", icon: <GitHubIcon className="h-4 w-4" /> },
-];
 
 export default function FounderSection() {
   return (
@@ -32,25 +24,9 @@ export default function FounderSection() {
                 simple: give every creator a studio-grade editor that turns one long video into a week of viral
                 content — so you can focus on ideas, not timelines.&rdquo;
               </blockquote>
-              <div className="mt-5 flex flex-col items-center gap-3 md:flex-row md:justify-between">
-                <div>
-                  <p className="font-bold text-fg">Divyansh Verma</p>
-                  <p className="text-sm text-fg-muted">Founder &amp; CEO, Clipiro</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  {SOCIALS.map((s) => (
-                    <a
-                      key={s.label}
-                      href={s.href}
-                      aria-label={s.label}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex h-9 w-9 items-center justify-center rounded-full border border-line bg-panel text-fg-muted transition-colors hover:border-brand hover:text-brand-deep"
-                    >
-                      {s.icon}
-                    </a>
-                  ))}
-                </div>
+              <div className="mt-5">
+                <p className="font-bold text-fg">Divyansh Verma</p>
+                <p className="text-sm text-fg-muted">Founder &amp; CEO, Clipiro</p>
               </div>
             </div>
           </div>

@@ -16,7 +16,7 @@ export const LEGAL_DOCS: LegalDocMeta[] = [
       "The rules that govern your use of Clipiro, including acceptable use, intellectual property, and your rights.",
     effective: "2026-06-14",
     // 2026-09-27: Clip Minutes (Auto Clips) alongside credits.
-    updated: "2026-09-27",
+    updated: "2026-10-23",
   },
   {
     slug: "/privacy",
@@ -25,7 +25,7 @@ export const LEGAL_DOCS: LegalDocMeta[] = [
     effective: "2026-06-28",
     // 2026-10-12: YouTube posting (youtube.upload) described, the Android app's
     // data, voice cloning at ElevenLabs, and a link to account deletion.
-    updated: "2026-10-12",
+    updated: "2026-10-23",
   },
   {
     // A public page Google Play requires: how to delete an account without
@@ -58,7 +58,7 @@ export const LEGAL_DOCS: LegalDocMeta[] = [
     title: "Cookies Policy",
     description: "What cookies we set, why we set them, and how to change your preferences.",
     effective: "2026-06-28",
-    updated: "2026-06-28",
+    updated: "2026-10-23",
   },
 ];
 

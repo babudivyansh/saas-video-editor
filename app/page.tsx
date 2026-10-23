@@ -7,10 +7,16 @@ import Features from "@/app/components/landing/Features";
 import HowItWorks from "@/app/components/landing/HowItWorks";
 import FounderSection from "@/app/components/landing/FounderSection";
 import FAQ from "@/app/components/landing/FAQ";
+import { HOME_FAQS } from "@/app/components/landing/faqs";
 import CTABanner from "@/app/components/landing/CTABanner";
 import TestimonialWall from "@/app/components/landing/TestimonialWall";
 import { getReviewSummary, listPublishedReviews } from "@/lib/reviews/queries";
 import { buildAggregateRatingSchema, MINIMUM_REVIEWS_FOR_SCHEMA } from "@/app/reviews/schema";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+};
 
 // Ratings are read at request time (ISR-cached) so the homepage's
 // aggregateRating stays real without adding a client round-trip.
@@ -51,11 +57,12 @@ export default async function HomePage() {
       },
       {
         "@type": "FAQPage",
-        mainEntity: [
-          { "@type": "Question", name: "What is Clipiro?", acceptedAnswer: { "@type": "Answer", text: "Clipiro is an AI-powered video tool that turns long videos into viral short-form clips with automatic clipping, captions, and social formatting." } },
-          { "@type": "Question", name: "Is there a free plan?", acceptedAnswer: { "@type": "Answer", text: "Yes. Create a free account — no credit card — and the free tools are yours to use." } },
-          { "@type": "Question", name: "Which platforms are supported?", acceptedAnswer: { "@type": "Answer", text: "Clips are optimized for YouTube Shorts, Instagram Reels, and Facebook." } },
-        ],
+        // Built from the same array the visible FAQ renders, so the two can't drift.
+        mainEntity: HOME_FAQS.map((f) => ({
+          "@type": "Question",
+          name: f.q,
+          acceptedAnswer: { "@type": "Answer", text: f.a },
+        })),
       },
     ],
   };

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import LegalPage from "@/app/components/LegalPage";
+import { BusinessDetailsList, GRIEVANCE_TIMELINE } from "@/app/components/legal/BusinessDetails";
 import { getLegalDoc } from "@/app/legal/documents";
 import type { LegalDoc } from "@/app/legal/types";
 
@@ -421,6 +422,12 @@ const doc: LegalDoc = {
             </li>
           </ul>
           <p>We aim to respond to all privacy inquiries within 5 business days.</p>
+          <h3>Business details and Grievance Officer</h3>
+          <p>
+            The Service is operated by the entity below. Complaints about the Service or how we handle your personal data can
+            be sent to our Grievance Officer. {GRIEVANCE_TIMELINE}
+          </p>
+          <BusinessDetailsList />
         </>
       ),
     },
@@ -430,6 +437,7 @@ const doc: LegalDoc = {
 export const metadata: Metadata = {
   title: doc.title,
   description: "How Clipiro collects, uses, and protects your data.",
+  alternates: { canonical: doc.slug },
 };
 
 export default function PrivacyPage() {

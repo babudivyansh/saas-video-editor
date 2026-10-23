@@ -79,6 +79,7 @@ const doc: LegalDoc = {
 export const metadata: Metadata = {
   title: doc.title,
   description: doc.description,
+  alternates: { canonical: doc.slug },
 };
 
 export default function DeleteAccountPage() {

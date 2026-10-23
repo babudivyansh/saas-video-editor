@@ -5,13 +5,17 @@ import Reveal from "@/app/components/Reveal";
 
 const STATS = [
   { value: "9:16", label: "Vertical auto-reframe" },
-  { value: "50+", label: "AI narrator voices" },
+  // 22 active voices in lib/voices/catalog.ts; keep in step with /about and /tools.
+  { value: "20+", label: "AI narrator voices" },
   { value: "3", label: "Platforms supported" },
   { value: "Free", label: "Plan, no card needed" },
 ];
 
-// Brand/usage strip — wordmarks rendered as text to stay dependency-free.
-const BRANDS = ["YouTube", "Instagram", "Spotify", "Twitch", "LinkedIn", "Podcasts", "Shorts"];
+// What clips are actually exported for — the same three platforms the FAQ
+// names, plus AutoClip's aspect presets (AUTOCLIP_ASPECTS). Not customer logos:
+// the old strip listed Spotify/Twitch/LinkedIn as if they were users.
+const EXPORT_TARGETS = ["YouTube Shorts", "Instagram Reels", "Facebook"];
+const ASPECTS = ["9:16", "1:1", "16:9"];
 
 export default function SocialProof() {
   return (
@@ -29,15 +33,23 @@ export default function SocialProof() {
           </div>
         </Reveal>
 
-        {/* Marquee brand strip */}
-        <div className="relative mt-12 overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_12%,black_88%,transparent)]">
-          <div className="clipiro-marquee flex w-max items-center gap-16 whitespace-nowrap">
-            {[...BRANDS, ...BRANDS].map((brand, i) => (
-              <span key={`${brand}-${i}`} className="text-xl font-bold text-gray-400/80">
-                {brand}
-              </span>
+        {/* Export targets */}
+        <div className="mt-12 flex flex-col items-center gap-4 text-center">
+          <p className="text-xs font-semibold uppercase tracking-widest text-fg-subtle">Export for</p>
+          <ul className="flex flex-wrap items-center justify-center gap-x-10 gap-y-3">
+            {EXPORT_TARGETS.map((name) => (
+              <li key={name} className="text-lg font-bold text-fg-muted md:text-xl">
+                {name}
+              </li>
             ))}
-          </div>
+          </ul>
+          <ul className="flex flex-wrap items-center justify-center gap-2" aria-label="Aspect ratios">
+            {ASPECTS.map((a) => (
+              <li key={a} className="rounded-full border border-line px-3 py-1 text-xs font-medium text-fg-muted">
+                {a}
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
     </section>

@@ -13,7 +13,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug } = await params;
   const article = getHelpArticle(slug);
   if (!article) return { title: "Article not found" };
-  return { title: article.title, description: article.summary };
+  return { title: article.title, description: article.summary, alternates: { canonical: `/help/${article.slug}` } };
 }
 
 export default async function HelpArticlePage({ params }: { params: Promise<{ slug: string }> }) {
