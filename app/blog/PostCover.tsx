@@ -20,8 +20,8 @@ const PALETTES: Record<BlogCategorySlug, Palette> = {
   tutorial: { from: "#0b1210", to: "#20d68a", ink: "#f5f7f4" },
   growth: { from: "#0a2a2a", to: "#14b8a6", ink: "#f5f7f4" },
   captions: { from: "#1a2a06", to: "#84cc16", ink: "#f5f7f4" },
-  "multi-language": { from: "#10B981", to: "#0EA5E9", ink: "#ffffff" },
-  product: { from: "#3B5EFF", to: "#06B6D4", ink: "#ffffff" },
+  "multi-language": { from: "#06291c", to: "#10b981", ink: "#f5f7f4" },
+  product: { from: "#0b1210", to: "#00a968", ink: "#f5f7f4" },
 };
 
 /** Each motif is drawn on a 320×180 canvas — the card's 16:9 cover area. */

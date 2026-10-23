@@ -69,7 +69,7 @@ export function QuestPill({ questData, onDiscordQuest }: { questData: QuestData;
         <div
           role="dialog"
           aria-label={t("onboarding")}
-          className="absolute right-0 top-full z-50 mt-2 max-h-[min(640px,calc(100dvh-120px))] w-[400px] overflow-y-auto rounded-2xl border border-line bg-panel shadow-xl"
+          className="absolute right-0 top-full z-50 mt-2 max-h-[min(640px,calc(100dvh-120px))] w-[min(400px,calc(100vw-32px))] overflow-y-auto rounded-2xl border border-line bg-panel shadow-xl"
         >
           <QuestCard questData={questData} hasUser onDiscordQuest={onDiscordQuest} variant="popover" />
         </div>

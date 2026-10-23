@@ -102,12 +102,12 @@ function useQuests() {
       { id: "first-clip", icon: <IcFilm />, title: t("firstClip.title"), desc: t("firstClip.desc"), color: "var(--emerald-bright)", href: "/dashboard/create/auto-clip" },
       { id: "hear-yourself-out", icon: <IcMic />, title: t("hearYourselfOut.title"), desc: t("hearYourselfOut.desc"), color: "var(--emerald-brand)", href: "/dashboard/tools/voiceover" },
       { id: "picture-this", icon: <IcImage />, title: t("pictureThis.title"), desc: t("pictureThis.desc"), color: "var(--primary)", href: "/dashboard/tools/image-generator" },
-      { id: "first-export", icon: <IcDownload />, title: t("firstExport.title"), desc: t("firstExport.desc"), color: "#f59e0b", href: "/dashboard/editor" },
-      { id: "upgraded-plan", icon: <IcCrown />, title: t("upgradedPlan.title"), desc: t("upgradedPlan.desc"), color: "#d97706", href: "/dashboard?billing=1" },
-      { id: "explore-toolbox", icon: <IcEraser />, title: t("exploreToolbox.title"), desc: t("exploreToolbox.desc"), color: "#06b6d4", href: "/dashboard/tools" },
-      { id: "complete-profile", icon: <IcUser />, title: t("completeProfile.title"), desc: t("completeProfile.desc"), color: "#ec4899", href: "/dashboard/settings" },
-      { id: "track-account", icon: <IcChart />, title: t("trackAccount.title"), desc: t("trackAccount.desc"), color: "#0ea5e9", href: "/dashboard/social-tracker" },
-      { id: "refer-friend", icon: <IcGift />, title: t("referFriend.title"), desc: t("referFriend.desc"), color: "#f43f5e", href: "/dashboard/referral" },
+      { id: "first-export", icon: <IcDownload />, title: t("firstExport.title"), desc: t("firstExport.desc"), color: "var(--warning)", href: "/dashboard/editor" },
+      { id: "upgraded-plan", icon: <IcCrown />, title: t("upgradedPlan.title"), desc: t("upgradedPlan.desc"), color: "var(--warning)", href: "/dashboard?billing=1" },
+      { id: "explore-toolbox", icon: <IcEraser />, title: t("exploreToolbox.title"), desc: t("exploreToolbox.desc"), color: "var(--info)", href: "/dashboard/tools" },
+      { id: "complete-profile", icon: <IcUser />, title: t("completeProfile.title"), desc: t("completeProfile.desc"), color: "var(--primary)", href: "/dashboard/settings" },
+      { id: "track-account", icon: <IcChart />, title: t("trackAccount.title"), desc: t("trackAccount.desc"), color: "var(--info)", href: "/dashboard/social-tracker" },
+      { id: "refer-friend", icon: <IcGift />, title: t("referFriend.title"), desc: t("referFriend.desc"), color: "var(--emerald-brand)", href: "/dashboard/referral" },
     ],
     [t]
   );

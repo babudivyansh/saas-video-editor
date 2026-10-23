@@ -65,7 +65,7 @@ export function UploadQueuePanel({ items, onPause, onResume, onRetry, onCancel, 
                 <span className="text-[10px] text-ink-soft/70 w-8 text-right flex-shrink-0">{it.progress}%</span>
               </div>
               <div className="flex items-center justify-between mt-1">
-                <span className={`text-[10px] font-semibold ${it.status === "error" ? "text-error" : it.status === "done" ? "text-emerald-600" : "text-ink-soft"}`}>
+                <span className={`text-[10px] font-semibold ${it.status === "error" ? "text-error" : it.status === "done" ? "text-success" : "text-ink-soft"}`}>
                   {it.error ?? STATUS_LABEL[it.status]}
                 </span>
                 <div className="flex items-center gap-2">

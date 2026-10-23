@@ -24,10 +24,14 @@ export interface ConnectableAccount {
   timezone: string | null;
 }
 
+// The chip background is the platform's own colour mixed into the panel
+// surface, so it reads as a tint on the dark theme instead of a light blob.
+const chipBg = (color: string) => `color-mix(in oklab, ${color} 16%, var(--surface-2))`;
+
 const PLATFORM: Record<string, { name: string; color: string; bg: string }> = {
-  youtube: { name: "YouTube", color: "#ff0000", bg: "#ffe8e8" },
-  instagram: { name: "Instagram", color: "#e1306c", bg: "#ffe8f1" },
-  facebook: { name: "Facebook", color: "#1877f2", bg: "#e8f0ff" },
+  youtube: { name: "YouTube", color: "#ff0000", bg: chipBg("#ff0000") },
+  instagram: { name: "Instagram", color: "#e1306c", bg: chipBg("#e1306c") },
+  facebook: { name: "Facebook", color: "#1877f2", bg: chipBg("#1877f2") },
 };
 
 export function AccountSettingsList({
@@ -139,7 +143,7 @@ export function AccountSettingsList({
         </h2>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           {providers.map(({ id: p, configured }) => {
-            const meta = PLATFORM[p] ?? { name: p, color: "#64748b", bg: "#f1f5f9" };
+            const meta = PLATFORM[p] ?? { name: p, color: "var(--fg-muted)", bg: "var(--surface-3)" };
             const already = accounts.some((a) => a.provider === p);
             return (
               <div

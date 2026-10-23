@@ -34,7 +34,7 @@ const CHANNELS = [
     title: "Average Response Time",
     value: "Under 24 hours",
     note: "Every message gets a reply within 24 hours.",
-    tint: "bg-tint-emerald text-emerald-600",
+    tint: "bg-tint-emerald text-success",
     icon: (
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
     ),
@@ -161,7 +161,7 @@ export default function ContactPage() {
               <div className="rounded-2xl border border-card-border bg-panel p-6 md:p-8">
                 {status === "success" ? (
                   <div className="py-12 text-center">
-                    <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-tint-emerald text-emerald-600">
+                    <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-tint-emerald text-success">
                       <svg className="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                       </svg>

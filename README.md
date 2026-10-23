@@ -1,12 +1,14 @@
-# Clipiro — AI Faceless Video Generator
+# Clipiro
 
-A Crayo.ai-style SaaS that turns a text prompt into a 9:16 vertical short-form video with:
-- AI script (Google Gemini)
-- AI voiceover + word-level timestamps (ElevenLabs)
-- Animated bouncy word-by-word captions (ASS subtitles via FFmpeg)
-- Background video + ducked music mix
-- AWS S3 storage for assets and renders
-- Stripe billing for credit top-ups
+Clipiro (clipiro.com) turns long videos into short, captioned clips for YouTube Shorts, Instagram Reels and TikTok.
+
+- **AutoClip**: upload a video or paste a link. Clipiro transcribes it (ElevenLabs Scribe), picks the strongest moments (Google Gemini), reframes them to 9:16 with face tracking (AWS Rekognition) and burns in animated captions with FFmpeg.
+- **Editor and AI tools**: a timeline editor, plus voiceover, voice changer, speech enhancement, background/vocal removal, image generation (fal.ai, Gemini) and free converters.
+- **Social Tracker**: connects YouTube, Instagram and Facebook for analytics and scheduled publishing.
+- **Billing**: Clip Minutes and AI credits, subscriptions and packs through Razorpay, with GST invoices.
+- **Android app**: Expo, in `apps/mobile`.
+
+Stack: Next.js 16 (App Router), Prisma on Postgres (Supabase), Redis (Upstash) with BullMQ, S3, deployed on Hostinger Node.js hosting. Scheduled jobs run through `/api/cron-tick` (see `ops/crontab`).
 
 ---
 

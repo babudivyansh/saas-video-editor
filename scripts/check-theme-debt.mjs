@@ -160,7 +160,7 @@ const BUDGET = {
   // 119 -> 111: the AI video generator removal (its tool page, dashboard tile
   // and onboarding goal chip).
   // 111 -> 108: Studio shell + home redesign.
-  "raw-emerald": 11, /* AI tools audit 2026-10-14: cut-and-crop "Download again" (was 15); toolPreviews.tsx deleted (was 19) */ /* ops control center */ // audit 2026-09-29 stage 7 (pastel chips, old brand hex, editor violet → tokens)
+  "raw-emerald": 8, /* launch audit 2026-10-23: text-emerald-600 on dark tints → text-success (was 11) */ /* AI tools audit 2026-10-14: cut-and-crop "Download again" (was 15); toolPreviews.tsx deleted (was 19) */ /* ops control center */ // audit 2026-09-29 stage 7 (pastel chips, old brand hex, editor violet → tokens)
   // 51 -> 47: four of the retired brand hexes lived in the caption tile tables
   // deleted below.
   // 47 -> 43: four more went with the per-page voice lists, whose entries
@@ -187,7 +187,7 @@ const BUDGET = {
   // copy of the provider's voice ids purely to build preview URLs by hand.
   // 44 -> 41: AI video generator removal.
   // 41 -> 38: quest card locked-rank chips moved onto theme tokens.
-  "inline-hex": 23, /* AI tools audit 2026-10-14: face-swap light-mode zones + button, downloader pages (was 26); toolPreviews.tsx deleted (was 27) */ // audit 2026-09-29 stage 7 (pastel chips, old brand hex, editor violet → tokens)
+  "inline-hex": 16, /* launch audit 2026-10-23: quest icons, social chips, error icon, blog covers → tokens (was 23). AI tools audit 2026-10-14: face-swap light-mode zones + button, downloader pages (was 26); toolPreviews.tsx deleted (was 27) */ // audit 2026-09-29 stage 7 (pastel chips, old brand hex, editor violet → tokens)
 };
 
 function walk(dir, out = []) {
