@@ -543,6 +543,21 @@ body {
   }
 }
 
+/* Hero entrance: CSS-only and transform-only, so the film poster and CTA are
+   visible (and paintable as LCP) from the first frame, with or without JS. */
+@media (prefers-reduced-motion: no-preference) {
+  .hero-rise {
+    animation: hero-rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .hero-rise-late {
+    animation-delay: 120ms;
+  }
+}
+@keyframes hero-rise {
+  from { transform: translateY(16px); }
+  to { transform: translateY(0); }
+}
+
 /* Scroll-reveal base + revealed states (driven by Reveal.tsx) */
 .reveal {
   opacity: 0;
