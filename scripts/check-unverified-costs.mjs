@@ -25,8 +25,6 @@ const SCAN = [
 // acceptable to ship. Shrink these counts as costs get verified; never grow
 // them — add a verified cost instead.
 const ALLOWLIST = {
-  // ideogram-4 tier-slug ambiguity (`/fast` vs `/instant`) — cheap either way.
-  "lib/models/imageModels.ts": 1,
   // Three markers, all mitigated the same way — costUsd unknown, so the tool is
   // tier-gated where the credit revenue absorbs the uncertainty:
   //   1. subtitle-remover (per-frame OCR cost unconfirmed)
