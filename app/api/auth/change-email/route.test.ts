@@ -11,6 +11,10 @@ const redisSet = vi.hoisted(() => vi.fn(async () => {}));
 const sendConfirm = vi.hoisted(() => vi.fn(async () => {}));
 
 vi.mock("@/lib/auth", () => ({ getAuthUser: vi.fn(async () => ({ userId: "u1" })) }));
+// The TOTP half of the step-up (lib/two-factor-verify.test.ts covers it).
+let secondFactor: { ok: true } | { ok: false; status: number; error: string; twoFactorRequired: true } = { ok: true };
+const verifyStepUpSecondFactor = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/two-factor-verify", () => ({ verifyStepUpSecondFactor }));
 vi.mock("@/lib/with-rate-limit", () => ({ withRateLimit: (h: unknown) => h }));
 vi.mock("@/lib/logger", () => ({ logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
 vi.mock("@/lib/env", () => ({ env: { NEXT_PUBLIC_APP_URL: "https://clipiro.test" } }));
@@ -34,6 +38,8 @@ const post = (body: unknown) =>
 beforeEach(() => {
   vi.clearAllMocks();
   stepUpOk = true;
+  secondFactor = { ok: true };
+  verifyStepUpSecondFactor.mockImplementation(async () => secondFactor);
   taken = null;
 });
 
@@ -72,5 +78,21 @@ describe("POST /api/auth/change-email", () => {
   it("reports a failed send instead of claiming success", async () => {
     sendConfirm.mockRejectedValueOnce(new Error("provider down"));
     expect((await post({ newEmail: "new@example.com", password: "pw" })).status).toBe(502);
+  });
+  it("with 2FA on, also requires an authenticator or recovery code", async () => {
+    secondFactor = { ok: false, status: 400, error: "Enter the code from your authenticator app, or a recovery code", twoFactorRequired: true };
+    const res = await post({ newEmail: "new@example.com", password: "pw" });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ twoFactorRequired: true });
+    expect(verifyStepUpSecondFactor).toHaveBeenCalledWith(expect.objectContaining({ id: "u1" }), undefined);
+    expect(userUpdate).not.toHaveBeenCalled();
+    expect(sendConfirm).not.toHaveBeenCalled();
+  });
+
+  it("passes the submitted code through, and 429s while the account is locked", async () => {
+    secondFactor = { ok: false, status: 429, error: "Too many incorrect codes. Try again in 15 minutes.", twoFactorRequired: true };
+    const res = await post({ ...{ newEmail: "new@example.com", password: "pw" }, twoFactorCode: "123456" });
+    expect(res.status).toBe(429);
+    expect(verifyStepUpSecondFactor).toHaveBeenCalledWith(expect.anything(), "123456");
   });
 });

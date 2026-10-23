@@ -8,6 +8,7 @@ import { s3KeyToPublicUrl } from "@/utils/s3-upload";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { verifyStepUp } from "@/lib/step-up";
 import { cleanName, validateName } from "@/lib/auth-validation";
+import { resignOwnedMediaUrl } from "@/lib/source-url";
 
 const GENDERS = ["male", "female", "unspecified"] as const;
 const INTENDED_USES = ["content_creator", "business_marketing", "personal", "other"] as const;
@@ -105,7 +106,8 @@ async function handlePATCH(req: NextRequest) {
     void markQuestComplete(auth.userId, "complete-profile");
   }
 
-  const res = NextResponse.json({ user });
+  // Stored unsigned; the bucket is private, so sign it for display.
+  const res = NextResponse.json({ user: { ...user, avatarUrl: await resignOwnedMediaUrl(user.avatarUrl, auth.userId) } });
   // Mirrors the DB value into the cookie i18n/request.ts reads, so the new
   // language takes effect on the very next server render without a DB hit.
   if (data.preferredLanguage) {

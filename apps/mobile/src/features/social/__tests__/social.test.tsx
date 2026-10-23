@@ -42,7 +42,8 @@ describe("Accounts", () => {
   });
 
   it("connects YouTube through Google's sign-in, then shows it", async () => {
-    signIn.mockResolvedValueOnce({ type: "success", url: "clipiro://social?connected=youtube" });
+    // The callback parks the code; the app finishes it with its own session.
+    signIn.mockResolvedValueOnce({ type: "success", url: "clipiro://social?pending=youtube" });
     open("/social");
     fireEvent.press(await screen.findByRole("button", { name: "Connect YouTube" }));
     expect(screen.getByText(/Google asks you to let Clipiro read your channel’s stats/)).toBeOnTheScreen();
@@ -65,6 +66,11 @@ describe("Accounts", () => {
 
   it("reads a connect that came back through the app link", async () => {
     open("/social?connected=instagram");
+    expect(await screen.findByText("Instagram connected. The first numbers arrive in a minute.")).toBeOnTheScreen();
+  });
+
+  it("finishes a parked connect that came back through the app link", async () => {
+    open("/social?pending=instagram");
     expect(await screen.findByText("Instagram connected. The first numbers arrive in a minute.")).toBeOnTheScreen();
   });
 

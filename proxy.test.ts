@@ -111,3 +111,16 @@ describe("proxy() — API auth gate", () => {
     expect(res.status).toBe(307);
   });
 });
+
+describe("proxy() — CSP", () => {
+  it("sends the enforcing header, not Report-Only, on pages, redirects and API responses", async () => {
+    for (const res of [
+      await proxy(makeRequest("https://clipiro.com/pricing")),
+      await proxy(makeRequest("https://clipiro.com/dashboard")),
+      await proxy(makeRequest("https://clipiro.com/api/projects")),
+    ]) {
+      expect(res.headers.get("content-security-policy")).toBe("default-src 'self'");
+      expect(res.headers.get("content-security-policy-report-only")).toBeNull();
+    }
+  });
+});

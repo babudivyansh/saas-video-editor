@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import type { ReviewSortOption } from "@/lib/reviews/constants";
 import { computeReviewBadges, computeTopHelpfulThreshold, type ReviewBadge } from "@/lib/reviews/badges";
 import { getAssetReadUrl } from "@/utils/s3-upload";
+import { resignOwnedMediaUrl } from "@/lib/source-url";
 
 export interface ReviewSummary {
   average: number;
@@ -84,6 +85,7 @@ export interface PublicReviewDTO {
 // — "pending" (not yet scanned) fails closed just like "flagged" does.
 const PUBLIC_REVIEW_SELECT = {
   id: true,
+  userId: true,
   rating: true,
   title: true,
   body: true,
@@ -136,7 +138,9 @@ export async function toPublicReviewDTO(review: RawPublicReview, topHelpfulThres
     reportCount: review.reportCount,
     createdAt: review.createdAt.toISOString(),
     editedAt: review.editedAt ? review.editedAt.toISOString() : null,
-    author: { name: authorName(review.user), avatarUrl: review.user.avatarUrl },
+    // Private bucket: an uploaded avatar needs a signature; ownership-gated
+    // because avatarUrl is client-settable.
+    author: { name: authorName(review.user), avatarUrl: await resignOwnedMediaUrl(review.user.avatarUrl, review.userId) },
     badges: computeReviewBadges(
       {
         verifiedCustomer: review.verifiedCustomer,

@@ -32,7 +32,7 @@ async function handleGET(req: NextRequest, { params }: { params: Promise<{ id: s
     });
     return NextResponse.json({
       collection: { id: FAVORITES_ID, name: "Favorites", builtIn: true },
-      clips: rows.map((r) => toClipView(r, wantExcerpts)),
+      clips: await Promise.all(rows.map((r) => toClipView(r, wantExcerpts))),
     });
   }
 
@@ -49,7 +49,7 @@ async function handleGET(req: NextRequest, { params }: { params: Promise<{ id: s
   });
   return NextResponse.json({
     collection: { ...collection, builtIn: false },
-    clips: items.map((i) => toClipView(i.clip, wantExcerpts)),
+    clips: await Promise.all(items.map((i) => toClipView(i.clip, wantExcerpts))),
   });
 }
 

@@ -17,6 +17,20 @@ function IcCopy() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentC
 const inputCls = "w-full bg-panel border border-card-border rounded-xl px-4 py-3 text-sm text-ink placeholder:text-fg-subtle outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/25 transition-all"; // same as ui/Field
 const labelCls = "text-xs font-semibold text-ink-soft uppercase tracking-wide block mb-1.5";
 
+// With 2FA on, turning it off or changing the email also takes a code from
+// the authenticator (or a recovery code) — the password alone isn't enough
+// (app/api/auth/2fa/disable, app/api/auth/change-email).
+function TwoFactorCodeField({ id, value, onChange }: { id: string; value: string; onChange: (v: string) => void }) {
+  const t = useTranslations("SettingsSecurity.twoFactorCode");
+  return (
+    <div>
+      <label htmlFor={id} className={labelCls}>{t("label")}</label>
+      <input id={id} type="text" required autoComplete="one-time-code" spellCheck={false} maxLength={20} value={value} onChange={(e) => onChange(e.target.value)} placeholder="000000" className={`${inputCls} font-mono tracking-widest`} />
+      <p className="text-xs text-ink-soft mt-1.5">{t("help")}</p>
+    </div>
+  );
+}
+
 interface TwoFaStatus { enabled: boolean; unusedRecoveryCodes: number }
 
 function Badge({ ok, children }: { ok: boolean; children: React.ReactNode }) {
@@ -39,6 +53,7 @@ function EmailSection() {
   const [changing, setChanging] = useState(false);
   const [newEmail, setNewEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [emailTwoFactorCode, setEmailTwoFactorCode] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [pendingEmail, setPendingEmail] = useState<string | null>(null);
 
@@ -82,13 +97,18 @@ function EmailSection() {
       const res = await fetch("/api/auth/change-email", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ newEmail, ...stepUpBody(user?.hasPassword, password) }),
+        body: JSON.stringify({
+          newEmail,
+          ...stepUpBody(user?.hasPassword, password),
+          ...(user?.twoFactorEnabled ? { twoFactorCode: emailTwoFactorCode } : {}),
+        }),
       });
       const data = await res.json();
       if (!res.ok) { showToast(data.error ?? t("toasts.changeFailed"), "error"); return; }
       setPendingEmail(data.pendingEmail);
       setChanging(false);
       setPassword("");
+      setEmailTwoFactorCode("");
       showToast(t("toasts.confirmationSentTo", { email: data.pendingEmail }));
     } finally {
       setSubmitting(false);
@@ -141,6 +161,7 @@ function EmailSection() {
             <label className={labelCls}>{t("confirmItsYou")}</label>
             <StepUpField value={password} onChange={setPassword} />
           </div>
+          {user?.twoFactorEnabled && <TwoFactorCodeField id="settings-email-2fa-code" value={emailTwoFactorCode} onChange={setEmailTwoFactorCode} />}
           <Button type="submit" size="sm" disabled={submitting}>{submitting ? <><IcSpinner /> {t("sending")}</> : t("sendConfirmation")}</Button>
         </form>
       )}
@@ -232,6 +253,7 @@ function TwoFactorSection() {
 
   const [disableOpen, setDisableOpen] = useState(false);
   const [disablePassword, setDisablePassword] = useState("");
+  const [disableCode, setDisableCode] = useState("");
 
   const [regenOpen, setRegenOpen] = useState(false);
   const [regenPassword, setRegenPassword] = useState("");
@@ -295,12 +317,12 @@ function TwoFactorSection() {
       const res = await fetch("/api/auth/2fa/disable", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify(stepUpBody(user?.hasPassword, disablePassword)),
+        body: JSON.stringify({ ...stepUpBody(user?.hasPassword, disablePassword), twoFactorCode: disableCode }),
       });
       const data = await res.json();
       if (!res.ok) { showToast(data.error ?? t("toasts.disableFailed"), "error"); return; }
       showToast(t("toasts.disabled2fa"));
-      setDisableOpen(false); setDisablePassword("");
+      setDisableOpen(false); setDisablePassword(""); setDisableCode("");
       await loadStatus();
     } finally {
       setBusy(false);
@@ -412,6 +434,7 @@ function TwoFactorSection() {
         <form onSubmit={disable2fa} className="space-y-4">
           <p className="text-sm text-ink-soft">{t("disableConfirm")}</p>
           <StepUpField autoFocus value={disablePassword} onChange={setDisablePassword} placeholder={t("currentPasswordPlaceholder")} />
+          <TwoFactorCodeField id="settings-disable-2fa-code" value={disableCode} onChange={setDisableCode} />
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" size="sm" onClick={() => setDisableOpen(false)}>{tCommon("cancel")}</Button>
             <Button type="submit" size="sm" disabled={busy} className="!bg-none !bg-error !text-bg !shadow-none hover:!brightness-110">{busy ? <><IcSpinner /> {t("disabling")}</> : t("disable")}</Button>

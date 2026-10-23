@@ -17,10 +17,19 @@
 //
 // Client-safe (no server imports) so the create pages can render it directly.
 
+// ── WHERE THE TRACKS LIVE (2026-10-23) ─────────────────────────────────────
+// NOT in the media bucket. That bucket is private (Block Public Access on —
+// docs/ops/s3-private-bucket.md), and Block Public Access is all-or-nothing
+// per bucket, so a public `music/` prefix inside it is impossible. Music is
+// non-user, licensed catalogue content that every visitor may play, so it gets
+// its own PUBLIC location: a separate public-read bucket (or a CloudFront
+// distribution in front of it), named by NEXT_PUBLIC_MUSIC_BASE, e.g.
+// https://clipiro-public-assets.s3.ap-south-1.amazonaws.com/music
+// The default used to be the media bucket's own `music/` prefix; it is now the
+// app's same-origin /music path (public/music/), which can never depend on
+// the private bucket. Set NEXT_PUBLIC_MUSIC_BASE in production.
 /** Raw process.env, not lib/env.ts — this module is imported by client pages. */
-const BASE =
-  process.env.NEXT_PUBLIC_MUSIC_BASE ??
-  "https://saas-video-editor-assets.s3.ap-south-1.amazonaws.com/music";
+const BASE = (process.env.NEXT_PUBLIC_MUSIC_BASE ?? "/music").replace(/\/$/, "");
 
 export interface MusicTrack {
   /** The S3 object key stem. NEVER derived from `name`. */

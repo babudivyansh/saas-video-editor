@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getApiKeyAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { withRateLimit } from "@/lib/with-rate-limit";
+import { resignMediaUrl } from "@/lib/signed-media";
 
 // Public API — GET /api/v1/projects/{id}/clips: poll a project's analysis
 // status and every clip's progress. Mirrors the internal
@@ -23,7 +24,7 @@ async function handleGET(req: NextRequest, { params }: { params: Promise<{ id: s
   });
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const clips = await prisma.clip.findMany({
+  const rows = await prisma.clip.findMany({
     where: { projectId: id },
     orderBy: [{ score: { sort: "desc", nulls: "last" } }, { index: "asc" }],
     select: {
@@ -32,6 +33,10 @@ async function handleGET(req: NextRequest, { params }: { params: Promise<{ id: s
       videoUrl: true, thumbnailUrl: true, hasCaptions: true,
     },
   });
+  // The bucket is private: download URLs are presigned (valid for hours).
+  const clips = await Promise.all(rows.map(async (c) => ({
+    ...c, videoUrl: await resignMediaUrl(c.videoUrl), thumbnailUrl: await resignMediaUrl(c.thumbnailUrl),
+  })));
 
   return NextResponse.json({
     project: { status: project.status, warnings: project.warnings, captionStyleIndex: project.autoClipCaptionStyle },

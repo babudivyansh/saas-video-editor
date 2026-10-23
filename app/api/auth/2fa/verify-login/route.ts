@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { setSessionCookie, setLocaleCookieFromUser } from "@/lib/auth";
 import { finishLogin } from "@/lib/login-tail";
-import { decryptSecret } from "@/lib/encryption";
-import { verifyTotpStep, hashRecoveryCode } from "@/lib/totp";
+import { verifySecondFactor } from "@/lib/two-factor-verify";
 import {
   readTwoFactorTicket,
   discardTwoFactorTicket,
@@ -42,33 +41,20 @@ async function handlePOST(req: NextRequest) {
     return NextResponse.json({ error: "This account is deactivated.", deactivated: true }, { status: 403 });
   }
 
-  let verified = false;
-  const step = verifyTotpStep(decryptSecret(user.twoFactorSecretEnc), code);
+  // TOTP (step burned) or an unused recovery code, behind the per-account
+  // failure counter (lib/two-factor-verify.ts) — the per-ticket one below
+  // alone let a password holder mint fresh tickets and keep guessing.
+  const result = await verifySecondFactor(user, code);
 
-  if (step !== null) {
-    // Burn this time step so the code can't be replayed for the rest of its
-    // ~90s validity window (see User.twoFactorLastUsedStep). Conditional, so
-    // two requests racing with the same code can't both win.
-    const burned = await prisma.user.updateMany({
-      where: {
-        id: user.id,
-        OR: [{ twoFactorLastUsedStep: null }, { twoFactorLastUsedStep: { lt: step } }],
-      },
-      data: { twoFactorLastUsedStep: step },
-    });
-    verified = burned.count === 1;
-  } else {
-    // Not a live TOTP code at all — fall back to an unused recovery code,
-    // one-time use. Spent with a conditional update rather than find-then-
-    // update, which let two parallel requests spend the same code twice.
-    const spent = await prisma.twoFactorRecoveryCode.updateMany({
-      where: { userId: user.id, codeHash: hashRecoveryCode(code), usedAt: null },
-      data: { usedAt: new Date() },
-    });
-    verified = spent.count >= 1;
+  if (result === "locked") {
+    await discardTwoFactorTicket(ticket);
+    return NextResponse.json(
+      { error: "Too many incorrect codes on this account. Try again in 15 minutes.", expired: true, locked: true },
+      { status: 429 },
+    );
   }
 
-  if (!verified) {
+  if (result === "invalid") {
     const { lockedOut } = await countFailedTwoFactorAttempt(ticket);
     if (lockedOut) {
       return NextResponse.json(

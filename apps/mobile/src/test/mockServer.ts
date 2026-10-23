@@ -247,6 +247,8 @@ export const MOCK_ROUTES: Record<string, Route> = {
     "GET /social/accounts": async () => ok({ accounts: await getSocialAccounts(), connectable: ["youtube", "instagram", "facebook"] }),
     // The platform's sign-in page; the test's auth session decides how it ends.
     "GET /social/connect/:provider": async (url) => ok({ url: `https://signin.test/${socialIdOf(url)}?state=s` }),
+    // A parked phone connect (clipiro://social?pending=<provider>): finishes as that provider.
+    "POST /social/connect/complete": async (_url, body) => ok({ connected: [String((body as { pending?: string })?.pending ?? "youtube")] }),
     "DELETE /social/accounts/:id": async (url) => {
       await disconnectAccount(socialIdOf(url));
       return ok({ ok: true });

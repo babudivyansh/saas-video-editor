@@ -12,6 +12,8 @@ vi.mock("@/lib/with-rate-limit", () => ({ withRateLimit: (handler: unknown) => h
 
 const getAssetReadUrl = vi.fn(async (key: string) => `https://signed.example/${key}?sig=xyz`);
 vi.mock("@/utils/s3-upload", () => ({ getAssetReadUrl }));
+// Only our own bucket's URLs are re-signed (lib/signed-media.ts).
+vi.mock("@/lib/env", () => ({ env: { AWS_S3_BUCKET: "bucket" } }));
 
 function row(over: Partial<Record<string, unknown>> = {}) {
   return {

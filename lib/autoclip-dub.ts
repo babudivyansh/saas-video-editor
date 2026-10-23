@@ -28,6 +28,7 @@ import { sanitizeCaptionWord } from "@/lib/caption-sanitize";
 import { restoreSpend } from "@/lib/credits";
 import { createRenderQueue } from "@/lib/render-queue";
 import { logger } from "@/lib/logger";
+import { fetchableMediaUrl } from "@/lib/signed-media";
 import type { WordTiming } from "@/utils/elevenlabs";
 import type { SubtitleStyle } from "@/utils/ffmpeg-render";
 import os from "os";
@@ -95,7 +96,9 @@ export async function startDubJob(payload: DubPayload): Promise<void> {
   if (dub.dubbingId) return;
 
   try {
-    const { dubbingId } = await startDubbing(dub.clip.videoUrl, dub.targetLang);
+    // ElevenLabs fetches the video itself, and the bucket is private: hand it a
+    // presigned URL, never the stored unsigned one.
+    const { dubbingId } = await startDubbing(await fetchableMediaUrl(dub.clip.videoUrl), dub.targetLang);
     await prisma.clipDub.update({ where: { id: clipDubId }, data: { dubbingId } });
     // status stays "dubbing" (the column default) — completion is detected
     // later, by the webhook or lib/cron/dub-sweep.ts, not here.
@@ -178,7 +181,7 @@ export async function finishDubJob(payload: FinishDubPayload): Promise<void> {
 
     const audioBuffer = await getDubbedAudio(dub.dubbingId, dub.targetLang);
     fs.writeFileSync(dubbedAudioPath, audioBuffer);
-    await downloadFile(dub.clip.videoUrl!, sourceVideoPath);
+    await downloadFile(await fetchableMediaUrl(dub.clip.videoUrl!), sourceVideoPath);
 
     let hasCaptions = dub.clip.hasCaptions;
     // The stored transcript is on the clip's source window; the dub is laid

@@ -9,8 +9,11 @@ import { NextRequest } from "next/server";
 let authUser: { userId: string } | null = { userId: "u1" };
 vi.mock("@/lib/auth", () => ({ getAuthUser: vi.fn(async () => authUser) }));
 
-const asset: { id: string; userId: string; url: string; duration: number | null } =
-  { id: "asset-1", userId: "u1", url: "https://s3.example.com/asset-1.mp4", duration: 150 };
+const asset: { id: string; userId: string; s3Key: string; url: string; duration: number | null } =
+  { id: "asset-1", userId: "u1", s3Key: "uploads/u1/asset-1.mp4", url: "https://s3.example.com/asset-1.mp4", duration: 150 };
+// The bucket is private: the route downloads a presigned URL minted from the key.
+const getAssetReadUrl = vi.hoisted(() => vi.fn(async (key: string, _ttl?: number) => `https://signed.example/${key}`));
+vi.mock("@/utils/s3-upload", () => ({ getAssetReadUrl }));
 vi.mock("@/lib/prisma", () => ({
   prisma: { asset: { findFirst: vi.fn(async () => asset) } },
 }));
@@ -131,6 +134,15 @@ describe("POST /api/editor/captions", () => {
     expect(res.status).toBe(200);
     expect(spendCredits).toHaveBeenCalledWith(expect.objectContaining({ amount: 3, reason: "spend:editor-captions" }));
     expect((await res.json()).minutesCharged).toBe(3);
+  });
+
+  it("downloads through a presigned URL from the key, never the stored unsigned asset.url", async () => {
+    transcribeImpl = async () => [{ word: "hi", start: 0, end: 500 }];
+    asset.duration = 150;
+    const { downloadFile } = await import("@/utils/download");
+    await POST(makeRequest({ assetId: "asset-1" }));
+    expect(getAssetReadUrl).toHaveBeenCalledWith("uploads/u1/asset-1.mp4", 600);
+    expect(vi.mocked(downloadFile).mock.lastCall?.[0]).toBe("https://signed.example/uploads/u1/asset-1.mp4");
   });
 
   it("probes the file when the asset has no stored length", async () => {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireSubscriber } from "@/lib/auth";
 import { buildAuthUrl } from "@/lib/social/service";
+import { OAUTH_BROWSER_COOKIE, OAUTH_BROWSER_COOKIE_OPTIONS } from "@/lib/social/oauth";
 import { availableProviders } from "@/lib/social/providers";
 import type { ProviderId } from "@/lib/social/types";
 import { withRateLimit } from "@/lib/with-rate-limit";
@@ -20,8 +21,13 @@ async function handleGET(req: NextRequest, { params }: { params: Promise<{ provi
   // sends the browser back into the app instead of to this dashboard.
   const client = req.nextUrl.searchParams.get("client") === "app" ? "app" : "web";
   try {
-    const url = await buildAuthUrl(auth.userId, provider as ProviderId, client);
-    return NextResponse.json({ url });
+    const { url, nonce } = await buildAuthUrl(auth.userId, provider as ProviderId, client);
+    const res = NextResponse.json({ url });
+    // The web callback only honours the state in the browser holding this
+    // (lib/social/oauth.ts). The app's callback is bound by its Bearer
+    // session instead, at /api/mobile/v1/social/connect/complete.
+    if (client === "web") res.cookies.set(OAUTH_BROWSER_COOKIE, nonce, OAUTH_BROWSER_COOKIE_OPTIONS);
+    return res;
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 400 });
   }

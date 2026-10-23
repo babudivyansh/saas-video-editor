@@ -3,6 +3,7 @@ import { getAuthUser, getServerAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { logger } from "@/lib/logger";
+import { fetchableMediaUrl } from "@/lib/signed-media";
 
 // GET /api/projects/[id]/clips/[clipId]/download
 // Streams a single ready clip back through our own origin as an attachment.
@@ -53,7 +54,8 @@ async function handleGET(
   }
 
   try {
-    const upstream = await fetch(clip.videoUrl);
+    // Presigned — the bucket is private, so the stored unsigned URL is a 403.
+    const upstream = await fetch(await fetchableMediaUrl(clip.videoUrl, 600));
     if (!upstream.ok || !upstream.body) {
       logger.warn("auto-clip", `clip download upstream ${upstream.status} for ${clipId}`);
       return NextResponse.json({ error: "Could not fetch the clip" }, { status: 502 });

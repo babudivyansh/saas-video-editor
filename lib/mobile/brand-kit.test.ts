@@ -14,7 +14,9 @@ const h = vi.hoisted(() => ({
 vi.mock("@/lib/prisma", () => ({
   prisma: { brandKit: { findFirst: h.findFirst, update: h.update, create: h.create }, asset: { findFirst: h.asset } },
 }));
-vi.mock("@/lib/signed-media", () => ({ resignMediaUrl: vi.fn(async (u: string | null) => u && `${u}?signed`) }));
+// The web lets a client set logoUrl to any string, so the read is ownership-gated.
+const resignOwnedMediaUrl = vi.hoisted(() => vi.fn(async (u: string | null, _owner: string) => u && `${u}?signed`));
+vi.mock("@/lib/source-url", () => ({ resignOwnedMediaUrl }));
 vi.mock("@/utils/s3-upload", () => ({ s3KeyToPublicUrl: (k: string) => `https://b.s3.ap-south-1.amazonaws.com/${k}` }));
 
 const { hexToASS } = await import("@/lib/ass-color");
@@ -40,6 +42,7 @@ describe("brand kit", () => {
     const kit = await getBrandKit("u1");
     expect(h.findFirst).toHaveBeenCalledWith({ where: { userId: "u1" }, orderBy: { updatedAt: "desc" } });
     expect(kit).toMatchObject({ baseColor: "#ffffff", highlightColor: "#20d68a", outlineColor: "#000000", shadowColor: "#123456", logoUrl: expect.stringMatching(/\?signed$/) });
+    expect(resignOwnedMediaUrl).toHaveBeenCalledWith("https://b.s3.ap-south-1.amazonaws.com/u1/logo.png", "u1");
   });
 
   it("is null before one is made", async () => {

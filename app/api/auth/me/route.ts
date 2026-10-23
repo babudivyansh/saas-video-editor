@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getPlanPriceMinor } from "@/lib/currency";
 import { effectivePlan } from "@/lib/plans/effective-plan";
 import { parseCurrency } from "@/lib/currency-shared";
+import { resignOwnedMediaUrl } from "@/lib/source-url";
 
 export async function GET(req: NextRequest) {
   const auth = await getAuthUser(req);
@@ -103,6 +104,8 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     user: {
       ...userFields,
+      // Private bucket: an uploaded avatar needs a signed URL to load.
+      avatarUrl: await resignOwnedMediaUrl(userFields.avatarUrl, auth.userId),
       subscriptionCurrency,
       hasPurchased: _count.purchases > 0,
       plan,

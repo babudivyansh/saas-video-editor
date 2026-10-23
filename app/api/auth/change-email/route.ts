@@ -8,6 +8,7 @@ import { sendChangeEmailConfirmationEmail } from "@/lib/email";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import { verifyStepUp } from "@/lib/step-up";
+import { verifyStepUpSecondFactor } from "@/lib/two-factor-verify";
 import { isValidEmail, normalizeEmail } from "@/lib/auth-validation";
 import { greetingName } from "@/lib/display-name";
 
@@ -33,6 +34,10 @@ async function handlePOST(req: NextRequest) {
   // Password, or an emailed code for accounts without one (lib/step-up.ts).
   const stepUp = await verifyStepUp(user, body);
   if (!stepUp.ok) return NextResponse.json({ error: stepUp.error }, { status: 400 });
+  // With 2FA on, the password isn't enough to move the account to another
+  // inbox: that inbox then owns password resets (lib/two-factor-verify.ts).
+  const second = await verifyStepUpSecondFactor(user, body.twoFactorCode);
+  if (!second.ok) return NextResponse.json({ error: second.error, twoFactorRequired: true }, { status: second.status });
 
   if (normalized === user.email) {
     return NextResponse.json({ error: "That's already your current email" }, { status: 400 });
