@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/app/components/ui/Button";
 import { Switch } from "@/app/components/ui/Switch";
 import { CAPTION_TEMPLATES, CAPTION_CATEGORIES, type CaptionCategory } from "@/lib/caption-templates";
+import { clientAuthToken } from "@/lib/client-session";
 
 // Caption templates + translation, as controls rather than API surface.
 //
@@ -39,7 +40,7 @@ const FALLBACK: ApiTemplate[] = CAPTION_TEMPLATES.map((t) => ({
 }));
 
 function authHeaders(): Record<string, string> {
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  const token = clientAuthToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 

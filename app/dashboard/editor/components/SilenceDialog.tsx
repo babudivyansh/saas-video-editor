@@ -10,6 +10,7 @@ import { Button } from "@/app/components/ui/Button";
 import { useEditorStore } from "../store/editorStore";
 import { silencesToCuts } from "@/lib/editor/silences";
 import { normalizeRanges, type TimeRange } from "@/lib/editor/ripple-cut";
+import { clientAuthToken } from "@/lib/client-session";
 
 const LENGTHS = [
   { sec: 0.5, label: "0.5 s" },
@@ -45,7 +46,7 @@ function Body({ onClose }: { onClose: () => void }) {
     setError(null);
     setCuts(null);
     try {
-      const token = localStorage.getItem("token");
+      const token = clientAuthToken();
       const found: TimeRange[] = [];
       for (const clip of clips) {
         const res = await fetch("/api/editor/silences", {

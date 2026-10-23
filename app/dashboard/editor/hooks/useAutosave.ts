@@ -15,6 +15,7 @@
 import { useEffect, useRef } from "react";
 import { useEditorStore } from "../store/editorStore";
 import type { TimelineDoc } from "@/lib/editor/types";
+import { clientAuthToken } from "@/lib/client-session";
 
 const DEBOUNCE_MS = 1500;
 
@@ -39,7 +40,7 @@ export function useAutosave() {
     timer.current = setTimeout(async () => {
       markSaved("saving");
       try {
-        const token = localStorage.getItem("token");
+        const token = clientAuthToken();
 
         // Deferred creation: the editor opens with no project at all, and the
         // row is written here, on the first real edit. Opening the editor used
@@ -110,7 +111,7 @@ export function useAutosave() {
  */
 export async function reloadLatestProject(projectId: string): Promise<{ ok: boolean; error?: string }> {
   try {
-    const token = localStorage.getItem("token");
+    const token = clientAuthToken();
     const res = await fetch(`/api/projects/${projectId}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -133,7 +134,7 @@ export async function reloadLatestProject(projectId: string): Promise<{ ok: bool
 export async function keepMyVersion(projectId: string): Promise<{ ok: boolean; error?: string }> {
   const store = useEditorStore.getState();
   try {
-    const token = localStorage.getItem("token");
+    const token = clientAuthToken();
     const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
     const current = await fetch(`/api/projects/${projectId}`, { headers });
     if (!current.ok) return { ok: false, error: "Could not reach the server. Try again." };

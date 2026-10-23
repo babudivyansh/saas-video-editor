@@ -17,6 +17,7 @@ import { useCallback, useState } from "react";
 import { Button } from "@/app/components/ui/Button";
 import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
 import type { ExecutiveSummary, Recommendation } from "@/lib/social/ai/schemas";
+import { clientAuthToken } from "@/lib/client-session";
 
 type Period = "weekly" | "monthly" | "quarterly" | "annual";
 
@@ -52,7 +53,7 @@ export function AiInsightsPanel({
     setConfirming(false);
     setState({ kind: "working" });
     try {
-      const token = localStorage.getItem("token");
+      const token = clientAuthToken();
       const res = await fetch("/api/social/summary", {
         method: "POST",
         headers: {

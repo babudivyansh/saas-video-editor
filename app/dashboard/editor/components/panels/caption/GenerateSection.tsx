@@ -14,6 +14,7 @@ import { planCaptionGeneration, wordsToCaptionCues, type RawWordTiming } from "@
 import type { CaptionClip } from "@/lib/editor/types";
 import { DUB_LANGUAGES } from "@/lib/languages";
 import { Button, SelectField } from "../../ui";
+import { clientAuthToken } from "@/lib/client-session";
 
 const AUTO_DETECT = "Auto-detect";
 const LANGUAGE_OPTIONS = [AUTO_DETECT, ...DUB_LANGUAGES.map((l) => l.label)];
@@ -47,7 +48,7 @@ export default function GenerateSection() {
     setError(null);
     const languageCode = DUB_LANGUAGES.find((l) => l.label === language)?.code; // undefined = Scribe auto-detect
     try {
-      const token = localStorage.getItem("token");
+      const token = clientAuthToken();
       const allCues: CaptionClip[] = [];
       for (let i = 0; i < plan.length; i++) {
         const { assetId, clips } = plan[i];

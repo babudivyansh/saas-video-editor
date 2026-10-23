@@ -12,6 +12,7 @@ import { Button } from "@/app/components/ui/Button";
 import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
 import type { TimelineDoc } from "@/lib/editor/types";
 import { useEditorStore } from "../store/editorStore";
+import { clientAuthToken } from "@/lib/client-session";
 
 interface VersionRow {
   id: string;
@@ -55,7 +56,7 @@ export default function VersionHistory() {
     (async () => {
       try {
         const res = await fetch(`/api/projects/${projectId}/versions`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+          headers: { Authorization: `Bearer ${clientAuthToken()}` },
         });
         if (!res.ok) throw new Error();
         const { versions } = await res.json();
@@ -79,7 +80,7 @@ export default function VersionHistory() {
     try {
       const res = await fetch(`/api/projects/${projectId}/versions/${pick.id}`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}`, "Content-Type": "application/json" },
+        headers: { Authorization: `Bearer ${clientAuthToken()}`, "Content-Type": "application/json" },
         body: JSON.stringify({ expectedVersion: useEditorStore.getState().editorVersion }),
       });
       if (res.status === 409) {

@@ -16,6 +16,7 @@ import { useInsufficientCredits } from "@/app/components/billing/CreditModalCont
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 import { Modal } from "@/app/components/ui/Modal";
 import { Button } from "@/app/components/ui/Button";
+import { clientAuthToken } from "@/lib/client-session";
 
 type Stage = "confirm" | "waiting-save" | "rendering" | "done" | "error";
 
@@ -69,7 +70,7 @@ export default function ExportModal() {
     setStage("rendering");
     setProgress(0);
     try {
-      const token = localStorage.getItem("token");
+      const token = clientAuthToken();
       const res = await fetch("/api/editor/render", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -88,7 +89,7 @@ export default function ExportModal() {
       poll.current = setInterval(async () => {
         try {
           const r = await fetch(`/api/projects/${projectId}`, {
-            headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+            headers: { Authorization: `Bearer ${clientAuthToken()}` },
           });
           const { project } = await r.json();
           setProgress(project.progress ?? 0);

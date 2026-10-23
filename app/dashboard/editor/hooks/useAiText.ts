@@ -6,6 +6,7 @@
 
 import { useCallback, useState } from "react";
 import { addEmojisToText, autoLineBreaks, removeFillerWords, type AiTextOperation, isLlmOperation } from "@/lib/editor/ai-text";
+import { clientAuthToken } from "@/lib/client-session";
 
 export const AI_TEXT_ACTIONS: { op: AiTextOperation; label: string; free?: boolean }[] = [
   { op: "rewrite", label: "Rewrite" },
@@ -41,7 +42,7 @@ export function useAiText() {
     try {
       const res = await fetch("/api/editor/ai-text", {
         method: "POST",
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}`, "Content-Type": "application/json" },
+        headers: { Authorization: `Bearer ${clientAuthToken()}`, "Content-Type": "application/json" },
         body: JSON.stringify({ operation: op, text, targetLang }),
       });
       const data = (await res.json().catch(() => ({}))) as { result?: string; error?: string };

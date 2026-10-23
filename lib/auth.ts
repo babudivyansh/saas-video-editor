@@ -9,6 +9,7 @@ import { getClientIp } from "@/lib/rate-limit";
 import { effectivePlan } from "@/lib/plans/effective-plan";
 import type { TierId } from "@/lib/plans/tiers";
 import { LOCALE_COOKIE, isSupportedLocale } from "@/lib/i18n-locales";
+import { SIGNED_IN_COOKIE } from "@/lib/client-session";
 
 const JWT_SECRET = env.JWT_SECRET;
 const SESSION_TTL = 60 * 60 * 24 * 7; // 7 days in seconds
@@ -35,17 +36,15 @@ export function verifyToken(token: string): TokenPayload {
 }
 
 /**
- * Sets the httpOnly session cookie alongside the Bearer token flow. Mirrors
- * the JWT's own expiry so the cookie never outlives the token it carries.
+ * Sets the httpOnly session cookie — the web's only copy of the session
+ * (lib/client-session.ts). Mirrors the JWT's own expiry so the cookie never
+ * outlives the token it carries. The readable SIGNED_IN_COOKIE beside it holds
+ * no credential; it only tells the page a session exists.
  */
 export function setSessionCookie(res: NextResponse, token: string): void {
-  res.cookies.set(SESSION_COOKIE_NAME, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: SESSION_TTL,
-    path: "/",
-  });
+  const secure = process.env.NODE_ENV === "production";
+  res.cookies.set(SESSION_COOKIE_NAME, token, { httpOnly: true, secure, sameSite: "lax", maxAge: SESSION_TTL, path: "/" });
+  res.cookies.set(SIGNED_IN_COOKIE, "1", { httpOnly: false, secure, sameSite: "lax", maxAge: SESSION_TTL, path: "/" });
 }
 
 /**
@@ -68,6 +67,7 @@ export function setLocaleCookieFromUser(res: NextResponse, preferredLanguage: st
 
 export function clearSessionCookie(res: NextResponse): void {
   res.cookies.set(SESSION_COOKIE_NAME, "", { maxAge: 0, path: "/" });
+  res.cookies.set(SIGNED_IN_COOKIE, "", { maxAge: 0, path: "/" });
 }
 
 // ── Multi-session support ───────────────────────────────────────────────
@@ -206,9 +206,47 @@ function touchSession(userId: string, sessionId: string): void {
   }).catch(() => { /* best-effort */ });
 }
 
+const JWT_SHAPE = /^[\w-]+\.[\w-]+\.[\w-]+$/;
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+/**
+ * Cookie-authenticated writes must come from our own pages. SameSite=Lax
+ * already keeps the cookie off cross-site POST/PUT/DELETE; this is the second
+ * lock: a browser that says the request is cross-site (Sec-Fetch-Site) or
+ * names a foreign Origin is refused. Requests with neither header (server to
+ * server, tests) carry no ambient browser cookie to abuse.
+ */
+function isSameOriginWrite(req: NextRequest): boolean {
+  if (SAFE_METHODS.has(req.method)) return true;
+  const site = req.headers.get("sec-fetch-site");
+  if (site && site !== "same-origin" && site !== "none") return false;
+  const origin = req.headers.get("origin");
+  if (!origin) return true;
+  let originHost: string;
+  try { originHost = new URL(origin).host; } catch { return false; }
+  const allowed = new Set([req.headers.get("host"), req.nextUrl.host]);
+  try { allowed.add(new URL(env.NEXT_PUBLIC_APP_URL).host); } catch { /* unset in tests */ }
+  return allowed.has(originHost);
+}
+
+/**
+ * Resolves the caller from a real Bearer JWT (the Android app) or, failing
+ * that, the httpOnly session cookie (the web, lib/client-session.ts). A Bearer
+ * value that isn't JWT-shaped — the web's placeholder, or "null" from code
+ * that never had a token — is ignored rather than rejected, so the cookie
+ * decides. A JWT-shaped Bearer is authoritative: if it's invalid the request
+ * is unauthenticated, with no fall-through to a cookie.
+ */
 export async function getAuthUser(req: NextRequest): Promise<TokenPayload | null> {
   const authHeader = req.headers.get("authorization");
-  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  const bearer = authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : null;
+  let token: string | null = null;
+  if (bearer && JWT_SHAPE.test(bearer)) {
+    token = bearer;
+  } else {
+    token = req.cookies.get(SESSION_COOKIE_NAME)?.value ?? null;
+    if (token && !isSameOriginWrite(req)) return null;
+  }
   if (!token) return null;
   try {
     const payload = verifyToken(token);

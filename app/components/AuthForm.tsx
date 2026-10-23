@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { withNextParam } from "@/lib/safe-redirect";
+import { COOKIE_SESSION_TOKEN, markSignedIn } from "@/lib/client-session";
 
 function BrandIcon() {
   return <img src="/icon.png" alt="Clipiro" className="w-12 h-12 rounded-2xl" />;
@@ -370,8 +371,11 @@ export default function AuthForm({
     // caller failed to handle it. Previously this stored the string
     // "undefined" and bounced the user around a redirect loop with no error.
     if (!token) throw new Error("Sign-in did not complete. Please try again.");
-    localStorage.setItem("token", token);
-    onSuccess?.(token);
+    // The response also set the httpOnly session cookie, which is the only
+    // place the web keeps the session (lib/client-session.ts). The JWT in the
+    // body is for the Android app; the page deliberately doesn't store it.
+    markSignedIn();
+    onSuccess?.(COOKIE_SESSION_TOKEN);
   }
 
   /** Shared by every entry point that can pause for a second factor. */

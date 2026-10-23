@@ -1,4 +1,5 @@
 "use client";
+import { clientAuthToken } from "@/lib/client-session";
 
 // Data layer for the shared AssetPicker (Global Asset Library). Deliberately
 // self-contained — a top-level shared component should not reach into an
@@ -42,7 +43,7 @@ export class AssetUploadError extends Error {
 }
 
 function authHeaders(): HeadersInit {
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  const token = clientAuthToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
@@ -51,7 +52,7 @@ function authHeaders(): HeadersInit {
  *  trackOnboardingEvent server-side directly, so it goes through the same
  *  thin bridge route every other client-only event uses. */
 export function trackAssetEvent(event: "asset_picker_opened" | "asset_selected", props?: Record<string, string | number | boolean>): void {
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  const token = clientAuthToken();
   if (!token) return;
   fetch("/api/analytics/onboarding-event", {
     method: "POST",

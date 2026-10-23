@@ -12,7 +12,7 @@ import { mintTwoFactorTicket } from "@/lib/two-factor-ticket";
 import { recordSignupAttribution } from "@/lib/marketing-analytics";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { withNextParam } from "@/lib/safe-redirect";
-import { decodeNextFromState, toInlineScriptJson } from "@/lib/oauth-state";
+import { decodeNextFromState } from "@/lib/oauth-state";
 import { FETCH_TIMEOUT } from "@/lib/fetch-timeout";
 
 export async function GET(req: NextRequest) {
@@ -114,32 +114,11 @@ export async function GET(req: NextRequest) {
     // new-sign-in alert like every other login does.
     const token = await finishLogin(req, user, getClientIp(req));
 
-    // 6. Return HTML page that sets localStorage and redirects.
-    // toInlineScriptJson escapes "<" so a value can never contain a literal
-    // "</script>" that would break out of this block — `next` passed
-    // getSafeNextPath (which allows any same-origin path, no HTML-safety
-    // guarantee) so this is a real boundary, not defensive-for-show. `token`
-    // is JWT-shaped and wouldn't contain this today, but there's no reason
-    // for its embedding to depend on that staying true.
-    const html = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Authenticating...</title>
-        </head>
-        <body>
-          <p>Redirecting...</p>
-          <script>
-            localStorage.setItem("token", ${toInlineScriptJson(token)});
-            window.location.href = ${toInlineScriptJson(next ?? "/dashboard")};
-          </script>
-        </body>
-      </html>
-    `;
-
-    const res = new NextResponse(html, {
-      headers: { "Content-Type": "text/html" },
-    });
+    // 6. Redirect into the app. The session travels only in the httpOnly
+    // cookie set below (lib/client-session.ts); this used to be an HTML page
+    // whose inline script copied the JWT into localStorage. `next` already
+    // passed getSafeNextPath, so it is a same-origin path.
+    const res = NextResponse.redirect(new URL(next ?? "/dashboard", appUrl()));
     setSessionCookie(res, token);
     setLocaleCookieFromUser(res, user.preferredLanguage);
     res.cookies.set("google_oauth_state", "", { maxAge: 0, path: "/api/auth/callback/google" });

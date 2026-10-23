@@ -7,6 +7,7 @@
 // One fetch per query, shared across every panel instance/remount.
 
 import { useEffect, useState } from "react";
+import { clientAuthToken } from "@/lib/client-session";
 
 const cache = new Map<string, string | null>();
 const inflight = new Map<string, Promise<string | null>>();
@@ -17,7 +18,7 @@ async function fetchPresetGif(query: string): Promise<string | null> {
 
   const promise = (async () => {
     try {
-      const token = localStorage.getItem("token");
+      const token = clientAuthToken();
       const res = await fetch(
         `/api/editor/stock/search?type=gif&q=${encodeURIComponent(query)}&limit=1`,
         { headers: { Authorization: `Bearer ${token}` } },

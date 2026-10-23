@@ -28,6 +28,7 @@ import { Button } from "@/app/components/ui/Button";
 import { ADMIN_NAV_GROUPS } from "./nav-config";
 import { AdminTitleProvider, useAdminTitleValue, useAdminWide } from "./admin-title";
 import { SkipLink } from "@/app/components/ui/SkipLink";
+import { markSignedIn } from "@/lib/client-session";
 
 function IcSpinner() { return <div className="w-6 h-6 border-2 border-brand border-t-transparent rounded-full animate-spin" />; }
 function IcMenu({ open }: { open: boolean }) {
@@ -171,7 +172,9 @@ function AdminSignIn({ error: initialError }: { error?: string | null }) {
       if (!res.ok) {
         throw new Error(data.error || "Login failed");
       }
-      localStorage.setItem("token", data.token);
+      // The session is in the httpOnly cookie the response just set
+      // (lib/client-session.ts); the JWT in the body is never stored.
+      if (data.token) markSignedIn();
       await refreshUser();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred.");

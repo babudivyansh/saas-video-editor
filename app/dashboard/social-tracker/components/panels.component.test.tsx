@@ -172,7 +172,8 @@ describe("Tabs", () => {
 describe("AiInsightsPanel", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    localStorage.setItem("token", "test-token");
+    // Signed in: the session cookie is httpOnly, the page only sees this marker.
+    document.cookie = "signed_in=1; path=/";
   });
 
   const summary = {
@@ -199,7 +200,7 @@ describe("AiInsightsPanel", () => {
     expect(await screen.findByText(/spends 5 credits/)).toBeInTheDocument();
   });
 
-  it("sends the bearer token, because /api/social/* ignores the cookie", async () => {
+  it("never sends a real token: the session cookie authenticates /api/social/*", async () => {
     const AiInsightsPanel = await load();
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ data: { summary: { content: summary } } }), { status: 201 }));
     vi.stubGlobal("fetch", fetchMock);
@@ -211,7 +212,8 @@ describe("AiInsightsPanel", () => {
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     const headers = (fetchMock.mock.calls[0][1] as RequestInit).headers as Record<string, string>;
-    expect(headers.Authorization).toBe("Bearer test-token");
+    // The placeholder getAuthUser() ignores in favour of the cookie (lib/client-session.ts).
+    expect(headers.Authorization).toBe("Bearer cookie-session");
   });
 
   it("points an out-of-credits failure at billing, not at a retry", async () => {

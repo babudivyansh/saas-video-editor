@@ -10,6 +10,7 @@ import {
   type CaptionCategory,
 } from "@/lib/caption-templates";
 import type { SubtitleStyle } from "@/utils/ffmpeg-render";
+import { clientAuthToken } from "@/lib/client-session";
 
 // The AutoClip create page's caption picker.
 //
@@ -67,7 +68,7 @@ const FALLBACK: ApiTemplate[] = CAPTION_TEMPLATES.map((t) => ({
 }));
 
 function authHeaders(): Record<string, string> {
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  const token = clientAuthToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 

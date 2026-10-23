@@ -44,9 +44,10 @@ test.describe("checkout", () => {
 
     await signUpViaUi(page, { email, password });
 
-    const token = await page.evaluate(() => localStorage.getItem("token"));
-    expect(token).toBeTruthy();
-    const authHeaders = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+    // The session is the httpOnly cookie signup just set; page.request shares
+    // the browser context's cookies, so no token is needed (or readable).
+    expect(await page.evaluate(() => localStorage.getItem("token"))).toBeNull();
+    const authHeaders = { "Content-Type": "application/json" };
 
     // 1. Real order creation against Razorpay's TEST-mode API.
     const checkoutRes = await page.request.post("/api/billing/checkout", {

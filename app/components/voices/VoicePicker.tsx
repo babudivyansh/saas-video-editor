@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { VOICE_SEED, type VoiceEntry } from "@/lib/voices/catalog";
 import { CAPTION_LANGUAGES } from "@/lib/languages";
+import { clientAuthToken } from "@/lib/client-session";
 
 // The voice picker. One component, every surface.
 //
@@ -49,7 +50,7 @@ const FALLBACK: PickerVoice[] = VOICE_SEED
   }));
 
 function authHeaders(): Record<string, string> {
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  const token = clientAuthToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 

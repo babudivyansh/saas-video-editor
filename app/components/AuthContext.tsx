@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuthUser, type AuthUser } from "./useAuthUser";
 import { getSafeNextPath } from "@/lib/safe-redirect";
+import { clearSignedIn, clientAuthToken, markSignedIn } from "@/lib/client-session";
 
 type User = AuthUser;
 
@@ -56,9 +57,12 @@ function requiresAuthGate(pathname: string) {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  // Not a credential: COOKIE_SESSION_TOKEN while a session cookie exists, null
+  // otherwise. The JWT itself only ever lives in the httpOnly cookie
+  // (lib/client-session.ts), out of reach of page scripts.
   const [token, setToken] = useState<string | null>(null);
-  // Distinguishes "haven't checked localStorage yet" from "checked, no token"
-  // — without it there'd be a one-tick flash of logged-out state on mount.
+  // Distinguishes "haven't checked the session marker yet" from "checked, signed
+  // out" — without it there'd be a one-tick flash of logged-out state on mount.
   const [hasCheckedStorage, setHasCheckedStorage] = useState(false);
   const [authModal, setAuthModal] = useState<AuthModalState>({
     isOpen: false,
@@ -71,16 +75,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { data: user, isLoading: userLoading, isError, refetch } = useAuthUser(token);
 
   useEffect(() => {
-    setToken(localStorage.getItem("token"));
+    // Migration: sessions started before the cookie-only change kept the JWT
+    // in localStorage. Their httpOnly cookie was set at the same sign-in, so
+    // drop the readable copy and carry on with the cookie.
+    if (localStorage.getItem("token")) {
+      localStorage.removeItem("token");
+      markSignedIn();
+    }
+    setToken(clientAuthToken());
     setHasCheckedStorage(true);
   }, []);
 
-  // fetchAuthUser resolves to null (not a thrown error) when the token is
-  // expired/invalid — clear it client-side. A thrown error (network/offline)
-  // leaves the stored token alone so a reconnect can retry.
+  // fetchAuthUser resolves to null (not a thrown error) when the session is
+  // expired/invalid — clear the marker. A thrown error (network/offline)
+  // leaves it alone so a reconnect can retry.
   useEffect(() => {
     if (token && !userLoading && !isError && user === null) {
-      localStorage.removeItem("token");
+      clearSignedIn();
       setToken(null);
     }
   }, [token, userLoading, isError, user]);
@@ -88,9 +99,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isLoading = !hasCheckedStorage || (!!token && userLoading);
 
   const refreshUser = async () => {
-    const storedToken = localStorage.getItem("token");
-    setToken(storedToken);
-    if (storedToken) await refetch();
+    const current = clientAuthToken();
+    setToken(current);
+    if (current) await refetch();
   };
 
   // Monitor path changes to trigger login prompt for protected routes
@@ -137,15 +148,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user]);
 
   const signOut = async () => {
-    const storedToken = localStorage.getItem("token");
     try {
-      await fetch("/api/auth/logout", {
-        method: "POST",
-        headers: storedToken ? { Authorization: `Bearer ${storedToken}` } : {},
-      });
+      // The session cookie authenticates this; the response clears it.
+      await fetch("/api/auth/logout", { method: "POST" });
     } catch {
       // Best-effort — still clear local state below even if this fails
     }
+    clearSignedIn();
     localStorage.removeItem("token");
     setToken(null);
     window.location.href = "/";

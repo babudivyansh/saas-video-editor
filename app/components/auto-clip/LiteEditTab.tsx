@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/app/components/ui/Button";
 import { Switch } from "@/app/components/ui/Switch";
 import { ClipScrubber } from "./ClipScrubber";
+import { clientAuthToken } from "@/lib/client-session";
 
 // The "Edit" tab of the Clip Studio drawer: trim, speed, music bed, fades —
 // and, importantly, a preview of what the render will actually look like
@@ -55,7 +56,7 @@ export function LiteEditTab({
   useEffect(() => { setTrimEnd(durationSec); }, [durationSec]);
 
   const authHeaders = useCallback((): Record<string, string> => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+    const token = clientAuthToken();
     return token ? { Authorization: `Bearer ${token}` } : {};
   }, []);
 

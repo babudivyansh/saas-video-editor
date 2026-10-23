@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { VOICE_SEED } from "@/lib/voices/catalog";
+import { clientAuthToken } from "@/lib/client-session";
 
 // Live voice catalogue for surfaces that render their own picker UI.
 //
@@ -49,7 +50,7 @@ export const SEED_VOICES: CatalogVoice[] = VOICE_SEED
   }));
 
 function authHeaders(): Record<string, string> {
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  const token = clientAuthToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 

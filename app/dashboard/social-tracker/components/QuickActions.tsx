@@ -9,6 +9,7 @@
 import { useCallback, useState } from "react";
 import { Button } from "@/app/components/ui/Button";
 import { SocialApiError, useSocialDownload } from "./useSocialApi";
+import { clientAuthToken } from "@/lib/client-session";
 
 export interface QuickActionsProps {
   accountIds: string[];
@@ -27,7 +28,7 @@ export function QuickActions({ accountIds, disabledReason }: QuickActionsProps) 
   const sync = useCallback(async () => {
     setStatus({ kind: "syncing" });
     try {
-      const token = localStorage.getItem("token");
+      const token = clientAuthToken();
       const headers = {
         "Content-Type": "application/json",
         // /api/social/* is bearer-authenticated; a cookie-only request here

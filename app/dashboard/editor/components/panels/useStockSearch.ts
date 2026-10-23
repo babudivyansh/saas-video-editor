@@ -6,6 +6,7 @@
 
 import { useEffect, useState } from "react";
 import { registerAsset } from "./shared/assetData";
+import { clientAuthToken } from "@/lib/client-session";
 
 export interface StockItem {
   id: string;
@@ -71,7 +72,7 @@ export function useStockSearch(
       async () => {
         setLoading(true);
         try {
-          const token = localStorage.getItem("token");
+          const token = clientAuthToken();
           const res = await fetch(
             `/api/editor/stock/search?type=${type}&q=${encodeURIComponent(effectiveQuery)}&page=${page}${orientation ? `&orientation=${orientation}` : ""}`,
             { headers: { Authorization: `Bearer ${token}` }, signal: ctrl.signal },
@@ -123,7 +124,7 @@ export async function importStockItem(
   item: StockItem,
   kind: "image" | "video" | "audio",
 ): Promise<ImportedAsset | null> {
-  const token = localStorage.getItem("token");
+  const token = clientAuthToken();
   const res = await fetch("/api/editor/stock/import", {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },

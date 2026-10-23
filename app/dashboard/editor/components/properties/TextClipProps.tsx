@@ -21,6 +21,7 @@ import {
   Slider,
   Switch,
 } from "../ui";
+import { clientAuthToken } from "@/lib/client-session";
 // Pulls in the full Lexical library, which loaded into the editor's initial
 // bundle for every selection — text clip or not — since this was a static
 // import. Only actually renders when a text clip's properties are shown.
@@ -64,7 +65,7 @@ export default function TextClipProps({ clip, activeTab }: { clip: TextClip; act
     setAiWorking(operation);
     setAiError(null);
     try {
-      const token = localStorage.getItem("token");
+      const token = clientAuthToken();
       const res = await fetch("/api/editor/ai-text", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },

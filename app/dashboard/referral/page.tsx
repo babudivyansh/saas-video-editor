@@ -8,6 +8,7 @@
 import { useEffect, useState } from "react";
 import { MIN_PAYOUT_AMOUNT } from "@/lib/affiliate-constants";
 import { UpgradeBanner } from "@/app/components/UpgradeBanner";
+import { clientAuthToken } from "@/lib/client-session";
 
 interface RecentReferral {
   id: string;
@@ -32,7 +33,7 @@ interface AffiliateStats {
 }
 
 function token() {
-  return typeof window !== "undefined" ? (localStorage.getItem("token") ?? "") : "";
+  return typeof window !== "undefined" ? (clientAuthToken() ?? "") : "";
 }
 
 const inr = (n: number) => `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;

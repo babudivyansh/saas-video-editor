@@ -5,49 +5,33 @@ OAuth browser binding, per-account 2FA lockout, TOTP on 2FA-disable and
 change-email, GETDEL reset tokens). This file covers two items that branch did
 not do, and why.
 
-## 1. The session JWT is readable by page JavaScript (localStorage)
+## 1. Where the web session lives: done (2026-10-24)
 
-**State today.** A successful sign-in sets the httpOnly `session` cookie AND
-hands the same 7-day JWT to the page, which keeps it in
-`localStorage.token`:
+The web session now lives **only** in the httpOnly `session` cookie. Page
+JavaScript never holds the JWT, so a script injection can't read it and replay
+it from elsewhere. See `lib/client-session.ts`.
 
-- `app/components/AuthForm.tsx` (password / OTP sign-in)
-- `app/api/auth/callback/google/route.ts` (an inline script writes it)
-- `app/admin/AdminLayoutClient.tsx` (admin elevation)
-- `app/components/AuthContext.tsx` reads it back and exposes `token`
-
-Client code then sends it as `Authorization: Bearer …`, and
-`getAuthUser()` in `lib/auth.ts` only reads that header. The cookie is used by
-`proxy.ts`'s optimistic gate and by `getServerAuthUser()` for Server Components.
-
-**Risk.** Any script injection (XSS) can read the token and use it from
-anywhere for up to 7 days. CSP lowers the odds of injection, but the policy
-still needs `'unsafe-inline'` (section 2), so it is not a strong backstop.
-
-**Why it wasn't done in the hardening branch.** It is not small: about 48
-`localStorage` token reads/writes and about 114 files that build a Bearer header
-(`authHeaders()`, `` `Bearer ${token}` ``). Moving them in a hurry before the
-8 Nov launch could easily sign users out or break uploads.
-
-**Plan (a separate PR, after launch):**
-
-1. Server: let `getAuthUser()` fall back to the `session` cookie when there's no
-   Authorization header. It must run the same session-record check
-   (`readSessions` + `tokenHash`). Cookie-authenticated mutations then need CSRF
-   protection: the cookie is `SameSite=Lax`, which already blocks cross-site
-   POST/PUT/DELETE from other sites. Also add an `Origin`/`Sec-Fetch-Site`
-   check in `proxy.ts` for non-GET `/api/*` requests that carry no
-   Authorization header.
-2. Client: `fetch` sends same-origin cookies by default, so the Bearer headers
-   can be removed in batches. `authHeaders()` returns `{}` first, then the call
-   sites are cleaned up.
-3. Stop writing `localStorage.token` in the three places above. Clear any
-   leftover value on load. `AuthContext` gets "signed in" from `/api/auth/me`
-   instead of from the token's presence.
-4. Mobile (`/api/mobile/v1`) keeps Bearer. It has no cookie jar, and its tokens
-   live in the Android Keystore, not in a page.
-5. After that, the Google callback no longer needs its inline script. It can be
-   a plain 302 that sets the cookie.
+- **Server.** `getAuthUser()` (`lib/auth.ts`) uses a Bearer token only when
+  it's JWT-shaped (the Android app). Otherwise it reads the `session` cookie,
+  with the same session-record and hash check. A cookie-authenticated
+  POST/PUT/PATCH/DELETE must be same-origin: `Sec-Fetch-Site` must not be
+  cross-site, and any `Origin` must be our host. That sits on top of
+  `SameSite=Lax`.
+- **Signed-in marker.** `setSessionCookie` also sets a readable
+  `signed_in=1` with the same lifetime, and `clearSessionCookie` clears both.
+  The marker holds no credential; it only tells the page a session exists.
+- **Client.** `AuthContext` decides "signed in" from the marker. Its
+  `token`, and every `clientAuthToken()` call that replaced
+  `localStorage.getItem("token")`, is the placeholder `"cookie-session"`.
+  The Bearer headers that ~120 call sites still build carry that placeholder,
+  which the server ignores. They can be removed gradually; nothing depends on
+  them any more.
+- **Migration.** A browser that still has `localStorage.token` from before
+  the change has it deleted on load and carries on with its cookie, which was
+  set at the same sign-in.
+- **Google sign-in.** The callback is now a plain redirect that sets the
+  cookie. The inline script that copied the JWT into localStorage is gone.
+- **Mobile** (`/api/mobile/v1`) still sends a real Bearer JWT, unchanged.
 
 ## 2. Strict (nonce-based) CSP
 
@@ -74,5 +58,5 @@ reports were mostly noise.
 3. Change `script-src` to `'self' 'nonce-…' 'strict-dynamic'` (Razorpay's
    checkout.js is then trusted through `strict-dynamic` when a nonce'd script
    loads it).
-4. The Google callback's inline script (see 1.5) must be gone, or nonce'd.
+4. The Google callback's inline script is gone (section 1), so nothing there needs a nonce.
 5. Watch `/api/csp-report` for a week before shipping.
