@@ -1,6 +1,7 @@
 "use client";
 import { useState, useCallback } from "react";
 import { discardDraftProject } from "@/lib/discard-draft-project";
+import { clientAuthToken } from "@/lib/client-session";
 
 // Starts AutoClip runs. The only product left on this hook — the other
 // create products it served were deleted, and with them the project-polling
@@ -10,7 +11,7 @@ export type GenerateStatus = "idle" | "uploading" | "creating" | "rendering" | "
 
 export function getStoredToken(): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem("token");
+  return clientAuthToken();
 }
 
 /**

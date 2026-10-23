@@ -59,6 +59,7 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 const { GET } = await import("./route");
+const { setSessionCookie } = await import("@/lib/auth");
 
 const STATE_COOKIE_NAME = "google_oauth_state";
 
@@ -93,9 +94,19 @@ describe("GET /api/auth/callback/google — post-login destination", () => {
   it("redirects to the next destination encoded in state for an existing user", async () => {
     const req = makeRequest("RAW", "/dashboard/editor?projectId=31080d99-b658-4387-b488-5c9c531592e3");
     const res = await GET(req);
-    const html = await res.text();
-    expect(html).toContain('"/dashboard/editor?projectId=31080d99-b658-4387-b488-5c9c531592e3"');
-    expect(html).not.toContain('"/dashboard";'); // the old hardcoded literal is gone
+    expect(res.status).toBe(307);
+    const location = new URL(res.headers.get("location")!);
+    expect(location.pathname + location.search).toBe("/dashboard/editor?projectId=31080d99-b658-4387-b488-5c9c531592e3");
+  });
+
+  // The session goes in the httpOnly cookie and nowhere else: no HTML page,
+  // no inline script copying the JWT into localStorage (lib/client-session.ts).
+  it("sets the session only through the cookie helper, never in the response body", async () => {
+    const res = await GET(makeRequest("RAW", null));
+    const body = await res.text();
+    expect(body).not.toContain("localStorage");
+    expect(body).not.toContain("signed.jwt.token");
+    expect(setSessionCookie).toHaveBeenCalledWith(res, "signed.jwt.token");
   });
 
   it("issues the session through the shared login tail", async () => {
@@ -126,8 +137,7 @@ describe("GET /api/auth/callback/google — post-login destination", () => {
   it("falls back to /dashboard when no next was encoded", async () => {
     const req = makeRequest("RAW", null);
     const res = await GET(req);
-    const html = await res.text();
-    expect(html).toContain('"/dashboard"');
+    expect(new URL(res.headers.get("location")!).pathname).toBe("/dashboard");
   });
 
   it("routes a 2FA-enabled user to /login with both the ticket and next preserved", async () => {
@@ -150,8 +160,8 @@ describe("GET /api/auth/callback/google — post-login destination", () => {
     );
     req.cookies.set(STATE_COOKIE_NAME, forged);
     const res = await GET(req);
-    const html = await res.text();
-    expect(html).not.toContain("evil.com");
-    expect(html).toContain('"/dashboard"'); // safely fell back
+    const location = new URL(res.headers.get("location")!);
+    expect(location.host).not.toContain("evil.com");
+    expect(location.pathname).toBe("/dashboard"); // safely fell back
   });
 });

@@ -18,6 +18,7 @@ import { useState } from "react";
 import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
 import { ContextMenu, ContextMenuItem, useContextMenu } from "@/app/components/ui/ContextMenu";
 import { useToast } from "@/app/components/ui/Toast";
+import { clientAuthToken } from "@/lib/client-session";
 
 export interface ProjectTarget {
   id: string;
@@ -54,7 +55,7 @@ export function useProjectActions({ labels, onDeleted, onRenamed }: Options) {
 
   async function runDelete() {
     if (!pendingDelete) return;
-    const token = localStorage.getItem("token");
+    const token = clientAuthToken();
     try {
       const res = await fetch(`/api/projects/${pendingDelete.id}`, {
         method: "DELETE",
@@ -80,7 +81,7 @@ export function useProjectActions({ labels, onDeleted, onRenamed }: Options) {
       setRenaming(null);
       return;
     }
-    const token = localStorage.getItem("token");
+    const token = clientAuthToken();
     try {
       const res = await fetch(`/api/projects/${renaming.id}`, {
         method: "PATCH",

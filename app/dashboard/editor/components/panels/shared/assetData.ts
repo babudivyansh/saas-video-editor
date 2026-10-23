@@ -5,6 +5,7 @@
 // TimelineTrack.tsx, and PreviewStage.tsx, none of which are UI.
 
 import { useCallback, useEffect, useState } from "react";
+import { clientAuthToken } from "@/lib/client-session";
 
 export interface AssetRow {
   id: string;
@@ -60,7 +61,7 @@ export async function searchAssets(
   kind: AssetKind,
   opts: { q?: string; sort?: SortKind; cursor?: string } = {},
 ): Promise<{ assets: AssetRow[]; nextCursor: string | null }> {
-  const token = localStorage.getItem("token");
+  const token = clientAuthToken();
   const params = new URLSearchParams({ kind, limit: "100" });
   if (opts.q) params.set("q", opts.q);
   if (opts.sort) params.set("sort", opts.sort);
@@ -140,7 +141,7 @@ export function useUpload(onDone: (asset?: AssetRow) => void) {
       setUploading(true);
       setError(null);
       try {
-        const token = localStorage.getItem("token");
+        const token = clientAuthToken();
         const form = new FormData();
         form.append("file", file);
         const res = await fetch("/api/upload", {

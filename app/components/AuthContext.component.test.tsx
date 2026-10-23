@@ -53,58 +53,72 @@ function renderWithProviders() {
   );
 }
 
+// The session itself is an httpOnly cookie the page can't see; these tests
+// drive the readable "signed_in" marker that sits beside it
+// (lib/client-session.ts).
+const signIn = () => { document.cookie = "signed_in=1; path=/"; };
+const hasMarker = () => document.cookie.split(";").some((c) => c.trim() === "signed_in=1");
+
 describe("AuthContext", () => {
   beforeEach(() => {
     localStorage.clear();
+    document.cookie = "signed_in=; path=/; max-age=0";
     vi.restoreAllMocks();
     // jsdom logs (but doesn't throw on) navigation attempts triggered by
     // signOut's `window.location.href = "/"` — nothing to configure here,
     // just documenting why that console noise is expected in this suite.
   });
 
-  it("starts logged out when no token is stored", async () => {
+  it("starts logged out when there is no session", async () => {
     renderWithProviders();
     await waitFor(() => expect(screen.getByTestId("loading")).toHaveTextContent("false"));
     expect(screen.getByTestId("user")).toHaveTextContent("none");
   });
 
-  it("loads the user when a valid token is stored", async () => {
-    localStorage.setItem("token", "valid-token");
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ user: FAKE_USER }),
-    }) as unknown as typeof fetch;
+  it("loads the user when a session exists, with no token in the page", async () => {
+    signIn();
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ user: FAKE_USER }) });
+    global.fetch = fetchMock as unknown as typeof fetch;
 
     renderWithProviders();
 
     await waitFor(() => expect(screen.getByTestId("user")).toHaveTextContent("test@example.com"));
+    // Whatever goes in the header, it is not a JWT: the cookie authenticates.
+    const auth = (fetchMock.mock.calls[0][1] as RequestInit | undefined)?.headers as Record<string, string> | undefined;
+    expect(auth?.Authorization ?? "").not.toMatch(/^Bearer [\w-]+\.[\w-]+\.[\w-]+$/);
   });
 
-  it("clears the token when /api/auth/me rejects it (session expiry)", async () => {
-    localStorage.setItem("token", "expired-token");
+  it("moves a session from before the change off localStorage", async () => {
+    localStorage.setItem("token", "legacy.jwt.value");
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ user: FAKE_USER }) }) as unknown as typeof fetch;
+
+    renderWithProviders();
+
+    await waitFor(() => expect(screen.getByTestId("user")).toHaveTextContent("test@example.com"));
+    expect(localStorage.getItem("token")).toBeNull();
+    expect(hasMarker()).toBe(true);
+  });
+
+  it("signs out locally when /api/auth/me rejects the session (expiry)", async () => {
+    signIn();
     global.fetch = vi.fn().mockResolvedValue({
       ok: false,
-      // The status matters: only 401/403 is a verdict on the token. This
-      // fixture used to set `ok: false` alone, which passed while the code
-      // treated every failure — including a 500 — as an expired session.
+      // The status matters: only 401/403 is a verdict on the session.
       status: 401,
       json: async () => ({ error: "Unauthorized" }),
     }) as unknown as typeof fetch;
 
     renderWithProviders();
 
-    // "none" is also the initial (pre-fetch) render, so wait for the actual
-    // signal that the invalid token was cleared rather than this trivially-
-    // true-at-t=0 text content.
-    await waitFor(() => expect(localStorage.getItem("token")).toBeNull());
+    await waitFor(() => expect(hasMarker()).toBe(false));
     expect(screen.getByTestId("user")).toHaveTextContent("none");
   });
 
-  it("KEEPS the token when /api/auth/me fails with a server error", async () => {
+  it("KEEPS the session when /api/auth/me fails with a server error", async () => {
     // A 5xx says nothing about whether the session is valid, so signing the
     // user out over one is wrong — and it was inconsistent too, since being
-    // offline (a thrown fetch) already left the token in place.
-    localStorage.setItem("token", "valid-token");
+    // offline (a thrown fetch) already left it in place.
+    signIn();
     global.fetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 500,
@@ -114,11 +128,11 @@ describe("AuthContext", () => {
     renderWithProviders();
 
     await waitFor(() => expect(screen.getByTestId("loading")).toHaveTextContent("false"));
-    expect(localStorage.getItem("token")).toBe("valid-token");
+    expect(hasMarker()).toBe(true);
   });
 
   it("signOut calls the logout endpoint and clears local session state", async () => {
-    localStorage.setItem("token", "valid-token");
+    signIn();
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce({ ok: true, json: async () => ({ user: FAKE_USER }) })
@@ -136,6 +150,6 @@ describe("AuthContext", () => {
         expect.objectContaining({ method: "POST" }),
       );
     });
-    await waitFor(() => expect(localStorage.getItem("token")).toBeNull());
+    await waitFor(() => expect(hasMarker()).toBe(false));
   });
 });

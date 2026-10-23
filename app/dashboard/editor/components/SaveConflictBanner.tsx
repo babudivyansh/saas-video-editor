@@ -13,6 +13,7 @@ import { docDuration } from "@/lib/editor/doc-utils";
 import { useEditorStore } from "../store/editorStore";
 import { keepMyVersion, reloadLatestProject } from "../hooks/useAutosave";
 import { Button } from "./ui";
+import { clientAuthToken } from "@/lib/client-session";
 
 interface Side {
   clips: number;
@@ -52,7 +53,7 @@ export default function SaveConflictBanner() {
     (async () => {
       try {
         const res = await fetch(`/api/projects/${projectId}`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+          headers: { Authorization: `Bearer ${clientAuthToken()}` },
         });
         if (!res.ok) return;
         const { project } = await res.json();
@@ -84,7 +85,7 @@ export default function SaveConflictBanner() {
     try {
       await fetch(`/api/projects/${projectId}/versions`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}`, "Content-Type": "application/json" },
+        headers: { Authorization: `Bearer ${clientAuthToken()}`, "Content-Type": "application/json" },
         body: JSON.stringify({ doc: useEditorStore.getState().doc, version: useEditorStore.getState().editorVersion }),
       });
     } catch {

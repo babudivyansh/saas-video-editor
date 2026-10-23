@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { clientAuthToken } from "@/lib/client-session";
 
 // Surfaces the score-to-engagement loop.
 //
@@ -24,7 +25,7 @@ export function ScorePerformanceBanner() {
   const [data, setData] = useState<ScorePerformance | null>(null);
 
   useEffect(() => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+    const token = clientAuthToken();
     fetch("/api/projects/clips/score-performance", {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })

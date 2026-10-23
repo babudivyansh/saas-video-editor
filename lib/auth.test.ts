@@ -68,7 +68,7 @@ vi.mock("@/lib/prisma", () => ({
 
 const {
   requireAdmin, getAuthUser, completeLogin, listSessions, invalidateOneSession, invalidateAllSessions, signToken,
-  setLocaleCookieFromUser,
+  setLocaleCookieFromUser, setSessionCookie, clearSessionCookie,
 } = await import("@/lib/auth");
 
 function tokenFor(userId: string): string {
@@ -217,5 +217,62 @@ describe("setLocaleCookieFromUser", () => {
     const res = NextResponse.json({});
     setLocaleCookieFromUser(res, "not-a-real-locale");
     expect(res.cookies.get("locale")).toBeUndefined();
+  });
+});
+
+// The web keeps its session only in the httpOnly cookie (lib/client-session.ts);
+// getAuthUser falls back to it when there's no real Bearer JWT.
+describe("cookie sessions", () => {
+  beforeEach(resetDb);
+  afterEach(() => vi.clearAllMocks());
+
+  const login = () =>
+    completeLogin(new NextRequest("http://localhost/api/auth/login", { headers: { "user-agent": "ua" } }), {
+      id: "user-1",
+      email: "user-1@test.com",
+    });
+  const cookieReq = (token: string, init: { method?: string; headers?: Record<string, string> } = {}) =>
+    new NextRequest("http://localhost/api/projects", {
+      method: init.method ?? "GET",
+      headers: { cookie: `session=${token}`, host: "localhost", ...init.headers },
+    });
+
+  it("accepts the session cookie when there is no Authorization header", async () => {
+    const { token } = await login();
+    expect(await getAuthUser(cookieReq(token))).toMatchObject({ userId: "user-1" });
+  });
+
+  it("ignores the web's placeholder bearer and reads the cookie", async () => {
+    const { token } = await login();
+    expect(await getAuthUser(cookieReq(token, { headers: { authorization: "Bearer cookie-session" } }))).toMatchObject({ userId: "user-1" });
+    expect(await getAuthUser(cookieReq(token, { headers: { authorization: "Bearer null" } }))).toMatchObject({ userId: "user-1" });
+  });
+
+  it("treats a real-looking but invalid bearer JWT as final, with no fall-through to the cookie", async () => {
+    const { token } = await login();
+    const forged = jwt.sign({ userId: "user-1", email: "x", sessionId: "nope" }, "wrong-secret");
+    expect(await getAuthUser(cookieReq(token, { headers: { authorization: `Bearer ${forged}` } }))).toBeNull();
+  });
+
+  it("allows a same-origin cookie-authenticated write", async () => {
+    const { token } = await login();
+    const req = cookieReq(token, { method: "POST", headers: { origin: "http://localhost", "sec-fetch-site": "same-origin" } });
+    expect(await getAuthUser(req)).toMatchObject({ userId: "user-1" });
+  });
+
+  it("refuses a cookie-authenticated write from another site", async () => {
+    const { token } = await login();
+    expect(await getAuthUser(cookieReq(token, { method: "POST", headers: { "sec-fetch-site": "cross-site" } }))).toBeNull();
+    expect(await getAuthUser(cookieReq(token, { method: "DELETE", headers: { origin: "https://evil.example" } }))).toBeNull();
+  });
+
+  it("sets the httpOnly session cookie and the readable signed-in marker together, and clears both", async () => {
+    const res = NextResponse.json({});
+    setSessionCookie(res, "a.b.c");
+    expect(res.cookies.get("session")).toMatchObject({ value: "a.b.c", httpOnly: true });
+    expect(res.cookies.get("signed_in")).toMatchObject({ value: "1", httpOnly: false });
+    clearSessionCookie(res);
+    expect(res.cookies.get("session")?.value).toBe("");
+    expect(res.cookies.get("signed_in")?.value).toBe("");
   });
 });

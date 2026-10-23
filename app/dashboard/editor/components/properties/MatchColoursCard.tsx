@@ -11,6 +11,7 @@ import type { VideoAdjust, VideoClip } from "@/lib/editor/types";
 import { isNeutral } from "@/lib/editor/video-look";
 import { useEditorStore } from "../../store/editorStore";
 import { Button, PropertyCard, SelectField } from "../ui";
+import { clientAuthToken } from "@/lib/client-session";
 
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
@@ -34,7 +35,7 @@ export default function MatchColoursCard({ clip }: { clip: VideoClip }) {
     try {
       const res = await fetch("/api/editor/color-match", {
         method: "POST",
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}`, "Content-Type": "application/json" },
+        headers: { Authorization: `Bearer ${clientAuthToken()}`, "Content-Type": "application/json" },
         body: JSON.stringify({ target: side(clip), reference: { ...side(chosen.clip), adjust: chosen.clip.adjust } }),
       });
       const data = await res.json().catch(() => ({}));

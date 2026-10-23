@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/app/components/ui/Button";
 import { Checkbox } from "@/app/components/ui/Checkbox";
+import { clientAuthToken } from "@/lib/client-session";
 
 const SECTIONS = [
   { id: "kpis", label: "Metrics" },
@@ -67,7 +68,7 @@ export function ReportBuilder({ accounts, initialRuns }: ReportBuilderProps) {
   }, []);
 
   const authHeaders = () => {
-    const token = typeof window === "undefined" ? null : localStorage.getItem("token");
+    const token = clientAuthToken();
     return {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),

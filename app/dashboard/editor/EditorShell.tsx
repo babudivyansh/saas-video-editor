@@ -31,6 +31,7 @@ const SilenceDialog = dynamic(() => import("./components/SilenceDialog"), { ssr:
 const VersionHistory = dynamic(() => import("./components/VersionHistory"), { ssr: false });
 import { ExportSplitButton, TitleMenu } from "./components/header/HeaderMenus";
 import SaveConflictBanner from "./components/SaveConflictBanner";
+import { clientAuthToken } from "@/lib/client-session";
 
 const ASPECTS: Aspect[] = ["9:16", "1:1", "16:9"];
 
@@ -174,7 +175,7 @@ function ProjectTitle() {
 
   React.useEffect(() => {
     if (!projectId || loaded) return;
-    const token = localStorage.getItem("token");
+    const token = clientAuthToken();
     fetch(`/api/projects/${projectId}`, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.json())
       .then((d) => {
@@ -186,7 +187,7 @@ function ProjectTitle() {
 
   const commit = () => {
     if (!projectId) return;
-    const token = localStorage.getItem("token");
+    const token = clientAuthToken();
     fetch(`/api/projects/${projectId}`, {
       method: "PATCH",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },

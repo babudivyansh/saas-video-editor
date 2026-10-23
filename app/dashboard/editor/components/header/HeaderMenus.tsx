@@ -9,6 +9,7 @@ import { ChevronDown, Copy, History, Keyboard, Pencil, Captions, Film, LayoutGri
 import { Dropdown } from "@/app/components/ui/Dropdown";
 import { useEditorStore } from "../../store/editorStore";
 import { downloadCaptionsSrt } from "./downloadCaptions";
+import { clientAuthToken } from "@/lib/client-session";
 
 function MenuItem({ onClick, icon, children, hint, disabled }: { onClick: () => void; icon: React.ReactNode; children: React.ReactNode; hint?: string; disabled?: boolean }) {
   return (
@@ -40,7 +41,7 @@ export function TitleMenu({ titleInputId, title }: { titleInputId: string; title
     setBusy(true);
     setErr(null);
     try {
-      const token = localStorage.getItem("token");
+      const token = clientAuthToken();
       const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
       const created = await fetch("/api/projects", {
         method: "POST",

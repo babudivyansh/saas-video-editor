@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/app/components/ui/Button";
+import { clientAuthToken } from "@/lib/client-session";
 
 // Paste-a-link import, as an alternative to uploading.
 //
@@ -34,7 +35,7 @@ export function UrlImportField({ onImported, disabled, initialUrl }: UrlImportFi
   const [error, setError] = useState<string | null>(null);
 
   const authHeaders = (): Record<string, string> => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+    const token = clientAuthToken();
     return token ? { Authorization: `Bearer ${token}` } : {};
   };
 
