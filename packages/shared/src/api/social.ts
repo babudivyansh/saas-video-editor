@@ -5,6 +5,8 @@ import {
   audienceSchema,
   competitorsResponse,
   connectUrlResponse,
+  connectCompleteRequest,
+  connectCompleteResponse,
   contentPerformanceSchema,
   csvExportResponse,
   reportCreatedResponse,
@@ -55,6 +57,9 @@ export function socialApi(api: ApiClient) {
     accounts: () => api.request("/social/accounts", { schema: socialAccountsResponse }),
     /** The sign-in page for connecting (or reconnecting) a platform. */
     connectUrl: (provider: string) => api.request(`/social/connect/${enc(provider)}`, { schema: connectUrlResponse }),
+    /** Finishes a connect once the auth session returns clipiro://social?pending=… — bound to this session's user. */
+    completeConnect: (pending: string) =>
+      api.request("/social/connect/complete", { method: "POST", body: connectCompleteRequest.parse({ pending }), schema: connectCompleteResponse }),
     disconnect: (id: string) => api.request(`/social/accounts/${enc(id)}`, { method: "DELETE", schema: z.object({ ok: z.literal(true) }) }),
     syncAccount: (id: string) => api.request(`/social/accounts/${enc(id)}/sync`, { method: "POST", body: {}, schema: z.object({ ok: z.literal(true) }) }),
     overview: (range: RangeDays) => api.request(`/social/overview${q(range)}`, { schema: insightsOverviewSchema }),

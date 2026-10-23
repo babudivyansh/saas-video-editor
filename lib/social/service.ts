@@ -20,10 +20,15 @@ export function oauthProviderFor(provider: ProviderId): OAuthProvider {
 }
 
 // ── Connect: build the provider authorize URL ────────────────────────────────
-export async function buildAuthUrl(userId: string, provider: ProviderId, client: OAuthClient = "web"): Promise<string> {
+// `nonce` is what binds a web connect to its browser (OAUTH_BROWSER_COOKIE).
+export async function buildAuthUrl(
+  userId: string,
+  provider: ProviderId,
+  client: OAuthClient = "web",
+): Promise<{ url: string; nonce: string }> {
   const { verifier, challenge } = makePkce();
-  const state = await createState(userId, provider, verifier, client);
-  return PROVIDERS[provider].getAuthUrl(state, challenge);
+  const { state, nonce } = await createState(userId, provider, verifier, client);
+  return { url: PROVIDERS[provider].getAuthUrl(state, challenge), nonce };
 }
 
 // ── Callback: exchange code, persist account(s), run an initial sync ──────────
