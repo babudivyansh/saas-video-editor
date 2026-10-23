@@ -398,6 +398,10 @@
         "updateFailed": "Failed to update password"
       }
     },
+    "twoFactorCode": {
+      "label": "Authentication code",
+      "help": "The 6-digit code from your authenticator app, or one of your recovery codes."
+    },
     "twoFactor": {
       "title": "Two-factor authentication",
       "enabled": "Enabled",
@@ -420,7 +424,7 @@
       "copyAll": "Copy all",
       "done": "Done",
       "disableTitle": "Disable two-factor authentication",
-      "disableConfirm": "This removes the extra sign-in step. Confirm your password to continue.",
+      "disableConfirm": "This removes the extra sign-in step. Confirm your password and enter a code from your authenticator app to continue.",
       "disabling": "Disabling…",
       "disable": "Disable",
       "regenerateCodes": "Regenerate codes",

@@ -2,16 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser, invalidateAllSessions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { verifyStepUp } from "@/lib/step-up";
+import { verifyStepUpSecondFactor } from "@/lib/two-factor-verify";
 import { sendTwoFactorChangedAlertEmail } from "@/lib/email";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { logger } from "@/lib/logger";
 import { greetingName } from "@/lib/display-name";
 
-// POST /api/auth/2fa/disable { password } — password-confirmed, same
-// step-up pattern as setup. Deliberately does NOT also require a TOTP code:
-// losing the authenticator device is exactly the scenario this needs to
-// recover from, and recovery codes are a separate, optional fallback, not a
-// hard requirement to turn 2FA off.
+// POST /api/auth/2fa/disable { password, twoFactorCode } — password-confirmed
+// (same step-up as setup) AND a code from the authenticator. Password alone
+// used to be enough, so a hijacked session plus a phished password could
+// strip the second factor. A recovery code also counts, which covers the
+// owner who lost the authenticator device; failures count toward the
+// per-account 2FA lockout (lib/two-factor-verify.ts).
 async function handlePOST(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -23,6 +25,8 @@ async function handlePOST(req: NextRequest) {
   // Password, or an emailed code for accounts without one (lib/step-up.ts).
   const stepUp = await verifyStepUp(user, body);
   if (!stepUp.ok) return NextResponse.json({ error: stepUp.error }, { status: 400 });
+  const second = await verifyStepUpSecondFactor(user, body.twoFactorCode);
+  if (!second.ok) return NextResponse.json({ error: second.error, twoFactorRequired: true }, { status: second.status });
 
   await prisma.$transaction([
     prisma.twoFactorRecoveryCode.deleteMany({ where: { userId: auth.userId } }),

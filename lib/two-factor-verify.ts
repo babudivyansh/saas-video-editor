@@ -66,6 +66,32 @@ async function codeMatches(user: SecondFactorUser, code: string): Promise<boolea
   return spent.count >= 1;
 }
 
+export type StepUpSecondFactorResult = { ok: true } | { ok: false; status: number; error: string; twoFactorRequired?: true };
+
+/**
+ * The second half of re-confirming identity for an action that would weaken
+ * or move the account (turning 2FA off, changing the email): when 2FA is on,
+ * the password (lib/step-up.ts) is not enough — a stolen session plus a
+ * phished or reused password must not be able to strip the second factor or
+ * take the account's email. A recovery code is accepted too, which is how an
+ * owner who lost the authenticator still gets 2FA off.
+ */
+export async function verifyStepUpSecondFactor(
+  user: SecondFactorUser & { twoFactorEnabled: boolean },
+  code: unknown,
+): Promise<StepUpSecondFactorResult> {
+  if (!user.twoFactorEnabled || !user.twoFactorSecretEnc) return { ok: true };
+  if (typeof code !== "string" || !code.trim()) {
+    return { ok: false, status: 400, error: "Enter the code from your authenticator app, or a recovery code", twoFactorRequired: true };
+  }
+  const result = await verifySecondFactor(user, code.trim());
+  if (result === "ok") return { ok: true };
+  if (result === "locked") {
+    return { ok: false, status: 429, error: "Too many incorrect codes. Try again in 15 minutes.", twoFactorRequired: true };
+  }
+  return { ok: false, status: 400, error: "Invalid authentication code", twoFactorRequired: true };
+}
+
 export async function verifySecondFactor(user: SecondFactorUser, code: string): Promise<SecondFactorResult> {
   // Checked first, and before the code: during a lockout even the right code
   // is refused, or the lock would just be a slower oracle.
