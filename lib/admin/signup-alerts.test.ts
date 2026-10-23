@@ -10,10 +10,13 @@ vi.mock("@/lib/prisma", () => ({
 }));
 const warn = vi.fn();
 vi.mock("@/lib/logger", () => ({ logger: { warn, error: vi.fn(), info: vi.fn() } }));
-const sendAdminNewSignupEmail = vi.fn(async (_to: string, _d: unknown) => {});
+type Result = { status: string; channel: string | null; messageId: string | null; error?: string };
+const sendAdminNewSignupEmail = vi.fn(
+  async (_to: string, _d: unknown): Promise<Result> => ({ status: "sent", channel: "resend", messageId: "m1" }),
+);
 vi.mock("@/lib/email", () => ({ sendAdminNewSignupEmail }));
 
-const { getSignupAlertSettings, notifyAdminsOfSignup, setSignupAlertSettings } = await import("./signup-alerts");
+const { getSignupAlertSettings, notifyAdminsOfSignup, sendTestSignupAlert, setSignupAlertSettings } = await import("./signup-alerts");
 
 const signup = { userId: "u1", email: "new@x.co", name: "New", method: "email" as const };
 const sentTo = () => sendAdminNewSignupEmail.mock.calls.map((c) => c[0]);
@@ -50,16 +53,38 @@ describe("notifyAdminsOfSignup", () => {
     );
   });
 
-  it("uses the custom list instead of admin accounts", async () => {
-    configRow = { key: "admin_signup_alerts", value: JSON.stringify({ enabled: true, recipients: ["ops@x.co"] }) };
+  // Regression: extras used to REPLACE the admin accounts, so adding one
+  // address silently stopped the admins getting the email.
+  it("sends to the admin accounts AND the extra addresses, de-duplicated", async () => {
+    configRow = {
+      key: "admin_signup_alerts",
+      value: JSON.stringify({ enabled: true, recipients: ["ops@x.co", "A1@clipiro.com"] }),
+    };
     await notifyAdminsOfSignup(signup);
-    expect(sentTo()).toEqual(["ops@x.co"]);
+    expect(sentTo()).toEqual(["a1@clipiro.com", "a2@clipiro.com", "ops@x.co"]);
+  });
+
+  it("logs a send the provider didn't accept", async () => {
+    sendAdminNewSignupEmail.mockResolvedValueOnce({ status: "failed", channel: null, messageId: null, error: "422" });
+    await notifyAdminsOfSignup(signup);
+    expect(warn).toHaveBeenCalledWith("signup-alerts", expect.stringContaining("not sent"), expect.objectContaining({ status: "failed" }));
   });
 
   it("sends nothing when switched off", async () => {
     configRow = { key: "admin_signup_alerts", value: JSON.stringify({ enabled: false, recipients: [] }) };
     await notifyAdminsOfSignup(signup);
     expect(sendAdminNewSignupEmail).not.toHaveBeenCalled();
+  });
+
+  it("test send reports each recipient's outcome, even when switched off", async () => {
+    configRow = { key: "admin_signup_alerts", value: JSON.stringify({ enabled: false, recipients: ["ops@x.co"] }) };
+    sendAdminNewSignupEmail.mockRejectedValueOnce(new Error("boom"));
+    const results = await sendTestSignupAlert();
+    expect(results).toEqual([
+      { to: "a1@clipiro.com", status: "failed", error: "boom" },
+      { to: "a2@clipiro.com", status: "sent" },
+      { to: "ops@x.co", status: "sent" },
+    ]);
   });
 
   it("never throws: one failed inbox doesn't stop the others", async () => {
