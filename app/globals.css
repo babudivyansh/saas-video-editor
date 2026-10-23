@@ -527,6 +527,22 @@ body {
   animation: clipiro-blob 18s ease-in-out infinite;
 }
 
+/* Landing hero film: feathers all four edges into the page (two gradients
+   intersected, so corners fade on both axes). The film's backdrop is the
+   page's own --bg but carries a faint glow, which would otherwise show as a
+   rectangle. Motion-safe only: reduced-motion visitors get the film paused
+   with native controls, and the bottom fade would swallow the control bar. */
+@media (prefers-reduced-motion: no-preference) {
+  .hero-film-fade {
+    --hero-film-fade: linear-gradient(to right, transparent, #000 7%, #000 93%, transparent),
+      linear-gradient(to bottom, transparent, #000 8%, #000 92%, transparent);
+    -webkit-mask-image: var(--hero-film-fade);
+    -webkit-mask-composite: source-in;
+    mask-image: var(--hero-film-fade);
+    mask-composite: intersect;
+  }
+}
+
 /* Scroll-reveal base + revealed states (driven by Reveal.tsx) */
 .reveal {
   opacity: 0;

@@ -1,18 +1,22 @@
 "use client";
 
-import React, { useState } from "react";
-import Image from "next/image";
+import React, { useEffect, useRef } from "react";
 import Link from "next/link";
+import { useReducedMotion } from "framer-motion";
 import { useAuth } from "@/app/components/AuthContext";
 import Reveal from "@/app/components/Reveal";
-import { Modal } from "@/app/components/ui/Modal";
-import ShowcaseGlow from "@/app/components/marketing/ShowcaseGlow";
-import { PlayIcon, CheckIcon } from "@/app/components/landing/icons";
+import { ArrowRightIcon } from "@/app/components/landing/icons";
 import HeroRatingBadge from "@/app/components/landing/HeroRatingBadge";
 import { MINIMUM_REVIEWS_FOR_SCHEMA } from "@/app/reviews/schema";
 import type { ReviewSummary } from "@/lib/reviews/queries";
 
-const TRUST_POINTS = ["No credit card required", "Free plan available", "Export in minutes"];
+// Lime glow under the CTA that blooms on hover. A coloured box-shadow rather
+// than ShowcaseGlow: it has to hug the pill, not sit behind a frame.
+const CTA_CLASS =
+  "group inline-flex items-center gap-2.5 rounded-full bg-brand px-10 py-5 text-lg font-bold text-on-primary cursor-pointer " +
+  "shadow-[0_0_36px_-8px_color-mix(in_oklab,var(--primary)_70%,transparent)] transition-all duration-200 " +
+  "hover:scale-[1.03] hover:bg-brand-dark hover:shadow-[0_0_56px_-6px_color-mix(in_oklab,var(--primary)_85%,transparent)] " +
+  "outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-4 focus-visible:ring-offset-bg";
 
 interface HeroProps {
   reviewSummary: ReviewSummary;
@@ -20,206 +24,98 @@ interface HeroProps {
 
 export default function Hero({ reviewSummary }: HeroProps) {
   const { user, openAuthModal } = useAuth();
-  const [demoOpen, setDemoOpen] = useState(false);
+  const filmRef = useRef<HTMLVideoElement>(null);
+  // Applied to the element rather than rendered as autoPlay/controls props:
+  // the server can't know the preference, and the hook already reports it on
+  // the client's first render, so rendering from it is a hydration mismatch.
+  const reduceMotion = useReducedMotion() === true;
+  useEffect(() => {
+    const film = filmRef.current;
+    if (!film || !reduceMotion) return;
+    film.pause();
+    film.controls = true;
+  }, [reduceMotion]);
 
   return (
     <section className="relative overflow-hidden font-sans">
       {/* Atmospheric emerald lighting. Two drifting blobs plus a wide, static
-          glow rising from behind the product panel — the reference this system
-          is drawn from puts its light low and lets the rest of the frame stay
-          dark, rather than spreading a tint across the whole section. Lime is
-          kept out of it: it is the CTA's colour, and a lime haze behind the
-          hero competes with the one button that matters. */}
+          glow rising from behind the film — the reference this system is drawn
+          from puts its light low and lets the rest of the frame stay dark,
+          rather than spreading a tint across the whole section. Lime is kept
+          out of it: it is the CTA's colour, and a lime haze behind the hero
+          competes with the one button that matters. */}
       <div className="pointer-events-none absolute inset-0 -z-10">
         <div className="clipiro-blob absolute -top-24 -left-20 w-[420px] h-[420px] rounded-full bg-emerald-brand/20 blur-3xl" />
         <div className="clipiro-blob absolute top-10 right-0 w-[360px] h-[360px] rounded-full bg-emerald-bright/12 blur-3xl" style={{ animationDelay: "4s" }} />
         <div className="absolute inset-x-0 bottom-0 h-[520px] bg-[radial-gradient(900px_420px_at_50%_100%,var(--glow-hero),transparent_70%)]" />
       </div>
 
-      <div className="mx-auto flex w-full max-w-screen-2xl flex-col items-center gap-6 px-4 py-20 text-center md:px-12 lg:px-[120px] lg:py-28">
-        {/* Badge */}
-        <Reveal>
-          <span className="inline-flex items-center gap-2 rounded-full border border-brand/25 bg-brand-soft px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-brand-deep">
-            AI-powered clipping, captions & export
-          </span>
+      <div className="mx-auto flex w-full max-w-screen-2xl flex-col items-center gap-6 px-4 pt-8 pb-20 text-center md:px-12 lg:px-[120px] lg:pt-10 lg:pb-28">
+        {/* The visible headline lives inside the film now. The page still
+            needs its one h1 for search engines and screen readers, so it
+            stays in the document, visually hidden. */}
+        <h1 className="sr-only">Create Viral Shorts From Long Videos in Seconds</h1>
+
+        {/* Hero visual: the Clipiro launch film, rendered from the Claude Design
+            project "Clipiro Launch Film" to a silent 108s loop. Muted + playsInline
+            is what lets browsers autoplay it; reduced-motion visitors get it
+            paused on the poster with controls instead.
+            Deliberately unframed: the film's backdrop is the page's own --bg
+            (#050908), so with no border/box and feathered edges (.hero-film-fade
+            in globals.css) it animates on the page itself. On lg it reaches 80px
+            past the content padding on each side (the section clips overflow),
+            but never so tall that it pushes the CTA below the fold: the width
+            is also capped at 16:9 of the viewport height minus ~15rem (navbar,
+            button, reassurance line; the button overlaps the film by ~2rem). */}
+        <Reveal className="w-full max-w-[1360px] lg:w-[min(calc(100%+160px),calc((100svh-15rem)*16/9))]">
+          <div className="hero-film-fade">
+            <video
+              ref={filmRef}
+              className="block aspect-video w-full"
+              src="/hero/launch-film.mp4"
+              poster="/hero/launch-film-poster.jpg"
+              autoPlay
+              muted
+              loop
+              playsInline
+              preload="auto"
+              aria-label="Clipiro product film: AutoClip, image generation, voice, editing tools and exports"
+            />
+          </div>
         </Reveal>
 
-        {/* H1 */}
-        <Reveal delay={60}>
-          <h1 className="max-w-4xl text-balance text-4xl font-semibold leading-tight tracking-[0.01em] text-ink md:text-6xl lg:text-7xl">
-            Create Viral Shorts From{" "}
-            {/* `grad-text` rather than a hand-rolled bg-clip-text pair: the
-                utility declares a solid fallback colour first, so this does not
-                render as invisible text anywhere the clip is unsupported. */}
-            <span className="grad-text inline-block">Long Videos</span>{" "}
-            in Seconds
-          </h1>
-        </Reveal>
-
-        {/* Subhead */}
-        <Reveal delay={120}>
-          <p className="max-w-2xl text-lg leading-relaxed text-fg-muted">
-            Transform podcasts, interviews, webinars, and YouTube videos into engaging short-form content with
-            AI-powered clipping, captions, and social media optimization.
-          </p>
-        </Reveal>
-
-        {/* CTAs */}
-        <Reveal delay={180}>
-          <div className="flex flex-col items-center gap-3 sm:flex-row">
-            {user ? (
-              <Link
-                href="/dashboard"
-                className="inline-flex items-center gap-2 rounded-full bg-brand px-8 py-4 text-base font-bold text-on-primary shadow-card transition-all duration-200 hover:scale-[1.02] hover:bg-brand-dark"
-              >
-                Go to Dashboard
-              </Link>
-            ) : (
-              <button
-                onClick={() => openAuthModal("register")}
-                className="inline-flex items-center gap-2 rounded-full bg-brand px-8 py-4 text-base font-bold text-on-primary shadow-card transition-all duration-200 hover:scale-[1.02] hover:bg-brand-dark cursor-pointer"
-              >
-                Try Clipiro Free
-              </button>
-            )}
-            <button
-              onClick={() => setDemoOpen(true)}
-              className="inline-flex items-center gap-2 rounded-full border border-card-border bg-panel px-8 py-4 text-base font-semibold text-ink transition-colors hover:border-brand hover:bg-brand-soft cursor-pointer"
-            >
-              <PlayIcon className="h-4 w-4 text-brand-deep" />
-              Watch Demo
+        {/* CTA: pulled up into the film's feathered bottom edge so it reads as
+            the film's call to action instead of floating in the dark band
+            below it, with the reassurance and rating on one line under it. */}
+        <Reveal delay={120} className="relative z-10 -mt-4 flex flex-col items-center gap-4 lg:-mt-14">
+          {user ? (
+            <Link href="/dashboard" className={CTA_CLASS}>
+              Try Clipiro free
+              <ArrowRightIcon className="h-5 w-5 transition-transform duration-200 group-hover:translate-x-1" />
+            </Link>
+          ) : (
+            <button type="button" onClick={() => openAuthModal("register")} className={CTA_CLASS}>
+              Try Clipiro free
+              <ArrowRightIcon className="h-5 w-5 transition-transform duration-200 group-hover:translate-x-1" />
             </button>
-          </div>
-        </Reveal>
-
-        {/* Rating badge — hidden below MINIMUM_REVIEWS_FOR_SCHEMA to avoid a
-            thin, unconvincing average (same gate the SEO JSON-LD already
-            applies to aggregateRating). */}
-        {reviewSummary.count >= MINIMUM_REVIEWS_FOR_SCHEMA && <HeroRatingBadge summary={reviewSummary} />}
-
-        {/* Trust row */}
-        <Reveal delay={240}>
-          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-fg-muted">
-            {TRUST_POINTS.map((point) => (
-              <span key={point} className="inline-flex items-center gap-1.5">
-                <CheckIcon className="h-4 w-4 text-success" />
-                {point}
-              </span>
-            ))}
-          </div>
-        </Reveal>
-
-        {/* Hero visual: editor mockup (CSS-drawn — replaced with a real editor
-            screenshot once the browser editor ships) */}
-        <Reveal delay={300} className="w-full">
-          <div className="mx-auto mt-8 w-full max-w-5xl">
-            <ShowcaseGlow>
-            <div className="overflow-hidden rounded-2xl border border-card-border bg-panel shadow-2xl">
-              {/* Faux window chrome */}
-              <div className="flex items-center gap-1.5 border-b border-line bg-surface-2 px-4 py-3">
-                <span className="h-3 w-3 rounded-full bg-line-strong" />
-                <span className="h-3 w-3 rounded-full bg-line-strong" />
-                <span className="h-3 w-3 rounded-full bg-line-strong" />
-                <span className="ml-3 inline-flex items-center gap-1.5 rounded-md bg-panel px-3 py-1 text-xs text-fg-subtle ring-1 ring-line">
-                  clipiro.com/editor
-                </span>
-              </div>
-              {/* Editor mockup: sidebar / preview / properties + timeline */}
-              <div className="flex h-[300px] gap-2 bg-surface p-3 sm:h-[380px]" aria-hidden="true">
-                {/* Left sidebar: media bin */}
-                <div className="hidden w-40 flex-col gap-2 rounded-xl border border-card-border bg-panel p-2 sm:flex">
-                  <div className="h-2 w-16 rounded-full bg-surface-3" />
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {["/hero/thumb-1.jpg", "/hero/thumb-2.jpg", "/hero/thumb-3.jpg", "/hero/thumb-4.jpg"].map((src, i) => (
-                      <div key={src} className="relative aspect-video overflow-hidden rounded-md bg-surface-3">
-                        <Image src={src} alt="" fill sizes="80px" className="object-cover" priority={i === 0} />
-                      </div>
-                    ))}
-                  </div>
-                  <div className="mt-1 h-2 w-20 rounded-full bg-surface-3" />
-                  <div className="h-2 w-14 rounded-full bg-surface-3" />
-                </div>
-                {/* Center: preview + timeline */}
-                <div className="flex flex-1 flex-col gap-2">
-                  <div className="relative flex flex-1 items-center justify-center rounded-xl bg-black">
-                    <div className="relative flex aspect-[9/16] h-[85%] items-center justify-center overflow-hidden rounded-lg">
-                      <Image src="/hero/preview.jpg" alt="" fill sizes="220px" className="object-cover" priority />
-                      <span className="relative flex h-10 w-10 items-center justify-center rounded-full bg-white/85">
-                        <PlayIcon className="h-4 w-4 translate-x-[1px] text-brand-deep" />
-                      </span>
-                    </div>
-                    <span className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded bg-black/60 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">
-                      Captions on point
-                    </span>
-                  </div>
-                  {/* Timeline */}
-                  <div className="flex flex-col gap-1.5 rounded-xl border border-card-border bg-panel p-2">
-                    <div className="flex h-5 items-center gap-1">
-                      <div className="h-full w-2/5 rounded bg-brand/70" />
-                      <div className="h-full w-1/4 rounded bg-brand/50" />
-                      <div className="h-full w-1/3 rounded bg-brand/60" />
-                    </div>
-                    <div className="flex h-3.5 items-center gap-1">
-                      <div className="ml-[10%] h-full w-1/4 rounded bg-warning/80" />
-                      <div className="ml-[15%] h-full w-1/5 rounded bg-warning/50" />
-                    </div>
-                    <div className="flex h-3.5 items-center">
-                      <div className="h-full w-3/4 rounded bg-success/50" />
-                    </div>
-                  </div>
-                </div>
-                {/* Right: properties */}
-                <div className="hidden w-36 flex-col gap-2 rounded-xl border border-card-border bg-panel p-2 md:flex">
-                  <div className="h-2 w-14 rounded-full bg-surface-3" />
-                  <div className="h-7 rounded-md border border-card-border bg-surface" />
-                  <div className="h-7 rounded-md border border-card-border bg-surface" />
-                  <div className="mt-1 h-2 w-10 rounded-full bg-surface-3" />
-                  <div className="h-2 rounded-full bg-brand/40" />
-                  <div className="mt-auto h-8 rounded-lg bg-brand" />
-                </div>
-              </div>
-            </div>
-            </ShowcaseGlow>
-            {/* Floating feature badge */}
-            <div className="absolute -bottom-5 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full border border-line bg-panel px-5 py-2.5 shadow-lg">
-              <CheckIcon className="h-4 w-4 text-success" />
-              <span className="text-sm font-semibold text-fg">Auto captions & viral-moment detection</span>
-            </div>
+          )}
+          <div className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-sm text-fg-muted">
+            <span>Free plan</span>
+            <span aria-hidden="true">·</span>
+            <span>No credit card</span>
+            {/* Rating badge — hidden below MINIMUM_REVIEWS_FOR_SCHEMA to avoid a
+                thin, unconvincing average (same gate the SEO JSON-LD already
+                applies to aggregateRating). */}
+            {reviewSummary.count >= MINIMUM_REVIEWS_FOR_SCHEMA && (
+              <>
+                {/* Below sm the rating wraps onto its own line; a leading dot there would dangle. */}
+                <span aria-hidden="true" className="hidden sm:inline">·</span>
+                <HeroRatingBadge summary={reviewSummary} />
+              </>
+            )}
           </div>
         </Reveal>
       </div>
-
-      {/* Watch Demo modal — ui/Modal for Esc, focus trap and a label (the
-          hand-rolled overlay had none). No autoplay: a video starting with
-          sound the moment a dialog opens is jarring, and the controls are
-          focused and one keypress away. */}
-      <Modal
-        open={demoOpen}
-        onClose={() => setDemoOpen(false)}
-        bare
-        ariaLabel="Clipiro demo video"
-        maxWidth="max-w-4xl"
-        panelClassName="relative !bg-black !border-transparent"
-      >
-            <button
-              type="button"
-              onClick={() => setDemoOpen(false)}
-              aria-label="Close demo"
-              className="absolute right-3 top-3 z-10 rounded-full bg-white/10 p-2 text-white transition-colors hover:bg-white/20 outline-none focus-visible:ring-2 focus-visible:ring-white/70"
-            >
-              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
-            <div className="aspect-video bg-black">
-              <video
-                className="h-full w-full"
-                src="/demo-video.mp4"
-                controls
-                playsInline
-              />
-            </div>
-      </Modal>
     </section>
   );
 }
