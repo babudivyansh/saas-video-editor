@@ -2,6 +2,7 @@
 import React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import AuthForm from "@/app/components/AuthForm";
+import AuthArtPanel from "@/app/components/AuthArtPanel";
 import { getSafeNextPath, withNextParam } from "@/lib/safe-redirect";
 
 function BlurredBackground() {
@@ -45,7 +46,7 @@ function LoginPageContent() {
     <main className="relative min-h-screen flex items-center justify-center p-4 bg-bg text-fg">
       <BlurredBackground />
 
-      <div className="relative z-10 w-full max-w-[760px] min-h-[520px] flex rounded-2xl shadow-2xl overflow-hidden bg-panel">
+      <div className="relative z-10 w-full max-w-[860px] min-h-[600px] flex rounded-3xl border border-line shadow-2xl overflow-hidden bg-panel">
         <AuthForm
           initialMode="login"
           onSuccess={handleSuccess}
@@ -53,21 +54,7 @@ function LoginPageContent() {
           next={searchParams.get("next")}
         />
 
-        {/* Right panel */}
-        <div className="hidden sm:flex w-72 flex-shrink-0 bg-surface-2 flex-col items-center justify-center p-8 border-l border-line">
-          <div className="bg-panel rounded-2xl p-6 text-center shadow-sm w-full border border-line">
-            <div className="w-14 h-14 rounded-full grad-brand flex items-center justify-center mx-auto mb-4 shadow-sm">
-              <svg className="w-7 h-7" viewBox="0 0 40 40" fill="none">
-                <path d="M22 10H13C12.4477 10 12 10.4477 12 11V29C12 29.5523 12.4477 30 13 30H22" stroke="#071006" strokeWidth="2.5" strokeLinecap="round" />
-                <path d="M22 10L28 13V27L22 30V10Z" fill="#071006" fillOpacity="0.3" stroke="#071006" strokeWidth="2.5" strokeLinejoin="round" />
-                <circle cx="25" cy="20" r="1.5" fill="#071006" />
-              </svg>
-            </div>
-            <p className="text-sm text-fg-muted leading-relaxed font-medium">
-              Get started in seconds. Login or create an account now.
-            </p>
-          </div>
-        </div>
+        <AuthArtPanel mode="login" />
       </div>
     </main>
   );
