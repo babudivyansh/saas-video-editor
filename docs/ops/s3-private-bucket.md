@@ -157,5 +157,9 @@ aws s3api put-bucket-policy --bucket "$AWS_S3_BUCKET" --policy file://policy-bef
 - The voiceover tool keeps its recent-results list in `localStorage`. Entries
   saved before the switch hold unsigned URLs (now 403) and new ones expire after
   about 6 hours. The audio itself is safe in the user's Assets library.
+- The home and reviews pages are ISR (`revalidate = 3600`) and embed signed
+  avatar/attachment URLs (~6 h lifetime). After more than ~6 h with no traffic,
+  the first visitor gets the stale page with expired images while it
+  regenerates. Review attachments already behaved this way.
 - `scripts/verify-music-assets.mjs` still HEADs the media bucket; point it at
   the public-assets bucket once that exists.
