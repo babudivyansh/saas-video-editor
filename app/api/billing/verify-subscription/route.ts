@@ -74,7 +74,9 @@ async function handlePOST(req: NextRequest) {
   }
 
   try {
-    const result = await startTrialOnAuthentication(sub);
+    // The payment id is signature-verified above: the authorising payment
+    // names the card/UPI ID for the one-trial-per-instrument check.
+    const result = await startTrialOnAuthentication(sub, { paymentId });
     return NextResponse.json({ status: result.status, ...(result.status === "rejected" ? { reason: result.reason } : {}) });
   } catch (e) {
     // The webhook remains the fallback; the customer is told it's finishing.

@@ -5,6 +5,7 @@ import { fulfillPayment, fulfillSubscriptionCharge, type FulfillNotes } from "@/
 import { recordSubscriptionFailure, recordSubscriptionLifecycle } from "@/lib/dunning";
 import { cancelExistingSubscriptionForSwitch } from "@/lib/billing/subscription-switch";
 import { startTrialOnAuthentication } from "@/lib/billing/trial";
+import type { PaymentLike } from "@/lib/billing/trial-instrument";
 import { parseCurrency } from "@/lib/currency-shared";
 import { prisma } from "@/lib/prisma";
 import { grantCredits } from "@/lib/credits";
@@ -89,7 +90,9 @@ export async function POST(req: NextRequest) {
     const sub = event.payload?.subscription?.entity;
     if (sub?.id) {
       try {
-        await startTrialOnAuthentication(sub);
+        // Razorpay includes the payment entity when a payment preceded the
+        // event; otherwise the trial falls back to the customer's saved token.
+        await startTrialOnAuthentication(sub, { payment: (event.payload?.payment?.entity ?? null) as PaymentLike | null });
       } catch (e) {
         logger.error("webhook", `subscription.authenticated failed for ${sub.id}`, e);
         return NextResponse.json({ error: "trial start failed" }, { status: 500 });

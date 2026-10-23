@@ -109,6 +109,22 @@ describe("useRazorpayCheckout", () => {
     expect(fetchMock.mock.calls.some((c) => c[0] === "/api/billing/verify")).toBe(false);
   });
 
+  it("tells the customer why a trial was refused after the mandate, instead of reporting success", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ mode: "subscription", subscriptionId: "sub_1", keyId: "rzp_test_x", packName: "Pro", credits: 160, trial: true }) })
+      .mockResolvedValue({ ok: true, json: async () => ({ status: "rejected", reason: "instrument-used" }) });
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const onError = vi.fn();
+
+    render(<Harness onError={onError} />);
+    await userEvent.click(screen.getByText("Buy"));
+    await waitFor(() => expect(rzpConstructor).toHaveBeenCalled());
+    const options = rzpConstructor.mock.calls[0][0] as RzpOptions;
+    await options.handler({ razorpay_payment_id: "pay_1", razorpay_subscription_id: "sub_1", razorpay_signature: "sig" });
+
+    expect(onError).toHaveBeenCalledWith(expect.stringMatching(/card or UPI ID has already been used for a free trial.*haven't been charged/));
+  });
+
   it("surfaces a checkout error via onError instead of opening Razorpay", async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: false,

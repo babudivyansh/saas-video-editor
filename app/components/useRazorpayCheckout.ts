@@ -5,6 +5,15 @@ import { useAuth } from "@/app/components/AuthContext";
 import { loadRazorpayScript } from "@/lib/razorpay";
 
 // Razorpay attaches its constructor to window once the checkout script loads.
+// Why a trial was refused after the mandate was approved. The subscription is
+// cancelled immediately in every case, so nothing is ever charged.
+const TRIAL_REJECTED: Record<string, string> = {
+  "instrument-used": "This card or UPI ID has already been used for a free trial, so no trial was started and you haven't been charged. You can subscribe without the trial from the pricing page.",
+  "trial-used": "You've already had your free trial, so no trial was started and you haven't been charged. You can subscribe without the trial from the pricing page.",
+  "has-purchased": "The free trial is for first-time customers, so no trial was started and you haven't been charged. You can subscribe without the trial from the pricing page.",
+  "active-plan": "You already have an active plan, so no trial was started and you haven't been charged.",
+};
+
 interface RazorpaySuccess {
   razorpay_payment_id: string;
   /** Present for one-time orders. */
@@ -109,6 +118,7 @@ export function useRazorpayCheckout(): UseRazorpayCheckout {
             ? { amount: data.amount, currency: data.currency, order_id: data.orderId }
             : { subscription_id: data.subscriptionId, recurring: 1 }),
           handler: async (response: RazorpaySuccess) => {
+            let rejection: string | null = null;
             // One-time orders are verified and fulfilled here. A subscription
             // is verified too: for a free trial this starts the trial at once
             // (/api/billing/verify-subscription), instead of depending solely
@@ -117,7 +127,7 @@ export function useRazorpayCheckout(): UseRazorpayCheckout {
             // nothing. Paid subscriptions are still granted by the webhooks.
             try {
               if (data.mode === "subscription" && response.razorpay_subscription_id) {
-                await fetch("/api/billing/verify-subscription", {
+                const res = await fetch("/api/billing/verify-subscription", {
                   method: "POST",
                   headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
                   body: JSON.stringify({
@@ -126,6 +136,10 @@ export function useRazorpayCheckout(): UseRazorpayCheckout {
                     razorpay_signature: response.razorpay_signature,
                   }),
                 });
+                const result = (await res.json().catch(() => null)) as { status?: string; reason?: string } | null;
+                if (result?.status === "rejected") {
+                  rejection = TRIAL_REJECTED[result.reason ?? ""] ?? "Your free trial couldn't be started, and you haven't been charged.";
+                }
               }
               if (data.mode === "order") {
                 await fetch("/api/billing/verify", {
@@ -143,7 +157,8 @@ export function useRazorpayCheckout(): UseRazorpayCheckout {
               // the backup. onSuccess still fires; credits/plan arrive shortly.
             } finally {
               setActiveId(null);
-              onSuccess?.();
+              if (rejection) fail(rejection);
+              else onSuccess?.();
             }
           },
           modal: {

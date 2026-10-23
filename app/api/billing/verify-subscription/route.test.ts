@@ -50,7 +50,12 @@ describe("POST /api/billing/verify-subscription", () => {
     expect(await res.json()).toEqual({ status: "started" });
     expect(subscriptionsFetch).toHaveBeenCalledWith("sub_1");
     // Razorpay's copy — with its notes and start_at — is what's used, not the body.
-    expect(startTrial).toHaveBeenCalledWith(expect.objectContaining({ id: "sub_1", start_at: 1_800_000_000 }));
+    // ...and the signature-verified payment id names the card/UPI ID for the
+    // one-trial-per-instrument check (lib/billing/trial-instrument.ts).
+    expect(startTrial).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "sub_1", start_at: 1_800_000_000 }),
+      expect.objectContaining({ paymentId: expect.any(String) }),
+    );
   });
 
   it("is a no-op when the webhook already started it", async () => {
