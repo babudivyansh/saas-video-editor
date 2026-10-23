@@ -126,7 +126,7 @@ function AdminGate({ email, onElevated }: { email: string; onElevated: () => voi
             />
             <input
               value={totp}
-              onChange={(e) => setTotp(e.target.value.replace(/[^dA-Za-z-]/g, "").slice(0, 11))}
+              onChange={(e) => setTotp(e.target.value.replace(/[^0-9A-Za-z-]/g, "").slice(0, 11))}
               autoComplete="one-time-code"
               placeholder="Authenticator code"
               aria-label="Code from your authenticator app, or a recovery code"
