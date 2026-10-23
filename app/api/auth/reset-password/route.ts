@@ -35,14 +35,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Consume the token BEFORE acting on it: read-then-delete let two requests
-  // racing with the same link both reset the password.
-  const tokenKey = `pwd-reset:${token}`;
-  const userId = await redis.get(tokenKey);
+  // Consume the token BEFORE acting on it, in one GETDEL: a GET then a DEL
+  // still left a window where two requests racing with the same link both
+  // read it and both reset the password.
+  const userId = await redis.getdel(`pwd-reset:${token}`);
   if (!userId) {
     return NextResponse.json({ error: "This reset link has expired or is invalid. Please request a new one." }, { status: 400 });
   }
-  await redis.del(tokenKey);
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
