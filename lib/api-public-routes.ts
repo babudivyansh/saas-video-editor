@@ -70,12 +70,12 @@ const PUBLIC_API_PREFIXES = [
   // signature — the provider has no session here, so this gate could only ever
   // 401 it. Matching is by prefix, which is what un-gates the /[token] segment.
   //
-  // ⚠ NOTE while you're here: /api/webhooks/elevenlabs is NOT in this list and
-  // therefore cannot be reached at all. That route is documented as inert for a
-  // different reason (its secret is unset and whether ElevenLabs sends the
-  // callback is unconfirmed), so nothing is failing today, but if that webhook
-  // is ever registered it will need an entry here too or it will silently 401.
   "/api/webhooks/submagic",
+  // ElevenLabs dubbing completion. Authenticated by its HMAC signature and
+  // fails closed while ELEVENLABS_WEBHOOK_SECRET is unset; until it was listed
+  // here every callback 401'd at this gate and dubs finished only through the
+  // dub sweep.
+  "/api/webhooks/elevenlabs",
   // Per-category unsubscribe. Must work from a mail client, where there is by
   // definition no session — the signed token IS the authorisation. This also
   // has to stay reachable for the RFC 8058 one-click POST that Gmail and Yahoo
@@ -94,7 +94,7 @@ const PUBLIC_API_PREFIXES = [
   "/api/coupons/active",
   // Public review browsing — the /reviews marketing page's client-side
   // sort/filter/search reads GET /api/reviews for logged-out visitors too.
-  // isPublicApiRoute matches by prefix, so this also un-gates
+  // isPublicApiRoute covers the paths below an entry, so this also un-gates
   // /api/reviews/me and /api/reviews/[id]/** at this layer — each of those
   // routes still self-enforces real auth via getAuthUser where it applies
   // (e.g. /api/reviews/me), so this only skips proxy's early-rejection
@@ -149,8 +149,12 @@ const PUBLIC_API_PREFIXES = [
   "/api/v1/",
 ];
 
+// An entry matches itself and the paths below it ("/api/auth/register" covers
+// "/api/auth/register/verify"), never a sibling that merely shares the
+// letters: "/api/auth/login" must not un-gate "/api/auth/login-history".
+// Entries ending in "/" cover only what is below them.
 export function isPublicApiRoute(pathname: string): boolean {
-  return PUBLIC_API_PREFIXES.some(
-    (prefix) => pathname === prefix || pathname.startsWith(prefix),
+  return PUBLIC_API_PREFIXES.some((prefix) =>
+    prefix.endsWith("/") ? pathname.startsWith(prefix) : pathname === prefix || pathname.startsWith(`${prefix}/`),
   );
 }

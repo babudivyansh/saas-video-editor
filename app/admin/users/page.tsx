@@ -141,6 +141,7 @@ export default function AdminUsersPage() {
   // Granting ADMIN mints a second full admin — confirm before it fires, same
   // as delete. Demoting back to USER doesn't need this (reversible).
   const [confirmPromoteId, setConfirmPromoteId] = useState<string | null>(null);
+  const [promoteTotp, setPromoteTotp] = useState("");
 
   const headers = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${token}` });
 
@@ -494,13 +495,24 @@ export default function AdminUsersPage() {
         message={`Make "${users.find(u => u.id === confirmPromoteId)?.email ?? ""}" a full admin? They'll get access to every page and action in this console.`}
         confirmLabel="Grant admin"
         danger
+        confirmDisabled={promoteTotp.trim().length < 6}
         onConfirm={async () => {
           if (!confirmPromoteId) return;
-          await patchMutation.mutateAsync({ id: confirmPromoteId, body: { role: "ADMIN", confirm: true } });
+          await patchMutation.mutateAsync({ id: confirmPromoteId, body: { role: "ADMIN", confirm: true, totp: promoteTotp.trim() } });
           showToast("Admin access granted", "success");
         }}
-        onClose={() => setConfirmPromoteId(null)}
-      />
+        onClose={() => { setConfirmPromoteId(null); setPromoteTotp(""); }}
+      >
+        <label htmlFor="promote-totp" className="block text-xs font-semibold text-fg-muted mb-1">Your authenticator code</label>
+        <input
+          id="promote-totp"
+          value={promoteTotp}
+          onChange={(e) => setPromoteTotp(e.target.value.replace(/[^dA-Za-z-]/g, "").slice(0, 11))}
+          autoComplete="one-time-code"
+          inputMode="numeric"
+          className="w-full rounded-lg border border-line bg-panel px-3 py-2 text-sm text-fg"
+        />
+      </ConfirmDialog>
       <ConfirmDialog
         open={planConfirmOpen && planChange !== null}
         title="Change this user's plan"

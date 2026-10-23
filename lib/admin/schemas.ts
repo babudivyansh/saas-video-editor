@@ -57,6 +57,10 @@ export const userPatchSchema = z
     // gets the same explicit-confirm gate as the other high-blast-radius
     // actions below, not just an enum-validated dropdown value.
     confirm: z.literal(true).optional(),
+    // The granting admin's own authenticator (or recovery) code, also required
+    // when granting ADMIN: elevation can be hours old, and a new admin is the
+    // one change that hands an attacker a durable foothold.
+    totp: z.string().trim().min(6).max(11).optional(),
     // Audit-trail only, never persisted on the User row (stripped before the
     // Prisma write). Required for a plan change — see the refine below.
     reason: z.string().trim().max(500).optional(),
@@ -70,6 +74,10 @@ export const userPatchSchema = z
   .refine((v) => v.role !== "ADMIN" || v.confirm === true, {
     message: "confirm is required when granting the ADMIN role",
     path: ["confirm"],
+  })
+  .refine((v) => v.role !== "ADMIN" || Boolean(v.totp), {
+    message: "Your authenticator code is required when granting the ADMIN role",
+    path: ["totp"],
   });
 
 // ── Plans ─────────────────────────────────────────────────────────────────────

@@ -96,7 +96,7 @@ export async function consumeState(
   browserNonce: string | undefined,
 ): Promise<{ userId: string; provider: string; verifier: string; client: OAuthClient } | null> {
   try {
-    const payload = jwt.verify(state, JWT_SECRET) as StatePayload;
+    const payload = jwt.verify(state, JWT_SECRET, { algorithms: ["HS256"] }) as StatePayload;
     const client: OAuthClient = payload.client === "app" ? "app" : "web";
     if (client === "web" && !(browserNonce && sameNonce(payload.nonce, browserNonce))) return null;
     const verifier = await redis.getdel(`social:pkce:${payload.nonce}`); // single use
@@ -144,7 +144,7 @@ export async function takeAppConnect(id: string): Promise<PendingAppConnect | nu
 export function stateClient(state: string | null): OAuthClient {
   if (!state) return "web";
   try {
-    return (jwt.verify(state, JWT_SECRET) as StatePayload).client === "app" ? "app" : "web";
+    return (jwt.verify(state, JWT_SECRET, { algorithms: ["HS256"] }) as StatePayload).client === "app" ? "app" : "web";
   } catch {
     return "web";
   }

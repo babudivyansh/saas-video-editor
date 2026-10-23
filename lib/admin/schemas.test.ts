@@ -74,9 +74,11 @@ describe("userPatchSchema — plan change guards", () => {
     expect(withReason.success).toBe(true);
   });
 
-  it("requires explicit confirmation before granting ADMIN", () => {
+  it("requires explicit confirmation and the granting admin's authenticator code before granting ADMIN", () => {
     expect(userPatchSchema.safeParse({ role: "ADMIN" }).success).toBe(false);
-    expect(userPatchSchema.safeParse({ role: "ADMIN", confirm: true }).success).toBe(true);
+    expect(userPatchSchema.safeParse({ role: "ADMIN", confirm: true }).success).toBe(false);
+    expect(userPatchSchema.safeParse({ role: "ADMIN", totp: "123456" }).success).toBe(false);
+    expect(userPatchSchema.safeParse({ role: "ADMIN", confirm: true, totp: "123456" }).success).toBe(true);
     // Demoting is reversible and needs no confirmation.
     expect(userPatchSchema.safeParse({ role: "USER" }).success).toBe(true);
   });

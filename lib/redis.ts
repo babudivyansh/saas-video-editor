@@ -151,8 +151,63 @@ function logFallback(op: string, err: unknown) {
   logger.error("redis", `${op} failed, using in-memory fallback (throttled: at most one log/min per op)`, err);
 }
 
+// Revoking a session (logout, password reset, admin suspend) must not
+// "succeed" into the per-process fallback: the real Redis would still hold the
+// session record and the token would keep working. In production with Redis
+// configured, the *Strict methods retry briefly and then throw, so the caller
+// reports a failure instead of a false success. Without REDIS_URL (local dev,
+// tests) the fallback IS the store, so they behave like the plain methods.
+const STRICT = process.env.NODE_ENV === "production" && Boolean(env.REDIS_URL);
+
+export class RedisUnavailableError extends Error {
+  constructor(op: string, cause: unknown) {
+    super(`Redis ${op} failed after retries`, { cause });
+    this.name = "RedisUnavailableError";
+  }
+}
+
+async function strictly<T>(op: string, run: () => Promise<T>, fallbackRun: () => T): Promise<T> {
+  if (!STRICT) {
+    try {
+      await ready();
+      return await run();
+    } catch (err) {
+      logFallback(op, err);
+      return fallbackRun();
+    }
+  }
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      await ready();
+      return await run();
+    } catch (err) {
+      lastErr = err;
+      await new Promise((r) => setTimeout(r, 150 * attempt));
+    }
+  }
+  logger.error("redis", `${op} (strict) failed after 3 attempts`, lastErr);
+  throw new RedisUnavailableError(op, lastErr);
+}
+
 // Thin wrapper that transparently falls back to in-memory when Redis is down
 export const redis = {
+  /** GET that throws instead of reading the fallback (see STRICT above). */
+  getStrict(key: string): Promise<string | null> {
+    return strictly("GET", () => client.get(key), () => fallbackGet(key));
+  },
+  /** SET [EX] that throws instead of writing the fallback (see STRICT above). */
+  setStrict(key: string, value: string, ttlSeconds?: number): Promise<void> {
+    return strictly(
+      "SET",
+      async () => { if (ttlSeconds) await client.set(key, value, "EX", ttlSeconds); else await client.set(key, value); },
+      () => fallbackSet(key, value, ttlSeconds),
+    );
+  },
+  /** DEL that throws instead of deleting from the fallback (see STRICT above). */
+  delStrict(key: string): Promise<void> {
+    return strictly("DEL", async () => { await client.del(key); }, () => fallbackDel(key));
+  },
   async get(key: string): Promise<string | null> {
     try {
       await ready();
