@@ -82,6 +82,12 @@ export async function sendTwoFactorChangedAlertEmail(
   await sendTemplate("two-factor-changed", to, { name, enabled, time });
 }
 
+export async function sendTwoFactorLockoutAlertEmail(
+  to: string, name: string, time: string, minutes: number,
+): Promise<void> {
+  await sendTemplate("two-factor-lockout", to, { name, time, minutes });
+}
+
 export async function sendAccountExportReadyEmail(
   to: string, name: string, downloadUrl: string,
 ): Promise<void> {
