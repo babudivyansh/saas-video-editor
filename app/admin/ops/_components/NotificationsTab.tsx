@@ -18,7 +18,13 @@ interface NotificationsData {
   adminEmails: string[];
 }
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+interface TestResult {
+  to: string;
+  status: string;
+  error?: string;
+}
+
+const EMAIL_RE =/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function NotificationsTab({ headers }: { headers: Headers }) {
   const { showToast } = useToast();
@@ -61,6 +67,24 @@ export function NotificationsTab({ headers }: { headers: Headers }) {
     onError: (e: Error) => showToast(e.message, "error"),
   });
 
+  const [testResults, setTestResults] = useState<TestResult[] | null>(null);
+  const sendTest = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/admin/ops/notifications/test", { method: "POST", headers: headers() });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? "Test email failed");
+      return body.results as TestResult[];
+    },
+    onSuccess: (results) => {
+      setTestResults(results);
+      const failed = results.filter((r) => r.status !== "sent" && r.status !== "dev-logged").length;
+      if (results.length === 0) showToast("No recipients to send to", "error");
+      else if (failed > 0) showToast(`${failed} of ${results.length} test emails failed`, "error");
+      else showToast(`Test email sent to ${results.length} address${results.length === 1 ? "" : "es"}`, "success");
+    },
+    onError: (e: Error) => showToast(e.message, "error"),
+  });
+
   if (isError) {
     return (
       <Card shadow padding="md">
@@ -75,6 +99,8 @@ export function NotificationsTab({ headers }: { headers: Headers }) {
     enabled !== data.signup.enabled ||
     recipients.length !== data.signup.recipients.length ||
     recipients.some((r, i) => r !== data.signup.recipients[i]);
+
+  const adminSet = new Set(data.adminEmails.map((a) => a.toLowerCase()));
 
   function addRecipient() {
     const v = draft.trim().toLowerCase();
@@ -98,14 +124,19 @@ export function NotificationsTab({ headers }: { headers: Headers }) {
       </p>
 
       <h3 className="text-xs font-semibold text-fg-muted mb-1">Recipients</h3>
-      {recipients.length === 0 ? (
-        <p className="text-xs text-fg-subtle mb-3">
-          No custom list, so every admin account gets it:{" "}
-          <span className="text-fg">{data.adminEmails.join(", ") || "no admin accounts"}</span>
-        </p>
-      ) : (
-        <ul className="divide-y divide-line mb-3">
-          {recipients.map((r) => (
+      <p className="text-xs text-fg-subtle mb-2">
+        Every admin account always gets it. Add more addresses below to send it to them as well.
+      </p>
+      <ul className="divide-y divide-line mb-3">
+        {data.adminEmails.map((r) => (
+          <li key={`admin:${r}`} className="flex items-center gap-3 py-2">
+            <span className="text-sm text-fg flex-1 break-all">{r}</span>
+            <StatusBadge tone="neutral">Admin account</StatusBadge>
+          </li>
+        ))}
+        {recipients
+          .filter((r) => !adminSet.has(r))
+          .map((r) => (
             <li key={r} className="flex items-center gap-3 py-2">
               <span className="text-sm text-fg flex-1 break-all">{r}</span>
               <Button variant="link" className="text-error text-xs" onClick={() => setRecipients(recipients.filter((x) => x !== r))}>
@@ -113,8 +144,10 @@ export function NotificationsTab({ headers }: { headers: Headers }) {
               </Button>
             </li>
           ))}
-        </ul>
-      )}
+        {data.adminEmails.length === 0 && recipients.length === 0 && (
+          <li className="py-2 text-xs text-warning">No admin accounts and no extra addresses: nobody will get this email.</li>
+        )}
+      </ul>
 
       <form
         onSubmit={(e) => {
@@ -136,9 +169,34 @@ export function NotificationsTab({ headers }: { headers: Headers }) {
         <Button type="submit" variant="secondary" size="sm" disabled={recipients.length >= 20}>Add</Button>
       </form>
 
-      <Button variant="primary" size="sm" disabled={!dirty || save.isPending} onClick={() => save.mutate()}>
-        {save.isPending ? "Saving…" : "Save"}
-      </Button>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="primary" size="sm" disabled={!dirty || save.isPending} onClick={() => save.mutate()}>
+          {save.isPending ? "Saving…" : "Save"}
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={dirty || sendTest.isPending}
+          onClick={() => sendTest.mutate()}
+        >
+          {sendTest.isPending ? "Sending…" : "Send test email"}
+        </Button>
+        {dirty && <span className="text-xs text-fg-subtle">Save your changes to send a test.</span>}
+      </div>
+
+      {testResults && (
+        <ul className="mt-3 space-y-1">
+          {testResults.map((r) => (
+            <li key={r.to} className="flex items-center gap-2 text-xs">
+              <StatusBadge tone={r.status === "sent" || r.status === "dev-logged" ? "success" : "error"}>
+                {r.status === "sent" ? "Sent" : r.status === "dev-logged" ? "Logged (dev)" : r.status}
+              </StatusBadge>
+              <span className="text-fg break-all">{r.to}</span>
+              {r.error && <span className="text-fg-subtle break-all">{r.error}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
     </Card>
   );
 }

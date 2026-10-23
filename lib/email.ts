@@ -23,7 +23,7 @@
 
 import { MIN_PAYOUT_AMOUNT } from "@/lib/affiliate-constants";
 import { signTrackToken } from "@/lib/reviews/email-track-token";
-import { sendTemplate, type EmailAttachment } from "@/lib/email/send";
+import { sendTemplate, type EmailAttachment, type SendResult } from "@/lib/email/send";
 import { APP_URL } from "@/lib/email/tokens";
 import type { SocialDigestAccount } from "@/lib/email/templates/social";
 import type { AdminDigestData, AdminNewSignupData, ContactMessageData } from "@/lib/email/templates/admin";
@@ -445,8 +445,8 @@ export async function sendAdminAffiliatePayoutReadyEmail(
   });
 }
 
-export async function sendAdminNewSignupEmail(to: string, d: AdminNewSignupData): Promise<void> {
-  await sendTemplate("admin-new-signup", to, d);
+export async function sendAdminNewSignupEmail(to: string, d: AdminNewSignupData): Promise<SendResult> {
+  return sendTemplate("admin-new-signup", to, d);
 }
 
 export async function sendNewsletterConfirmEmail(to: string, confirmUrl: string): Promise<void> {
