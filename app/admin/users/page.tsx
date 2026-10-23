@@ -507,7 +507,7 @@ export default function AdminUsersPage() {
         <input
           id="promote-totp"
           value={promoteTotp}
-          onChange={(e) => setPromoteTotp(e.target.value.replace(/[^dA-Za-z-]/g, "").slice(0, 11))}
+          onChange={(e) => setPromoteTotp(e.target.value.replace(/[^0-9A-Za-z-]/g, "").slice(0, 11))}
           autoComplete="one-time-code"
           inputMode="numeric"
           className="w-full rounded-lg border border-line bg-panel px-3 py-2 text-sm text-fg"
