@@ -81,6 +81,8 @@ previously harmless condition into a privilege escalation:
   appear in the database, in API responses and in client-side URLs, so that is
   security by obscurity rather than access control. Tracked separately — it is
   not a stale-URL issue, and it is not fixed by anything in this document.
+  The code side and the runbook for closing it (Block Public Access, a 403
+  check) are in `docs/ops/s3-private-bucket.md` (2026-10-23).
 - **After re-minting, before the gate:** the server re-signed that key with its
   own credentials, turning an inert string into working access.
 

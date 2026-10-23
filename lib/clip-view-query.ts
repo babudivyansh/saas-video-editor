@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { isEditedClip, transcriptExcerpt } from "@/lib/clip-view";
+import { resignMediaUrl } from "@/lib/signed-media";
 
 // One clip as the clips view (a project's page or a collection's) reads it.
 // GET /api/projects/[id]/clips and GET /api/clip-collections/[id]/clips both
@@ -33,10 +34,13 @@ export function clipViewSelect(wantExcerpts: boolean) {
 
 type ClipViewRow = Prisma.ClipGetPayload<{ select: ReturnType<typeof clipViewSelect> }>;
 
-export function toClipView(row: ClipViewRow, wantExcerpts: boolean) {
+export async function toClipView(row: ClipViewRow, wantExcerpts: boolean) {
   const { dubs, transcriptJson, project, ...c } = row;
   return {
     ...c,
+    // Renders are stored unsigned and the bucket is private.
+    videoUrl: await resignMediaUrl(c.videoUrl),
+    thumbnailUrl: await resignMediaUrl(c.thumbnailUrl),
     projectTitle: project.title,
     dubbed: dubs.length > 0,
     edited: isEditedClip(c),

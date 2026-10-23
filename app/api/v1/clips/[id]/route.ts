@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getApiKeyAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { withRateLimit } from "@/lib/with-rate-limit";
+import { resignMediaUrl } from "@/lib/signed-media";
 
 // Public API — GET /api/v1/clips/{id}: single clip detail + download URL.
 // Ownership is scoped through the clip's parent project (Clip has no
@@ -26,7 +27,10 @@ async function handleGET(req: NextRequest, { params }: { params: Promise<{ id: s
   });
   if (!clip) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  return NextResponse.json({ clip });
+  // The bucket is private: the download URL is presigned (valid for hours).
+  return NextResponse.json({
+    clip: { ...clip, videoUrl: await resignMediaUrl(clip.videoUrl), thumbnailUrl: await resignMediaUrl(clip.thumbnailUrl) },
+  });
 }
 
 export const GET = withRateLimit(handleGET, { limit: 120, windowSec: 60, keyBy: "apiKey", name: "v1:clips:detail" });

@@ -12,6 +12,7 @@ import { getAutoClipPricing } from "@/lib/autoclip-pipeline";
 import { getToolConfig } from "@/lib/tool-config";
 import { dubStartQueue, computeDubCost } from "@/lib/autoclip-dub";
 import { DUB_LANGUAGES } from "@/utils/elevenlabs";
+import { resignMediaUrl } from "@/lib/signed-media";
 
 // GET /api/projects/[id]/clips/[clipId]/dub — list dub jobs for a clip.
 async function handleGET(req: NextRequest, { params }: { params: Promise<{ id: string; clipId: string }> }) {
@@ -28,7 +29,9 @@ async function handleGET(req: NextRequest, { params }: { params: Promise<{ id: s
   const clip = await prisma.clip.findFirst({ where: { id: clipId, projectId }, select: { id: true } });
   if (!clip) return NextResponse.json({ error: "Clip not found" }, { status: 404 });
 
-  const dubs = await prisma.clipDub.findMany({ where: { clipId }, orderBy: { createdAt: "desc" } });
+  const rows = await prisma.clipDub.findMany({ where: { clipId }, orderBy: { createdAt: "desc" } });
+  // Dub renders are stored unsigned and the bucket is private.
+  const dubs = await Promise.all(rows.map(async (d) => ({ ...d, videoUrl: await resignMediaUrl(d.videoUrl) })));
   return NextResponse.json({ dubs, languages: DUB_LANGUAGES });
 }
 

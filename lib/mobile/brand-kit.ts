@@ -2,7 +2,7 @@ import { BRAND_KIT_DEFAULTS, type BrandKit, type BrandKitPatch } from "@clipiro/
 import type { BrandKit as BrandKitRow, Prisma } from "@prisma/client";
 import { assToHex, hexToASS } from "@/lib/ass-color";
 import { prisma } from "@/lib/prisma";
-import { resignMediaUrl } from "@/lib/signed-media";
+import { resignOwnedMediaUrl } from "@/lib/source-url";
 import { s3KeyToPublicUrl } from "@/utils/s3-upload";
 
 // The app's Brand Kit (mobile Phase 12.1) on the web's BrandKit rows. The web
@@ -36,7 +36,8 @@ export async function toBrandKit(row: BrandKitRow): Promise<BrandKit> {
   return {
     id: row.id,
     name: row.name,
-    logoUrl: await resignMediaUrl(row.logoUrl),
+    // Client-settable on the web (PATCH /api/brand-kits/[id]), so ownership-gated.
+    logoUrl: await resignOwnedMediaUrl(row.logoUrl, row.userId),
     fontName: row.fontName ?? d.fontName,
     fontSize: Math.min(200, Math.max(8, row.fontSize ?? d.fontSize)),
     baseColor: hexOf(row.baseColor, d.baseColor),

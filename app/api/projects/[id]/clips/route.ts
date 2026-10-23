@@ -3,6 +3,7 @@ import { getAuthUser } from "@/lib/auth";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { prisma } from "@/lib/prisma";
 import { clipViewSelect, toClipView } from "@/lib/clip-view-query";
+import { resignOwnedMediaUrl } from "@/lib/source-url";
 
 // Poll target for the Auto Clip results grid: the project status + every clip
 // with its live status/progress, sorted by virality score (highest first).
@@ -35,7 +36,7 @@ async function handleGET(req: NextRequest, { params }: { params: Promise<{ id: s
     orderBy: [{ score: { sort: "desc", nulls: "last" } }, { index: "asc" }],
     select: clipViewSelect(wantExcerpts),
   });
-  const clips = rows.map((row) => toClipView(row, wantExcerpts));
+  const clips = await Promise.all(rows.map((row) => toClipView(row, wantExcerpts)));
 
   const clipId = searchParams.get("clipId");
   const detail = clipId
@@ -51,7 +52,8 @@ async function handleGET(req: NextRequest, { params }: { params: Promise<{ id: s
       warnings: project.warnings,
       failureReason: project.failureReason,
       captionStyleIndex: project.autoClipCaptionStyle,
-      uploadedVideoUrl: project.uploadedVideoUrl,
+      // Client-settable, so only re-signed when the caller owns the object.
+      uploadedVideoUrl: await resignOwnedMediaUrl(project.uploadedVideoUrl, auth.userId),
       // Lets the page tell a slow analysis from a stranded one.
       updatedAt: project.updatedAt,
       // The clips page's breadcrumb and heading.

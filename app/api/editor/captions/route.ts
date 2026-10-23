@@ -9,6 +9,7 @@ import { spendMinutes, restoreMinutes, billableSourceMinutes } from "@/lib/minut
 import { extractAudio, probeMediaDuration } from "@/utils/ffmpeg-render";
 import { transcribe } from "@/lib/transcription";
 import { downloadFile } from "@/utils/download";
+import { getAssetReadUrl } from "@/utils/s3-upload";
 import { logger } from "@/lib/logger";
 import { classifyCaptionFailure } from "@/lib/caption-failure";
 import {
@@ -75,7 +76,9 @@ async function handlePOST(req: NextRequest) {
   const audioPath = path.join(tmp, `${stamp}.mp3`);
 
   try {
-    await downloadFile(asset.url, mediaPath);
+    // From the key, not asset.url: that column is the legacy unsigned URL,
+    // which a private bucket answers with 403.
+    await downloadFile(await getAssetReadUrl(asset.s3Key, 600), mediaPath);
     // The asset row's stored length when there is one, else probe the file.
     const durationSec = asset.duration ?? (await probeMediaDuration(mediaPath)).durationSec ?? 0;
     const minutesNeeded = billableSourceMinutes(durationSec);
