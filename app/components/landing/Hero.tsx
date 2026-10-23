@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useEffect, useRef } from "react";
+import { preload } from "react-dom";
 import Link from "next/link";
 import { useReducedMotion } from "framer-motion";
 import { useAuth } from "@/app/components/AuthContext";
-import Reveal from "@/app/components/Reveal";
 import { ArrowRightIcon } from "@/app/components/landing/icons";
 import HeroRatingBadge from "@/app/components/landing/HeroRatingBadge";
 import { MINIMUM_REVIEWS_FOR_SCHEMA } from "@/app/reviews/schema";
@@ -25,15 +25,32 @@ interface HeroProps {
 export default function Hero({ reviewSummary }: HeroProps) {
   const { user, openAuthModal } = useAuth();
   const filmRef = useRef<HTMLVideoElement>(null);
-  // Applied to the element rather than rendered as autoPlay/controls props:
-  // the server can't know the preference, and the hook already reports it on
-  // the client's first render, so rendering from it is a hydration mismatch.
+  // The poster is the hero's first paint and its LCP candidate, so fetch it
+  // at high priority instead of waiting for the <video> to be parsed.
+  preload("/hero/launch-film-poster.jpg", { as: "image", fetchPriority: "high" });
+  // Playback starts here rather than from an autoPlay attribute: the server
+  // can't know the motion preference, and autoPlay would start the film (and
+  // its download) before this effect could stop it. Reduced-motion and
+  // Save-Data visitors keep the poster with controls; everyone else gets the
+  // muted loop. The hook already reports on the client's first render, so
+  // rendering autoPlay/controls from it would be a hydration mismatch.
   const reduceMotion = useReducedMotion() === true;
   useEffect(() => {
     const film = filmRef.current;
-    if (!film || !reduceMotion) return;
-    film.pause();
-    film.controls = true;
+    if (!film) return;
+    const saveData =
+      (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData === true;
+    if (reduceMotion || saveData) {
+      film.pause();
+      film.controls = true;
+      return;
+    }
+    film.controls = false;
+    film.muted = true;
+    // Autoplay can still be refused (e.g. iOS Low Power Mode): offer controls.
+    film.play().catch(() => {
+      film.controls = true;
+    });
   }, [reduceMotion]);
 
   return (
@@ -58,8 +75,12 @@ export default function Hero({ reviewSummary }: HeroProps) {
 
         {/* Hero visual: the Clipiro launch film, rendered from the Claude Design
             project "Clipiro Launch Film" to a silent 108s loop. Muted + playsInline
-            is what lets browsers autoplay it; reduced-motion visitors get it
-            paused on the poster with controls instead.
+            is what lets browsers autoplay it (started from the effect above).
+            Phones get a 960x540 encode (~2.6 MB) instead of the 1600x900 one
+            (~5.4 MB); a browser that ignores <source media> takes the first
+            source, the desktop film. No Reveal wrapper: the poster and CTA are
+            visible at rest so they paint before hydration (.hero-rise only
+            slides them in).
             Deliberately unframed: the film's backdrop is the page's own --bg
             (#050908), so with no border/box and feathered edges (.hero-film-fade
             in globals.css) it animates on the page itself. On lg it reaches 80px
@@ -67,27 +88,28 @@ export default function Hero({ reviewSummary }: HeroProps) {
             but never so tall that it pushes the CTA below the fold: the width
             is also capped at 16:9 of the viewport height minus ~15rem (navbar,
             button, reassurance line; the button overlaps the film by ~2rem). */}
-        <Reveal className="w-full max-w-[1360px] lg:w-[min(calc(100%+160px),calc((100svh-15rem)*16/9))]">
+        <div className="hero-rise w-full max-w-[1360px] lg:w-[min(calc(100%+160px),calc((100svh-15rem)*16/9))]">
           <div className="hero-film-fade">
             <video
               ref={filmRef}
               className="block aspect-video w-full"
-              src="/hero/launch-film.mp4"
               poster="/hero/launch-film-poster.jpg"
-              autoPlay
               muted
               loop
               playsInline
-              preload="auto"
+              preload="metadata"
               aria-label="Clipiro product film: AutoClip, image generation, voice, editing tools and exports"
-            />
+            >
+              <source src="/hero/launch-film.mp4" type="video/mp4" media="(min-width: 768px)" />
+              <source src="/hero/launch-film-mobile.mp4" type="video/mp4" />
+            </video>
           </div>
-        </Reveal>
+        </div>
 
         {/* CTA: pulled up into the film's feathered bottom edge so it reads as
             the film's call to action instead of floating in the dark band
             below it, with the reassurance and rating on one line under it. */}
-        <Reveal delay={120} className="relative z-10 -mt-4 flex flex-col items-center gap-4 lg:-mt-14">
+        <div className="hero-rise hero-rise-late relative z-10 -mt-4 flex flex-col items-center gap-4 lg:-mt-14">
           {user ? (
             <Link href="/dashboard" className={CTA_CLASS}>
               Try Clipiro free
@@ -114,7 +136,7 @@ export default function Hero({ reviewSummary }: HeroProps) {
               </>
             )}
           </div>
-        </Reveal>
+        </div>
       </div>
     </section>
   );
