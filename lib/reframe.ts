@@ -20,6 +20,9 @@ import { logger } from "@/lib/logger";
 export const rekognition = new RekognitionClient({
   region: env.AWS_REGION,
   credentials: { accessKeyId: env.AWS_ACCESS_KEY_ID, secretAccessKey: env.AWS_SECRET_ACCESS_KEY },
+  // Same idle-based limits as the S3 client (utils/s3-upload.ts); callers
+  // already fall back when Rekognition fails.
+  requestHandler: { connectionTimeout: 5_000, socketTimeout: 30_000 },
 });
 
 export interface FaceBox {

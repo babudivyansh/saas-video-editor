@@ -20,6 +20,7 @@
 
 import { ProviderApiError } from "./errors";
 import type { AudienceRow, NormalizedDailyMetric, ObservedCapabilityMap } from "./types";
+import { FETCH_TIMEOUT } from "@/lib/fetch-timeout";
 
 const ANALYTICS = "https://youtubeanalytics.googleapis.com/v2/reports";
 
@@ -47,6 +48,7 @@ async function report(
   try {
     const res = await fetch(`${ANALYTICS}?${query.toString()}`, {
       headers: { Authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT.api),
     });
     if (!res.ok) {
       // 403 here almost always means the yt-analytics.readonly scope was never

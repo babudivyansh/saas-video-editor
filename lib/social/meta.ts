@@ -3,6 +3,7 @@ import { ProviderApiError } from "./errors";
 import { batchMostlyFailed, graphBatch } from "./meta-batch";
 import type { AudienceRow, NormalizedAccount, NormalizedPost, OAuthTokens, ProviderId, ProviderSync, SyncOptions } from "./types";
 import { env } from "@/lib/env";
+import { FETCH_TIMEOUT } from "@/lib/fetch-timeout";
 
 // Instagram + Facebook via one Meta app (Facebook Login + Graph API v22.0).
 // A single OAuth grant yields a long-lived USER token; from it we derive a
@@ -58,6 +59,7 @@ export async function exchangeCode(code: string, verifier: string): Promise<OAut
         code,
         code_verifier: verifier,
       }),
+    { signal: AbortSignal.timeout(FETCH_TIMEOUT.auth) },
   );
   if (!shortRes.ok) throw new ProviderApiError(`meta token exchange failed: ${shortRes.status}`, shortRes.status, await shortRes.text());
   const short = (await shortRes.json()) as { access_token: string };
@@ -70,6 +72,7 @@ export async function exchangeCode(code: string, verifier: string): Promise<OAut
         client_secret: appSecret(),
         fb_exchange_token: short.access_token,
       }),
+    { signal: AbortSignal.timeout(FETCH_TIMEOUT.auth) },
   );
   const long = longRes.ok
     ? ((await longRes.json()) as { access_token: string; expires_in?: number })
@@ -101,6 +104,7 @@ export async function refreshTokens(
         client_secret: appSecret(),
         fb_exchange_token: userToken,
       }),
+    { signal: AbortSignal.timeout(FETCH_TIMEOUT.auth) },
   );
   if (!res.ok) throw new ProviderApiError(`meta token refresh failed: ${res.status}`, res.status, await res.text());
   const j = (await res.json()) as { access_token: string; expires_in?: number };
@@ -149,6 +153,7 @@ export async function fetchAccounts(userToken: string): Promise<MetaConnected[]>
     "instagram_business_account{id,username,followers_count,media_count,profile_picture_url}";
   const res = await fetch(`${GRAPH}/me/accounts?fields=${encodeURIComponent(fields)}&limit=50`, {
     headers: { Authorization: `Bearer ${userToken}` },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT.api),
   });
   if (!res.ok) throw new ProviderApiError(`meta /me/accounts failed: ${res.status}`, res.status, await res.text());
   const j = (await res.json()) as { data?: MetaPage[] };
@@ -185,7 +190,7 @@ export async function fetchAccounts(userToken: string): Promise<MetaConnected[]>
 
 async function graph(path: string, token: string): Promise<Record<string, unknown>> {
   const sep = path.includes("?") ? "&" : "?";
-  const res = await fetch(`${GRAPH}${path}${sep}access_token=${encodeURIComponent(token)}`);
+  const res = await fetch(`${GRAPH}${path}${sep}access_token=${encodeURIComponent(token)}`, { signal: AbortSignal.timeout(FETCH_TIMEOUT.api) });
   if (!res.ok) throw new ProviderApiError(`meta graph ${path} failed: ${res.status}`, res.status, await res.text());
   return res.json();
 }
@@ -197,8 +202,8 @@ async function graphPaged<T>(firstPath: string, token: string, max: number): Pro
   let page = (await graph(firstPath, token)) as { data?: T[]; paging?: { next?: string } };
   items.push(...(page.data ?? []));
   while (page.paging?.next && items.length < max) {
-    const res = await fetch(page.paging.next);
-    if (!res.ok) break; // pagination is best-effort past the first page
+    const res = await fetch(page.paging.next, { signal: AbortSignal.timeout(FETCH_TIMEOUT.api) }).catch(() => null);
+    if (!res?.ok) break; // pagination is best-effort past the first page
     page = (await res.json()) as { data?: T[]; paging?: { next?: string } };
     items.push(...(page.data ?? []));
   }
@@ -441,5 +446,5 @@ export async function fetchAudienceInstagram(igId: string, token: string): Promi
 
 // Best-effort: revoke the app's permissions for this token.
 export async function revoke(token: string): Promise<void> {
-  await fetch(`${GRAPH}/me/permissions?access_token=${encodeURIComponent(token)}`, { method: "DELETE" }).catch(() => {});
+  await fetch(`${GRAPH}/me/permissions?access_token=${encodeURIComponent(token)}`, { method: "DELETE", signal: AbortSignal.timeout(FETCH_TIMEOUT.auth) }).catch(() => {});
 }

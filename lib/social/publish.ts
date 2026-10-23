@@ -19,6 +19,7 @@ import { parseS3Url } from "@/lib/s3-url";
 import { NeedsReauthError, uploadVideo, type UploadBody } from "@/lib/social/google";
 import { getValidAccessToken } from "@/lib/social/service";
 import { openS3ObjectStream } from "@/utils/s3-upload";
+import { FETCH_TIMEOUT } from "@/lib/fetch-timeout";
 
 /** Providers we can post to without the person. */
 export const AUTO_PUBLISH_PROVIDERS = new Set(["youtube"]);
@@ -74,7 +75,7 @@ export function videoOf(row: Pick<PostRow, "clip" | "asset">): { key: string } |
 async function openVideo(src: { key: string } | { url: string }): Promise<UploadBody> {
   if ("key" in src) return openS3ObjectStream(src.key);
   // Only our own stored URLs reach here (a clip's videoUrl outside S3, e.g. local dev).
-  const res = await fetch(src.url);
+  const res = await fetch(src.url, { signal: AbortSignal.timeout(FETCH_TIMEOUT.transfer) });
   if (!res.ok || !res.body) throw new Error(`video download failed: ${res.status}`);
   const len = Number(res.headers.get("content-length"));
   if (len > 0) return { stream: Readable.fromWeb(res.body as import("node:stream/web").ReadableStream), size: len };

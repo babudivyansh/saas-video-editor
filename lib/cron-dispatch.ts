@@ -24,6 +24,8 @@ export async function dispatchCronJob(origin: string, entry: CronScheduleEntry, 
     const res = await fetch(`${origin}${entry.path}`, {
       headers: { Authorization: `Bearer ${secret}` },
       cache: "no-store",
+      // Longer than any job runs; only a wedged self-call ever reaches it.
+      signal: AbortSignal.timeout(15 * 60_000),
     });
     // The job route records its own outcome; this is just a server-log breadcrumb.
     if (!res.ok) logger.warn("cron-dispatch", `${entry.path} answered ${res.status}`);

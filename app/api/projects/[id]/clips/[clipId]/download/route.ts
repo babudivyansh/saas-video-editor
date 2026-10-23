@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { logger } from "@/lib/logger";
 import { fetchableMediaUrl } from "@/lib/signed-media";
+import { FETCH_TIMEOUT, fetchHeadersWithin } from "@/lib/fetch-timeout";
 
 // GET /api/projects/[id]/clips/[clipId]/download
 // Streams a single ready clip back through our own origin as an attachment.
@@ -55,7 +56,8 @@ async function handleGET(
 
   try {
     // Presigned — the bucket is private, so the stored unsigned URL is a 403.
-    const upstream = await fetch(await fetchableMediaUrl(clip.videoUrl, 600));
+    // Streamed on to the client, so only the wait for headers is bounded.
+    const upstream = await fetchHeadersWithin(await fetchableMediaUrl(clip.videoUrl, 600), FETCH_TIMEOUT.api);
     if (!upstream.ok || !upstream.body) {
       logger.warn("auto-clip", `clip download upstream ${upstream.status} for ${clipId}`);
       return NextResponse.json({ error: "Could not fetch the clip" }, { status: 502 });

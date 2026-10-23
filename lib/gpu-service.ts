@@ -136,9 +136,9 @@ async function poll<T>(jobId: string, deadlineMs: number, pollIntervalMs: number
     await new Promise((r) => setTimeout(r, pollIntervalMs));
     let res: Response;
     try {
-      res = await fetch(`${env.GPU_SERVICE_URL}/status/${jobId}`, { headers: authHeaders() });
+      res = await fetch(`${env.GPU_SERVICE_URL}/status/${jobId}`, { headers: authHeaders(), signal: AbortSignal.timeout(30_000) });
     } catch {
-      continue; // transient network blip — keep polling until the deadline
+      continue; // transient network blip or stalled poll — keep polling until the deadline
     }
     if (!res.ok) continue;
     const data = (await res.json()) as GpuJobResponse<T>;

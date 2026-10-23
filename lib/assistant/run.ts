@@ -37,11 +37,16 @@ export const setAssistantChat = (fn: StartChat | undefined) => {
 export const chatOverride = () => override;
 
 export function geminiChat(history: Content[]): ChatLike {
-  const model = new GoogleGenerativeAI(env.GEMINI_API_KEY!).getGenerativeModel({
-    model: AI_MODEL,
-    systemInstruction: SYSTEM_INSTRUCTION,
-    tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
-  });
+  const model = new GoogleGenerativeAI(env.GEMINI_API_KEY!).getGenerativeModel(
+    {
+      model: AI_MODEL,
+      systemInstruction: SYSTEM_INSTRUCTION,
+      tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
+    },
+    // Per model round, stream included (the SDK never clears this timer), so a
+    // stalled Gemini call ends the reply with an error instead of hanging it.
+    { timeout: 60_000 },
+  );
   return model.startChat({ history });
 }
 

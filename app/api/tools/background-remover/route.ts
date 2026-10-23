@@ -14,6 +14,7 @@ import { createJobStatusHandler, createJobCancelHandler, idempotencyResponse, ty
 import os from "os";
 import path from "path";
 import fs from "fs";
+import { FETCH_TIMEOUT } from "@/lib/fetch-timeout";
 
 export const maxDuration = 120;
 
@@ -94,14 +95,14 @@ async function pollFal(requestId: string): Promise<string> {
     await new Promise(r => setTimeout(r, 3000));
     const statusRes = await fetch(
       `https://queue.fal.run/${FAL_MODEL}/requests/${requestId}/status`,
-      { headers: falAuth() }
-    );
-    if (!statusRes.ok) continue;
+      { headers: falAuth(), signal: AbortSignal.timeout(FETCH_TIMEOUT.api) }
+    ).catch(() => null); // a stalled poll counts as a missed one
+    if (!statusRes?.ok) continue;
     const statusData = await statusRes.json();
     if (statusData.status === "COMPLETED") {
       const resultRes = await fetch(
         `https://queue.fal.run/${FAL_MODEL}/requests/${requestId}`,
-        { headers: falAuth() }
+        { headers: falAuth(), signal: AbortSignal.timeout(FETCH_TIMEOUT.api) }
       );
       if (!resultRes.ok) throw new Error("fal.ai result fetch failed");
       const result = await resultRes.json();
@@ -217,7 +218,7 @@ async function handlePOST(req: NextRequest) {
       if ((job.status as string) === "cancelled") return;
       job.progress = 90;
 
-      const dlRes = await fetch(resultUrl);
+      const dlRes = await fetch(resultUrl, { signal: AbortSignal.timeout(FETCH_TIMEOUT.transfer) });
       if (!dlRes.ok) throw new Error("Failed to download result");
       const buf = Buffer.from(await dlRes.arrayBuffer());
       fs.writeFileSync(outputPath, buf);

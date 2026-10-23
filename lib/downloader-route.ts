@@ -54,7 +54,8 @@ function resolveFfmpegDir(): string | undefined {
 const FFMPEG_DIR = resolveFfmpegDir();
 
 // Certificate checks stay ON: these calls fetch media from the open internet.
-const COMMON_OPTS = { noWarnings: true, noPlaylist: true } as const;
+// socketTimeout: seconds without data before yt-dlp gives up on a stalled host.
+const COMMON_OPTS = { noWarnings: true, noPlaylist: true, socketTimeout: 30 } as const;
 
 export interface YtFormat { height?: number | null; vcodec?: string | null }
 export interface YtInfo {

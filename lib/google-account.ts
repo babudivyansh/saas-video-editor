@@ -10,6 +10,7 @@ import { grantFreeTierMinutes } from "@/lib/minutes";
 import { attributeReferral } from "@/lib/affiliate";
 import { getClientIp } from "@/lib/rate-limit";
 import { notifyAdminsOfSignup } from "@/lib/admin/signup-alerts";
+import { FETCH_TIMEOUT } from "@/lib/fetch-timeout";
 
 // Google sign-in after Google has vouched for the person — shared by the web
 // redirect flow (app/api/auth/callback/google) and the Android app's ID-token
@@ -140,7 +141,7 @@ let certCache: { certs: Record<string, string>; expiresAt: number } | null = nul
 
 async function googleCerts(): Promise<Record<string, string>> {
   if (certCache && certCache.expiresAt > Date.now()) return certCache.certs;
-  const res = await fetch(CERTS_URL);
+  const res = await fetch(CERTS_URL, { signal: AbortSignal.timeout(FETCH_TIMEOUT.auth) });
   if (!res.ok) throw new Error(`Google certs fetch failed: ${res.status}`);
   const maxAge = Number(/max-age=(\d+)/.exec(res.headers.get("cache-control") ?? "")?.[1] ?? 3600);
   const certs = (await res.json()) as Record<string, string>;

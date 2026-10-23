@@ -12,6 +12,7 @@
 // post whose insights are unavailable must not lose the other 49.
 
 import { ProviderApiError } from "./errors";
+import { FETCH_TIMEOUT } from "@/lib/fetch-timeout";
 
 /** Meta's hard ceiling on sub-requests per batch. */
 export const MAX_BATCH_SIZE = 50;
@@ -61,7 +62,7 @@ async function runChunk<T>(
     batch: JSON.stringify(chunk),
   });
 
-  const res = await fetch(graphRoot, { method: "POST", body });
+  const res = await fetch(graphRoot, { method: "POST", body, signal: AbortSignal.timeout(FETCH_TIMEOUT.api) });
 
   // A transport-level failure fails the whole chunk. Distinct from a
   // sub-request failure, and worth surfacing as a provider error so
