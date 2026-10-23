@@ -14,12 +14,12 @@
 // bought at (Razorpay bills them against their own plan id, which we no longer
 // reference), and only new checkouts pick up the new price.
 
-import Razorpay from "razorpay";
+import type Razorpay from "razorpay";
+import { createRazorpay } from "@/lib/billing/razorpay-client";
 import type { Plan } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getPlanPriceMinor, type Currency } from "@/lib/currency";
 import { logger } from "@/lib/logger";
-import { env } from "@/lib/env";
 
 export const SYNC_CURRENCIES: readonly Currency[] = ["INR", "USD"];
 
@@ -28,7 +28,7 @@ export const SYNC_CURRENCIES: readonly Currency[] = ["INR", "USD"];
 // throws at construction time when key_id is missing.
 let client: Razorpay | null = null;
 function razorpay(): Razorpay {
-  client ??= new Razorpay({ key_id: env.RAZORPAY_KEY_ID, key_secret: env.RAZORPAY_KEY_SECRET });
+  client ??= createRazorpay();
   return client;
 }
 

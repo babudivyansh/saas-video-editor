@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import Razorpay from "razorpay";
+import { createRazorpay } from "@/lib/billing/razorpay-client";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { validateCoupon, SUBSCRIPTION_COUPON_ERROR } from "@/lib/coupons";
@@ -16,10 +16,7 @@ import { redis } from "@/lib/redis";
 // How long one open coupon checkout blocks a second one for the same user.
 const COUPON_HOLD_SECONDS = 30 * 60;
 
-const razorpay = new Razorpay({
-  key_id: env.RAZORPAY_KEY_ID,
-  key_secret: env.RAZORPAY_KEY_SECRET,
-});
+const razorpay = createRazorpay();
 
 async function handlePOST(req: NextRequest) {
   const auth = await getAuthUser(req);

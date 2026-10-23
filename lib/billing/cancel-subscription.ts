@@ -1,14 +1,10 @@
-import Razorpay from "razorpay";
+import { createRazorpay } from "@/lib/billing/razorpay-client";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
-import { env } from "@/lib/env";
 import { sendSubscriptionCancelledEmail } from "@/lib/email";
 import { greetingName } from "@/lib/display-name";
 
-const razorpay = new Razorpay({
-  key_id: env.RAZORPAY_KEY_ID,
-  key_secret: env.RAZORPAY_KEY_SECRET,
-});
+const razorpay = createRazorpay();
 
 export type CancelSubscriptionResult =
   | { ok: true; subscriptionCancelledAt: Date | null; subscriptionEndsAt: Date | null }

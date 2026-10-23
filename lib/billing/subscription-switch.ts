@@ -1,12 +1,8 @@
-import Razorpay from "razorpay";
+import { createRazorpay } from "@/lib/billing/razorpay-client";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
-import { env } from "@/lib/env";
 
-const razorpay = new Razorpay({
-  key_id: env.RAZORPAY_KEY_ID,
-  key_secret: env.RAZORPAY_KEY_SECRET,
-});
+const razorpay = createRazorpay();
 
 export type SubscriptionSwitchResult =
   | { ok: true }
