@@ -4,6 +4,7 @@ import { ProviderApiError } from "./errors";
 import { fetchAudienceBreakdowns, fetchDailyMetrics, fetchVideoReport } from "./google-analytics";
 import type { AudienceRow, NormalizedAccount, NormalizedPost, OAuthTokens, ProviderSync, SyncOptions } from "./types";
 import { env } from "@/lib/env";
+import { FETCH_TIMEOUT } from "@/lib/fetch-timeout";
 
 // YouTube via Google OAuth.
 //   youtube.readonly       — channel + uploads + public video statistics
@@ -89,6 +90,7 @@ export async function exchangeCode(code: string, verifier: string): Promise<OAut
       redirect_uri: redirectUri("youtube"),
       code_verifier: verifier,
     }),
+    signal: AbortSignal.timeout(FETCH_TIMEOUT.auth),
   });
   if (!res.ok) throw new ProviderApiError(`google token exchange failed: ${res.status}`, res.status, await res.text());
   return toTokens(await res.json());
@@ -104,17 +106,18 @@ export async function refreshAccessToken(refreshToken: string): Promise<OAuthTok
       refresh_token: refreshToken,
       grant_type: "refresh_token",
     }),
+    signal: AbortSignal.timeout(FETCH_TIMEOUT.auth),
   });
   if (!res.ok) throw new ProviderApiError(`google token refresh failed: ${res.status}`, res.status, await res.text());
   return toTokens(await res.json(), refreshToken);
 }
 
 export async function revoke(token: string): Promise<void> {
-  await fetch(`${REVOKE}?token=${encodeURIComponent(token)}`, { method: "POST" }).catch(() => {});
+  await fetch(`${REVOKE}?token=${encodeURIComponent(token)}`, { method: "POST", signal: AbortSignal.timeout(FETCH_TIMEOUT.auth) }).catch(() => {});
 }
 
 async function api(path: string, accessToken: string): Promise<Record<string, unknown>> {
-  const res = await fetch(`${API}${path}`, { headers: { Authorization: `Bearer ${accessToken}` } });
+  const res = await fetch(`${API}${path}`, { headers: { Authorization: `Bearer ${accessToken}` }, signal: AbortSignal.timeout(FETCH_TIMEOUT.api) });
   if (!res.ok) throw new ProviderApiError(`youtube api ${path} failed: ${res.status}`, res.status, await res.text());
   return res.json();
 }
@@ -262,6 +265,7 @@ export async function uploadVideo(
       snippet: { title: params.title.slice(0, 100), description: params.description?.slice(0, 5000) ?? "" },
       status: { privacyStatus: params.privacyStatus ?? "unlisted", selfDeclaredMadeForKids: false },
     }),
+    signal: AbortSignal.timeout(FETCH_TIMEOUT.api),
   });
 
   if (initRes.status === 401 || initRes.status === 403) {
@@ -277,6 +281,8 @@ export async function uploadVideo(
   const putRes = await fetch(uploadUrl, {
     method: "PUT",
     headers: { "Content-Type": "video/mp4", "Content-Length": String(size) },
+    // Covers the whole upload: YouTube answers only once the last byte is in.
+    signal: AbortSignal.timeout(FETCH_TIMEOUT.transfer),
     ...("buffer" in params
       ? { body: new Uint8Array(params.buffer) }
       : { body: Readable.toWeb(Readable.from(params.stream)) as ReadableStream, duplex: "half" as const }),

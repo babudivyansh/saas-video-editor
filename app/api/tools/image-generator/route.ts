@@ -12,6 +12,7 @@ import { falSubmit, falPollUntilDone, extractResultUrl } from "@/lib/fal";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress, checkModelAccess } from "@/lib/credits";
 import { createJobStatusHandler, createJobCancelHandler, idempotencyResponse, type CancellableJob } from "@/lib/job-routes";
 import { saveToolResult } from "@/lib/tool-results";
+import { FETCH_TIMEOUT } from "@/lib/fetch-timeout";
 
 export const maxDuration = 120;
 
@@ -184,7 +185,7 @@ async function handlePOST(req: NextRequest) {
         if ((job.status as string) === "cancelled") return;
         job.progress = 90;
 
-        const dlRes = await fetch(resultUrl);
+        const dlRes = await fetch(resultUrl, { signal: AbortSignal.timeout(FETCH_TIMEOUT.transfer) });
         if (!dlRes.ok) throw new Error("Failed to download image from fal.ai");
         const buffer = Buffer.from(await dlRes.arrayBuffer());
         const key = `generated-images/${auth.userId}/${randomUUID()}.png`;
@@ -201,6 +202,8 @@ async function handlePOST(req: NextRequest) {
             {
               method: "POST",
               headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY ?? "" },
+              // Image generation is slow but not this slow; a stall fails into the refund path.
+              signal: AbortSignal.timeout(120_000),
               body: JSON.stringify({
                 contents: [{ parts: [{ text: prompt }] }],
                 ...(aspectRatio ? { generationConfig: { imageConfig: { aspectRatio } } } : {}),

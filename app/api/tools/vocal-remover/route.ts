@@ -17,6 +17,7 @@ import os from "os";
 import path from "path";
 import fs from "fs";
 import { randomUUID } from "crypto";
+import { FETCH_TIMEOUT } from "@/lib/fetch-timeout";
 
 export const maxDuration = 300;
 
@@ -97,7 +98,7 @@ async function falSubmit(audioUrl: string): Promise<string> {
 
 /** Fetch a fal output and re-encode it to MP3 at `outPath`. */
 async function downloadAsMp3(url: string, outPath: string, tmpName: string): Promise<void> {
-  const res = await fetch(url);
+  const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT.transfer) });
   if (!res.ok) throw new Error(`Failed to download result from fal.ai (${res.status})`);
   const rawPath = path.join(os.tmpdir(), tmpName);
   fs.writeFileSync(rawPath, Buffer.from(await res.arrayBuffer()));
@@ -120,15 +121,15 @@ async function falPollUntilDone(requestId: string): Promise<Stems> {
     await new Promise(r => setTimeout(r, 5000));
     const statusRes = await fetch(
       `https://queue.fal.run/${FAL_MODEL}/requests/${requestId}/status`,
-      { headers: falAuth() },
-    );
-    if (!statusRes.ok) continue;
+      { headers: falAuth(), signal: AbortSignal.timeout(FETCH_TIMEOUT.api) },
+    ).catch(() => null); // a stalled poll counts as a missed one
+    if (!statusRes?.ok) continue;
     const statusData = await statusRes.json();
     const status = statusData.status as string;
     if (status === "COMPLETED") {
       const resultRes = await fetch(
         `https://queue.fal.run/${FAL_MODEL}/requests/${requestId}`,
-        { headers: falAuth() },
+        { headers: falAuth(), signal: AbortSignal.timeout(FETCH_TIMEOUT.api) },
       );
       if (!resultRes.ok) throw new Error("fal.ai result fetch failed");
       const result = await resultRes.json();

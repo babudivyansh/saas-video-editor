@@ -24,6 +24,9 @@ export const s3 = new S3Client({
     accessKeyId: env.AWS_ACCESS_KEY_ID,
     secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
   },
+  // The SDK sets no timeouts by default. socketTimeout is idle time, not total
+  // time, so a large upload or download that keeps moving is never cut off.
+  requestHandler: { connectionTimeout: 5_000, socketTimeout: 60_000 },
 });
 
 const BUCKET = env.AWS_S3_BUCKET;

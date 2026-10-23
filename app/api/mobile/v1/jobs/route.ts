@@ -19,6 +19,7 @@ import { jobIdFor } from "@/lib/mobile/jobs";
 import { resolveVoiceRef } from "@/lib/mobile/voices";
 import { prisma } from "@/lib/prisma";
 import { getPresignedUrl } from "@/utils/s3-upload";
+import { FETCH_TIMEOUT } from "@/lib/fetch-timeout";
 
 // POST /api/mobile/v1/jobs { type, … } → 202 { jobId }. Starts any long job by
 // running the web's own routes (their validation, prices, plan limits,
@@ -154,7 +155,7 @@ async function readAsset(userId: string, assetId: string, kinds: AssetKindName[]
   if (!asset) return mobileError(404, "File not found in your Assets");
   if (!kinds.includes(asset.kind as AssetKindName)) return mobileError(400, `This tool needs ${noun}.`, { code: "wrong_kind" });
   if (Number(asset.size) > MAX_TOOL_INPUT_BYTES) return mobileError(413, "That file is too big for this tool on the phone.");
-  const file = await fetch(await getPresignedUrl(asset.s3Key));
+  const file = await fetch(await getPresignedUrl(asset.s3Key), { signal: AbortSignal.timeout(FETCH_TIMEOUT.transfer) });
   if (!file.ok) return mobileError(502, "Couldn't read that file. Try again.");
   return new File([await file.arrayBuffer()], asset.name, { type: asset.mimeType });
 }

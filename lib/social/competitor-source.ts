@@ -9,6 +9,7 @@
 import { redis } from "@/lib/redis";
 import { env } from "@/lib/env";
 import { ProviderApiError } from "./errors";
+import { FETCH_TIMEOUT } from "@/lib/fetch-timeout";
 
 export interface PublicProfile {
   displayName?: string;
@@ -78,7 +79,7 @@ export async function fetchPublicProfile(provider: CompetitorProvider, handle: s
   const key = env.SCRAPECREATORS_API_KEY;
   if (!key) throw new Error("SCRAPECREATORS_API_KEY is not configured");
   await consumeBudget();
-  const res = await fetch(ENDPOINTS[provider](handle.replace(/^@/, "")), { headers: { "x-api-key": key } });
+  const res = await fetch(ENDPOINTS[provider](handle.replace(/^@/, "")), { headers: { "x-api-key": key }, signal: AbortSignal.timeout(FETCH_TIMEOUT.api) });
   if (!res.ok) {
     throw new ProviderApiError(`competitor profile fetch failed: ${res.status}`, res.status, await res.text());
   }
@@ -151,7 +152,7 @@ export async function fetchRecentPublicPosts(provider: CompetitorProvider, handl
   if (!key) throw new Error("SCRAPECREATORS_API_KEY is not configured");
   await consumeBudget();
   try {
-    const res = await fetch(POST_ENDPOINTS[provider](handle.replace(/^@/, "")), { headers: { "x-api-key": key } });
+    const res = await fetch(POST_ENDPOINTS[provider](handle.replace(/^@/, "")), { headers: { "x-api-key": key }, signal: AbortSignal.timeout(FETCH_TIMEOUT.api) });
     if (!res.ok) return [];
     return normalizePosts(await res.json());
   } catch {
