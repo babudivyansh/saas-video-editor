@@ -10,6 +10,7 @@ import { grantFreeTierMinutes } from "@/lib/minutes";
 import { attributeReferral } from "@/lib/affiliate";
 import { getClientIp } from "@/lib/rate-limit";
 import { notifyAdminsOfSignup } from "@/lib/admin/signup-alerts";
+import { canonicalEmail } from "@/lib/email-canonical";
 import { FETCH_TIMEOUT } from "@/lib/fetch-timeout";
 
 // Google sign-in after Google has vouched for the person — shared by the web
@@ -59,9 +60,15 @@ export async function signInWithGoogleProfile(req: NextRequest, profile: GoogleP
     const randomPassword = crypto.randomBytes(32).toString("hex");
     const passwordHash = await bcrypt.hash(randomPassword, 12);
 
+    // Once per inbox, as in register/verify: lib/email-canonical.ts.
+    const canonical = canonicalEmail(email);
+    const repeatInbox = (await prisma.user.count({ where: { canonicalEmail: canonical } })) > 0;
+    const signupBonus = repeatInbox ? 0 : 10;
+
     user = await prisma.user.create({
       data: {
         email,
+        canonicalEmail: canonical,
         name,
         avatarUrl,
         passwordHash,
@@ -71,9 +78,9 @@ export async function signInWithGoogleProfile(req: NextRequest, profile: GoogleP
         hasPassword: false,
         // Signup grant lands in the bonus bucket (30-day expiry); the
         // monthly free-tier drip is anchored one month out from signup.
-        credits: 10,
-        bonusCredits: 10,
-        bonusCreditsExpireAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        credits: signupBonus,
+        bonusCredits: signupBonus,
+        bonusCreditsExpireAt: signupBonus ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) : null,
         freeCreditsRefillAt: new Date(new Date().setMonth(new Date().getMonth() + 1)),
         // Google already proves control of this inbox — no separate
         // verify-email round trip needed for a Google signup.
@@ -85,8 +92,10 @@ export async function signInWithGoogleProfile(req: NextRequest, profile: GoogleP
     // write here would leave refunds nothing to restore against). Best-effort:
     // a failed grant must not fail the signup — the monthly drip retries it.
     const newUserId = user.id;
-    await grantFreeTierMinutes(newUserId, "grant:signup").catch((e) =>
-      logger.error("auth", `signup minutes grant failed for ${newUserId}`, e));
+    if (!repeatInbox) {
+      await grantFreeTierMinutes(newUserId, "grant:signup").catch((e) =>
+        logger.error("auth", `signup minutes grant failed for ${newUserId}`, e));
+    }
 
     // Google doesn't collect a typed code, so this is cookie-attribution
     // only — the helper degrades gracefully (the app has no cookie).

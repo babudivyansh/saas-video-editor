@@ -224,6 +224,7 @@ function anonymiseOps(
         deactivatedAt: deactivatedAt ?? now,
         deactivationScheduledPurgeAt: null,
         email: tombstoneEmail(userId),
+        canonicalEmail: null,
         pendingEmail: null,
         emailVerifiedAt: null,
         // Not a bcrypt hash, so no password can ever match it.

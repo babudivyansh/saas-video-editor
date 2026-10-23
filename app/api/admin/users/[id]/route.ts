@@ -10,6 +10,7 @@ import { grantMinutes, setSubscriptionMinutes, type MinuteBucket } from "@/lib/m
 import { cancelExistingSubscriptionForSwitch } from "@/lib/billing/subscription-switch";
 import { logger } from "@/lib/logger";
 import { rateLimit } from "@/lib/rate-limit";
+import { canonicalEmail } from "@/lib/email-canonical";
 import { verifySecondFactor } from "@/lib/two-factor-verify";
 
 export const PATCH = withAdmin<{ id: string }>(async (req, { admin, params }) => {
@@ -145,6 +146,7 @@ export const PATCH = withAdmin<{ id: string }>(async (req, { admin, params }) =>
       return NextResponse.json({ error: "Email already in use by another account" }, { status: 409 });
     }
     data.email = body.email;
+    data.canonicalEmail = canonicalEmail(body.email);
   }
 
   // Granting or revoking a plan moves a real entitlement (and real credits), so

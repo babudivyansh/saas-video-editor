@@ -6,6 +6,7 @@ import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { issueOtp, OtpDeliveryError } from "@/lib/otp";
 import { savePendingSignup } from "@/lib/signup-pending";
 import { cleanName, isValidEmail, normalizeEmail, validateName, validatePassword } from "@/lib/auth-validation";
+import { isDisposableEmail } from "@/lib/email-canonical";
 
 // POST /api/auth/register { name, email, password, confirmPassword, referralCode? }
 //
@@ -26,6 +27,9 @@ export async function POST(req: NextRequest) {
     if (nameError) return NextResponse.json({ error: nameError }, { status: 400 });
     if (!isValidEmail(email)) {
       return NextResponse.json({ error: "Enter a valid email address" }, { status: 400 });
+    }
+    if (isDisposableEmail(email)) {
+      return NextResponse.json({ error: "Use a permanent email address. Temporary inboxes can't receive your account emails." }, { status: 400 });
     }
     const passwordError = validatePassword(password);
     if (passwordError) return NextResponse.json({ error: passwordError }, { status: 400 });

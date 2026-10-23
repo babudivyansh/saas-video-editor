@@ -38,7 +38,7 @@ describe("freeToolGate", () => {
 
   it("keys an anonymous caller by IP, with the hourly limit too", async () => {
     await freeToolGate(req(), "mp3-converter");
-    expect(keys).toEqual(["mp3-converter:ip:203.0.113.9", "freetool:mp3-converter:ip:203.0.113.9"]);
+    expect(keys).toEqual(["mp3-converter:ip:203.0.113.9", "free-tools:anonymous:all", "freetool:mp3-converter:ip:203.0.113.9"]);
   });
 
   it("returns a sentence the UI can show, not a code", async () => {

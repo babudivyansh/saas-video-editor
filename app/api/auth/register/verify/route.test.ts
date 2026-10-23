@@ -46,7 +46,9 @@ const create = vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
   if (createError) throw createError;
   return { id: "new-user-1", email: data.email, credits: data.credits };
 });
-vi.mock("@/lib/prisma", () => ({ prisma: { user: { create } } }));
+let existingInboxAccounts = 0;
+const count = vi.fn(async () => existingInboxAccounts);
+vi.mock("@/lib/prisma", () => ({ prisma: { user: { create, count } } }));
 
 const { POST } = await import("./route");
 
@@ -58,6 +60,7 @@ beforeEach(() => {
   rateLimitAllowed = true;
   codeOk = true;
   createError = null;
+  existingInboxAccounts = 0;
   pending = { name: "New User", passwordHash: "hashed", referralCode: null };
   vi.clearAllMocks();
 });
@@ -127,6 +130,17 @@ describe("POST /api/auth/register/verify", () => {
     expect(grantFreeTierMinutes).toHaveBeenCalledWith("new-user-1", "grant:signup");
     grantFreeTierMinutes.mockRejectedValueOnce(new Error("db blip"));
     expect((await post({ email: "new@test.com", otp: "123456", signupToken: "tok-1" })).status).toBe(201);
+  });
+
+  it("gives a second account on the same inbox no signup bonus and no signup minutes", async () => {
+    existingInboxAccounts = 1;
+    const res = await post({ email: "new+2@test.com", otp: "123456", signupToken: "tok-1" });
+    expect(res.status).toBe(201);
+    expect(count).toHaveBeenCalledWith({ where: { canonicalEmail: "new@test.com" } });
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ canonicalEmail: "new@test.com", credits: 0, bonusCredits: 0, bonusCreditsExpireAt: null }),
+    }));
+    expect(grantFreeTierMinutes).not.toHaveBeenCalled();
   });
 
   it("attributes the typed referral code with the trusted client IP, never leaking the affiliate", async () => {

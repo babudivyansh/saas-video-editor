@@ -15,6 +15,10 @@ enum Role {
 model User {
   id                       String    @id @default(uuid())
   email                    String    @unique
+  // lib/email-canonical.ts: the inbox behind the address ("a.b+x@gmail.com" ->
+  // "ab@gmail.com"). Not unique — it only tells one-per-person offers (signup
+  // bonus, Pro trial) that this inbox has been here before.
+  canonicalEmail           String?
   passwordHash             String
   // False when the account has never had a password its owner knows (Google
   // signups get a random hash). Sensitive actions then step up with an emailed
@@ -224,6 +228,7 @@ model User {
 
   // Plan-level counts (admin subscriber breakdowns) filter on this.
   @@index([planId])
+  @@index([canonicalEmail])
 }
 
 // One-time hashed 2FA recovery code — issued 10-at-a-time on enrollment,

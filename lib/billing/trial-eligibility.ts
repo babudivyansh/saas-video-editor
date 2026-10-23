@@ -14,10 +14,18 @@ export type TrialIneligible = "trial-used" | "has-purchased" | "active-plan";
  */
 export async function trialEligibility(userId: string): Promise<TrialIneligible | null> {
   const [user, purchases] = await Promise.all([
-    prisma.user.findUnique({ where: { id: userId }, select: { trialUsedAt: true, subscriptionEndsAt: true } }),
+    prisma.user.findUnique({ where: { id: userId }, select: { trialUsedAt: true, subscriptionEndsAt: true, canonicalEmail: true } }),
     prisma.purchase.count({ where: { userId } }),
   ]);
   if (!user || user.trialUsedAt) return "trial-used";
+  // Once per inbox, not per account: a second account on "you+2@gmail.com"
+  // doesn't get a second week of Pro (lib/email-canonical.ts).
+  if (user.canonicalEmail) {
+    const sibling = await prisma.user.count({
+      where: { canonicalEmail: user.canonicalEmail, id: { not: userId }, trialUsedAt: { not: null } },
+    });
+    if (sibling > 0) return "trial-used";
+  }
   if (purchases > 0) return "has-purchased";
   if (user.subscriptionEndsAt && user.subscriptionEndsAt > new Date()) return "active-plan";
   return null;
