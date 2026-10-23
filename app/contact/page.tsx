@@ -7,6 +7,7 @@ import PageHero from "@/app/components/marketing/PageHero";
 import { CONTAINER, SECTION_Y } from "@/app/components/marketing/styles";
 import { Button } from "@/app/components/ui/Button";
 import { FieldLabel, Input, Textarea } from "@/app/components/ui/Field";
+import { BusinessDetailsList, GRIEVANCE_TIMELINE } from "@/app/components/legal/BusinessDetails";
 
 const CHANNELS = [
   {
@@ -32,7 +33,7 @@ const CHANNELS = [
   {
     title: "Average Response Time",
     value: "Under 24 hours",
-    note: "We reply round the clock, 7 days a week.",
+    note: "Every message gets a reply within 24 hours.",
     tint: "bg-tint-emerald text-emerald-600",
     icon: (
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -125,6 +126,16 @@ export default function ContactPage() {
                     </li>
                   ))}
                 </ul>
+              </div>
+
+              <div className="rounded-2xl border border-card-border bg-panel p-6">
+                <h2 className="mb-2 text-[17px] font-semibold leading-[1.3] tracking-tight text-ink">
+                  Business details
+                </h2>
+                <p className="mb-4 text-[13px] leading-[1.6] text-ink-soft">
+                  Complaints can go to our Grievance Officer. {GRIEVANCE_TIMELINE}
+                </p>
+                <BusinessDetailsList className="space-y-2 text-[13.5px] leading-[1.6] text-ink-soft [&_a]:text-brand [&_a:hover]:underline [&_strong]:font-semibold [&_strong]:text-ink" />
               </div>
 
               <div className="rounded-2xl border border-card-border bg-tint-blue p-6">

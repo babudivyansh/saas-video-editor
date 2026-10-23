@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import LegalPage from "@/app/components/LegalPage";
+import { BusinessDetailsList, GRIEVANCE_TIMELINE } from "@/app/components/legal/BusinessDetails";
 import { getLegalDoc } from "@/app/legal/documents";
 import type { LegalDoc } from "@/app/legal/types";
 
@@ -101,25 +102,26 @@ const doc: LegalDoc = {
       body: (
         <>
           <p>
-            We use cookies and similar technologies (web beacons, pixel tags, local storage) to operate the Service and
-            improve your experience. The types we use include:
+            We use a small number of first-party cookies, plus browser local storage for editor and app preferences. We
+            do not use advertising cookies, pixel tags, or third-party analytics. The types we use are:
           </p>
           <ul>
             <li>
-              <strong>Strictly necessary cookies:</strong> Required for authentication and security (e.g., session
-              tokens). You cannot opt out of these.
+              <strong>Strictly necessary cookies:</strong> Keep you signed in, protect sign-in, and remember your language
+              and cookie choices. You cannot opt out of these.
             </li>
             <li>
-              <strong>Functional cookies:</strong> Remember your preferences such as language and editor settings.
+              <strong>Marketing cookies (optional):</strong> Record which affiliate link or campaign brought you to
+              Clipiro, so the right affiliate is credited. Never used for ads.
             </li>
             <li>
-              <strong>Analytics cookies:</strong> Help us understand how the Service is used in aggregate. We use
-              privacy-respecting analytics tools that anonymise IP addresses.
+              <strong>Performance measurement (optional):</strong> Anonymous page-speed measurements sent to our own
+              server. No cookie is set.
             </li>
           </ul>
           <p>
-            You can manage or delete cookies through your browser settings. Disabling certain cookies may affect the
-            functionality of the Service.
+            Our <a href="/cookies">Cookies Policy</a> lists every cookie by name and lets you switch off the optional
+            ones. You can also manage or delete cookies through your browser settings.
           </p>
         </>
       ),
@@ -421,6 +423,12 @@ const doc: LegalDoc = {
             </li>
           </ul>
           <p>We aim to respond to all privacy inquiries within 5 business days.</p>
+          <h3>Business details and Grievance Officer</h3>
+          <p>
+            The Service is operated by the entity below. Complaints about the Service or how we handle your personal data can
+            be sent to our Grievance Officer. {GRIEVANCE_TIMELINE}
+          </p>
+          <BusinessDetailsList />
         </>
       ),
     },
@@ -430,6 +438,7 @@ const doc: LegalDoc = {
 export const metadata: Metadata = {
   title: doc.title,
   description: "How Clipiro collects, uses, and protects your data.",
+  alternates: { canonical: doc.slug },
 };
 
 export default function PrivacyPage() {

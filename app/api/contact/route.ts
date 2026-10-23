@@ -26,7 +26,9 @@ const bodySchema = z
 // state). No DB persistence — this is a notification to staff, not a record
 // the app needs its own copy of, same reasoning as the newsletter/admin-digest
 // emails; every ADMIN user gets it, mirroring the admin-recipient loop in
-// app/api/cron/admin-digest/route.ts.
+// app/api/cron/admin-digest/route.ts. Because nothing is stored, the email IS
+// the message: if no admin copy was delivered the visitor gets an error, not a
+// success screen for a message that went nowhere.
 async function handlePOST(req: NextRequest) {
   const rawBody = await req.json().catch(() => null);
 
@@ -44,16 +46,25 @@ async function handlePOST(req: NextRequest) {
   const { name, email, subject, message } = parsed.data;
   const admins = await prisma.user.findMany({ where: { role: "ADMIN" }, select: { email: true } });
 
-  // Non-fatal per admin: one broken inbox must not turn this into a 500 that
-  // tells the visitor their message was rejected when it may have reached
-  // everyone else.
-  await Promise.all(
+  // Non-fatal per admin: one broken inbox must not turn this into an error
+  // when the message reached everyone else. Zero deliveries (no admins, or
+  // every send failed/suppressed) is the failure case.
+  const delivered = await Promise.all(
     admins.map((a) =>
-      sendContactMessageEmail(a.email, { name, email, subjectLabel: SUBJECT_LABELS[subject], message }).catch((e) =>
-        logger.error("contact", `send failed for ${a.email}`, e),
-      ),
+      sendContactMessageEmail(a.email, { name, email, subjectLabel: SUBJECT_LABELS[subject], message }).catch((e) => {
+        logger.error("contact", `send failed for ${a.email}`, e);
+        return false;
+      }),
     ),
   );
+
+  if (!delivered.some(Boolean)) {
+    logger.error("contact", `message from ${email} reached no admin (${admins.length} admin(s))`);
+    return NextResponse.json(
+      { error: "We couldn't send your message right now. Please email support@clipiro.com directly." },
+      { status: 502 },
+    );
+  }
 
   return NextResponse.json({ ok: true });
 }

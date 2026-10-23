@@ -54,7 +54,7 @@ export default function CookiePreferences() {
         <div className="flex items-center justify-between gap-4 p-4 rounded-xl border border-line bg-panel">
           <div>
             <p className="text-sm font-bold text-fg">Strictly Necessary Cookies</p>
-            <p className="text-xs text-fg-muted mt-0.5">Required for account authorization, security, and payment integrations.</p>
+            <p className="text-xs text-fg-muted mt-0.5">Keep you signed in and protect sign-in. Required for the site to work.</p>
           </div>
           <span className="inline-flex flex-shrink-0 items-center rounded-full bg-surface-3 px-3 py-1 text-xs font-bold text-fg-muted">
             Always Active
@@ -63,25 +63,25 @@ export default function CookiePreferences() {
 
         <div className="flex items-center justify-between gap-4 p-4 rounded-xl border border-line bg-panel">
           <div>
-            <p className="text-sm font-bold text-fg">Performance & Analytics Cookies</p>
+            <p className="text-sm font-bold text-fg">Analytics</p>
             <p className="text-xs text-fg-muted mt-0.5">Anonymous page-speed measurements that help us keep Clipiro fast.</p>
           </div>
           <Switch
             checked={preferences.analytics}
             onChange={(v) => set("analytics", v)}
-            label="Performance and analytics cookies"
+            label="Analytics"
           />
         </div>
 
         <div className="flex items-center justify-between gap-4 p-4 rounded-xl border border-line bg-panel">
           <div>
-            <p className="text-sm font-bold text-fg">Marketing & Targeting Cookies</p>
-            <p className="text-xs text-fg-muted mt-0.5">Used to track referral efficiency from our affiliate networks and promotional ads.</p>
+            <p className="text-sm font-bold text-fg">Marketing</p>
+            <p className="text-xs text-fg-muted mt-0.5">Records which affiliate link or campaign brought you here. Never used for ads.</p>
           </div>
           <Switch
             checked={preferences.marketing}
             onChange={(v) => set("marketing", v)}
-            label="Marketing and targeting cookies"
+            label="Marketing"
           />
         </div>
       </div>

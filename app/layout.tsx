@@ -37,7 +37,6 @@ export const metadata: Metadata = {
     "YouTube to Shorts",
     "podcast clips",
     "Instagram Reels video maker",
-    "AI faceless video",
     "Clipiro",
   ],
   icons: {

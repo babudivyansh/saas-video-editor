@@ -422,8 +422,10 @@ export async function sendAdminDigestEmail(to: string, d: AdminDigestData): Prom
   await sendTemplate("admin-ops-digest", to, d);
 }
 
-export async function sendContactMessageEmail(to: string, d: ContactMessageData): Promise<void> {
-  await sendTemplate("contact-message", to, d);
+/** True when the message actually went out (or was dev-logged locally). */
+export async function sendContactMessageEmail(to: string, d: ContactMessageData): Promise<boolean> {
+  const r = await sendTemplate("contact-message", to, d);
+  return r.status === "sent" || r.status === "dev-logged";
 }
 
 export interface AdminAffiliatePayoutReadyData {

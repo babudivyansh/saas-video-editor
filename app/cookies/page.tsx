@@ -4,13 +4,62 @@ import { getLegalDoc } from "@/app/legal/documents";
 import type { LegalDoc } from "@/app/legal/types";
 import CookiePreferences from "./CookiePreferences";
 
+// Every cookie the app sets, by name. Keep in step with the code that sets
+// them: lib/auth.ts (session, locale), app/api/auth/google (google_oauth_state),
+// proxy.ts (affiliate_ref, mkt_attr), app/cookies/CookiePreferences.tsx
+// (the two consent cookies). A cookie added anywhere else belongs here too.
+const COOKIES: { name: string; purpose: string; duration: string }[] = [
+  { name: "session", purpose: "Keeps you signed in. Holds a signed token, not your password.", duration: "7 days" },
+  { name: "google_oauth_state", purpose: "Protects “Continue with Google” sign-in against forged requests.", duration: "10 minutes" },
+  { name: "locale", purpose: "Remembers the language you chose for the app.", duration: "1 year" },
+  { name: "cookie_consent_analytics", purpose: "Remembers your Analytics choice below.", duration: "1 year" },
+  { name: "cookie_consent_marketing", purpose: "Remembers your Marketing choice below.", duration: "1 year" },
+];
+
+const MARKETING_COOKIES: { name: string; purpose: string; duration: string }[] = [
+  {
+    name: "affiliate_ref",
+    purpose: "Records which affiliate link brought you here, so the affiliate is credited if you sign up.",
+    duration: "30 days, cleared at sign-up",
+  },
+  {
+    name: "mkt_attr",
+    purpose: "Records the campaign (utm_source / medium / campaign) of your first visit, so we know which campaigns work.",
+    duration: "30 days, cleared at sign-up",
+  },
+];
+
+function CookieTable({ rows }: { rows: { name: string; purpose: string; duration: string }[] }) {
+  return (
+    <div className="overflow-x-auto rounded-2xl border border-card-border">
+      <table className="w-full min-w-[520px] text-left text-[14px]">
+        <thead className="bg-surface-2 text-[12px] uppercase tracking-wider text-ink">
+          <tr>
+            <th className="px-4 py-3 font-semibold">Cookie</th>
+            <th className="px-4 py-3 font-semibold">What it does</th>
+            <th className="px-4 py-3 font-semibold">Lasts</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.name} className="border-t border-card-border align-top">
+              <td className="px-4 py-3 font-mono text-[13px] text-ink">{r.name}</td>
+              <td className="px-4 py-3">{r.purpose}</td>
+              <td className="whitespace-nowrap px-4 py-3">{r.duration}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 const doc: LegalDoc = {
   ...getLegalDoc("/cookies"),
   intro: (
     <p>
-      This Cookies Policy explains how Clipiro (&quot;we&quot;, &quot;our&quot;, or &quot;us&quot;) uses cookies and
-      similar tracking technologies on our website. It outlines what these technologies are, why we use them, and your
-      rights to control our use of them.
+      This policy lists every cookie Clipiro sets, what each one is for, and how to switch off the ones that are
+      optional. We do not use advertising cookies, and we do not load third-party analytics or ad trackers.
     </p>
   ),
   sections: [
@@ -18,81 +67,72 @@ const doc: LegalDoc = {
       id: "what-are-cookies",
       title: "What Are Cookies",
       body: (
-        <>
-          <p>
-            Cookies are small data files that are placed on your computer or mobile device when you visit a website.
-            They are widely used by website owners to make their websites work, or to work more efficiently, as well as
-            to provide reporting information.
-          </p>
-          <p>
-            Cookies set by the website owner (in this case, Clipiro) are called &quot;first-party cookies&quot;. Cookies
-            set by parties other than the website owner are called &quot;third-party cookies&quot;. Third-party cookies
-            enable third-party features or functionality to be provided on or through the website (e.g., interactive
-            content, payment processing, and analytics).
-          </p>
-        </>
-      ),
-    },
-    {
-      id: "how-we-use",
-      title: "How We Use Cookies",
-      body: (
         <p>
-          We use first-party and third-party cookies for several reasons. Some cookies are required for technical
-          reasons in order for our website and editor to operate, and we refer to these as &quot;essential&quot; or
-          &quot;strictly necessary&quot; cookies. Other cookies enable us to track and target the interests of our users
-          to enhance the experience on our Online Platform.
+          Cookies are small text files a website stores in your browser. Cookies set by Clipiro itself are
+          &quot;first-party&quot; cookies. Cookies set by another company&apos;s service running on our pages are
+          &quot;third-party&quot; cookies.
         </p>
       ),
     },
     {
-      id: "types-of-cookies",
-      title: "Types of Cookies We Use",
+      id: "strictly-necessary",
+      title: "Strictly Necessary Cookies",
       body: (
         <>
-          <h3>1. Strictly Necessary Cookies</h3>
           <p>
-            These cookies are essential to provide you with services available through our Website and to use some of
-            its features, such as secure login sessions.
+            These make sign-in and the app work. They are always on, because the site cannot work without them.
           </p>
-          <ul>
-            <li>
-              <strong>Authentication:</strong> We use session cookies to keep you signed in while using the editor.
-            </li>
-            <li>
-              <strong>Security:</strong> CSRF protection cookies to prevent cross-site request forgery attacks.
-            </li>
-          </ul>
-
-          <h3>2. Performance &amp; Analytics Cookies</h3>
-          <p>
-            These cookies collect information that is used either in aggregate form to help us understand how our
-            Website is being used or how effective our marketing campaigns are.
-          </p>
-          <ul>
-            <li>
-              <strong>Traffic Analysis:</strong> We track unique visitors, bounce rates, and popular templates to
-              optimize load times and simplify the creation flow.
-            </li>
-          </ul>
-
-          <h3>3. Marketing &amp; Advertising Cookies</h3>
-          <p>
-            These cookies are used to make advertising messages more relevant to you. They perform functions like
-            preventing the same ad from continuously reappearing, ensuring that ads are properly displayed for
-            advertisers, and selecting advertisements that are based on your interests.
-          </p>
+          <CookieTable rows={COOKIES} />
         </>
       ),
     },
     {
-      id: "manage-cookies",
-      title: "Cookie Consent Manager",
+      id: "marketing",
+      title: "Marketing Cookies (optional)",
       body: (
         <>
           <p>
-            Use our interactive Cookie Preference panel below to choose which categories of cookies you consent to.
-            Essential cookies cannot be disabled as they are required to support basic site security and auth.
+            These only record how you found us. They are never used to show you ads, here or on other sites. Switching
+            Marketing off below stops both cookies being set, and also stops the anonymous button-click counts we use to
+            see which pages lead to sign-ups.
+          </p>
+          <CookieTable rows={MARKETING_COOKIES} />
+        </>
+      ),
+    },
+    {
+      id: "analytics",
+      title: "Performance Measurement (optional)",
+      body: (
+        <p>
+          With Analytics on, your browser sends anonymous page-speed measurements (Core Web Vitals) to our own server.
+          This sets no cookie and carries nothing that identifies you. We do not use Google Analytics or any other
+          third-party analytics service. Switching Analytics off below stops these measurements.
+        </p>
+      ),
+    },
+    {
+      id: "third-party",
+      title: "Third-Party Cookies",
+      body: (
+        <p>
+          When you open checkout, our payment provider, Razorpay, loads its payment window. Razorpay may set its own
+          cookies to process the payment and prevent fraud, under{" "}
+          <a href="https://razorpay.com/privacy/" target="_blank" rel="noopener noreferrer">
+            Razorpay&apos;s privacy policy
+          </a>
+          . No other third party sets cookies on Clipiro.
+        </p>
+      ),
+    },
+    {
+      id: "manage-cookies",
+      title: "Cookie Preferences",
+      body: (
+        <>
+          <p>
+            Choose which optional categories you allow. Both are on unless you switch them off here, and your choice is
+            saved in this browser.
           </p>
           <CookiePreferences />
         </>
@@ -100,13 +140,11 @@ const doc: LegalDoc = {
     },
     {
       id: "your-choices",
-      title: "Your Choices & Control",
+      title: "Browser Controls",
       body: (
         <p>
-          In addition to using our Cookie Consent Manager above, you have the right to decide whether to accept or
-          reject cookies. You can set or amend your web browser controls to accept or refuse cookies. If you choose to
-          reject cookies, you may still use our website, though your access to some functionality (like authenticated
-          dashboard areas) might be restricted.
+          You can also block or delete cookies in your browser settings. If you block strictly necessary cookies, you
+          will not be able to sign in.
         </p>
       ),
     },
@@ -115,9 +153,7 @@ const doc: LegalDoc = {
       title: "Policy Updates",
       body: (
         <p>
-          We may update this Cookies Policy from time to time in order to reflect, for example, changes to the cookies
-          we use or for other operational, legal, or regulatory reasons. Please therefore re-visit this Cookies Policy
-          regularly to stay informed about our use of cookies and related technologies.
+          If we add or change a cookie we will update this page and the &quot;Last updated&quot; date above.
         </p>
       ),
     },
@@ -126,8 +162,7 @@ const doc: LegalDoc = {
       title: "Contact Us",
       body: (
         <p>
-          If you have any questions about our use of cookies or other technologies, please email us at{" "}
-          <a href="mailto:hello@clipiro.com">hello@clipiro.com</a>.
+          Questions about cookies? Email <a href="mailto:support@clipiro.com">support@clipiro.com</a>.
         </p>
       ),
     },
@@ -136,7 +171,8 @@ const doc: LegalDoc = {
 
 export const metadata: Metadata = {
   title: "Cookie Policy",
-  description: "How Clipiro uses cookies and how to manage your preferences.",
+  description: "Every cookie Clipiro sets, what it is for, and how to switch off the optional ones.",
+  alternates: { canonical: doc.slug },
 };
 
 export default function CookiesPage() {

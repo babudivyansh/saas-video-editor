@@ -151,6 +151,12 @@ export const LEGAL = {
   gstin: "09DAWPB8753E1Z7",
   supportEmail: "support@clipiro.com",
   unsubscribeMailbox: "unsubscribe@clipiro.com",
+  /**
+   * Grievance Officer — the Consumer Protection (E-Commerce) Rules 2020 require
+   * name and contact on the site. Rendered by app/components/legal/
+   * BusinessDetails in the footer, /contact, /terms and /privacy.
+   */
+  grievanceOfficer: { name: "Divyansh Verma", email: "support@clipiro.com" },
 } as const;
 
 export const PRODUCT_NAME = "Clipiro";

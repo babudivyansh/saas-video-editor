@@ -4,6 +4,7 @@ import {
 } from "@/app/components/landing/icons";
 import { FREE_FEATURES, VIDEO_TOOLS, AI_TOOLS, toolPath, type FeatureLink } from "@/app/components/featureLinks";
 import ClipiroLogo from "@/app/components/ClipiroLogo";
+import { BusinessDetailsLine } from "@/app/components/legal/BusinessDetails";
 // Map the shared feature lists to footer rows. These point at the public
 // /tools/<slug> page, not the in-app href — a crawler or a logged-out visitor
 // following a /dashboard link gets a login redirect instead of the tool.
@@ -174,6 +175,7 @@ export default function SiteFooter() {
               ))}
             </ul>
           </div>
+          <BusinessDetailsLine className="mt-4 border-t border-line pt-4" />
         </div>
 
         {/* Oversized wordmark, cropped by the card's bottom edge. Decorative —

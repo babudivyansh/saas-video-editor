@@ -222,6 +222,7 @@ const doc: LegalDoc = {
 export const metadata: Metadata = {
   title: doc.title,
   description: "When and how refunds apply to Clipiro credit packs and subscriptions.",
+  alternates: { canonical: doc.slug },
 };
 
 export default function RefundPage() {

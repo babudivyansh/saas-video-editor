@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import LegalPage from "@/app/components/LegalPage";
+import { BusinessDetailsList, GRIEVANCE_TIMELINE } from "@/app/components/legal/BusinessDetails";
 import { getLegalDoc } from "@/app/legal/documents";
 import type { LegalDoc } from "@/app/legal/types";
 
@@ -359,6 +360,12 @@ const doc: LegalDoc = {
               <strong>Support:</strong> <a href="mailto:support@clipiro.com">support@clipiro.com</a>
             </li>
           </ul>
+          <h3>Business details and Grievance Officer</h3>
+          <p>
+            The Service is operated by the entity below. Complaints about the Service can
+            be sent to our Grievance Officer. {GRIEVANCE_TIMELINE}
+          </p>
+          <BusinessDetailsList />
         </>
       ),
     },
@@ -368,6 +375,7 @@ const doc: LegalDoc = {
 export const metadata: Metadata = {
   title: doc.title,
   description: "The terms that govern your use of Clipiro's AI video clipping platform.",
+  alternates: { canonical: doc.slug },
 };
 
 export default function TermsPage() {

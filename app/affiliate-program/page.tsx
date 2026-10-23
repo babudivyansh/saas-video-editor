@@ -7,6 +7,7 @@ export const metadata: Metadata = {
   title: "Affiliate Program",
   description:
     "Earn 20% commission for every creator you bring to Clipiro. Share your link, get your friends clipping, and get paid.",
+  alternates: { canonical: "/affiliate-program" },
   openGraph: {
     title: "Clipiro Affiliate Program",
     description: "Earn 20% commission for every creator you bring to Clipiro.",

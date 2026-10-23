@@ -28,6 +28,7 @@ import { AddonStrip } from "./_components/AddonStrip";
 import { CompareTable } from "./_components/CompareTable";
 import { CheckoutModal } from "./_components/CheckoutModal";
 import type { DbPlan, ToolCost } from "./_components/types";
+import { GST_RATE_PERCENT } from "@/lib/invoice/seller";
 
 // Both ends of the image-price range, derived rather than asserted — the FAQ
 // used to claim "1-8 credits" when the cheapest model is 2.
@@ -292,6 +293,13 @@ function PricingPageInner({ initialPlans }: { initialPlans: DbPlan[] }) {
           </div>
         )}
         <TrustRow />
+        {/* Mirrors lib/invoice: INR prices are GST-inclusive (splitInclusive)
+            and get a tax invoice; USD purchases don't yet. */}
+        <p className="mx-auto mt-4 max-w-2xl px-4 text-center text-xs text-fg-subtle">
+          {currency === "INR"
+            ? `Prices in ₹ include ${GST_RATE_PERCENT}% GST. Every payment gets a GST tax invoice — add your GSTIN in billing settings to claim input tax credit.`
+            : `Paying in ₹? Those prices include ${GST_RATE_PERCENT}% GST and come with a GST tax invoice.`}
+        </p>
       </section>
 
       {/* Mounted only once plans have loaded: Tabs picks its initial tab on
