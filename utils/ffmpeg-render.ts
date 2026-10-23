@@ -322,10 +322,13 @@ export function generateASS(
   // characters a family name uses survive; anything else falls back.
   const fontName = /^[A-Za-z0-9][A-Za-z0-9 -]{0,63}$/.test(style.fontName ?? "") ? style.fontName! : "Outfit";
   const fontSize = style.fontSize ?? 80;
-  const highlight = style.highlightColor ?? "&H0000FFFF";
-  const base = style.baseColor ?? "&H00FFFFFF";
-  const outlineCol = style.outlineColor ?? "&H00000000";
-  const shadowCol = style.shadowColor ?? "&H00000000";
+  // Same belt for the colours, also interpolated raw: anything that isn't an
+  // ASS colour (a stored value from before the brand-kit schema) falls back.
+  const assColor = (v: string | null | undefined, fallback: string) => (/^&H[0-9A-Fa-f]{2,8}$/.test(v ?? "") ? v! : fallback);
+  const highlight = assColor(style.highlightColor, "&H0000FFFF");
+  const base = assColor(style.baseColor, "&H00FFFFFF");
+  const outlineCol = assColor(style.outlineColor, "&H00000000");
+  const shadowCol = assColor(style.shadowColor, "&H00000000");
   const borderStyle = style.borderStyle ?? 1;
   const outline = style.outlineWidth ?? 8;
   const shadow = style.shadowDepth ?? 0;

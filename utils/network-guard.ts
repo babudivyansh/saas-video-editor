@@ -21,6 +21,10 @@ for (const [addr, prefix] of [
 ] as const) blocked.addSubnet(addr, prefix, "ipv4");
 for (const [addr, prefix] of [
   ["::", 128], ["::1", 128], ["fc00::", 7], ["fe80::", 10], ["ff00::", 8],
+  // Transition prefixes that embed an IPv4 address a gateway may route to:
+  // NAT64 (64:ff9b::10.0.0.1), 6to4 (2002:0a00:0001::) and Teredo. Blocked
+  // whole — no public media host is served only through one of them.
+  ["64:ff9b::", 96], ["64:ff9b:1::", 48], ["2002::", 16], ["2001::", 32],
 ] as const) blocked.addSubnet(addr, prefix, "ipv6");
 
 /** True for any address a server-side fetch must never connect to. */

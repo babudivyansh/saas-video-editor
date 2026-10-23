@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { sendContactMessageEmail } from "@/lib/email";
 import { logger } from "@/lib/logger";
 import { withRateLimit } from "@/lib/with-rate-limit";
+import { maskEmail } from "@/lib/mask-email";
 
 const SUBJECT_LABELS = {
   support: "Technical support / account issues",
@@ -59,7 +60,7 @@ async function handlePOST(req: NextRequest) {
   );
 
   if (!delivered.some(Boolean)) {
-    logger.error("contact", `message from ${email} reached no admin (${admins.length} admin(s))`);
+    logger.error("contact", `message from ${maskEmail(email)} reached no admin (${admins.length} admin(s))`);
     return NextResponse.json(
       { error: "We couldn't send your message right now. Please email support@clipiro.com directly." },
       { status: 502 },

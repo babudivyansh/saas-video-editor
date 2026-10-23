@@ -6,6 +6,7 @@
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { isTombstoneEmail } from "@/lib/account-tombstone";
+import { maskEmail } from "@/lib/mask-email";
 
 export type SuppressionReason = "hard_bounce" | "complaint" | "manual";
 
@@ -24,7 +25,7 @@ export async function isSuppressed(email: string): Promise<boolean> {
     const row = await prisma.emailSuppression.findUnique({ where: { email }, select: { email: true } });
     return row !== null;
   } catch (err) {
-    logger.error("email:suppression", `lookup failed for ${email}`, err);
+    logger.error("email:suppression", `lookup failed for ${maskEmail(email)}`, err);
     return false;
   }
 }
@@ -41,9 +42,9 @@ export async function suppress(
       create: { email, reason, detail },
       update: {},
     });
-    logger.info("email:suppression", `suppressed ${email} (${reason})`);
+    logger.info("email:suppression", `suppressed ${maskEmail(email)} (${reason})`);
   } catch (err) {
-    logger.error("email:suppression", `could not suppress ${email}`, err);
+    logger.error("email:suppression", `could not suppress ${maskEmail(email)}`, err);
   }
 }
 

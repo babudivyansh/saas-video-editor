@@ -7,6 +7,7 @@ import { notify } from "@/lib/notify";
 import { shouldSendCategory } from "@/lib/notifications";
 import { sendReviewReplyEmail } from "@/lib/email";
 import { logger } from "@/lib/logger";
+import { maskEmail } from "@/lib/mask-email";
 
 const replyBodySchema = z.object({ body: z.string().trim().min(1).max(2000) }).strict();
 const SITE_URL = "https://clipiro.com";
@@ -29,7 +30,7 @@ export const POST = withAdmin<{ id: string }>(async (req, { admin, params }) => 
     if (await shouldSendCategory(review.user.id, "productUpdates")) {
       const authorName = review.user.name || "";
       await sendReviewReplyEmail(review.user.email, authorName, reviewUrl).catch((e) =>
-        logger.warn("reviews", `review-reply email failed for ${review.user.email}`, { reason: (e as Error).message }),
+        logger.warn("reviews", `review-reply email failed for ${maskEmail(review.user.email)}`, { reason: (e as Error).message }),
       );
     }
     return NextResponse.json({ reply }, { status: 201 });

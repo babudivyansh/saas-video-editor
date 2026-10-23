@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-
-const FIELD_KEYS = [
-  "fontName", "fontSize", "baseColor", "highlightColor", "outlineColor", "shadowColor",
-  "outlineWidth", "shadowDepth", "borderStyle", "alignment", "animated", "logoUrl",
-] as const;
+import { brandKitPatchSchema } from "@/lib/brand-kit-schema";
 
 // PATCH — rename and/or update a brand kit's style fields.
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -16,14 +12,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const existing = await prisma.brandKit.findFirst({ where: { id, userId: auth.userId } });
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const body = await req.json().catch(() => ({})) as Record<string, unknown>;
-  const data: Record<string, unknown> = {};
-  if (typeof body.name === "string" && body.name.trim()) data.name = body.name.trim().slice(0, 100);
-  for (const key of FIELD_KEYS) {
-    if (key in body) data[key] = body[key];
+  // Validated like POST: these values are written into the ASS subtitle file.
+  const parsed = brandKitPatchSchema.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid brand kit" }, { status: 400 });
   }
 
-  const kit = await prisma.brandKit.update({ where: { id }, data });
+  const kit = await prisma.brandKit.update({ where: { id }, data: parsed.data });
   return NextResponse.json({ kit });
 }
 

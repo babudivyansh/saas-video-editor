@@ -138,6 +138,9 @@ const schema = z.object({
   OPENAI_API_KEY: z.string().optional(),
   FAL_KEY: z.string().optional(),
   PEXELS_API_KEY: z.string().optional(),
+  // ipinfo.io Lite (free, commercial use allowed, HTTPS) — the country on
+  // login history and new-sign-in emails. Unset: no location lookup at all.
+  IPINFO_TOKEN: z.string().optional(),
   JAMENDO_CLIENT_ID: z.string().optional(),
   GIPHY_API_KEY: z.string().optional(),
   GOOGLE_CLIENT_ID: z.string().optional(),

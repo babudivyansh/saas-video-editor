@@ -7,6 +7,7 @@ import { notify } from "@/lib/notify";
 import { shouldSendCategory } from "@/lib/notifications";
 import { sendReviewPublishedEmail, sendReviewRejectedEmail } from "@/lib/email";
 import { logger } from "@/lib/logger";
+import { maskEmail } from "@/lib/mask-email";
 
 const SITE_URL = "https://clipiro.com";
 
@@ -37,7 +38,7 @@ export const POST = withAdmin<{ id: string }>(async (req, { admin, params }) => 
       await notify({ userId: review.user.id, type: "review_published", title: "Your review is live!", body: "Thanks for sharing your experience with Clipiro.", href: `/reviews/${id}` });
       if (await shouldSendCategory(review.user.id, "productUpdates")) {
         await sendReviewPublishedEmail(review.user.email, authorName, reviewUrl).catch((e) =>
-          logger.warn("reviews", `review-published email failed for ${review.user.email}`, { reason: (e as Error).message }),
+          logger.warn("reviews", `review-published email failed for ${maskEmail(review.user.email)}`, { reason: (e as Error).message }),
         );
       }
       return NextResponse.json({ review: updated });
@@ -51,7 +52,7 @@ export const POST = withAdmin<{ id: string }>(async (req, { admin, params }) => 
       await notify({ userId: review.user.id, type: "review_rejected", title: "Your review wasn't approved", body: reason, href: "/dashboard?editReview=1" });
       if (await shouldSendCategory(review.user.id, "productUpdates")) {
         await sendReviewRejectedEmail(review.user.email, authorName, reason).catch((e) =>
-          logger.warn("reviews", `review-rejected email failed for ${review.user.email}`, { reason: (e as Error).message }),
+          logger.warn("reviews", `review-rejected email failed for ${maskEmail(review.user.email)}`, { reason: (e as Error).message }),
         );
       }
       return NextResponse.json({ review: updated });
