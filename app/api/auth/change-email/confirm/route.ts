@@ -6,6 +6,7 @@ import { withRateLimit } from "@/lib/with-rate-limit";
 import { sendEmailChangedAlertEmail } from "@/lib/email";
 import { greetingName } from "@/lib/display-name";
 import { logger } from "@/lib/logger";
+import { canonicalEmail } from "@/lib/email-canonical";
 
 interface ChangeEmailPayload {
   userId: string;
@@ -49,7 +50,7 @@ async function handlePOST(req: NextRequest) {
   const changedAt = new Date();
   await prisma.user.update({
     where: { id: userId },
-    data: { email: newEmail, pendingEmail: null, emailVerifiedAt: changedAt },
+    data: { email: newEmail, canonicalEmail: canonicalEmail(newEmail), pendingEmail: null, emailVerifiedAt: changedAt },
   });
 
   // The email is embedded in every issued JWT's payload — every existing

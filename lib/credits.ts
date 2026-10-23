@@ -134,6 +134,11 @@ async function lockUserRow(tx: Tx, userId: string): Promise<void> {
  * purchased). Fails without side effects when the total is insufficient. */
 export async function spendCredits(params: SpendCreditsParams): Promise<SpendCreditsResult> {
   const { userId, amount, reason, refId } = params;
+  // A negative amount would run the bucket arithmetic below backwards and ADD
+  // credits. Zero is allowed: free tools still charge 0 to keep a Generation row.
+  if (!Number.isInteger(amount) || amount < 0) {
+    throw new Error(`spendCredits: amount must be a non-negative integer, got ${amount}`);
+  }
 
   const outcome = await prisma.$transaction(async (tx) => {
     const rows = await tx.$queryRaw<SpendRow[]>`

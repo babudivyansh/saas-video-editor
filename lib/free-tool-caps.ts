@@ -53,6 +53,11 @@ export function freeToolCapResponseBody(toolSlug: string, cap: number) {
  * shared a single allowance. Returns the caller's session, or the response to
  * return as-is.
  */
+// Logged-out jobs across ALL addresses, per minute. The per-IP limit above
+// means nothing to someone rotating addresses, and each of these is an ffmpeg
+// transcode on the web server itself. Signed-in users are never counted here.
+export const ANONYMOUS_SITEWIDE_PER_MINUTE = 20;
+
 export async function freeToolGate(
   req: NextRequest,
   toolSlug: string,
@@ -68,6 +73,10 @@ export async function freeToolGate(
     const hourly = await rateLimit(`${toolSlug}:ip:${ip}`, ANONYMOUS_PER_HOUR, 3600);
     if (!hourly.allowed) {
       return NextResponse.json({ error: "Too many requests — sign in, or try again in an hour." }, { status: 429 });
+    }
+    const sitewide = await rateLimit("free-tools:anonymous:all", ANONYMOUS_SITEWIDE_PER_MINUTE, 60);
+    if (!sitewide.allowed) {
+      return NextResponse.json({ error: "The free tools are busy right now. Sign in to skip the queue, or try again in a minute." }, { status: 503 });
     }
   }
 

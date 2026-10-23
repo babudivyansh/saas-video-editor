@@ -12,6 +12,7 @@ import { readPendingSignup, clearPendingSignup } from "@/lib/signup-pending";
 import { normalizeEmail } from "@/lib/auth-validation";
 import { greetingName } from "@/lib/display-name";
 import { notifyAdminsOfSignup } from "@/lib/admin/signup-alerts";
+import { canonicalEmail } from "@/lib/email-canonical";
 
 // Same brute-force ceiling as the sign-in code: 5 guesses per address per
 // 10 minutes is room for a typo and nowhere near enough to guess 1 in 900k.
@@ -54,20 +55,27 @@ export async function POST(req: NextRequest) {
     }
     await clearPendingSignup(email);
 
+    // The signup bonus is once per inbox: "you+1@gmail.com" after "you@gmail.com"
+    // gets an account, not another 10 credits and another round of free minutes.
+    const canonical = canonicalEmail(email);
+    const repeatInbox = (await prisma.user.count({ where: { canonicalEmail: canonical } })) > 0;
+    const signupBonus = repeatInbox ? 0 : 10;
+
     let user: { id: string; email: string; credits: number };
     try {
       user = await prisma.user.create({
         data: {
           email,
+          canonicalEmail: canonical,
           name: pending.name,
           passwordHash: pending.passwordHash,
           hasPassword: true,
           emailVerifiedAt: new Date(),
           // Signup grant lands in the bonus bucket (30-day expiry); the monthly
           // free-tier drip is anchored one month out from signup.
-          credits: 10,
-          bonusCredits: 10,
-          bonusCreditsExpireAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          credits: signupBonus,
+          bonusCredits: signupBonus,
+          bonusCreditsExpireAt: signupBonus ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) : null,
           freeCreditsRefillAt: new Date(new Date().setMonth(new Date().getMonth() + 1)),
         },
         select: { id: true, email: true, credits: true },
@@ -84,8 +92,10 @@ export async function POST(req: NextRequest) {
     // The free tier's Clip Minutes, through the ledgered helper (a raw column
     // write here would leave refunds nothing to restore against). Best-effort:
     // a failed grant must not fail the signup — the monthly drip retries it.
-    await grantFreeTierMinutes(user.id, "grant:signup").catch((e) =>
-      logger.error("auth", `signup minutes grant failed for ${user.id}`, e));
+    if (!repeatInbox) {
+      await grantFreeTierMinutes(user.id, "grant:signup").catch((e) =>
+        logger.error("auth", `signup minutes grant failed for ${user.id}`, e));
+    }
 
     const { token } = await completeLogin(req, user);
 
