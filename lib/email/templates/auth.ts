@@ -202,6 +202,29 @@ export function twoFactorChanged(p: { name: string; enabled: boolean; time: stri
   };
 }
 
+// Reaching the 2FA step at all means the password was right, so a run of wrong
+// codes is someone holding the password and guessing the second factor.
+export function twoFactorLockout(p: { name: string; time: string; minutes: number }): EmailDocument {
+  return {
+    subject: `Repeated failed sign-in attempts on your ${PRODUCT_NAME} account`,
+    preheader: "Someone entered your password but not your 2FA code. Change your password.",
+    blocks: [
+      { kind: "heading", text: "Someone may know your password" },
+      {
+        kind: "paragraph",
+        text: `Hi ${greet(p.name)}, on ${p.time} there were repeated wrong two-factor codes on your ${PRODUCT_NAME} account. Getting to that step takes your correct password. We've paused two-factor sign-in for ${p.minutes} minutes.`,
+      },
+      {
+        kind: "callout",
+        tone: "warning",
+        title: "Wasn't you?",
+        body: "Change your password now. Your authenticator app kept them out, but the password is no longer a secret.",
+      },
+      { kind: "button", href: SECURE_URL, label: "Change my password", tone: "danger" },
+    ],
+  };
+}
+
 export function accountExportReady(p: { name: string; downloadUrl: string }): EmailDocument {
   return {
     subject: `Your ${PRODUCT_NAME} data export is ready`,

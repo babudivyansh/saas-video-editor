@@ -15,10 +15,14 @@ vi.mock("bcryptjs", () => ({ default: { hash: vi.fn(async () => "hashed") } }));
 
 let storedUserId: string | null = "u1";
 const order: string[] = [];
-const del = vi.fn(async () => { order.push("del"); });
-vi.mock("@/lib/redis", () => ({
-  redis: { get: vi.fn(async () => storedUserId), del },
-}));
+// GETDEL hands the token to exactly one caller; the next one sees null.
+const getdel = vi.fn(async () => {
+  order.push("getdel");
+  const value = storedUserId;
+  storedUserId = null;
+  return value;
+});
+vi.mock("@/lib/redis", () => ({ redis: { getdel } }));
 
 let userRow: { id: string; email: string; name: string | null; emailVerifiedAt: Date | null } | null;
 const findUnique = vi.fn(async () => userRow);
@@ -68,8 +72,18 @@ describe("POST /api/auth/reset-password", () => {
 
   it("burns the token before changing anything, so a racing second request finds it gone", async () => {
     await POST(post({ token: "tok", password: "longenough1" }));
-    expect(order.indexOf("del")).toBeGreaterThanOrEqual(0);
-    expect(order.indexOf("del")).toBeLessThan(order.indexOf("update"));
+    expect(order.indexOf("getdel")).toBeGreaterThanOrEqual(0);
+    expect(order.indexOf("getdel")).toBeLessThan(order.indexOf("update"));
+  });
+
+  it("reads and deletes the token in one GETDEL, so two racing requests can't both reset", async () => {
+    const [a, b] = await Promise.all([
+      POST(post({ token: "tok", password: "longenough1" })),
+      POST(post({ token: "tok", password: "longenough2" })),
+    ]);
+    expect([a.status, b.status].sort()).toEqual([200, 400]);
+    expect(getdel).toHaveBeenCalledWith("pwd-reset:tok");
+    expect(update).toHaveBeenCalledTimes(1);
   });
 
   it("claims a never-verified account: keeps the new password but drops planted 2FA/sessions", async () => {

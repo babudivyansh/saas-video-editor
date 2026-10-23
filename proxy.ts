@@ -8,13 +8,10 @@ import { ATTRIBUTION_COOKIE, buildAttributionCookie } from "@/lib/marketing-attr
 import { rateLimit } from "@/lib/rate-limit";
 import { buildCsp } from "@/lib/csp";
 
-// Sets the same per-request CSP (see lib/csp.ts) on every response this file
-// returns, so removing the static header from next.config.ts (which can't
-// vary per request) doesn't drop CSP coverage from any path — API responses
-// included, even though only page responses actually consume the nonce via
-// JsonLd's headers() read.
+// Sets the enforcing CSP (see lib/csp.ts) on every response this file returns,
+// API responses included.
 function withCsp(response: NextResponse, csp: string): NextResponse {
-  response.headers.set("Content-Security-Policy-Report-Only", csp);
+  response.headers.set("Content-Security-Policy", csp);
   return response;
 }
 
@@ -77,7 +74,7 @@ function getOptimisticAuth(request: NextRequest, { bearer = false }: { bearer?: 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const nonce = Buffer.from(randomUUID()).toString("base64");
-  const csp = buildCsp(nonce);
+  const csp = buildCsp();
 
   if (pathname.startsWith("/api/")) {
     if (isPublicApiRoute(pathname)) {
@@ -154,9 +151,9 @@ export async function proxy(request: NextRequest) {
     return withCsp(NextResponse.redirect(new URL("/dashboard", request.url)), csp);
   }
 
-  // Page responses additionally get the nonce threaded through as a request
-  // header — this is what JsonLd's headers() read picks up server-side, via
-  // Next's documented middleware pattern for per-request CSP nonces.
+  // Page responses additionally get a nonce threaded through as a request
+  // header, which JsonLd's headers() read puts on its script tag. The policy
+  // doesn't list it yet (lib/csp.ts says why); it's there for when it does.
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
   const response = withCsp(NextResponse.next({ request: { headers: requestHeaders } }), csp);

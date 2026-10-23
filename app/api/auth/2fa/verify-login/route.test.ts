@@ -6,6 +6,27 @@ vi.mock("@/lib/rate-limit", () => ({ getClientIp: vi.fn(() => "9.9.9.9") }));
 vi.mock("@/lib/auth", () => ({ setSessionCookie: vi.fn(), setLocaleCookieFromUser: vi.fn() }));
 vi.mock("@/lib/encryption", () => ({ decryptSecret: vi.fn(() => "secret") }));
 
+// In-memory Redis for lib/two-factor-verify's per-account counter and lock.
+const store = new Map<string, string>();
+vi.mock("@/lib/redis", () => ({
+  redis: {
+    get: vi.fn(async (k: string) => store.get(k) ?? null),
+    del: vi.fn(async (k: string) => { store.delete(k); }),
+    incrWithExpire: vi.fn(async (k: string) => {
+      const n = Number(store.get(k) ?? 0) + 1;
+      store.set(k, String(n));
+      return n;
+    }),
+    setNx: vi.fn(async (k: string, v: string) => {
+      if (store.has(k)) return false;
+      store.set(k, v);
+      return true;
+    }),
+  },
+}));
+const sendTwoFactorLockoutAlertEmail = vi.fn(async () => {});
+vi.mock("@/lib/email", () => ({ sendTwoFactorLockoutAlertEmail }));
+
 const finishLogin = vi.fn(async () => "tok-1");
 vi.mock("@/lib/login-tail", () => ({ finishLogin }));
 
@@ -47,6 +68,7 @@ function post(code: string) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  store.clear();
   totpStep = null;
   updateManyCount = 1;
   recoveryCount = 1;
@@ -88,6 +110,34 @@ describe("POST /api/auth/2fa/verify-login", () => {
     user.deactivatedAt = new Date();
     totpStep = 100;
     expect((await post("123456")).status).toBe(403);
+  });
+
+  it("locks the account's second factor after 10 wrong codes, however many tickets they're spread over", async () => {
+    recoveryCount = 0;
+    // A fresh ticket every time (the per-ticket counter is mocked to never trip).
+    for (let i = 0; i < 9; i++) expect((await post("000000")).status).toBe(401);
+    const locked = await post("000000");
+    expect(locked.status).toBe(429);
+    expect(await locked.json()).toMatchObject({ locked: true, expired: true });
+    expect(discardTwoFactorTicket).toHaveBeenCalledWith("t1");
+    expect(sendTwoFactorLockoutAlertEmail).toHaveBeenCalledTimes(1);
+    expect(sendTwoFactorLockoutAlertEmail).toHaveBeenCalledWith("a@test.com", "Ada", expect.any(String), 15);
+
+    // Now even the right code is refused, without touching the TOTP step.
+    totpStep = 100;
+    expect((await post("123456")).status).toBe(429);
+    expect(userUpdateMany).not.toHaveBeenCalled();
+    expect(finishLogin).not.toHaveBeenCalled();
+    expect(sendTwoFactorLockoutAlertEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it("a correct code resets the account's failure count", async () => {
+    recoveryCount = 0;
+    for (let i = 0; i < 9; i++) await post("000000");
+    totpStep = 100;
+    expect((await post("123456")).status).toBe(200);
+    totpStep = null;
+    expect((await post("000000")).status).toBe(401);
   });
 
   it("lifts a deactivation only once the second factor has passed (reactivate ticket)", async () => {

@@ -233,6 +233,9 @@ export type AnalyticsOverview = z.infer<typeof analyticsOverviewSchema>;
 export const socialAccountsResponse = z.object({ accounts: z.array(socialAccountSchema), connectable: z.array(providerSchema).default([]) });
 /** GET /social/connect/:provider → the platform's sign-in page (opened in an auth session; it ends at clipiro://social). */
 export const connectUrlResponse = z.object({ url: z.string() });
+/** POST /social/connect/complete: finishes a connect the callback parked as clipiro://social?pending=… */
+export const connectCompleteRequest = z.object({ pending: z.string().min(1).max(200) });
+export const connectCompleteResponse = z.object({ connected: z.array(providerSchema) });
 
 /** GET /social/competitors */
 export const competitorsResponse = z.object({

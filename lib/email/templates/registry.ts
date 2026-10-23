@@ -156,6 +156,15 @@ export const EMAIL_REGISTRY: Record<string, TemplateEntry<never>> = {
       disabled: { name: "Divyansh", enabled: false, time: "5 August 2026 at 15:42 IST" },
     },
   }),
+  "two-factor-lockout": entry({
+    id: "two-factor-lockout",
+    title: "Two-factor lockout",
+    group: "auth",
+    category: "transactional",
+    trigger: "Too many wrong 2FA codes for one account; the second factor is paused",
+    build: auth.twoFactorLockout,
+    samples: { default: { name: "Divyansh", time: "5 August 2026 at 15:42 IST", minutes: 15 } },
+  }),
   "account-export-ready": entry({
     id: "account-export-ready",
     title: "Data export ready",

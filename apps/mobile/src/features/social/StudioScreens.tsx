@@ -15,7 +15,7 @@ import { apiErrorMessage } from "@/lib/errors";
 import { SocialUpsell } from "../insights/InsightsShell";
 import { isUpsell, useConnectable, useSocialAccounts } from "../insights/queries";
 import { GalleryDenied, shareClip, shareVideo } from "../projects/clipFiles";
-import { connectAccount, readConnectReturn, type ConnectOutcome } from "./connect";
+import { connectAccount, finishConnectReturn, type ConnectOutcome } from "./connect";
 import { STATUS, dayKey, dayLabel, platformLabel, socialKeys, timeLabel, useComposerSeed, usePost, usePosts } from "./queries";
 
 type Tab = "accounts" | "calendar" | "scheduled";
@@ -86,7 +86,7 @@ export function AccountsScreen() {
   const qc = useQueryClient();
   const accounts = useSocialAccounts();
   const connectable = useConnectable().data;
-  const params = useLocalSearchParams<{ connected?: string; error?: string }>();
+  const params = useLocalSearchParams<{ connected?: string; error?: string; pending?: string }>();
   const [connecting, setConnecting] = useState<Provider | null>(null);
   const [busy, setBusy] = useState(false);
   const [syncing, setSyncing] = useState<string | null>(null);
@@ -100,17 +100,16 @@ export function AccountsScreen() {
     } else if (o.kind === "failed") toast(o.message, "error");
   };
 
-  // Android can also hand the return link to the app itself (clipiro://social?connected=…):
-  // said once per arrival.
+  // Android can also hand the return link to the app itself (clipiro://social?pending=…):
+  // finished and said once per arrival (a pending id only works once anyway).
   const announced = useRef<string | null>(null);
   useEffect(() => {
-    const o = readConnectReturn({ connected: params.connected, error: params.error });
-    const key = `${params.connected ?? ""}|${params.error ?? ""}`;
-    if (!o || announced.current === key) return;
+    const key = `${params.connected ?? ""}|${params.error ?? ""}|${params.pending ?? ""}`;
+    if (key === "||" || announced.current === key) return;
     announced.current = key;
-    report(o);
+    void finishConnectReturn({ connected: params.connected, error: params.error, pending: params.pending }).then((o) => o && report(o));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per arrival
-  }, [params.connected, params.error]);
+  }, [params.connected, params.error, params.pending]);
 
   const connect = async (p: Provider) => {
     setBusy(true);
