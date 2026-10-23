@@ -45,7 +45,7 @@ export default function PostCard({ post }: { post: BlogPost }) {
 
         <Link
           href={`/blog/category/${category.slug}`}
-          className="relative z-10 rounded-full bg-white/85 px-3 py-1 text-xs font-bold uppercase tracking-widest text-brand backdrop-blur-sm transition-colors hover:bg-panel"
+          className="relative z-10 rounded-full bg-panel/85 px-3 py-1 text-xs font-bold uppercase tracking-widest text-brand backdrop-blur-sm transition-colors hover:bg-panel"
         >
           {post.category}
         </Link>

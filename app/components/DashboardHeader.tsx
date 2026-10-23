@@ -89,7 +89,6 @@ function useCorePages(): SearchEntry[] {
       { title: t("apiKeys.title"), desc: t("apiKeys.desc"), href: "", group: "Page", onSelect: () => openSettings("api-keys") },
       { title: t("messages.title"), desc: t("messages.desc"), href: "", group: "Page", onSelect: () => openSettings("messages") },
       { title: t("preferences.title"), desc: t("preferences.desc"), href: "", group: "Page", onSelect: () => openSettings("preferences") },
-      { title: t("myVideos.title"), desc: t("myVideos.desc"), href: "/dashboard/profile/my-videos", group: "Page" },
     ],
     [t, openBilling, openSettings]
   );

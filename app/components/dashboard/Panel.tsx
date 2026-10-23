@@ -7,7 +7,7 @@
 // lists at least as often as it wraps charts. admin/dashboard/ui.tsx still
 // exports it under the old name so no admin call site had to change.
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Download, Maximize2, X } from "lucide-react";
 import { downloadBlob } from "@/app/components/charts/export";
 
@@ -64,12 +64,28 @@ export function Panel({
   dashedNote?: string;
 }) {
   const [full, setFull] = useState(false);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  // Fullscreen is a modal: Escape closes it, focus moves into it, and returns
+  // to the button that opened it on close.
+  useEffect(() => {
+    if (!full) return;
+    const opener = document.activeElement as HTMLElement | null;
+    bodyRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setFull(false); };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      opener?.focus?.();
+    };
+  }, [full]);
   const shell = dashed
     ? "border-dashed border-line-strong"
     : "bg-panel border-line shadow-sm transition-shadow hover:shadow-md";
   const body = (
     <div
-      className={`rounded-[var(--radius-card)] border p-5 ${shell} ${
+      ref={bodyRef}
+      {...(full ? { role: "dialog", "aria-modal": true, "aria-label": title, tabIndex: -1 } : {})}
+      className={`rounded-[var(--radius-card)] border p-5 outline-none ${shell} ${
         full ? "fixed inset-4 z-50 overflow-auto bg-panel" : className
       }`}
     >

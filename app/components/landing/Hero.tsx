@@ -112,7 +112,7 @@ export default function Hero({ reviewSummary }: HeroProps) {
         <div className="hero-rise hero-rise-late relative z-10 -mt-4 flex flex-col items-center gap-4 lg:-mt-14">
           {user ? (
             <Link href="/dashboard" className={CTA_CLASS}>
-              Try Clipiro free
+              Open dashboard
               <ArrowRightIcon className="h-5 w-5 transition-transform duration-200 group-hover:translate-x-1" />
             </Link>
           ) : (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import type { Asset } from "../types";
@@ -19,8 +19,17 @@ interface CommandPaletteProps {
 export function CommandPalette({ open, onClose, assets, onOpenAsset, onUpload, onGoAll, onGoFavorites, onGoArchive }: CommandPaletteProps) {
   const [q, setQ] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
+  const listId = useId();
 
   useEffect(() => { if (open) { setQ(""); setActiveIndex(0); } }, [open]);
+
+  // Hand focus back to whatever opened the palette (the search button, or the
+  // page for the keyboard shortcut) when it closes.
+  useEffect(() => {
+    if (!open) return;
+    const opener = document.activeElement as HTMLElement | null;
+    return () => opener?.focus?.();
+  }, [open]);
 
   const actions = useMemo(() => [
     { id: "upload", label: "Upload files" as const, onRun: onUpload },
@@ -51,6 +60,8 @@ export function CommandPalette({ open, onClose, assets, onOpenAsset, onUpload, o
     if (!open) return;
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") { onClose(); return; }
+      // Modal: focus stays on the search box; the arrow keys move through results.
+      if (e.key === "Tab") { e.preventDefault(); return; }
       if (e.key === "ArrowDown") { e.preventDefault(); setActiveIndex((i) => Math.min(i + 1, results.length - 1)); }
       if (e.key === "ArrowUp") { e.preventDefault(); setActiveIndex((i) => Math.max(i - 1, 0)); }
       if (e.key === "Enter") {
@@ -79,6 +90,9 @@ export function CommandPalette({ open, onClose, assets, onOpenAsset, onUpload, o
           <motion.div
             initial={{ opacity: 0, scale: 0.96, y: -8 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: -8 }}
             transition={{ duration: 0.15 }}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Search assets and commands"
             className="w-full max-w-lg mx-4 bg-panel rounded-2xl shadow-2xl border border-card-border overflow-hidden"
           >
             <input
@@ -86,13 +100,22 @@ export function CommandPalette({ open, onClose, assets, onOpenAsset, onUpload, o
               value={q}
               onChange={(e) => { setQ(e.target.value); setActiveIndex(0); }}
               placeholder="Search assets or run a command…"
+              aria-label="Search assets or run a command"
+              role="combobox"
+              aria-expanded="true"
+              aria-controls={listId}
+              aria-activedescendant={results[activeIndex] ? `${listId}-${activeIndex}` : undefined}
               className="w-full text-sm px-4 py-3.5 outline-none border-b border-card-border"
             />
-            <div className="max-h-80 overflow-y-auto py-1.5">
+            <div id={listId} role="listbox" aria-label="Results" className="max-h-80 overflow-y-auto py-1.5">
               {results.length === 0 && <p className="text-xs text-ink-soft px-4 py-3">No matches.</p>}
               {results.map((r, i) => (
                 <button
                   key={`${r.type}-${r.id}`}
+                  id={`${listId}-${i}`}
+                  role="option"
+                  aria-selected={i === activeIndex}
+                  tabIndex={-1}
                   onClick={() => { if (r.type === "action") r.run(); else onOpenAsset(r.asset); onClose(); }}
                   onMouseEnter={() => setActiveIndex(i)}
                   className={`w-full flex items-center gap-2 text-left text-sm px-4 py-2.5 cursor-pointer ${i === activeIndex ? "bg-tint-violet text-brand" : "text-ink hover:bg-tint-blue"}`}
