@@ -122,8 +122,11 @@ export const IMAGE_MODELS: readonly ImageModelEntry[] = [
     badge: "Ideogram",
     category: "image",
     integration: "fal",
-    // TODO verify-before-ship: confirm exact tier slug (`/fast` vs `/instant`).
-    falEndpoint: "ideogram/v4/fast",
+    // fal hosts Ideogram under its own namespace: the model page is
+    // fal.ai/models/fal-ai/ideogram/v4/fast. Without the "fal-ai/" prefix the
+    // queue resolves a different application ("fal-ai/ideogram-v4") and every
+    // generation fails. Verified 2026-10-24.
+    falEndpoint: "fal-ai/ideogram/v4/fast",
     costUsd: 0.015,
     creditCost: 3, // kept current
     allowedTiers: ["creator", "pro", "studio"],

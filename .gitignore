@@ -77,3 +77,6 @@ ds-bundle/
 
 # Android Studio / JetBrains project files
 .idea/
+
+# Local AI-assistant output (mockups, exports) — never part of the app
+/Claude outputs/
