@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { memoFor } from "@/lib/memo";
 
-// Public: featured, currently-valid coupons for the billing launch banner.
-export async function GET() {
+const featuredCoupons = memoFor(10_000, () => {
   const now = new Date();
-  const coupons = await prisma.coupon.findMany({
+  return prisma.coupon.findMany({
     where: {
       active: true,
       featured: true,
@@ -23,6 +23,9 @@ export async function GET() {
       expiresAt: true,
     },
   });
+});
 
-  return NextResponse.json({ coupons });
+// Public: featured, currently-valid coupons for the billing launch banner.
+export async function GET() {
+  return NextResponse.json({ coupons: await featuredCoupons() });
 }

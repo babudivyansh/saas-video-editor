@@ -16,6 +16,7 @@ import { completeLogin, updateSessionCountry } from "@/lib/auth";
 import { sendNewLoginAlertEmail } from "@/lib/email";
 import { greetingName } from "@/lib/display-name";
 import { logger } from "@/lib/logger";
+import { env } from "@/lib/env";
 import { auditEvent } from "@/lib/admin/audit";
 
 export interface LoginTailUser {
@@ -51,11 +52,18 @@ export async function finishLogin(req: NextRequest, user: LoginTailUser, ip: str
       }
       let location = "Unknown location";
       let country: string | null = null;
-      if (ip !== "unknown" && ip !== "::1" && !ip.startsWith("127.")) {
-        const geo = await fetch(`http://ip-api.com/json/${ip}?fields=city,country`, { signal: AbortSignal.timeout(2000) })
-          .then((r) => r.json()).catch(() => null);
-        if (geo?.city) location = `${geo.city}, ${geo.country}`;
-        if (geo?.country) country = geo.country;
+      // ipinfo Lite over HTTPS. Replaces ip-api.com, which was plain HTTP (every
+      // user's IP in cleartext) and licensed for non-commercial use only. Lite
+      // resolves to country, not city.
+      if (env.IPINFO_TOKEN && ip !== "unknown" && ip !== "::1" && !ip.startsWith("127.")) {
+        const geo = await fetch(`https://api.ipinfo.io/lite/${encodeURIComponent(ip)}`, {
+          headers: { Authorization: `Bearer ${env.IPINFO_TOKEN}` },
+          signal: AbortSignal.timeout(2000),
+        }).then((r) => (r.ok ? r.json() : null)).catch(() => null) as { country?: string } | null;
+        if (geo?.country) {
+          country = geo.country;
+          location = geo.country;
+        }
       }
       await prisma.loginEvent
         .create({ data: { userId: user.id, ip: ip === "unknown" ? null : ip, device, country } })

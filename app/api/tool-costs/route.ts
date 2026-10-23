@@ -3,6 +3,7 @@ import { getAllToolConfigs, TOOL_SERVICE } from "@/lib/tool-config";
 import { IMAGE_MODELS } from "@/lib/models/imageModels";
 import { AUTOCLIP_PRICING_DEFAULTS } from "@/lib/autoclip-pricing";
 import { AUDIO_RATE_LABEL } from "@/lib/audio-pricing";
+import { memoFor } from "@/lib/memo";
 
 // Public: live per-feature credit costs for the pricing page "what each feature
 // costs" table. Reads the same admin-editable tool config used for billing.
@@ -56,8 +57,10 @@ const RANGES: Record<string, { min: number; max: number }> = {
   "clip-dub": { min: AUTOCLIP_PRICING_DEFAULTS.dubPerMinute, max: AUTOCLIP_PRICING_DEFAULTS.dubPerMinute * 6 },
 };
 
+const toolConfigs = memoFor(10_000, getAllToolConfigs);
+
 export async function GET() {
-  const cfg = await getAllToolConfigs();
+  const cfg = await toolConfigs();
   const tools = Object.entries(cfg)
     // Only user-facing tools: internal billing keys (compile, editor-render,
     // voice-preview…) have no label and used to leak onto /pricing as raw slugs.

@@ -26,6 +26,7 @@ import { EMAIL_REGISTRY } from "./templates/registry";
 import { unsubscribeUrl } from "./unsubscribe";
 import { isSuppressed, logEmail } from "./suppression";
 import { LEGAL, PRODUCT_NAME } from "./tokens";
+import { maskEmail } from "@/lib/mask-email";
 
 export interface SendResult {
   status: "sent" | "suppressed" | "skipped-optout" | "dev-logged" | "failed";
@@ -193,7 +194,7 @@ async function resolveUserId(email: string): Promise<string | undefined> {
     const user = await prisma.user.findUnique({ where: { email }, select: { id: true } });
     return user?.id;
   } catch (err) {
-    logger.error("email:send", `could not resolve user for ${email}`, err);
+    logger.error("email:send", `could not resolve user for ${maskEmail(email)}`, err);
     return undefined;
   }
 }
@@ -299,7 +300,7 @@ export async function sendTemplate<P>(
         // Fall through to SMTP — but say so, because a silent provider failure
         // is exactly what made the old transport untrustworthy.
         providerError = err instanceof Error ? err.message : String(err);
-        logger.error("email:resend", `${id} -> ${to} failed`, err);
+        logger.error("email:resend", `${id} -> ${maskEmail(to)} failed`, err);
       }
     }
 
@@ -336,7 +337,7 @@ export async function sendTemplate<P>(
     await logEmail({ recipient: to, templateId: id, status: "dev-logged", channel: "dev-console", userId });
     return { status: "dev-logged", channel: "dev-console", messageId: null };
   } catch (err) {
-    logger.error("email:send", `${id} -> ${to} failed`, err);
+    logger.error("email:send", `${id} -> ${maskEmail(to)} failed`, err);
     const error = err instanceof Error ? err.message : String(err);
     await logEmail({ recipient: to, templateId: id, status: "failed", error });
     return { status: "failed", channel: null, messageId: null, error };

@@ -8,6 +8,7 @@ import { shouldSendCategory } from "@/lib/notifications";
 import { sendReviewPromptEmail } from "@/lib/email";
 import { logger } from "@/lib/logger";
 import { withCronTracking } from "@/lib/cron-tracking";
+import { maskEmail } from "@/lib/mask-email";
 
 //   GET /api/cron/review-prompts
 //   Authorization: Bearer <CRON_SECRET>
@@ -56,7 +57,7 @@ async function handleGET(req: NextRequest) {
       if (await shouldSendCategory(user.id, "reviewPrompts")) {
         const name = user.name || "";
         await sendReviewPromptEmail(user.email, name, "https://clipiro.com/dashboard?prompt=1").catch((e) =>
-          logger.warn("review-prompts", `email failed for ${user.email}`, { reason: (e as Error).message }),
+          logger.warn("review-prompts", `email failed for ${maskEmail(user.email)}`, { reason: (e as Error).message }),
         );
       }
       prompted++;

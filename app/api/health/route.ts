@@ -4,6 +4,7 @@ import { redis } from "@/lib/redis";
 import { getRenderRuntimeHealth } from "@/lib/render-runtime";
 import { ffmpegBin } from "@/utils/ffmpeg-render";
 import { getSyncStats } from "@/lib/social/service";
+import { memoFor } from "@/lib/memo";
 
 // Connectivity check for an uptime monitor / load balancer — verifies Postgres
 // and Redis are actually reachable, not just that the process is running.
@@ -20,13 +21,19 @@ import { getSyncStats } from "@/lib/social/service";
 // alerts on). The active/stale ACCOUNT counts that used to sit beside them
 // were two unauthenticated COUNT queries per probe, publishing a business
 // number; they're dropped here.
-export async function GET() {
-  const [dbOk, redisOk, renderOk, syncStats] = await Promise.all([
+// Public and unauthenticated, and every probe is a DB query plus a Redis
+// write: a flood of probes costs one of each per 5 seconds, not one per hit.
+const probe = memoFor(5_000, () =>
+  Promise.all([
     prisma.$queryRaw`SELECT 1`.then(() => true).catch(() => false),
     redis.ping(),
     getRenderRuntimeHealth(ffmpegBin).then((r) => r.ok).catch(() => false),
     getSyncStats().catch(() => ({ ok: 0, fail: 0 })),
-  ]);
+  ]),
+);
+
+export async function GET() {
+  const [dbOk, redisOk, renderOk, syncStats] = await probe();
 
   const ok = dbOk && redisOk;
   return NextResponse.json(
