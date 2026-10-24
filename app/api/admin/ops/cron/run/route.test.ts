@@ -48,7 +48,7 @@ describe("POST /api/admin/ops/cron/run", () => {
     await Promise.all(pending);
     expect(fetchMock).toHaveBeenCalledWith(
       "https://clipiro.test/api/cron/clip-publish",
-      expect.objectContaining({ headers: { Authorization: "Bearer cron-s" } }),
+      expect.objectContaining({ headers: { Authorization: "Bearer cron-s", "X-Cron-Secret": "cron-s" } }),
     );
     expect(audit).toHaveBeenCalledWith("admin1", "cron.run_manual", "clip-publish", expect.objectContaining({ after: { path: "/api/cron/clip-publish" } }));
   });

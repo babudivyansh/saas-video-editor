@@ -1,8 +1,8 @@
 // The production cron schedule as data, for hosts that can't run a crontab.
 //
-// Hostinger's Node.js hosting has no cron and blocks `crontab` over SSH, so
-// the jobs in ops/crontab never ran there. Instead ONE external request per
-// minute hits /api/cron-tick (see that route), which runs whatever is due
+// Hostinger's Node.js hosting ignores `crontab` over SSH, so the jobs in
+// ops/crontab never ran there. Instead ONE Hostinger account cron job requests
+// /api/cron-tick every minute (see that route), which runs whatever is due
 // from this list. ops/crontab stays the human-readable source of truth for
 // hosts that do have cron; lib/cron-schedule.test.ts fails if the two ever
 // disagree, so neither can drift.

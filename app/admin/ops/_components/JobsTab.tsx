@@ -84,7 +84,7 @@ export function JobsTab({
           <p className="text-xs text-fg-subtle flex-1 min-w-[12rem]">
             {data.cronTickLastAt
               ? `Last /api/cron-tick call ${when(data.cronTickLastAt)}.`
-              : "/api/cron-tick has never been called — no scheduled job runs until an external scheduler (cron-job.org) calls it every minute."}
+              : "/api/cron-tick has never been called — no scheduled job runs until the Hostinger cron job (see ops/crontab) calls it every minute."}
           </p>
         </div>
         <div className="flex flex-wrap gap-2 mt-3" role="group" aria-label="Filter jobs">

@@ -12,13 +12,22 @@
 # build if a route under app/api/cron/ is missing from this file, so the next
 # one cannot go unscheduled.
 #
-# PRODUCTION (Hostinger Node.js hosting) HAS NO CRON — hPanel offers no Cron
-# Jobs for Node.js sites and `crontab` over SSH is silently ignored. There, ONE
-# external scheduler job (cron-job.org) calls, every minute:
-#   GET https://clipiro.com/api/cron-tick   Authorization: Bearer $CRON_SECRET
-# and app/api/cron-tick runs whatever is due from lib/cron-schedule.ts, which a
-# test keeps identical to this file. Don't ALSO install this crontab on the same
-# deployment, or every job runs twice. /admin/ops shows the tick's last call.
+# PRODUCTION (Hostinger Node.js hosting) does NOT install this file. `crontab`
+# over SSH is silently ignored there. Instead ONE Hostinger account cron job
+# (created through the Hostinger API / MCP, `hosting_cron-jobs_create`) calls,
+# every minute:
+#   GET https://clipiro.com/api/cron-tick   X-Cron-Secret: <CRON_SECRET>
+# reading the secret from the app's own env file at run time, so the cron
+# command never contains it:
+#   curl -sS -m 25 -H "X-Cron-Secret: $(sed -n 's/^CRON_SECRET=//p' \
+#     /home/u154310472/domains/clipiro.com/hbuilds/config/.env)" \
+#     https://clipiro.com/api/cron-tick
+# (written here across lines; Hostinger caps the command at 255 characters).
+# X-Cron-Secret, not Authorization: Hostinger's web server strips the
+# Authorization header before Node sees it (lib/cron-auth.ts). app/api/cron-tick
+# runs whatever is due from lib/cron-schedule.ts, which a test keeps identical
+# to this file. Don't ALSO install this crontab on the same deployment, or every
+# job runs twice. /admin/ops shows the tick's last call.
 #
 # Install (Hostinger/cPanel shells with crontab access):
 #   crontab ops/crontab
