@@ -24,9 +24,13 @@ import { parseCurrency } from "@/lib/currency-shared";
 import { getPlanPriceMinor } from "@/lib/currency";
 import { trialEligibility, type TrialIneligible } from "./trial-eligibility";
 import { greetingName } from "@/lib/display-name";
+import { createRazorpay } from "./razorpay-client";
+import { resolveTrialFingerprint, type PaymentLike } from "./trial-instrument";
 
 export interface AuthenticatedSubscription {
   id: string;
+  /** Set by Razorpay once the mandate is authorised; its saved token names the card/UPI ID. */
+  customer_id?: string | null;
   /** Unix seconds — when the first real charge (and the paid term) begins. */
   start_at?: number | null;
   notes?: { userId?: string; planId?: string; trial?: string; currency?: string };
@@ -36,7 +40,17 @@ export type TrialStartResult =
   | { status: "not-a-trial" }
   | { status: "started" }
   | { status: "already-started" }
-  | { status: "rejected"; reason: TrialIneligible | "unknown-plan" | "unknown-user" };
+  | { status: "rejected"; reason: TrialIneligible | "instrument-used" | "unknown-plan" | "unknown-user" };
+
+/**
+ * Where the authorising payment can be read from: the checkout callback has a
+ * verified payment id, the webhook may carry the payment entity. With neither,
+ * the customer's saved token is used (lib/billing/trial-instrument.ts).
+ */
+export interface TrialPaymentSource {
+  payment?: PaymentLike | null;
+  paymentId?: string | null;
+}
 
 /**
  * Handle `subscription.authenticated`. For a trial subscription this is the
@@ -50,7 +64,10 @@ export type TrialStartResult =
  * never reach its day-7 charge. Throws on a DB failure so the webhook 500s
  * and Razorpay retries.
  */
-export async function startTrialOnAuthentication(sub: AuthenticatedSubscription): Promise<TrialStartResult> {
+export async function startTrialOnAuthentication(
+  sub: AuthenticatedSubscription,
+  source: TrialPaymentSource = {},
+): Promise<TrialStartResult> {
   if (sub.notes?.trial !== "1") return { status: "not-a-trial" };
   const userId = sub.notes.userId;
   const planSlug = sub.notes.planId;
@@ -60,8 +77,20 @@ export async function startTrialOnAuthentication(sub: AuthenticatedSubscription)
     userId ? prisma.user.findUnique({ where: { id: userId }, select: { razorpaySubscriptionId: true, trialUsedAt: true } }) : null,
   ]);
 
-  // Redelivery of an authentication we already turned into a trial.
-  if (user?.razorpaySubscriptionId === sub.id && user.trialUsedAt) return { status: "already-started" };
+  // Redelivery of an authentication we already turned into a trial. If the
+  // first delivery couldn't name the card/UPI ID (a webhook with no payment
+  // and no saved token yet), record it now that this one can.
+  if (user?.razorpaySubscriptionId === sub.id && user.trialUsedAt) {
+    if (userId && (source.payment || source.paymentId)) {
+      const fp = await resolveTrialFingerprint(createRazorpay(), sub, source);
+      if (fp) {
+        await prisma.trialInstrument
+          .upsert({ where: { subscriptionId: sub.id }, create: { fingerprint: fp, userId, subscriptionId: sub.id }, update: {} })
+          .catch((e) => logger.warn("billing/trial", `could not record the instrument for ${sub.id}`, e));
+      }
+    }
+    return { status: "already-started" };
+  }
 
   const reject = async (reason: Extract<TrialStartResult, { status: "rejected" }>["reason"]): Promise<TrialStartResult> => {
     logger.warn("billing/trial", `rejecting trial subscription ${sub.id} for ${userId ?? "?"}: ${reason}`);
@@ -78,6 +107,17 @@ export async function startTrialOnAuthentication(sub: AuthenticatedSubscription)
   if (!plan || !isTrialPlan(plan)) return reject("unknown-plan");
   const ineligible = await trialEligibility(userId);
   if (ineligible) return reject(ineligible);
+
+  // One trial per card or UPI ID: a new account on a new inbox with the same
+  // card is still the same customer. Unknown instrument = account/inbox checks only.
+  const fingerprint = await resolveTrialFingerprint(createRazorpay(), sub, source);
+  if (fingerprint) {
+    const usedElsewhere = await prisma.trialInstrument.findFirst({
+      where: { fingerprint, userId: { not: userId } },
+      select: { id: true },
+    });
+    if (usedElsewhere) return reject("instrument-used");
+  }
 
   const startAt = sub.start_at ? new Date(sub.start_at * 1000) : new Date(Date.now() + TRIAL_DAYS * 86_400_000);
   const now = new Date();
@@ -104,6 +144,9 @@ export async function startTrialOnAuthentication(sub: AuthenticatedSubscription)
         ...(parseCurrency(sub.notes?.currency) ? { subscriptionCurrency: parseCurrency(sub.notes?.currency) } : {}),
       },
     });
+    if (fingerprint) {
+      await tx.trialInstrument.create({ data: { fingerprint, userId, subscriptionId: sub.id } });
+    }
     await grantCredits({ userId, bucket: "subscription", amount: TRIAL_CREDITS, reason: "grant:trial", refId: sub.id, tx });
     // Subscription bucket, like the credits: zeroed if the trial lapses.
     await grantMinutes({ userId, bucket: "subscription", amount: TRIAL_MINUTES, reason: "grant:trial", refId: sub.id, tx });

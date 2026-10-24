@@ -936,6 +936,20 @@ model RazorpayEvent {
   processedAt DateTime @default(now())
 }
 
+// One free trial per card or UPI ID (lib/billing/trial-instrument.ts). Holds an
+// HMAC of the instrument's identity, never card details. Deliberately no
+// relation to User: deleting an account must not let the same card start a
+// fresh trial, and the hash identifies no one by itself.
+model TrialInstrument {
+  id             String   @id @default(uuid())
+  fingerprint    String
+  userId         String
+  subscriptionId String   @unique
+  createdAt      DateTime @default(now())
+
+  @@index([fingerprint])
+}
+
 // Append-only log of subscription lifecycle events from Razorpay. Separate
 // from RazorpayEvent, which is keyed on payment id purely as an idempotency
 // claim and records nothing useful: it cannot answer "why did this customer
