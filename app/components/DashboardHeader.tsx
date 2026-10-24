@@ -143,7 +143,10 @@ function HeaderSearch({ className = "relative flex-1 max-w-md" }: { className?: 
         onFocus={() => setFocused(true)}
         onKeyDown={(e) => { if (e.key === "Escape") setFocused(false); }}
         placeholder={t("searchPlaceholder")}
-        className="w-full text-sm bg-surface border border-card-border rounded-full pl-10 pr-4 py-2 text-ink placeholder:text-ink-soft/50 outline-none focus:bg-panel focus:border-primary/60 focus:ring-2 focus:ring-primary/25 transition-all"
+        // 16px, not text-sm: iOS Safari zooms the page into any input under
+        // 16px on focus and stays zoomed, which left the fixed mobile drawer
+        // panning freely in every direction.
+        className="w-full text-base bg-surface border border-card-border rounded-full pl-10 pr-4 py-2 text-ink placeholder:text-ink-soft/50 outline-none focus:bg-panel focus:border-primary/60 focus:ring-2 focus:ring-primary/25 transition-all"
       />
       <div
         className={`absolute top-full mt-2 left-0 right-0 rounded-2xl border border-card-border bg-panel shadow-xl z-50 overflow-hidden origin-top transition-all duration-150 ease-out ${
@@ -302,6 +305,22 @@ export default function DashboardHeader() {
 
   const closeMobile = () => { setMenuOpen(false); setMobileSection(null); };
 
+  // Lock the page while the mobile drawer is open. Without this a swipe on
+  // the drawer chains to the root scroller and the browser rubber-bands /
+  // pans the whole viewport, so the "fixed" drawer floats around. Same
+  // technique as SiteNavbar.tsx's mobile menu, plus <html> for iOS Safari.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const html = document.documentElement;
+    const prev = { html: html.style.overflow, body: document.body.style.overflow };
+    html.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    return () => {
+      html.style.overflow = prev.html;
+      document.body.style.overflow = prev.body;
+    };
+  }, [menuOpen]);
+
   return (
     <>
     {/* Below xl only: from xl up every page uses the sidebar rail plus a slim
@@ -385,9 +404,11 @@ export default function DashboardHeader() {
     {/* Mobile drawer — replaces the ToolsSidebar rail + everything the header
         hides below `xl`, in one place, mirroring SiteNavbar.tsx's mobile menu. */}
     {user && menuOpen && (
-      <div className="xl:hidden fixed inset-x-0 top-16 bottom-0 z-50 flex" data-testid="mobile-nav-drawer">
-        <div className="absolute inset-0 bg-black/40" onClick={closeMobile} />
-        <div className="relative w-full max-w-xs h-full bg-panel shadow-xl overflow-y-auto px-4 py-4 space-y-1">
+      <div className="xl:hidden fixed inset-x-0 top-16 bottom-0 z-50 flex overflow-hidden overscroll-none" data-testid="mobile-nav-drawer">
+        {/* touch-none: dragging the backdrop must not pan the page behind. */}
+        <div className="absolute inset-0 bg-black/40 touch-none" onClick={closeMobile} />
+        {/* Vertical scroll only, and never chained to the page at either end. */}
+        <div className="relative w-full max-w-xs h-full bg-panel shadow-xl overflow-y-auto overflow-x-hidden overscroll-contain touch-pan-y px-4 py-4 space-y-1">
           <HeaderSearch className="relative mb-3" />
 
           {/* Primary nav (mirrors ToolsSidebar's groups) */}
