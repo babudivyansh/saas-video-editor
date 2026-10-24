@@ -31,11 +31,13 @@ import { withAdmin } from "@/lib/admin/api";
 import { logger } from "@/lib/logger";
 import { ffmpegBin, ffmpegBinaryInfo, encodeArgs } from "@/utils/ffmpeg-render";
 import { resolveFontFile } from "@/lib/editor/filtergraph";
+import { CAPTION_FONTS_DIR } from "@/lib/captions/engine";
 import {
   parseFilterNames,
   REQUIRED_FILTERS,
   REQUIRED_VIDEO_ENCODER,
   REQUIRED_AUDIO_ENCODER,
+  probeComplexShaping,
 } from "@/lib/render-runtime";
 
 export function run(bin: string, args: string[], timeoutMs = 15_000): Promise<{ code: number | null; signal: NodeJS.Signals | null; stdout: string; stderr: string; spawnError: string | null }> {
@@ -90,6 +92,8 @@ interface BinaryProbe {
   missingFilters?: string[];
   encoders?: Record<string, boolean>;
   buildFlags?: { count: number; freetype: boolean; harfbuzz: boolean; libass: boolean; fontconfig: boolean };
+  /** Functional check: does this binary shape Devanagari (Hindi caption templates)? */
+  devanagariShaping?: boolean;
 }
 
 function fileIdentity(bin: string): BinaryProbe["file"] {
@@ -147,6 +151,7 @@ export async function probeBinary(bin: string): Promise<BinaryProbe> {
       libass: enabled(/libass/),
       fontconfig: enabled(/fontconfig/),
     },
+    devanagariShaping: names.has("ass") ? await probeComplexShaping(bin, CAPTION_FONTS_DIR).catch(() => false) : false,
   };
 }
 

@@ -139,18 +139,19 @@ export default function CaptionTemplateGallery({
                 }`}
               >
                 <TemplatePreviewLoop template={t} className={t.locked ? "opacity-60" : ""} />
-                <span className="flex items-center gap-1 px-2 py-1.5">
-                  <span className={`truncate text-[11px] font-semibold ${selected ? "text-ink" : "text-ink-soft"}`}>{t.name}</span>
-                  {t.tier !== "free" && (
-                    <span
-                      className={`ml-auto shrink-0 inline-flex items-center gap-0.5 rounded-full px-1.5 py-px text-[9px] font-bold uppercase tracking-wide ${
-                        t.tier === "pro" ? "bg-tint-amber text-ink border border-tint-amber-border" : "bg-tint-emerald text-ink border border-tint-emerald-border"
-                      }`}
-                    >
-                      {t.locked && <LockIcon />}
-                      {CAPTION_TIER_LABEL[t.tier]}
-                    </span>
-                  )}
+                {/* On the preview, not beside the name, so narrow grids keep the name readable. */}
+                {t.tier !== "free" && (
+                  <span
+                    className={`absolute top-1.5 left-1.5 inline-flex items-center gap-0.5 rounded-full px-1.5 py-px text-[9px] font-bold uppercase tracking-wide ${
+                      t.tier === "pro" ? "bg-tint-amber text-ink border border-tint-amber-border" : "bg-tint-emerald text-ink border border-tint-emerald-border"
+                    }`}
+                  >
+                    {t.locked && <LockIcon />}
+                    {CAPTION_TIER_LABEL[t.tier]}
+                  </span>
+                )}
+                <span className="block px-2 py-1.5">
+                  <span className={`block truncate text-[11px] font-semibold ${selected ? "text-ink" : "text-ink-soft"}`}>{t.name}</span>
                 </span>
                 {selected && (
                   <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-brand flex items-center justify-center">
