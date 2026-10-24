@@ -19,6 +19,12 @@ import type { TimelineDoc } from "./types";
 import { normalizeDoc } from "./types";
 import { buildFilterGraph, maybeUseFilterScript, writeTextFiles, type ClipInput } from "./filtergraph";
 import { generateCaptionASS } from "./caption-ass";
+import { ASPECT_DIMENSIONS } from "./types";
+import { templateCaptionGroups } from "@clipiro/shared/captions";
+import { planEmoji } from "@clipiro/shared/caption-emoji";
+import { resolveCaptionTemplate } from "@clipiro/shared/caption-templates";
+import { buildCaptionTrack, type CaptionTrack } from "@/lib/captions/engine";
+import { sanitizeCaptionWord } from "@/lib/caption-sanitize";
 import { classifyRenderFailure } from "./render-failure";
 
 export const EDITOR_RENDER_CREDIT_COST = 1;
@@ -131,12 +137,36 @@ export async function editorRenderJob(payload: EditorRenderPayload): Promise<voi
     const textFiles = writeTextFiles(doc, tmp, `editor-${projectId}`);
     for (const p of textFiles.values()) tempFiles.push(p);
 
+    // Plain cues keep the editor's own per-cue styling; cues carrying a
+    // caption template are burned by the template engine instead.
     let captionAssPath: string | undefined;
-    if (doc.tracks.caption.length > 0) {
+    const plainCues = doc.tracks.caption.filter((c) => !c.templateId);
+    if (plainCues.length > 0) {
       captionAssPath = path.join(tmp, `editor-${projectId}-captions.ass`);
-      generateCaptionASS(doc.tracks.caption, doc.aspect, captionAssPath);
+      generateCaptionASS(plainCues, doc.aspect, captionAssPath);
       tempFiles.push(captionAssPath);
     }
+    const { w: capW, h: capH } = ASPECT_DIMENSIONS[doc.aspect];
+    const captionTemplateTracks: { track: CaptionTrack; assPath: string }[] = [];
+    templateCaptionGroups(doc.tracks.caption).forEach((group, i) => {
+      const template = resolveCaptionTemplate(group.templateId);
+      const words = group.words
+        .map((w) => ({ ...w, word: sanitizeCaptionWord(w.word).trim() }))
+        .filter((w) => w.word);
+      if (!words.length) return;
+      const track = buildCaptionTrack({
+        words,
+        template,
+        W: capW,
+        H: capH,
+        accent: group.accent,
+        emoji: planEmoji(words, template.emoji !== "none"),
+      });
+      const assPath = path.join(tmp, `editor-${projectId}-template-${i}.ass`);
+      fs.writeFileSync(assPath, track.ass);
+      tempFiles.push(assPath);
+      captionTemplateTracks.push({ track, assPath });
+    });
 
     // Free-tier renders are watermarked + 720p-capped. Tier is re-derived
     // here (not passed in the payload) so it's decided in one place and is
@@ -144,7 +174,7 @@ export async function editorRenderJob(payload: EditorRenderPayload): Promise<voi
     const { getUserTier } = await import("@/lib/auth");
     const tier = await getUserTier(project.userId);
     const result = buildFilterGraph({
-      doc, assets, textFiles, captionAssPath,
+      doc, assets, textFiles, captionAssPath, captionTemplateTracks,
       watermark: tier === "free",
       outputPath: outPath,
     });

@@ -33,6 +33,8 @@ import {
 } from "@/lib/autoclip-pipeline";
 import { REFRAME_PRESETS, ZOOM_STRENGTHS, SPEAKER_MODES } from "@/lib/reframe";
 import { liteEditsSchema } from "@/lib/autoclip-lite";
+import { isKnownTemplateId } from "@clipiro/shared/caption-templates";
+import { checkTemplateChoice } from "@/lib/captions/gate";
 
 /** Free re-renders per clip per day (fair use — see the check in the request path). */
 export const RERENDER_FAIR_USE_PER_DAY = 10;
@@ -55,26 +57,23 @@ export const rerenderRefId = (clipId: string, attempt: number) => `auto-clip-rer
 // fontSize of 1e9 is a libass memory bomb, and an unbounded transcript array is
 // an unbounded write.
 
-const assColor = z.string().regex(/^&H[0-9A-Fa-f]{2,8}$/, "expected an ASS colour like &H00FFFFFF");
-
+/**
+ * A clip's caption settings: the template plus the three tweaks the Captions
+ * panel offers. Everything else about the look comes from the template
+ * (packages/shared/src/captions/templates.ts); read back by
+ * lib/captions/clip-captions.ts readCaptionOverride.
+ */
 export const subtitleStyleOverrideSchema = z.object({
-  /** Named caption template (lib/caption-templates.ts); individual fields below still win. */
-  templateId: z.string().min(1).max(40).optional(),
-  // Written verbatim into the ASS `Style:` line, where a comma starts the
-  // next field and a newline starts a new line — so a font name carrying
-  // either could inject whole styles or Dialogue events. Real family names
-  // ("Bebas Neue", "Playfair Display", a brand kit's font) are letters,
-  // digits, spaces and hyphens; that is all this lets through.
-  fontName: z.string().min(1).max(64).regex(/^[A-Za-z0-9][A-Za-z0-9 -]*$/, "unsupported font name").optional(),
-  fontSize: z.number().int().min(8).max(300).optional(),
-  highlightColor: assColor.optional(),
-  baseColor: assColor.optional(),
-  outlineColor: assColor.optional(),
-  shadowColor: assColor.optional(),
-  outlineWidth: z.number().min(0).max(40).optional(),
-  shadowDepth: z.number().min(0).max(40).optional(),
-  borderStyle: z.union([z.literal(1), z.literal(3)]).optional(),
-  alignment: z.number().int().min(1).max(9).optional(),
+  templateId: z.string().min(1).max(64).refine(isKnownTemplateId, "unknown caption template").optional(),
+  /** Replaces the template's accent colour. */
+  accent: z.string().regex(/^#[0-9a-fA-F]{6}$/, "expected a colour like #FFD60A").optional(),
+  /** Multiplier on the template's text size. */
+  sizeScale: z.number().min(0.7).max(1.4).optional(),
+  /** Caption block centre as a percentage of frame height. */
+  positionY: z.number().min(15).max(85).optional(),
+  // Written by the pipeline (face-aware default position) and by older
+  // clients; accepted so a round-trip of the stored blob still validates.
+  captionPositionY: z.number().min(0).max(100).optional(),
   animated: z.boolean().optional(),
 }).strict();
 
@@ -167,6 +166,15 @@ export async function requestRerender(args: RequestRerenderArgs): Promise<Rerend
   if (end - start > MAX_CLIP_SECONDS) {
     return { ok: false, status: 400, error: `Clip exceeds the ${MAX_CLIP_SECONDS}s max length` };
   }
+
+  // Caption template plan gate, before anything is claimed or charged.
+  const currentTemplate = (clip.subtitleStyleOverride as Record<string, unknown> | null)?.templateId;
+  const locked = await checkTemplateChoice(
+    userId,
+    patch.subtitleStyleOverride?.templateId,
+    typeof currentTemplate === "string" ? currentTemplate : null,
+  );
+  if (locked) return { ok: false, status: locked.status, error: locked.body.error };
 
   // Snapshot what to roll back to BEFORE claiming, rather than reading it off
   // `clip` afterwards — the claim is what changes the row, so anything that

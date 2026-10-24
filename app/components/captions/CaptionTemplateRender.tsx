@@ -1,0 +1,207 @@
+"use client";
+
+// Draws one caption template at one moment in time, in the browser.
+//
+// Time-driven on purpose: the pickers feed it a looping demo clock, the editor
+// feeds it the playhead, and both get the same chunking, active word, emoji
+// and motion as the export (lib/captions/engine). The motions themselves are
+// CSS (CaptionTemplateRender.module.css), started by the class change when a
+// word becomes the spoken one.
+
+import type { CSSProperties } from "react";
+import type { CaptionTemplateSpec } from "@clipiro/shared/caption-templates";
+import s from "./CaptionTemplateRender.module.css";
+
+export interface PreviewWord {
+  text: string;
+  /** ms */
+  start: number;
+  /** ms */
+  end: number;
+  emoji?: string | null;
+  emphasis?: boolean;
+  speaker?: number;
+}
+
+export interface CaptionTemplateRenderProps {
+  template: CaptionTemplateSpec;
+  words: PreviewWord[];
+  /** Current time in ms, on the same clock as the words. */
+  timeMs: number;
+  /** Paint the family's stand-in footage behind the caption. Off when drawn over real video. */
+  scene?: boolean;
+  showSafeZone?: boolean;
+  /** Fill the parent instead of keeping a 9:16 box (the editor canvas). */
+  fill?: boolean;
+  accent?: string | null;
+  sizeScale?: number;
+  /** Block centre, % of frame height. */
+  positionY?: number | null;
+  className?: string;
+}
+
+const STICKER_TILTS = [-4, 3, -2, 4];
+
+/** CSS text-shadow approximating an outline of `width` (0-4 scale). */
+function outlineShadow(color: string | undefined, width: number | undefined, hard?: string): string {
+  if (!color || !width) return hard ? `.07em .09em 0 ${hard}` : "0 .05em .25em rgba(0,0,0,.45)";
+  const o = `${(width * 0.016).toFixed(3)}em`;
+  const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1], [0.7, 0.7], [-0.7, 0.7], [0.7, -0.7], [-0.7, -0.7]];
+  const parts = dirs.map(([x, y]) => `calc(${o} * ${x}) calc(${o} * ${y}) 0 ${color}`);
+  if (hard) parts.push(`.08em .1em 0 ${hard}`);
+  return parts.join(",");
+}
+
+interface Chunk {
+  index: number;
+  start: number;
+  end: number;
+  words: (PreviewWord & { i: number })[];
+}
+
+/** Same chunking rule as lib/captions/engine/layout.ts chunkWords. */
+export function chunkPreviewWords(words: PreviewWord[], perChunk: number): Chunk[] {
+  const out: Chunk[] = [];
+  let cur: (PreviewWord & { i: number })[] = [];
+  words.forEach((w, i) => {
+    const prev = words[i - 1];
+    if (cur.length && (cur.length >= perChunk || (prev && w.start - prev.end > 700))) {
+      out.push({ index: out.length, start: cur[0].start, end: 0, words: cur });
+      cur = [];
+    }
+    cur.push({ ...w, i });
+  });
+  if (cur.length) out.push({ index: out.length, start: cur[0].start, end: 0, words: cur });
+  out.forEach((c, k) => {
+    const last = c.words[c.words.length - 1];
+    const next = out[k + 1]?.start ?? Infinity;
+    c.end = next - last.end < 250 ? next : Math.min(next, last.end + 600);
+  });
+  return out;
+}
+
+export default function CaptionTemplateRender({
+  template: t,
+  words,
+  timeMs,
+  scene = true,
+  showSafeZone,
+  fill,
+  accent,
+  sizeScale = 1,
+  positionY,
+  className,
+}: CaptionTemplateRenderProps) {
+  const chunks = chunkPreviewWords(words, t.words);
+  const chunk = chunks.find((c) => timeMs >= c.start && timeMs < c.end) ?? null;
+  const c = t.colors;
+  const act = accent && /^#[0-9a-fA-F]{6}$/.test(accent) ? accent : c.accent;
+
+  let activeIdx = -1;
+  if (chunk) chunk.words.forEach((w, k) => { if (timeMs >= w.start) activeIdx = k; });
+
+  const boxed = ["pill", "line", "sticker", "bar", "glass", "dark", "wordbox"].includes(t.container) || t.motion === "bubble" || t.motion === "blocks";
+  const ol = t.motion === "hollow" || boxed ? "none" : outlineShadow(c.outline, c.outlineWidth, c.hardShadow);
+  const grad = c.gradient;
+
+  const capStyle = {
+    "--ff": `"${t.type.font}", system-ui, sans-serif`,
+    "--fw": String(t.type.weight),
+    "--fst": t.type.italic ? "italic" : "normal",
+    "--tt": t.type.case === "upper" ? "uppercase" : t.type.case === "lower" ? "lowercase" : "none",
+    "--sz": String(t.type.size * sizeScale),
+    "--ls": t.type.tracking ? `${t.type.tracking}em` : "0",
+    "--base": c.base,
+    "--act": act,
+    "--st": c.outline ?? "#fff",
+    "--box": c.box ?? "transparent",
+    "--box2": c.box2 ?? "#20d68a",
+    "--gl": c.glow ?? act,
+    "--ol": ol,
+    "--tilt": `${t.placement.tilt ?? 0}deg`,
+    "--rot": `${STICKER_TILTS[(chunk?.index ?? 0) % STICKER_TILTS.length]}deg`,
+    "--olc": c.outline ?? "#000",
+    ...(grad ? { "--g1": grad.from, "--g2": grad.to } : {}),
+    ...(positionY != null ? { "--py": `${positionY}%` } : {}),
+  } as CSSProperties;
+
+  const capClass = [
+    s.cap,
+    s[`fx_${t.motion}`],
+    positionY != null ? s.pos_custom : s[`pos_${t.placement.y}`],
+    t.container !== "none" ? s[`box_${t.container}`] : "",
+    t.placement.align === "left" ? s.al_left : "",
+    grad ? (grad.target === "all" ? s.gradall : s.grad) : "",
+    s.enter,
+  ].filter(Boolean).join(" ");
+
+  const speakerColor = (sp: number | undefined) => (c.speakers?.length ? c.speakers[(sp ?? 0) % c.speakers.length] : undefined);
+
+  const wordEls = chunk?.words.map((w, k) => {
+    const state = k === activeIdx ? s.on : k < activeIdx ? s.past : s.fut;
+    const style: CSSProperties & Record<string, string> = {};
+    if (t.motion === "bubble" || t.motion === "blocks") style["--bg"] = c.palette?.[w.i % c.palette.length] ?? "#fff";
+    if (c.cycle?.length && k === activeIdx) style["--act"] = c.cycle[w.i % c.cycle.length];
+    const sc = speakerColor(w.speaker);
+    if (sc) style["--base"] = sc;
+    const dur = Math.max(80, (chunk.words[k + 1]?.start ?? chunk.end) - w.start);
+    style["--dur"] = `${dur - 30}ms`;
+    const emoji = t.emoji !== "none" && w.emoji ? w.emoji : null;
+    const sinceActive = timeMs - w.start;
+    return (
+      <span key={`${chunk.index}-${k}`} className="contents">
+        <span className={`${s.w} ${state} ${w.emphasis && t.motion === "emph" ? s.em : ""}`} data-w={w.text} style={style}>
+          {w.text}
+          {emoji && k === activeIdx && t.emoji === "above" && <i className={`${s.emo} ${s.up}`}>{emoji}</i>}
+          {emoji && k === activeIdx && t.emoji === "burst" && sinceActive < 520 &&
+            [[-1.4, -1.75], [1.5, -1.5], [0, -2.4], [-1.75, 0.25], [1.75, 0.4]].map(([dx, dy], j) => (
+              <i key={j} className={`${s.emo} ${s.burst}`} style={{ "--dx": `${dx}em`, "--dy": `${dy}em` } as CSSProperties}>{emoji}</i>
+            ))}
+        </span>
+        {emoji && k <= activeIdx && t.emoji === "end" && <i className={`${s.emo} ${s.end}`}>{emoji}</i>}
+        {t.container === "line" && k < chunk.words.length - 1 ? " " : null}
+      </span>
+    );
+  });
+
+  // Rain emoji live in the frame, not the caption block.
+  const rain = t.emoji === "rain" && chunk
+    ? chunk.words.flatMap((w) =>
+        w.emoji && timeMs >= w.start && timeMs < w.start + 1600
+          ? [0, 1, 2, 3, 4].map((k) => (
+              <i
+                key={`${w.i}-${k}`}
+                className={`${s.emo} ${s.rain}`}
+                style={{ left: `${8 + k * 18 + (k % 2 ? 4 : -2)}%`, animationDelay: `${k * 90}ms` }}
+              >
+                {w.emoji}
+              </i>
+            ))
+          : [],
+      )
+    : null;
+
+  const frameClass = [
+    s.frame,
+    fill ? s.free : "",
+    scene ? s[`sc_${t.family}`] : s.transparent,
+    t.extra === "letterbox" ? s.letterbox : "",
+    className ?? "",
+  ].filter(Boolean).join(" ");
+
+  return (
+    <div className={frameClass} style={{ "--act": act } as CSSProperties} aria-hidden="true">
+      {chunk && (
+        <div key={chunk.index} className={capClass} style={capStyle}>
+          {t.extra === "bars" && <span className={s.barsx}><i /><i /><i /><i /></span>}
+          {t.extra === "square" && <span className={s.sq} />}
+          {t.container === "line" ? <span className={s.lnw}>{wordEls}</span> : wordEls}
+          {t.extra === "cursor" && <span className={s.cur} />}
+        </div>
+      )}
+      {chunk && t.extra === "quote" && <div className={s.qmark}>{"“"}</div>}
+      {rain}
+      {showSafeZone && <div className={s.safe} />}
+    </div>
+  );
+}

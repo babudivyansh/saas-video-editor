@@ -15,10 +15,9 @@ import { AssetField } from "@/app/components/assets/AssetField";
 import type { PickerAsset } from "@/app/components/assets/assetPickerData";
 import { useVideoGenerate, getStoredToken } from "@/app/hooks/useVideoGenerate";
 import { indexForTemplateId, DEFAULT_TEMPLATE_ID } from "@/lib/captions/legacyStyleIndex";
-import { estimateRunCost, bandMaxSeconds } from "@/lib/captions/runEstimate";
+import { estimateRunCost } from "@/lib/captions/runEstimate";
 import { OVERFLOW_MINUTES_PER_CREDIT, overflowCreditsFor } from "@/lib/plans/tiers";
 import { MAX_INSTRUCTIONS_CHARS } from "@/lib/autoclip-create-input";
-import { CAPTION_RENDER_PRICING_DEFAULTS, type CaptionRenderPricing } from "@/lib/captions/pricingDefaults";
 import { IcFilm, IcCloud, IcFile, IcX, IcSparkle, apiFetch, ASPECTS } from "./_components/shared";
 import { clipEditorHref, projectHref } from "@/lib/project-links";
 import { sourceDurationError, sourceFileError } from "@/lib/autoclip-source";
@@ -64,21 +63,16 @@ function AutoClipFlow() {
   );
   const [instructions, setInstructions] = useState("");
   const [captionsOn, setCaptionsOn] = useState(params.get("captions") !== "0");
-  // The caption style is now a TEMPLATE SLUG, not an index into a colour table.
+  // The caption style is a TEMPLATE ID, not an index into a colour table.
   // captionStyleIndex is still derived from it on the wire (see the create
   // bodies below) purely to keep the public v1 API contract working.
   const [captionTemplateId, setCaptionTemplateId] = useState<string>(DEFAULT_TEMPLATE_ID);
-  const [premiumTemplateIds, setPremiumTemplateIds] = useState<Set<string>>(new Set());
   const captionStyleIndex = indexForTemplateId(captionTemplateId);
-  const isPremiumStyle = captionsOn && premiumTemplateIds.has(captionTemplateId);
 
-  // Priced with the same helper the create route uses, and now the same
-  // PRICES: the route's GET returns the admin-set ones. This used the bundled
-  // defaults, so after any repricing the figure beside Generate was not the
-  // figure charged. The defaults remain only as the first-paint fallback.
+  // The caller's balances, shown beside Generate.
   const pricingQuery = useQuery({
     queryKey: ["auto-clip-pricing"],
-    queryFn: () => apiFetch<{ captionPricing: CaptionRenderPricing; balance: number; minutes: number }>("/api/generate/auto-clip"),
+    queryFn: () => apiFetch<{ balance: number; minutes: number }>("/api/generate/auto-clip"),
     staleTime: 60_000,
   });
   const balance = pricingQuery.data?.balance ?? null;
@@ -98,17 +92,7 @@ function AutoClipFlow() {
   // Opt-in: pay a minutes shortfall in AI credits instead of being refused.
   const [allowCreditOverflow, setAllowCreditOverflow] = useState(false);
 
-  const runCost = useMemo(
-    () =>
-      estimateRunCost(
-        {
-          clipCount, maxDurationSec: bandMaxSeconds(minDuration, maxDuration), premiumCaptions: isPremiumStyle,
-          sourceDurationSec,
-        },
-        pricingQuery.data?.captionPricing ?? CAPTION_RENDER_PRICING_DEFAULTS,
-      ),
-    [clipCount, minDuration, maxDuration, isPremiumStyle, sourceDurationSec, pricingQuery.data],
-  );
+  const runCost = useMemo(() => estimateRunCost({ sourceDurationSec }), [sourceDurationSec]);
   const minutesShort = runCost.minutes != null && minutesBalance != null ? Math.max(runCost.minutes - minutesBalance, 0) : 0;
 
   const [reframingPreset, setReframingPreset] = useState("balanced");
@@ -120,7 +104,8 @@ function AutoClipFlow() {
   const [speakerMode, setSpeakerMode] = useState<"auto" | "single" | "split" | "active">("auto");
   const [smoothness, setSmoothness] = useState(50);
   const [trackingSpeed, setTrackingSpeed] = useState(50);
-  const [animatedCaptions, setAnimatedCaptions] = useState(true);
+  // Motion is part of each caption template now; kept on the wire for older clients.
+  const animatedCaptions = true;
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const {
@@ -318,7 +303,7 @@ function AutoClipFlow() {
     setMinDuration(15); setMaxDuration(60); setClipCount(8); setAspectRatio("9:16");
     setInstructions(""); setCaptionsOn(true); setCaptionTemplateId(DEFAULT_TEMPLATE_ID);
     setReframingPreset("balanced"); setRemoveSilence(false); setSilenceThresholdMs(400); setRemoveFillers(false);
-    setSmartAutoReframe(true); setZoomStrength("medium"); setSpeakerMode("auto"); setSmoothness(50); setTrackingSpeed(50); setAnimatedCaptions(true);
+    setSmartAutoReframe(true); setZoomStrength("medium"); setSpeakerMode("auto"); setSmoothness(50); setTrackingSpeed(50);
     setAdvancedOpen(false); setStep(1); setPreset(null);
     router.push("/dashboard/create/auto-clip");
   }, [reset, handleClearFile, router]);
@@ -488,13 +473,7 @@ function AutoClipFlow() {
                   <Switch checked={captionsOn} onChange={setCaptionsOn} label="Captions" />
                 </div>
                 {captionsOn && (
-                  <CaptionStyleGrid
-                    value={captionTemplateId}
-                    onChange={setCaptionTemplateId}
-                    onTemplatesLoaded={(list) =>
-                      setPremiumTemplateIds(new Set(list.filter((t) => t.requiresRender).map((t) => t.id)))
-                    }
-                  />
+                  <CaptionStyleGrid value={captionTemplateId} onChange={setCaptionTemplateId} />
                 )}
               </div>
             </>
@@ -549,12 +528,6 @@ function AutoClipFlow() {
                         silenceThresholdMs={silenceThresholdMs} setSilenceThresholdMs={setSilenceThresholdMs}
                         removeFillers={removeFillers} setRemoveFillers={setRemoveFillers}
                       />
-                      {captionsOn && (
-                        <div className="flex items-center justify-between rounded-xl border border-line p-3">
-                          <div><p className="text-[12.5px] font-semibold text-fg">Animated subtitles</p><p className="text-[11px] text-fg-muted">Highlight words with dynamic sizes and colours as they&apos;re spoken.</p></div>
-                          <Switch checked={animatedCaptions} onChange={setAnimatedCaptions} label="Animated subtitles" />
-                        </div>
-                      )}
                       <div>
                         <label htmlFor="ac-instructions" className="mb-2 block text-[12px] font-bold uppercase tracking-wider text-fg-muted">Instructions (optional)</label>
                         <textarea id="ac-instructions" value={instructions} onChange={(e) => setInstructions(e.target.value)} rows={3} maxLength={MAX_INSTRUCTIONS_CHARS} placeholder="e.g. Focus on funny moments, avoid silent parts, prioritize high-energy sections…" className="w-full resize-none rounded-xl border border-line bg-surface-2 px-3 py-3 text-sm text-fg transition-all placeholder:text-fg-subtle focus:border-primary/60 focus:outline-none focus:ring-2 focus:ring-primary/30" />
@@ -564,15 +537,13 @@ function AutoClipFlow() {
                 </div>
 
                 {/* There is no review step after this, so this is the LAST moment a
-                    price can be shown before money is spent. It has to be itemised
-                    and honest about the premium caption line. */}
+                    price can be shown before minutes are spent. */}
                 <div className="rounded-[20px] border border-line bg-surface-1 p-5 text-[13px] text-fg-muted">
                   <span className="font-semibold text-fg">
                     {runCost.minutes != null
                       ? `Uses ${runCost.minutes} Clip Minute${runCost.minutes === 1 ? "" : "s"}`
                       : "Uses 1 Clip Minute per minute of video"}
                   </span>
-                  {runCost.captionCredits > 0 && <> + up to {runCost.captionCredits} AI credits for premium captions</>}
                   <span className="mt-0.5 block text-[12px]">
                     Any number of clips from one video. Re-running the same video within 7 days is free,
                     and a failed run is refunded in full.

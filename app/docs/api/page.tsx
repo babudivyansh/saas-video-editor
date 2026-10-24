@@ -124,7 +124,7 @@ export default function ApiDocsPage() {
             <Endpoint
               method="POST"
               path="/api/v1/clips"
-              desc="Start an AutoClip analysis job for an existing project (create it via POST /api/v1/projects). Credits are charged here, up front, for the whole run — analysis, rendering every clip, and premium captions if you pick a premium caption style. Any overcharge is refunded once the real clip lengths are known. There is no separate confirm step."
+              desc="Start an AutoClip analysis job for an existing project (create it via POST /api/v1/projects). The run is paid in Clip Minutes, taken once the source length is known. Creator and Pro caption templates need that plan; a locked template returns 403 template_locked. There is no separate confirm step."
               request={`{
   "projectId": "proj_abc123",
   "minDuration": 15,

@@ -585,7 +585,7 @@ export const CAPTION_TEMPLATES: readonly CaptionTemplateSpec[] = [
     type: { font: "Mukta", weight: 800, case: "none", size: 1.15 }, words: 2, motion: "pop",
     placement: { y: "mid", align: "center" },
     colors: { base: W, accent: "#FF9933", outline: K, outlineWidth: 3 }, container: "none", emoji: "above", script: "devanagari",
-    sample: "ये तरीका:🔥 कोई नहीं बताएगा आपको",
+    sample: "ये ट्रिक:🔥 किसी को नहीं पता",
   },
   {
     id: "filmi", name: "Filmi", family: "desi", tier: "pro",
@@ -595,7 +595,7 @@ export const CAPTION_TEMPLATES: readonly CaptionTemplateSpec[] = [
     placement: { y: "mid", align: "center" },
     colors: { base: "#FFD27A", accent: W, outline: "#5A1A00", outlineWidth: 3, gradient: { from: "#FFE7A3", to: "#D99A2B", target: "all" } },
     container: "none", emoji: "none", script: "devanagari",
-    sample: "सपने बड़े रखो डर छोटा",
+    sample: "हिम्मत रखो सपने बड़े",
   },
 ];
 

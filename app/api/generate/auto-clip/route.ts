@@ -5,12 +5,12 @@ import { withRateLimit } from "@/lib/with-rate-limit";
 import { startAutoClipRun } from "@/lib/autoclip-start";
 
 // The dashboard's AutoClip create route. Everything about starting a run —
-// validation, the free-tier allowance, the kill-switch, the worst-case charge
+// validation, the free-tier allowance, the caption plan gate, the kill-switch
 // and the enqueue — lives in lib/autoclip-start.ts, shared with the public
 // v1 API so the two can no longer drift apart. See that file.
 //
 // The actual analysis (download, transcribe, face tracking, Gemini) runs on
-// the render queue, so this only validates, charges and enqueues.
+// the render queue, so this only validates and enqueues.
 export const maxDuration = 30;
 
 async function handlePOST(req: NextRequest) {
@@ -28,25 +28,19 @@ async function handlePOST(req: NextRequest) {
 
 export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy: "user", name: "generate:auto-clip" });
 
-// GET — the prices a run will actually be charged at, plus the caller's
-// balance. The create form priced runs with the DEFAULT prices bundled into
-// the page, while this route charges with the admin-set ones, so after any
-// repricing the figure beside Generate was simply wrong. Reads only; the
-// estimate itself is still computed client-side with the same estimateRunCost.
+// GET — the caller's balances, shown beside Generate. Reads only; the run
+// estimate itself is computed client-side with estimateRunCost.
 async function handleGET(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const [{ getCaptionRenderPricing }, { getBalances }, { getMinuteBalances }] = await Promise.all([
-    import("@/lib/captions/pricing"),
+  const [{ getBalances }, { getMinuteBalances }] = await Promise.all([
     import("@/lib/credits"),
     import("@/lib/minutes"),
   ]);
-  const [captionPricing, balances, minutes] = await Promise.all([
-    getCaptionRenderPricing(), getBalances(auth.userId), getMinuteBalances(auth.userId),
-  ]);
-  // `balance` stays the CREDIT balance (premium captions and the overflow are
-  // paid in credits); `minutes` is the Clip Minutes balance a run spends.
-  return NextResponse.json({ captionPricing, balance: balances.total, minutes: minutes.total });
+  const [balances, minutes] = await Promise.all([getBalances(auth.userId), getMinuteBalances(auth.userId)]);
+  // `balance` is the CREDIT balance (the minutes overflow is paid in credits);
+  // `minutes` is the Clip Minutes balance a run spends.
+  return NextResponse.json({ balance: balances.total, minutes: minutes.total });
 }
 
 export const GET = withRateLimit(handleGET, { limit: 60, windowSec: 60, keyBy: "user", name: "generate:auto-clip:pricing" });

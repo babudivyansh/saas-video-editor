@@ -4,8 +4,9 @@ import { useRef, useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { ReframeAndCutsControls } from "@/app/components/auto-clip/ReframeAndCutsControls";
 import { LiteEditTab, type LiteEdits } from "@/app/components/auto-clip/LiteEditTab";
-import { CaptionTemplatePicker, CaptionRenderControls, TranslateCaptions } from "@/app/components/auto-clip/CaptionTemplatePicker";
-import { CAPTION_TEMPLATES } from "@/lib/caption-templates";
+import { CaptionTemplatePicker, CaptionTweakControls, TranslateCaptions } from "@/app/components/auto-clip/CaptionTemplatePicker";
+import { resolveCaptionTemplate, resolveTemplateId } from "@clipiro/shared/caption-templates";
+import { templateIdForIndex } from "@/lib/captions/legacyStyleIndex";
 import { Switch } from "@/app/components/ui/Switch";
 import { Button } from "@/app/components/ui/Button";
 import { hexToASS, assToHex } from "@/lib/ass-color";
@@ -161,14 +162,11 @@ export function ClipWorkspace({
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  // Brand kits (Captions tab).
+  // Brand kits (Captions tab). A kit is a caption template plus an accent
+  // colour (stored in highlightColor, ASS byte order) and a logo.
   interface BrandKit {
     id: string; name: string;
-    fontName: string | null; fontSize: number | null;
-    baseColor: string | null; highlightColor: string | null; outlineColor: string | null; shadowColor: string | null;
-    outlineWidth: number | null; shadowDepth: number | null; borderStyle: number | null; alignment: number | null;
-    animated: boolean | null;
-    /** Clipiro caption-template slug, so a kit can carry a premium look. */
+    highlightColor: string | null;
     captionTemplateId: string | null;
   }
   const brandKitsQuery = useQuery({
@@ -181,61 +179,25 @@ export function ClipWorkspace({
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const override = (clip.subtitleStyleOverride as any) ?? {};
-  const [fontName, setFontName] = useState((override.fontName as string) ?? "Outfit");
-  const [fontSize, setFontSize] = useState((override.fontSize as number) ?? 80);
-  const [baseColor, setBaseColor] = useState(assToHex((override.baseColor as string) ?? "&H00FFFFFF"));
-  const [highlightColor, setHighlightColor] = useState(assToHex((override.highlightColor as string) ?? "&H0000FFFF"));
-  const [outlineColor, setOutlineColor] = useState(assToHex((override.outlineColor as string) ?? "&H00000000"));
-  const [shadowColor, setShadowColor] = useState(assToHex((override.shadowColor as string) ?? "&H00000000"));
-  const [outlineWidth, setOutlineWidth] = useState((override.outlineWidth as number) ?? 8);
-  const [shadowDepth, setShadowDepth] = useState((override.shadowDepth as number) ?? 0);
-  const [borderStyle, setBorderStyle] = useState((override.borderStyle as number) ?? 1);
-  const [alignment, setAlignment] = useState((override.alignment as number) ?? 5);
-  const [animatedCaptions, setAnimatedCaptions] = useState((override.animated as boolean) ?? true);
-  const [templateId, setTemplateId] = useState<string | null>((override.templateId as string) ?? null);
+  // The clip's template: its saved id (old ids resolve to their replacement),
+  // else the one its legacy style index maps to.
+  const [templateId, setTemplateId] = useState<string>(() =>
+    resolveTemplateId((override.templateId as string | undefined) ?? templateIdForIndex(clip.captionStyleIndex ?? 0)),
+  );
+  const template = resolveCaptionTemplate(templateId);
+  const [accent, setAccent] = useState<string | null>(typeof override.accent === "string" ? override.accent : null);
+  const [sizeScale, setSizeScale] = useState<number>(typeof override.sizeScale === "number" ? override.sizeScale : 1);
+  // Only an explicit choice is saved; until then the template's own placement
+  // (or, for centred templates, the face-aware default) applies.
+  const [positionY, setPositionY] = useState<number | null>(typeof override.positionY === "number" ? override.positionY : null);
+  const faceY = typeof override.captionPositionY === "number" ? override.captionPositionY : null;
+  const shownPositionY = positionY ?? (template.placement.y === "low" ? 68 : template.placement.y === "high" ? 25 : Math.round(faceY ?? 50));
   const [captionsOn, setCaptionsOn] = useState(clip.hasCaptions);
-  const [customizeOpen, setCustomizeOpen] = useState(false);
-
-  // Premium (provider-rendered) caption settings. Stored in the same
-  // subtitleStyleOverride blob as everything else on this panel, so they
-  // survive a reload and are picked up by the render request without another
-  // column on Clip.
-  const [captionPositionY, setCaptionPositionY] = useState((override.captionPositionY as number) ?? 65);
-  const [hookEnabled, setHookEnabled] = useState((override.hook as { enabled?: boolean } | null)?.enabled ?? false);
-  const [hookText, setHookText] = useState((override.hook as { text?: string } | null)?.text ?? "");
   const [applyToAll, setApplyToAll] = useState(false);
 
-  // Whether the CHOSEN style is provider-rendered. Drives whether the premium
-  // controls appear at all — position/hook mean nothing to the native ASS
-  // renderer, and showing dead controls is worse than hiding them.
-  const isPremiumTemplate = Boolean(
-    templateId && CAPTION_TEMPLATES.find((t) => t.id === templateId)?.provider === "submagic",
-  );
-
-  async function suggestHooks(): Promise<string[]> {
-    const res = await apiFetch<{ candidates: { text: string }[] }>(
-      `/api/projects/${projectId}/clips/${clip.id}/captions/hooks`,
-      { method: "POST", body: "{}" },
-    );
-    return (res.candidates ?? []).map((c) => c.text);
-  }
-
   function applyBrandKit(kit: BrandKit) {
-    if (kit.fontName != null) setFontName(kit.fontName);
-    if (kit.fontSize != null) setFontSize(kit.fontSize);
-    if (kit.baseColor != null) setBaseColor(assToHex(kit.baseColor));
-    if (kit.highlightColor != null) setHighlightColor(assToHex(kit.highlightColor));
-    if (kit.outlineColor != null) setOutlineColor(assToHex(kit.outlineColor));
-    if (kit.shadowColor != null) setShadowColor(assToHex(kit.shadowColor));
-    if (kit.outlineWidth != null) setOutlineWidth(kit.outlineWidth);
-    if (kit.shadowDepth != null) setShadowDepth(kit.shadowDepth);
-    if (kit.borderStyle != null) setBorderStyle(kit.borderStyle);
-    if (kit.alignment != null) setAlignment(kit.alignment);
-    if (kit.animated != null) setAnimatedCaptions(kit.animated);
-    // Restore the saved LOOK too, not just its ASS field values — otherwise
-    // loading a kit that was saved on a premium style silently drops back to
-    // the native renderer while looking approximately right.
-    if (kit.captionTemplateId != null) setTemplateId(kit.captionTemplateId);
+    if (kit.captionTemplateId) setTemplateId(resolveTemplateId(kit.captionTemplateId));
+    if (kit.highlightColor) setAccent(assToHex(kit.highlightColor).toUpperCase());
   }
   const saveBrandKitMutation = useMutation({
     mutationFn: () =>
@@ -243,14 +205,8 @@ export function ClipWorkspace({
         method: "POST",
         body: JSON.stringify({
           name: newKitName.trim(),
-          fontName, fontSize,
-          baseColor: hexToASS(baseColor), highlightColor: hexToASS(highlightColor),
-          outlineColor: hexToASS(outlineColor), shadowColor: hexToASS(shadowColor),
-          outlineWidth, shadowDepth, borderStyle, alignment, animated: animatedCaptions,
-          // Save the chosen look alongside its field values, so a kit saved on
-          // a premium style comes back as that style rather than as a native
-          // approximation of it.
           captionTemplateId: templateId,
+          highlightColor: hexToASS(accent ?? template.colors.accent.slice(0, 7)),
         }),
       }),
     onSuccess: () => {
@@ -315,20 +271,10 @@ export function ClipWorkspace({
     setSaving(true); setSaveErr(null);
     try {
       const subtitleStyleOverride = {
-        ...(templateId ? { templateId } : {}),
-        fontName, fontSize,
-        baseColor: hexToASS(baseColor), highlightColor: hexToASS(highlightColor),
-        outlineColor: hexToASS(outlineColor), shadowColor: hexToASS(shadowColor),
-        outlineWidth, shadowDepth, borderStyle, alignment, animated: animatedCaptions,
-        // Premium-only, and only written when the chosen style actually uses a
-        // provider — otherwise these would sit in the blob confusing the next
-        // person to read it.
-        ...(isPremiumTemplate
-          ? {
-              captionPositionY,
-              hook: hookEnabled && hookText.trim() ? { enabled: true, text: hookText.trim() } : { enabled: false },
-            }
-          : {}),
+        templateId,
+        ...(accent ? { accent } : {}),
+        ...(sizeScale !== 1 ? { sizeScale } : {}),
+        ...(positionY != null ? { positionY } : {}),
       };
 
       await apiFetch(`/api/projects/${projectId}/clips/${clip.id}/style`, {
@@ -341,10 +287,9 @@ export function ClipWorkspace({
       });
 
       // "Apply to all" copies the STYLE to the sibling clips and nothing more.
-      // It deliberately does not trigger a render on any of them: applying a
-      // premium style to twenty clips and silently starting twenty paid
-      // renders would be a very expensive surprise (§26/§38). The siblings
-      // pick the style up on their next re-render.
+      // It deliberately does not trigger a render on any of them: re-rendering
+      // twenty clips nobody asked to re-render would be a surprise. The
+      // siblings pick the style up on their next re-render.
       if (applyToAll && siblingClipIds.length > 0) {
         await Promise.allSettled(
           siblingClipIds.map((id) =>
@@ -545,118 +490,39 @@ export function ClipWorkspace({
 
                 {tab === "captions" && (
                   <div className="ac-panel-in space-y-5">
-                    <div>
-                      <h3 className="text-[12px] font-bold text-ink-soft uppercase tracking-wider mb-1">Caption style</h3>
-                      <p className="text-[12.5px] text-ink-soft mb-3">One choice sets typography, keyword colour and emoji.</p>
-                      <CaptionTemplatePicker
-                        value={templateId}
-                        onChange={(id) => {
-                          setTemplateId(id);
-                          const t = CAPTION_TEMPLATES.find((x) => x.id === id);
-                          if (!t) return;
-                          if (t.style.fontName) setFontName(t.style.fontName);
-                          if (t.style.fontSize) setFontSize(t.style.fontSize);
-                          if (t.style.baseColor) setBaseColor(assToHex(t.style.baseColor));
-                          if (t.style.highlightColor) setHighlightColor(assToHex(t.style.highlightColor));
-                          if (t.style.outlineColor) setOutlineColor(assToHex(t.style.outlineColor));
-                          if (t.style.outlineWidth != null) setOutlineWidth(t.style.outlineWidth);
-                          if (t.style.shadowDepth != null) setShadowDepth(t.style.shadowDepth);
-                          if (t.style.borderStyle != null) setBorderStyle(t.style.borderStyle);
-                          if (t.style.alignment != null) setAlignment(t.style.alignment);
-                          if (t.style.animated != null) setAnimatedCaptions(t.style.animated);
-                        }}
-                        disabled={saving}
-                      />
+                    <CaptionTemplatePicker value={templateId} onChange={setTemplateId} disabled={saving} />
+
+                    <CaptionTweakControls
+                      accent={accent}
+                      templateAccent={template.colors.accent}
+                      onAccentChange={setAccent}
+                      sizeScale={sizeScale}
+                      onSizeScaleChange={setSizeScale}
+                      positionY={shownPositionY}
+                      onPositionYChange={setPositionY}
+                      applyToAll={applyToAll}
+                      onApplyToAllChange={setApplyToAll}
+                      disabled={saving}
+                    />
+
+                    <div className="space-y-2 rounded-xl border border-card-border p-3">
+                      <p className="text-[12px] font-bold text-ink-soft uppercase tracking-wider">Brand kit</p>
+                      {brandKits.length > 0 && (
+                        <select aria-label="Load a brand kit" defaultValue="" onChange={(e) => { const kit = brandKits.find((k) => k.id === e.target.value); if (kit) applyBrandKit(kit); e.target.value = ""; }} className="w-full rounded-lg border border-card-border px-3 py-2 text-sm bg-panel">
+                          <option value="" disabled>Load a saved style…</option>
+                          {brandKits.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}
+                        </select>
+                      )}
+                      {namingKit ? (
+                        <div className="flex items-center gap-2">
+                          <input value={newKitName} onChange={(e) => setNewKitName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleSaveBrandKit(); }} placeholder="Name this style…" aria-label="Brand kit name" autoFocus className="flex-1 rounded-lg border border-card-border px-3 py-2 text-sm" />
+                          <Button onClick={handleSaveBrandKit} disabled={saveBrandKitMutation.isPending || !newKitName.trim()} size="sm">{saveBrandKitMutation.isPending ? "Saving…" : "Save"}</Button>
+                          <button type="button" onClick={() => { setNamingKit(false); setNewKitName(""); }} className="text-xs text-ink-soft/70 px-1">Cancel</button>
+                        </div>
+                      ) : (
+                        <button type="button" onClick={() => setNamingKit(true)} className="w-full text-center text-xs font-semibold text-brand hover:underline py-1">Save this template and colour as a Brand Kit</button>
+                      )}
                     </div>
-
-                    {/* Only for provider-rendered styles: caption position, an
-                        optional Clipiro-generated hook, and apply-to-all. The
-                        native ASS renderer has no concept of any of these, so
-                        showing them for a native style would be dead UI. */}
-                    {isPremiumTemplate && (
-                      <CaptionRenderControls
-                        positionY={captionPositionY}
-                        onPositionYChange={setCaptionPositionY}
-                        hookEnabled={hookEnabled}
-                        onHookEnabledChange={setHookEnabled}
-                        hookText={hookText}
-                        onHookTextChange={setHookText}
-                        onSuggestHooks={suggestHooks}
-                        applyToAll={applyToAll}
-                        onApplyToAllChange={setApplyToAll}
-                        disabled={saving}
-                      />
-                    )}
-
-                    <button onClick={() => setCustomizeOpen((o) => !o)} className="flex items-center justify-between w-full">
-                      <span className="text-[12px] font-bold text-ink-soft uppercase tracking-wider">Customize</span>
-                      <span className="text-[12px] font-semibold text-brand">{customizeOpen ? "Hide" : "Show"}</span>
-                    </button>
-                    {customizeOpen && (
-                      <div className="ac-panel-in space-y-4 border-t border-card-border pt-4">
-                        {brandKits.length > 0 && (
-                          <div className="space-y-1">
-                            <label className="text-[11px] font-semibold text-ink-soft">Load from Brand Kit</label>
-                            <select defaultValue="" onChange={(e) => { const kit = brandKits.find((k) => k.id === e.target.value); if (kit) applyBrandKit(kit); e.target.value = ""; }} className="w-full rounded-lg border border-card-border px-3 py-2 text-sm bg-panel">
-                              <option value="" disabled>Choose a saved style…</option>
-                              {brandKits.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}
-                            </select>
-                          </div>
-                        )}
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1">
-                            <label className="text-[11px] font-semibold text-ink-soft">Font</label>
-                            <select value={fontName} onChange={(e) => setFontName(e.target.value)} className="w-full rounded-lg border border-card-border px-3 py-2 text-sm bg-panel">
-                              {["Outfit", "Arial", "Impact", "Courier New", "Georgia", "Times New Roman"].map((f) => <option key={f} value={f}>{f}</option>)}
-                            </select>
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[11px] font-semibold text-ink-soft">Size (px)</label>
-                            <input type="number" value={fontSize} onChange={(e) => setFontSize(Number(e.target.value))} className="w-full rounded-lg border border-card-border px-3 py-2 text-sm" />
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1">
-                            <label className="text-[11px] font-semibold text-ink-soft">Layout</label>
-                            <select value={borderStyle} onChange={(e) => setBorderStyle(Number(e.target.value))} className="w-full rounded-lg border border-card-border px-3 py-2 text-sm bg-panel">
-                              <option value={1}>Outline &amp; Shadow</option>
-                              <option value={3}>Background Box</option>
-                            </select>
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[11px] font-semibold text-ink-soft">Alignment</label>
-                            <select value={alignment} onChange={(e) => setAlignment(Number(e.target.value))} className="w-full rounded-lg border border-card-border px-3 py-2 text-sm bg-panel">
-                              <option value={5}>Center</option>
-                              <option value={2}>Bottom</option>
-                              <option value={8}>Top</option>
-                            </select>
-                          </div>
-                        </div>
-                        <div className="flex gap-4">
-                          {[["Text", baseColor, setBaseColor] as const, ["Highlight", highlightColor, setHighlightColor] as const, ["Outline", outlineColor, setOutlineColor] as const, ["Shadow", shadowColor, setShadowColor] as const].map(([label, val, set]) => (
-                            <div key={label} className="space-y-1">
-                              <label className="text-[11px] font-semibold text-ink-soft block">{label}</label>
-                              <input type="color" value={val} onChange={(e) => set(e.target.value)} className="w-8 h-8 rounded-lg cursor-pointer border border-card-border" />
-                            </div>
-                          ))}
-                        </div>
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-[11px] text-ink-soft"><span>Outline thickness</span><span>{outlineWidth}px</span></div>
-                          <input type="range" min={0} max={12} step={1} value={outlineWidth} onChange={(e) => setOutlineWidth(Number(e.target.value))} className="w-full accent-brand" />
-                          <div className="flex justify-between text-[11px] text-ink-soft"><span>Shadow depth</span><span>{shadowDepth}px</span></div>
-                          <input type="range" min={0} max={12} step={1} value={shadowDepth} onChange={(e) => setShadowDepth(Number(e.target.value))} className="w-full accent-brand" />
-                        </div>
-                        {namingKit ? (
-                          <div className="flex items-center gap-2">
-                            <input value={newKitName} onChange={(e) => setNewKitName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleSaveBrandKit(); }} placeholder="Name this style…" autoFocus className="flex-1 rounded-lg border border-card-border px-3 py-2 text-sm" />
-                            <Button onClick={handleSaveBrandKit} disabled={saveBrandKitMutation.isPending || !newKitName.trim()} size="sm">{saveBrandKitMutation.isPending ? "Saving…" : "Save"}</Button>
-                            <button type="button" onClick={() => { setNamingKit(false); setNewKitName(""); }} className="text-xs text-ink-soft/70 px-1">Cancel</button>
-                          </div>
-                        ) : (
-                          <button type="button" onClick={() => setNamingKit(true)} className="w-full text-center text-xs font-semibold text-brand hover:underline py-1">Save as Brand Kit</button>
-                        )}
-                      </div>
-                    )}
 
                     <div className="flex items-center justify-between rounded-xl border border-card-border p-3">
                       <div className="pr-3">
@@ -664,13 +530,6 @@ export function ClipWorkspace({
                         <p className="text-[11px] text-ink-soft">{captionsOn ? "Baked into the exported file." : "This clip renders without subtitles."}</p>
                       </div>
                       <Switch checked={captionsOn} onChange={setCaptionsOn} label="Burn in captions" disabled={saving} />
-                    </div>
-                    <div className="flex items-center justify-between rounded-xl border border-card-border p-3">
-                      <div className="pr-3">
-                        <p className="text-[12.5px] font-semibold text-ink">Animated subtitles</p>
-                        <p className="text-[11px] text-ink-soft">Word-by-word active highlighting with pop zoom.</p>
-                      </div>
-                      <Switch checked={animatedCaptions} onChange={setAnimatedCaptions} label="Animated subtitles" disabled={saving} />
                     </div>
                     <TranslateCaptions projectId={projectId} clipId={clip.id} disabled={saving} onQueued={onChanged} />
                     {saveErr && <p className="text-xs text-error">{saveErr}</p>}

@@ -21,7 +21,7 @@ is the durable part). Every **read** mints a presigned URL from the key:
 | Client-facing JSON (clips, projects, dubs, `/api/auth/me`, reviews, tool job `meta`, public `/api/v1`) | `resignMediaUrl` (server-written columns) / `resignOwnedMediaUrl` (client-settable columns — ownership proven first) |
 | Server fetches (clip download, zip download, dub source, editor captions) | `fetchableMediaUrl` / `getAssetReadUrl(s3Key)` |
 | YouTube publish | SDK `GetObject` stream (`openS3ObjectStream`) — already did |
-| Third parties (ElevenLabs dubbing, Submagic, GPU/ASD) | short-lived presigned URL |
+| Third parties (ElevenLabs dubbing, GPU/ASD) | short-lived presigned URL |
 
 Presigned URLs are signed against a 15-minute window (`utils/s3-upload.ts`), so
 a polled list returns byte-identical URLs and `<video>` elements don't reload.

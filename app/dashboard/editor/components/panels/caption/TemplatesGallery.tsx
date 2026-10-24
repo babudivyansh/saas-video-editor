@@ -1,48 +1,43 @@
 "use client";
 
-// Applies STYLE ONLY (never touches cue text/words) — to the selected caption
-// cue if one is selected, or to every cue on the track at once (via
-// applyCaptionStyle) if none is selected. Whole-track application is the
-// primary CapCut-style UX for a caption template; per-cue override stays
-// available at zero extra UI cost when a cue happens to be selected.
+// Caption templates in the editor: the same 50 templates as AutoClip, drawn by
+// the same preview and burned by the same engine on export. Applies to the
+// selected cue if one is selected, otherwise to every cue on the track (the
+// CapCut-style default). "Plain captions" goes back to per-cue styling.
 
 import React from "react";
 import { useEditorStore } from "../../../store/editorStore";
-import { CAPTION_TEMPLATES } from "./captionPresets";
+import CaptionTemplateGallery from "@/app/components/captions/CaptionTemplateGallery";
+import { useUpgradePrompt } from "@/app/components/captions/useUpgradePrompt";
 
 export default function TemplatesGallery() {
   const selection = useEditorStore((s) => s.selection);
+  const captions = useEditorStore((s) => s.doc.tracks.caption);
   const updateClip = useEditorStore((s) => s.updateClip);
   const applyCaptionStyle = useEditorStore((s) => s.applyCaptionStyle);
+  const upgrade = useUpgradePrompt();
 
-  const apply = (styleOnly: (typeof CAPTION_TEMPLATES)[number]["styleOnly"]) => {
-    if (selection?.track === "caption") updateClip("caption", selection.clipId, styleOnly, true);
-    else applyCaptionStyle(styleOnly);
+  const selected = selection?.track === "caption" ? captions.find((c) => c.id === selection.clipId) : undefined;
+  const current = selected?.templateId ?? (captions.length && captions.every((c) => c.templateId === captions[0].templateId) ? captions[0].templateId : undefined);
+
+  const apply = (templateId: string | undefined) => {
+    const patch = { templateId };
+    if (selected) updateClip("caption", selected.id, patch, true);
+    else applyCaptionStyle(patch);
   };
 
   return (
-    <div className="grid grid-cols-2 gap-2">
-      {CAPTION_TEMPLATES.map((tpl) => (
-        <button
-          key={tpl.id}
-          type="button"
-          onClick={() => apply(tpl.styleOnly)}
-          className="overflow-hidden rounded-editor-md border border-editor-border bg-editor-card p-2.5 text-left transition-colors hover:border-editor-accent cursor-pointer"
-        >
-          <p className="text-[9px] font-semibold uppercase tracking-wide text-editor-text-faint">{tpl.label}</p>
-          <p
-            className="mt-1 truncate text-xs"
-            style={{
-              fontFamily: tpl.styleOnly.fontFamily,
-              fontWeight: tpl.styleOnly.bold ? 700 : 400,
-              color: tpl.styleOnly.color,
-              textTransform: tpl.styleOnly.textTransform,
-            }}
-          >
-            {tpl.preview}
-          </p>
-        </button>
-      ))}
+    <div className="space-y-2">
+      <button
+        type="button"
+        onClick={() => apply(undefined)}
+        className={`w-full rounded-editor-md border px-2.5 py-1.5 text-left text-xs transition-colors ${
+          current ? "border-editor-border text-editor-text-faint hover:border-editor-accent" : "border-editor-accent text-editor-text"
+        }`}
+      >
+        Plain captions (style each cue yourself)
+      </button>
+      <CaptionTemplateGallery value={current ?? null} onChange={apply} onLocked={upgrade} columns={3} maxHeightClass="max-h-[520px]" />
     </div>
   );
 }

@@ -6,7 +6,6 @@ import { withRateLimit } from "@/lib/with-rate-limit";
 import { parseS3Url } from "@/lib/s3-url";
 import { deleteS3Object } from "@/utils/s3-upload";
 import { logger } from "@/lib/logger";
-import { CAPTION_JOB_IN_FLIGHT } from "@/lib/clip-busy";
 
 // PATCH / DELETE for a single clip.
 //
@@ -94,23 +93,18 @@ async function handleDELETE(
   // underneath a worker crashes the queue with "record not found" rather than
   // cancelling cleanly — and, worse, it takes the refund with it: a QUEUED
   // clip is often a paid re-render, and the cascade also removes in-progress
-  // caption renders and dubs, whose failure paths refund by reading those
-  // very rows. So "queued" counts as busy too, as do those child jobs.
+  // dubs, whose failure path refunds by reading those very rows. So "queued"
+  // counts as busy too, as does a running dub.
   if (clip.status === "rendering" || clip.status === "queued") {
     return NextResponse.json(
       { error: "This clip is still rendering. Wait for it to finish, then delete it." },
       { status: 409 },
     );
   }
-  const [activeCaption, activeDub] = await Promise.all([
-    prisma.captionRenderJob.count({
-      where: { clipId, status: { in: [...CAPTION_JOB_IN_FLIGHT] } },
-    }),
-    prisma.clipDub.count({ where: { clipId, status: { in: ["dubbing", "processing"] } } }),
-  ]);
-  if (activeCaption > 0 || activeDub > 0) {
+  const activeDub = await prisma.clipDub.count({ where: { clipId, status: { in: ["dubbing", "processing"] } } });
+  if (activeDub > 0) {
     return NextResponse.json(
-      { error: activeDub > 0 ? "This clip is still being dubbed. Wait for it to finish, then delete it." : "Captions are still being added to this clip. Wait for them to finish, then delete it." },
+      { error: "This clip is still being dubbed. Wait for it to finish, then delete it." },
       { status: 409 },
     );
   }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { brandKitPatchSchema } from "@/lib/brand-kit-schema";
+import { checkTemplateChoice } from "@/lib/captions/gate";
 
 // PATCH — rename and/or update a brand kit's style fields.
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -17,6 +18,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid brand kit" }, { status: 400 });
   }
+
+  const locked = await checkTemplateChoice(auth.userId, parsed.data.captionTemplateId, existing.captionTemplateId);
+  if (locked) return NextResponse.json(locked.body, { status: locked.status });
 
   const kit = await prisma.brandKit.update({ where: { id }, data: parsed.data });
   return NextResponse.json({ kit });

@@ -30,17 +30,12 @@ const ALLOWLIST = {
   //   1. subtitle-remover (per-frame OCR cost unconfirmed)
   //   2. clip-dub ($0.50/min is ElevenLabs' published rate; not yet confirmed
   //      against an invoice. Priced 20 cr/min = 3x at the net floor, gated pro+)
-  //   3. caption-render ($0.69/min is Submagic's published PAYG rate; the
-  //      billable act — creating a project — cannot be probed for free, so it
-  //      needs a real invoice to confirm. Priced 27 cr/min, gated creator+ and priced per
-  //      billable MINUTE rather than per render, because providers in this
-  //      category round a partial minute up to a whole one.)
-  //   4. music-generate (ElevenLabs Music is paid-plan only — every call 402s
+  //   3. music-generate (ElevenLabs Music is paid-plan only — every call 402s
   //      on the current free account, so $0.15/min is published pricing rather
   //      than a measured one. Gated creator+ and priced at 4 credits for a 30s
   //      bed, ~2x the published cost even if it has since risen.)
   // face-swap is also costUsd:null + gated, but carries no marker.
-  "lib/tool-costs.ts": 4,
+  "lib/tool-costs.ts": 3,
 };
 
 let failed = false;

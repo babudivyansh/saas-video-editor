@@ -2,6 +2,7 @@ import { BRAND_KIT_DEFAULTS, type BrandKit, type BrandKitPatch } from "@clipiro/
 import type { BrandKit as BrandKitRow, Prisma } from "@prisma/client";
 import { assToHex, hexToASS } from "@/lib/ass-color";
 import { prisma } from "@/lib/prisma";
+import { checkTemplateChoice } from "@/lib/captions/gate";
 import { resignOwnedMediaUrl } from "@/lib/source-url";
 import { s3KeyToPublicUrl } from "@/utils/s3-upload";
 
@@ -73,6 +74,8 @@ export async function saveBrandKit(userId: string, patch: BrandKitPatch): Promis
   if (patch.logoAssetId !== undefined) data.logoUrl = patch.logoAssetId === null ? null : await logoUrlFor(userId, patch.logoAssetId);
 
   const current = await latest(userId);
+  const locked = await checkTemplateChoice(userId, patch.captionTemplateId, current?.captionTemplateId ?? null);
+  if (locked) throw new BrandKitError(403, "That caption style needs a higher plan.", "template_locked");
   if (current) return toBrandKit(await prisma.brandKit.update({ where: { id: current.id }, data }));
 
   const d = BRAND_KIT_DEFAULTS;

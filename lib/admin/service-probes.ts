@@ -4,7 +4,6 @@ import { redis } from "@/lib/redis";
 import { env } from "@/lib/env";
 import { s3 } from "@/utils/s3-upload";
 import { gpuHealth } from "@/lib/gpu-service";
-import { captionProviderHealth } from "@/lib/captions/CaptionRendererFactory";
 
 // "Is this outside account working?" for every provider the app depends on,
 // for the admin Services tab. Each probe uses the provider's cheapest
@@ -171,18 +170,6 @@ const SERVICES: ServiceDef[] = [
     purpose: "Image generation, OCR",
     configured: () => !!env.FAL_KEY,
     untestedDetail: "configured — not tested (fal has no free check; every call is billable)",
-  },
-  {
-    id: "submagic",
-    label: "Submagic",
-    category: "media",
-    purpose: "Premium caption rendering",
-    configured: () => !!env.SUBMAGIC_API_KEY,
-    probe: async () => {
-      const { submagic } = await captionProviderHealth();
-      if (submagic.breakerOpen) return { ok: false, detail: "circuit breaker open — recent calls failed" };
-      return { ok: submagic.reachable, detail: submagic.reachable ? "reachable" : "unreachable" };
-    },
   },
   {
     id: "gpu",

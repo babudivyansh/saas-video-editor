@@ -10,15 +10,13 @@ import { getCronJobRows } from "@/lib/admin/cron-jobs";
 import { redis } from "@/lib/redis";
 import { getFeatureFlags, getMaintenanceMode, setFeatureFlag, setMaintenanceMode } from "@/lib/flags";
 import { KNOWN_RENDER_QUEUE_NAMES } from "@/lib/render-queue";
-import { captionProviderHealth } from "@/lib/captions/CaptionRendererFactory";
-import { captionRenderOpsSnapshot } from "@/lib/captions/ops";
 
 // GET — one ops snapshot: queue counts + failed jobs, worker heartbeats,
 // feature flags, maintenance mode, and largest tables (storage report).
 export const GET = withAdmin(async () => {
   const [
     queues, failedJobs, heartbeats, flags, maintenance, cronRuns, tableSizes,
-    captionProvider, captionRenders, cronTickLastAt, cronJobs, dbOk, redisOk,
+    cronTickLastAt, cronJobs, dbOk, redisOk,
   ] = await Promise.all([
     listQueues(),
     listAllFailed(50).catch(() => []),
@@ -34,11 +32,6 @@ export const GET = withAdmin(async () => {
       WHERE n.nspname = 'public' AND c.relkind = 'r'
       ORDER BY pg_total_relation_size(c.oid) DESC
       LIMIT 12`.catch(() => []),
-    // Premium caption rendering. Both of these are null-safe: the Ops page has
-    // to render even when the provider is unreachable, which is precisely when
-    // an operator most needs to look at it.
-    captionProviderHealth(),
-    captionRenderOpsSnapshot(),
     // Last minute /api/cron-tick was called by the external scheduler.
     redis.get("cron:tick:last").catch(() => null),
     getCronJobRows(),
@@ -57,8 +50,6 @@ export const GET = withAdmin(async () => {
     health: { db: dbOk, redis: redisOk },
     queueDriver: queueDriver(),
     tableSizes: tableSizes.map((t) => ({ table: t.table, size: t.size })),
-    captionProvider,
-    captionRenders,
     cronTickLastAt,
     // Age computed here, not in the page: a render must be pure (no Date.now()).
     cronTickAgeSeconds: cronTickLastAt ? Math.round((Date.now() - new Date(cronTickLastAt).getTime()) / 1000) : null,

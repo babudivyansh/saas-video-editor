@@ -10,6 +10,7 @@ import {
   FREE_TIER_MONTHLY_BONUS_CREDITS, FREE_TIER_MONTHLY_BONUS_MINUTES, tierAtLeast, type TierId,
 } from "@/lib/plans/tiers";
 import { TOOL_COSTS } from "@/lib/tool-costs";
+import { CAPTION_TEMPLATES, templateTierAllowed } from "@clipiro/shared/caption-templates";
 import { IMAGE_MODELS } from "@/lib/models/imageModels";
 import type { DbPlan } from "./types";
 
@@ -65,7 +66,7 @@ function buildGroups(subs: DbPlan[], term: number): { core: Group; more: Group[]
     {
       title: "Clipping",
       rows: [
-        { label: "Animated captions", cells: tool("caption-render") },
+        { label: "Caption templates", cells: byTier(t => String(CAPTION_TEMPLATES.filter((c) => templateTierAllowed(c.tier, t)).length)) },
         { label: "Clip Dubbing (29+ languages)", cells: tool("clip-dub") },
         { label: "Social Tracker", cells: byTier(() => true) },
         { label: "Asset library", cells: byTier(() => true) },

@@ -19,11 +19,8 @@ import {
   probeMediaDuration,
   getMediaDimensions,
   analyzeAudio,
-  generateASS,
-  styleIndexToSubtitleStyle,
   encodeArgs,
   maybeUseFilterScript,
-  type SubtitleStyle,
   type RenderTarget,
 } from "@/utils/ffmpeg-render";
 import { uploadFileToS3 } from "@/utils/s3-upload";
@@ -59,8 +56,8 @@ import {
   parseLiteEdits, planLitePass, speechRangesFromWords, type LiteEdits,
 } from "@/lib/autoclip-lite";
 import { computeDuckEnvelope, duckVolumeExpr } from "@/lib/audio-ducking";
-import { getCaptionTemplate } from "@/lib/caption-templates";
-import { captionMotion } from "@/lib/caption-motion";
+import { buildClipCaptionTrack } from "@/lib/captions/clip-captions";
+import { buildCaptionFilterChain } from "@/lib/captions/engine";
 // position is a pure, dependency-free helper so it imports statically.
 // deferral is NOT: it reaches Redis and the Config table through the renderer
 // factory, and importing it here would pull a live ioredis client into the
@@ -1145,10 +1142,9 @@ export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATT
             subtitleStyleOverride: {
               animated: animatedCaptions,
               captionPositionY: recommendCaptionPositionY(allFaces, { startSec: seg.start, endSec: seg.end }),
-              // The chosen look, as a template slug. Writing it here means the
-              // render path (getCaptionTemplate), the Studio drawer and
-              // shouldDeferCaptionsToProvider all pick it up with no further
-              // plumbing — this blob is already what every one of them reads.
+              // The chosen look, as a template id. Writing it here means the
+              // render path (lib/captions/clip-captions.ts) and the Studio
+              // drawer both pick it up with no further plumbing.
               ...(hasCaptions && templateId ? { templateId } : {}),
             } as unknown as Prisma.InputJsonValue,
             silenceSettings: {
@@ -1743,6 +1739,8 @@ async function renderOneClip(
             word: w.word,
             start: shiftTime(w.start, keeps),
             end: shiftTime(w.end, keeps),
+            // Kept so speaker-coloured caption templates still know who is talking.
+            ...(w.speaker ? { speaker: w.speaker } : {}),
           }));
 
         // Shift crop keyframes
@@ -1817,61 +1815,30 @@ async function renderOneClip(
       }
     }
 
-    // A provider-rendered caption template means the captions are added AFTER
-    // this render, by an external renderer working on the finished file. Burning
-    // them here too would stack two caption tracks in the exported MP4, so this
-    // render deliberately produces a clean video. shouldDeferCaptionsToProvider
-    // resolves to false for every reason a provider render might not actually
-    // follow (flag off, tier ineligible, breaker open, a previous provider
-    // render for this clip already failed), so the fallback is always captions
-    // rather than none. See lib/captions/deferral.ts.
-    const templateId = (clip.subtitleStyleOverride as Record<string, unknown> | null)?.templateId as
-      | string
-      | undefined;
-    // Dynamically imported — see the note on the position import at the top of
-    // this file. Costs one module resolution per clip render, against an ffmpeg
-    // encode; the static import cost a Redis client in every test that touches
-    // this module.
-    //
-    // The TIER must be passed. Without it the factory skipped its tier check,
-    // so a free user's provider template was deferred here — captions left
-    // off — and then requestCaptionRender, which does check the tier, refused
-    // the provider render. The clip shipped with no captions, on every render.
-    const deferCaptions = templateId
-      ? await (async () => {
-          const [{ shouldDeferCaptionsToProvider }, { getUserTier }] = await Promise.all([
-            import("@/lib/captions/deferral"),
-            import("@/lib/auth"),
-          ]);
-          const owner = await prisma.project.findUnique({ where: { id: projectId }, select: { userId: true } });
-          const tier = owner ? await getUserTier(owner.userId) : undefined;
-          return shouldDeferCaptionsToProvider({ clipId: clip.id, templateId, durationSec: finalDurationSec, tier });
-        })()
-      : false;
-
-    let assEscaped: string | null = null;
-    if (clip.hasCaptions && !deferCaptions && words && words.length > 0) {
-      // Resolve custom subtitle style overrides if they exist
-      let style = styleIndexToSubtitleStyle(clip.captionStyleIndex ?? 0, "oneword");
-      const customStyle = clip.subtitleStyleOverride as unknown as SubtitleStyle | null;
-      if (customStyle) {
-        style = { ...style, ...customStyle };
-      }
-      // Caption animation reads the SAME energy envelope the camera does, so
-      // the two agree about where the emphasis is instead of each reacting on
-      // its own — that disagreement is what makes auto-captions look amateur.
-      // A caption template, if one is chosen, supplies the look AND whether
-      // emoji/keyword colouring apply — one named decision instead of a dozen
-      // colour pickers.
-      const template = getCaptionTemplate(templateId);
-      if (template) style = { ...template.style, ...customStyle };
-
-      const motion = captionMotion(words, template, signal);
-      if (motion) style = { ...style, motion };
-      generateASS(words, style, assPath);
-      assEscaped = assPath.replace(/\\/g, "/").replace(/:/g, "\\:");
-    }
-    const captionsFilter = assEscaped ? `subtitles='${assEscaped}'` : null;
+    // Captions are authored at the target resolution and burned after the crop/
+    // B-roll/split stage, onto `[video]` scaled to that size: the engine pins
+    // every word, emoji and glass panel in pixels, so it must know the frame.
+    // Caption animation reads the SAME energy envelope the camera does, so the
+    // two agree about where the emphasis is.
+    const capRes = TARGET_RES[aspect];
+    const captionTrack = clip.hasCaptions && words && words.length > 0
+      ? buildClipCaptionTrack({
+          words,
+          subtitleStyleOverride: clip.subtitleStyleOverride,
+          captionStyleIndex: clip.captionStyleIndex,
+          signal,
+          W: capRes.w,
+          H: capRes.h,
+          durationMs: finalDurationSec * 1000,
+        })
+      : null;
+    if (captionTrack) fs.writeFileSync(assPath, captionTrack.ass);
+    // `[video]` → captions → `[videocap]`; empty when the clip has none.
+    const captionComplex = captionTrack
+      ? `;[video]scale=${capRes.w}:${capRes.h},setsar=1[capin];` +
+        buildCaptionFilterChain({ track: captionTrack, assPath, inLabel: "capin", outLabel: "videocap" })
+      : "";
+    const captionedLabel = captionTrack ? "videocap" : "video";
 
     const baseArgs = ["-y", "-ss", String(clip.startSec), "-to", String(clip.endSec), "-i", videoPath];
     const outputArgs = encodeArgs(target);
@@ -1908,10 +1875,10 @@ async function renderOneClip(
     const videoSrc = isTrimmed ? "[trimmedv]" : "[0:v]";
     const audioSrc = isTrimmed ? "[trimmeda]" : "0:a";
     const prepends = isTrimmed && selectFilter && aselectFilter ? `[0:v]${selectFilter}[trimmedv];[0:a]${aselectFilter}[trimmeda];` : "";
-    // Complex branches expose their result as [video]; chain the free-tier
-    // watermark onto it and remap. The -vf branch just appends the chain.
-    const wmComplex = watermark ? `;[video]${watermarkFilterChain()}[videowm]` : "";
-    const videoMap = watermark ? "[videowm]" : "[video]";
+    // Every branch exposes its result as [video]; captions and then the
+    // free-tier watermark are chained onto it.
+    const wmComplex = captionComplex + (watermark ? `;[${captionedLabel}]${watermarkFilterChain()}[videowm]` : "");
+    const videoMap = watermark ? "[videowm]" : `[${captionedLabel}]`;
 
     // `useBroll` is a parameter rather than just reading `brollReady`, so the
     // render can be retried with B-roll forced off (see below). The B-roll
@@ -1936,7 +1903,7 @@ async function renderOneClip(
         // Speaker tracking now survives a B-roll splice (P2.6).
         const brollKeyframes = stored?.mode === "single" && stored.keyframes.length > 1 ? stored.keyframes : null;
         const complex = prepends + buildMultiBrollFilterComplex(
-          finalDurationSec, shifted, aspect, moodFilter, captionsFilter, videoSrc,
+          finalDurationSec, shifted, aspect, moodFilter, null, videoSrc,
           brollKeyframes ? buildDynamicCropFilter(brollKeyframes, aspect) : null,
         ) + wmComplex;
         return [
@@ -1950,19 +1917,18 @@ async function renderOneClip(
       }
       if (stored?.mode === "split" && stored.a.length > 1 && stored.b.length > 1) {
         // Two-speaker split-screen: two independent dynamic crops, vstacked.
-        const complex = prepends + buildSplitScreenFilterComplex(stored.a, stored.b, moodFilter, captionsFilter, videoSrc) + wmComplex;
+        const complex = prepends + buildSplitScreenFilterComplex(stored.a, stored.b, moodFilter, null, videoSrc) + wmComplex;
         return [...baseArgs, "-filter_complex", complex, "-map", videoMap, "-map", audioSrc, ...outputArgs, "-shortest", clipPath];
       }
       const keyframes = stored?.mode === "single" ? stored.keyframes : null;
       const cropExpr = keyframes && keyframes.length > 1
         ? buildDynamicCropFilter(keyframes, aspect)
         : aspectRatioFilter(aspect);
-      const filters = [cropExpr, moodFilter, captionsFilter].filter((f): f is string => !!f);
-      if (isTrimmed && selectFilter) {
-        filters.unshift(selectFilter);
-      }
-      if (watermark) filters.push(watermarkFilterChain());
-      return [...baseArgs, "-vf", filters.join(","), ...(isTrimmed && aselectFilter ? ["-af", aselectFilter] : []), ...outputArgs, clipPath];
+      const filters = [cropExpr, moodFilter].filter((f): f is string => !!f);
+      // Trimming happens in `prepends` ([trimmedv]/[trimmeda]); the source may
+      // have no audio when untrimmed, hence the optional map.
+      const complex = `${prepends}${videoSrc}${filters.join(",")}[video]${wmComplex}`;
+      return [...baseArgs, "-filter_complex", complex, "-map", videoMap, "-map", isTrimmed ? audioSrc : "0:a?", ...outputArgs, clipPath];
     };
 
     const onRenderProgress = (pct: number) => {
@@ -2072,41 +2038,6 @@ async function renderOneClip(
         reason: (e as Error).message,
       });
     });
-
-    // Captions were skipped above because a provider is meant to add them, so
-    // the clip is playable but currently bare. Start that render now — nothing
-    // else will, and a deferred clip that is never handed to the provider would
-    // silently ship with no captions at all.
-    //
-    // Same posture as provenance: best-effort, AFTER the status flip. A failure
-    // here must not turn a rendered clip into a failed one — and if it does
-    // fail, shouldDeferCaptionsToProvider stops deferring for this clip, so the
-    // next re-render burns the template's native look instead.
-    //
-    // Dynamically imported so this module doesn't pull the caption queues (and
-    // their workers) into every context that merely reads the pipeline's pure
-    // helpers.
-    if (deferCaptions && templateId) {
-      try {
-        const { requestCaptionRender } = await import("@/lib/caption-render-job");
-        const owner = await prisma.project.findUnique({
-          where: { id: projectId },
-          select: { userId: true },
-        });
-        if (owner) {
-          const res = await requestCaptionRender({
-            clipId: clip.id,
-            userId: owner.userId,
-            templateId,
-          });
-          if (!res.ok) {
-            logger.warn("auto-clip", `caption render not started for clip ${clip.id}: ${res.reason}`);
-          }
-        }
-      } catch (e) {
-        logger.error("auto-clip", `caption render request failed for clip ${clip.id}`, e);
-      }
-    }
 
     return { ok: true };
   } catch (err) {

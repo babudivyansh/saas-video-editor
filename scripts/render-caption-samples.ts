@@ -43,7 +43,8 @@ export function sampleWords(t: CaptionTemplateSpec) {
 }
 
 let failures = 0;
-templates.forEach((t, n) => {
+templates.forEach((t) => {
+  const n = CAPTION_TEMPLATES.indexOf(t);
   const { words, emoji, emphasis } = sampleWords(t);
   const rms = { hz: 20, values: Array.from({ length: 200 }, (_, i) => 0.5 + 0.5 * Math.sin(i / 2)) };
   const track = buildCaptionTrack({ words, template: t, W, H, durationMs: 6000, emoji, emphasis, rms });

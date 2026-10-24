@@ -1,4 +1,4 @@
-// Starts an AutoClip run: validate → gate → claim → charge → enqueue.
+// Starts an AutoClip run: validate → gate → claim → enqueue.
 //
 // The ONE implementation behind both create routes — the dashboard's
 // app/api/generate/auto-clip and the public app/api/v1/clips. They used to be
@@ -8,8 +8,9 @@
 // attempt's failureReason on the project. The routes now differ only in how
 // the caller authenticates.
 //
-// Every exit after something was consumed puts it back: the project claim
-// and — once charged — the premium-caption credit hold.
+// Every exit after the project is claimed releases the claim. Nothing is
+// charged here: captions are rendered in-house, and the run itself is paid in
+// minutes by pickJob.
 //
 // Since the Clip Minutes switch (2026-09-26) the run itself is paid in minutes,
 // charged in pickJob once the source duration is exact (lib/autoclip-minutes.ts).
@@ -29,11 +30,8 @@ import { pickJob, type PickPayload } from "@/lib/autoclip-pipeline";
 import { precheckRunMinutes } from "@/lib/autoclip-minutes";
 import { REFRAME_PRESETS, ZOOM_STRENGTHS, SPEAKER_MODES, sanitizeReframeEnum, sanitizeReframePercent } from "@/lib/reframe";
 import { resolveCaptionCreateInput } from "@/lib/captions/createPayload";
-import { estimateRunCost, bandMaxSeconds } from "@/lib/captions/runEstimate";
-import { getCaptionRenderPricing } from "@/lib/captions/pricing";
-import { isPremiumTemplateId } from "@/lib/caption-templates";
+import { resolveCaptionTemplate, templateTierAllowed } from "@/lib/caption-templates";
 import { getToolConfig } from "@/lib/tool-config";
-import { spendCredits, restoreSpend, logToolGeneration } from "@/lib/credits";
 import { logger } from "@/lib/logger";
 import { parseAutoClipCreate } from "@/lib/autoclip-create-input";
 
@@ -63,6 +61,19 @@ export async function startAutoClipRun(userId: string, rawBody: unknown): Promis
   if (!project.uploadedVideoUrl) return fail(400, { error: "Project has no uploaded video" });
 
   const tier = await getUserTier(userId);
+
+  // Caption template gate: Creator and Pro templates need that plan. Checked
+  // before anything is claimed, so a locked pick costs nothing to retry.
+  const caption = resolveCaptionCreateInput({
+    captionStyleIndex: input.captionStyleIndex,
+    captionTemplateId: input.captionTemplateId,
+  });
+  if (caption.templateId) {
+    const template = resolveCaptionTemplate(caption.templateId);
+    if (!templateTierAllowed(template.tier, tier)) {
+      return fail(403, { error: "template_locked", templateId: template.id, requiredTier: template.tier });
+    }
+  }
 
   // Minutes pre-check — only possible when the source length is already known
   // (an uploaded or library file). Charges nothing; pickJob does. A URL import
@@ -107,33 +118,6 @@ export async function startAutoClipRun(userId: string, rawBody: unknown): Promis
     return fail(503, { error: "Auto Clips are temporarily disabled." });
   }
 
-  const caption = resolveCaptionCreateInput({
-    captionStyleIndex: input.captionStyleIndex,
-    captionTemplateId: input.captionTemplateId,
-  });
-  const captionPricing = await getCaptionRenderPricing();
-  const estimate = estimateRunCost(
-    {
-      clipCount: input.clipCount,
-      maxDurationSec: bandMaxSeconds(input.minDuration, input.maxDuration),
-      premiumCaptions: caption.templateId ? isPremiumTemplateId(caption.templateId) : false,
-      sourceDurationSec: knownDuration,
-    },
-    captionPricing,
-  );
-
-  // The premium-caption HOLD, in credits (0 for a native caption style). A
-  // worst case, returned when the run settles — each caption render charges
-  // its own refId. The run itself is paid in minutes, in pickJob.
-  const refId = `auto-clip:${projectId}`;
-  if (estimate.total > 0) {
-    const spend = await spendCredits({ userId, amount: estimate.total, reason: "spend:auto-clip", refId });
-    if (!spend.ok) {
-      await release();
-      return fail(402, { error: "insufficient_credits", required: estimate.total, balance: spend.balances.total });
-    }
-  }
-
   const payload: PickPayload = {
     projectId,
     minDuration: input.minDuration,
@@ -165,16 +149,9 @@ export async function startAutoClipRun(userId: string, rawBody: unknown): Promis
       rejectOnFailure: true,
     });
   } catch (e) {
-    logger.error("auto-clip", `could not queue run for ${projectId}; refunding`, e);
-    await restoreSpend({ userId, refId, reason: "refund:auto-clip-enqueue-failed" }).catch(() => {});
+    logger.error("auto-clip", `could not queue run for ${projectId}`, e);
     await release();
     return fail(503, { error: "Couldn't start Auto Clip right now — you haven't been charged. Please try again." });
-  }
-
-  // Ledger rows alone never reach the margin dashboards — those aggregate
-  // Generation. Logged only once the run is actually queued.
-  if (estimate.total > 0) {
-    void logToolGeneration({ userId, toolSlug: "auto-clip", creditsCost: estimate.total, generationType: "video", refId });
   }
 
   return { status: 200, body: { status: "analyzing", projectId } };

@@ -134,11 +134,6 @@ export const CRON_CATALOG: Record<string, CronJobInfo> = {
     description: "Finishes ElevenLabs dubbing jobs (the main completion path until webhooks are live).",
     tier: "safe",
   },
-  "/api/cron/submagic-sweep": {
-    label: "Caption render sweep",
-    description: "Reconciles Submagic caption renders, including paid ones that failed inconclusively.",
-    tier: "safe",
-  },
   "/api/cron/clip-publish": {
     label: "Scheduled clip publishing",
     description: "Publishes clips whose scheduled time has arrived.",

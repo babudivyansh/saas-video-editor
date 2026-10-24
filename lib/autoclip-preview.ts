@@ -9,13 +9,13 @@
 
 import { type Clip } from "@prisma/client";
 import { downloadFile } from "@/utils/download";
-import { runFFmpegArgs, generateASS, styleIndexToSubtitleStyle, maybeUseFilterScript, type SubtitleStyle } from "@/utils/ffmpeg-render";
-import { buildDynamicCropFilter, type StoredCrop } from "@/lib/reframe";
+import { runFFmpegArgs, maybeUseFilterScript } from "@/utils/ffmpeg-render";
+import { buildDynamicCropFilter, TARGET_RES, type StoredCrop } from "@/lib/reframe";
 import { FILTER_PRESETS, type FilterPreset } from "@/lib/editor/types";
 import { type SignalTrack } from "@/lib/signal-track";
 import { type WordTiming } from "@/utils/elevenlabs";
-import { getCaptionTemplate } from "@/lib/caption-templates";
-import { captionMotion } from "@/lib/caption-motion";
+import { buildClipCaptionTrack } from "@/lib/captions/clip-captions";
+import { buildCaptionFilterChain, type CaptionTrack } from "@/lib/captions/engine";
 import { logger } from "@/lib/logger";
 import os from "os";
 import path from "path";
@@ -58,22 +58,21 @@ export async function renderPreviewFrames(sourceUrl: string, clip: Clip): Promis
     const words = clip.transcriptJson as unknown as WordTiming[] | null;
     const signal = clip.signalTrack as unknown as SignalTrack | null;
 
-    // Captions: identical style resolution to the renderer, so the preview
-    // shows the real animation state.
-    let captionsFilter: string | null = null;
+    // Captions: the same track the renderer builds (lib/captions/clip-captions.ts),
+    // so the preview shows the real template, emoji and glass panel.
+    const capRes = TARGET_RES[(aspect as "9:16" | "16:9" | "1:1")] ?? TARGET_RES["9:16"];
+    let track: CaptionTrack | null = null;
     if (clip.hasCaptions && words && words.length > 0) {
-      let style = styleIndexToSubtitleStyle(clip.captionStyleIndex ?? 0, "oneword");
-      const custom = clip.subtitleStyleOverride as unknown as SubtitleStyle | null;
-      if (custom) style = { ...style, ...custom };
-      // Shared with the renderer (lib/caption-motion.ts). This used to build
-      // energy only, so a preview of an emoji template showed none of its
-      // emoji and a keyword-coloured template previewed without the colour.
-      const templateId = (clip.subtitleStyleOverride as Record<string, unknown> | null)?.templateId;
-      const template = getCaptionTemplate(typeof templateId === "string" ? templateId : null);
-      const motion = captionMotion(words, template, signal);
-      if (motion) style = { ...style, motion };
-      generateASS(words, style, assPath);
-      captionsFilter = `subtitles='${assPath.replace(/\\/g, "/").replace(/:/g, "\\:")}'`;
+      track = buildClipCaptionTrack({
+        words,
+        subtitleStyleOverride: clip.subtitleStyleOverride,
+        captionStyleIndex: clip.captionStyleIndex,
+        signal,
+        W: capRes.w,
+        H: capRes.h,
+        durationMs: clip.durationSec * 1000,
+      });
+      if (track) fs.writeFileSync(assPath, track.ass);
     }
 
     const moodKey = (clip.mood && (MOODS as readonly string[]).includes(clip.mood))
@@ -95,8 +94,15 @@ export async function renderPreviewFrames(sourceUrl: string, clip: Clip): Promis
     for (const [i, atSec] of timestamps.entries()) {
       const outPath = path.join(tmp, `preview-${id}-${i}.jpg`);
       cleanup.push(outPath);
-      const filters = [cropExpr, moodFilter, captionsFilter, `scale=${PREVIEW_W}:-2`]
-        .filter((f): f is string => !!f);
+      // -ss before -i restarts timestamps at 0; shift them back to clip time
+      // first, so the (clip-relative) crop path and the captions both show
+      // what happens at this moment rather than at the clip's first frame.
+      const base = [`setpts=PTS+${atSec.toFixed(3)}/TB`, cropExpr, moodFilter].filter((f): f is string => !!f).join(",");
+      const graph = track
+        ? `[0:v]${base},scale=${capRes.w}:${capRes.h},setsar=1[capin];` +
+          buildCaptionFilterChain({ track, assPath, inLabel: "capin", outLabel: "capout" }) +
+          `;[capout]scale=${PREVIEW_W}:-2[out]`
+        : `[0:v]${base},scale=${PREVIEW_W}:-2[out]`;
 
       // Seeking to the clip's own start plus the offset means the crop
       // expressions (which are clip-relative) line up with the frame shown.
@@ -104,7 +110,7 @@ export async function renderPreviewFrames(sourceUrl: string, clip: Clip): Promis
         "-y",
         "-ss", String(clip.startSec + atSec),
         "-i", sourcePath,
-        "-vf", filters.join(","),
+        "-filter_complex", graph, "-map", "[out]",
         "-frames:v", "1", "-q:v", "4",
         outPath,
       ], scriptPath);

@@ -64,7 +64,7 @@ describe("isPublicApiRoute", () => {
 
   it("still covers the paths below an entry", () => {
     expect(isPublicApiRoute("/api/auth/register/verify")).toBe(true);
-    expect(isPublicApiRoute("/api/webhooks/submagic/some-token")).toBe(true);
+    expect(isPublicApiRoute("/api/webhooks/elevenlabs/anything")).toBe(true);
     expect(isPublicApiRoute("/api/tools/audio-balancer/job-123")).toBe(true);
   });
 

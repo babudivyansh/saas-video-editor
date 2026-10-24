@@ -1,6 +1,6 @@
 // The ffmpeg filter fragment that burns a caption track into a video stream:
 //   1. glass blur: blur the video under the panel, only while a panel shows
-//   2. subtitles: the ASS file, with fontsdir pointing at the bundled fonts
+//   2. ass: the subtitle file, fontsdir at the bundled fonts, complex shaping
 //   3. emoji: one colour PNG overlay per planned emoji (libass can't draw them)
 //
 // The fragment is a -filter_complex chain from `[inLabel]` to `[outLabel]`.
@@ -53,7 +53,10 @@ export function buildCaptionFilterChain(opts: CaptionFilterOptions): string {
   }
 
   const subsOut = track.emoji.length ? `${p}s` : opts.outLabel;
-  parts.push(`[${cur}]subtitles=filename='${escapeFilterArg(opts.assPath)}':fontsdir='${escapeFilterArg(CAPTION_FONTS_DIR)}'[${subsOut}]`);
+  // The `ass` filter, not `subtitles`: only `ass` exposes libass's shaping
+  // mode, and without complex shaping Devanagari is drawn letter by letter
+  // (no conjuncts, vowel signs on the wrong side). Same libass underneath.
+  parts.push(`[${cur}]ass=filename='${escapeFilterArg(opts.assPath)}':fontsdir='${escapeFilterArg(CAPTION_FONTS_DIR)}':shaping=complex[${subsOut}]`);
   cur = subsOut;
 
   if (track.emoji.length) {

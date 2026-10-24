@@ -20,17 +20,17 @@
 
 import { prisma } from "@/lib/prisma";
 import { downloadFile } from "@/utils/download";
-import { runFFmpegArgs, styleIndexToSubtitleStyle, generateASS } from "@/utils/ffmpeg-render";
+import { runFFmpegArgs, getMediaDimensions } from "@/utils/ffmpeg-render";
 import { uploadFileToS3 } from "@/utils/s3-upload";
 import { startDubbing, getDubbingStatus, getDubbedAudio, forcedAlign } from "@/utils/elevenlabs";
 import { translateTranscript } from "@/lib/caption-translate";
-import { sanitizeCaptionWord } from "@/lib/caption-sanitize";
+import { buildClipCaptionTrack } from "@/lib/captions/clip-captions";
+import { buildCaptionFilterChain, type CaptionTrack } from "@/lib/captions/engine";
 import { restoreSpend } from "@/lib/credits";
 import { createRenderQueue } from "@/lib/render-queue";
 import { logger } from "@/lib/logger";
 import { fetchableMediaUrl } from "@/lib/signed-media";
 import type { WordTiming } from "@/utils/elevenlabs";
-import type { SubtitleStyle } from "@/utils/ffmpeg-render";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -184,6 +184,7 @@ export async function finishDubJob(payload: FinishDubPayload): Promise<void> {
     await downloadFile(await fetchableMediaUrl(dub.clip.videoUrl!), sourceVideoPath);
 
     let hasCaptions = dub.clip.hasCaptions;
+    let captionTrack: CaptionTrack | null = null;
     // The stored transcript is on the clip's source window; the dub is laid
     // over the RENDERED clip, which silence/filler trimming may have made
     // shorter. Dynamically imported: the pipeline module is heavy.
@@ -212,25 +213,29 @@ export async function finishDubJob(payload: FinishDubPayload): Promise<void> {
           logger.warn("auto-clip-dub", `Forced alignment failed for ${clipDubId}, using heuristic timing`, err);
         }
 
-        let style = styleIndexToSubtitleStyle(dub.clip.captionStyleIndex ?? 0, "oneword");
-        const customStyle = dub.clip.subtitleStyleOverride as unknown as SubtitleStyle | null;
-        if (customStyle) {
-          style = { ...style, ...customStyle };
-        }
-        // Model output going into an ASS Dialogue line, where `{`, `\` and
-        // newlines are markup — the same sanitising user-edited words get.
-        generateASS(alignedWords.map((w) => ({ ...w, word: sanitizeCaptionWord(w.word) })), style, assPath);
+        // Same template as the clip itself. Model output goes into ASS
+        // Dialogue lines, so buildClipCaptionTrack sanitises every word.
+        const dims = await getMediaDimensions(sourceVideoPath);
+        captionTrack = buildClipCaptionTrack({
+          words: alignedWords,
+          subtitleStyleOverride: dub.clip.subtitleStyleOverride,
+          captionStyleIndex: dub.clip.captionStyleIndex,
+          signal: null,
+          W: dims.w,
+          H: dims.h,
+          durationMs: (alignedWords[alignedWords.length - 1]?.end ?? 0) + 1000,
+        });
+        if (captionTrack) fs.writeFileSync(assPath, captionTrack.ass);
       } catch (err) {
         hasCaptions = false;
         logger.warn("auto-clip-dub", `Subtitle translation failed for ${clipDubId}, rendering without subtitles`, err);
       }
     }
 
-    if (hasCaptions && fs.existsSync(assPath)) {
-      const assEscaped = assPath.replace(/\\/g, "/").replace(/:/g, "\\:");
+    if (hasCaptions && captionTrack) {
       await runFFmpegArgs([
         "-y", "-i", sourceVideoPath, "-i", dubbedAudioPath,
-        "-filter_complex", `[0:v]subtitles='${assEscaped}'[v]`,
+        "-filter_complex", buildCaptionFilterChain({ track: captionTrack, assPath, inLabel: "0:v", outLabel: "v" }),
         "-map", "[v]", "-map", "1:a",
         "-c:v", "libx264", "-preset", "superfast", "-crf", "23",
         "-c:a", "aac", "-shortest",
