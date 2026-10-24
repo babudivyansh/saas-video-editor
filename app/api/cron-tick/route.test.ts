@@ -64,6 +64,11 @@ describe("GET /api/cron-tick", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("accepts X-Cron-Secret, which is what arrives on hosts that strip Authorization", async () => {
+    const res = await GET(new NextRequest("https://clipiro.test/api/cron-tick", { headers: { "x-cron-secret": "cron-s" } }));
+    expect(res.status).toBe(200);
+  });
+
   it("runs exactly the jobs due this minute, each with its own route's secret", async () => {
     const res = await tickAt("2026-09-30T03:00");
     expect(res.status).toBe(200);

@@ -6,12 +6,13 @@ import { logger } from "@/lib/logger";
 import { CRON_SCHEDULE, isDue, type CronScheduleEntry } from "@/lib/cron-schedule";
 import { dispatchCronJob, getCronPauses, secretFor } from "@/lib/cron-dispatch";
 
-// GET /api/cron-tick — the scheduler for hosts without cron.
+// GET /api/cron-tick — the scheduler for hosts that can't install a crontab.
 //
-// Hostinger's Node.js hosting has no cron and ignores `crontab` over SSH, so
-// the jobs in ops/crontab never ran in production. One external job (e.g.
-// cron-job.org) calls this route every minute with
-//   Authorization: Bearer <CRON_SECRET>
+// Hostinger's Node.js hosting ignores `crontab` over SSH, so the jobs in
+// ops/crontab never ran in production. One Hostinger account cron job (see
+// ops/crontab for the exact command) calls this route every minute with
+//   X-Cron-Secret: <CRON_SECRET>
+// (not Authorization, which Hostinger's web server strips — lib/cron-auth.ts)
 // and it runs whatever is due from lib/cron-schedule.ts — each job through its
 // own /api/cron/* route, with that route's own secret, so auth, outcome
 // tracking and /admin/ops all work exactly as they would under real cron.
@@ -82,7 +83,7 @@ export async function GET(req: NextRequest) {
     logger.error("cron-tick", `skipped ${missingSecret.length} job(s) whose secret is not set`, { missingSecret });
   }
 
-  // Answer the scheduler straight away (cron-job.org gives up after 30s);
+  // Answer the scheduler straight away (the cron's curl gives up after 25s);
   // the jobs themselves run after the response, in parallel.
   const origin = req.nextUrl.origin;
   after(() => Promise.all(toRun.map((entry) => dispatchCronJob(origin, entry, secretFor(entry) as string))));

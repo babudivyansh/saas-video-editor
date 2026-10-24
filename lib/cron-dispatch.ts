@@ -2,6 +2,7 @@ import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import { redis } from "@/lib/redis";
 import { CRON_SCHEDULE, type CronScheduleEntry } from "@/lib/cron-schedule";
+import { cronAuthHeaders } from "@/lib/cron-auth";
 
 // Calls one scheduled job through its own /api/cron/* route, with that route's
 // own secret — so auth, outcome tracking (lib/cron-tracking.ts) and /admin/ops
@@ -22,7 +23,9 @@ export function secretFor(entry: CronScheduleEntry): string | null {
 export async function dispatchCronJob(origin: string, entry: CronScheduleEntry, secret: string): Promise<void> {
   try {
     const res = await fetch(`${origin}${entry.path}`, {
-      headers: { Authorization: `Bearer ${secret}` },
+      // Both header forms: this self-call goes back through the same web
+      // server, which strips Authorization on Hostinger (lib/cron-auth.ts).
+      headers: cronAuthHeaders(secret),
       cache: "no-store",
       // Longer than any job runs; only a wedged self-call ever reaches it.
       signal: AbortSignal.timeout(15 * 60_000),
