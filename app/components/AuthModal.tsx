@@ -1,13 +1,19 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useAuth } from "./AuthContext";
+import AuthArtPanel from "./AuthArtPanel";
 import AuthForm from "./AuthForm";
 import { Modal } from "./ui/Modal";
 
 export default function AuthModal() {
   const { authModal, closeAuthModal, refreshUser } = useAuth();
   const { feature, isFree, next } = authModal;
-
+  // The form toggles sign-in ↔ sign-up internally; mirror it so the art follows.
+  const [artMode, setArtMode] = useState<"login" | "register">(authModal.mode);
+  useEffect(() => {
+    if (authModal.isOpen) setArtMode(authModal.mode);
+  }, [authModal.isOpen, authModal.mode]);
 
   const handleSuccess = async (_token: string) => {
     await refreshUser();
@@ -27,8 +33,8 @@ export default function AuthModal() {
       onClose={closeAuthModal}
       bare
       ariaLabel={authModal.mode === "register" ? "Create your account" : "Sign in"}
-      maxWidth="max-w-[760px]"
-      panelClassName="relative flex !overflow-hidden sm:min-h-[min(520px,90vh)]"
+      maxWidth="max-w-[860px]"
+      panelClassName="relative flex !overflow-hidden sm:min-h-[min(600px,90vh)]"
     >
         <button
           type="button"
@@ -45,69 +51,31 @@ export default function AuthModal() {
         <div className="flex-1 overflow-y-auto max-h-[90vh]">
           <AuthForm
             initialMode={authModal.mode}
+            onModeToggle={setArtMode}
             onSuccess={handleSuccess}
             isModalContext={true}
             next={next}
           />
         </div>
 
-        {/* Right panel (Desktop only) */}
-        {/* Surfaces are tokens, not hexes: this panel was `bg-[#f0f5ff]` with a
-            `bg-[#2563eb]` icon — a near-white wash and the RETIRED brand blue,
-            both baked in as literals, so they stayed light when everything
-            around them went dark. The free/premium distinction is carried by
-            the eyebrow copy and the icon fill, not by tinting the whole panel.
-            Matches /login's right panel, which was migrated. */}
-        <div className="hidden sm:flex w-72 flex-shrink-0 flex-col items-center justify-center p-8 border-l border-line bg-surface-2">
-          <div className="bg-panel rounded-2xl p-6 text-center shadow-sm w-full border border-line">
-            {/* text-on-primary + currentColor rather than a literal white: the
-                fills below are light in this theme, so white-on-them fails
-                contrast badly. on-primary is #071006 here. */}
-            <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm text-on-primary ${isFree ? "bg-success" : "grad-brand"}`}>
-              {isFree ? (
-                <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" fill="currentColor" fillOpacity="0.2" stroke="currentColor"/>
-                  <path d="M9 12l2 2 4-4"/>
-                </svg>
-              ) : (
-                <svg className="w-7 h-7" viewBox="0 0 40 40" fill="none">
-                  <path d="M22 10H13C12.4477 10 12 10.4477 12 11V29C12 29.5523 12.4477 30 13 30H22" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-                  <path d="M22 10L28 13V27L22 30V10Z" fill="currentColor" fillOpacity="0.3" stroke="currentColor" strokeWidth="2.5" strokeLinejoin="round" />
-                  <circle cx="25" cy="20" r="1.5" fill="currentColor" />
-                </svg>
-              )}
-            </div>
-            {isFree && feature ? (
-              <>
-                <p className="text-[10px] font-bold text-success uppercase tracking-widest mb-2">
-                  Free Tool
-                </p>
-                <p className="text-[15px] text-fg font-bold leading-snug mb-2">
-                  {feature}
-                </p>
-                <p className="text-xs text-fg-muted leading-relaxed">
-                  This tool is completely free — just sign in to get started.
-                </p>
-              </>
-            ) : feature ? (
-              <>
-                <p className="text-[10px] font-bold text-brand uppercase tracking-widest mb-2">
-                  Premium Feature
-                </p>
-                <p className="text-[15px] text-fg font-bold leading-snug mb-2">
-                  {feature}
-                </p>
-                <p className="text-xs text-fg-muted leading-relaxed">
-                  Sign in to continue and unlock all premium tools.
-                </p>
-              </>
-            ) : (
-              <p className="text-sm text-fg-muted leading-relaxed font-medium">
-                Get started in seconds. Login or create an account now.
+        {/* Right panel (desktop only): the same artwork as /login and /register,
+            following the form's sign-in / sign-up toggle. When a tool opened the
+            popup, its free/premium context sits on top of the art. */}
+        <AuthArtPanel mode={artMode}>
+          {feature && (
+            <div className="rounded-xl border border-line bg-panel/85 backdrop-blur-sm px-3 py-2">
+              <p className={`text-[10px] font-bold uppercase tracking-widest ${isFree ? "text-success" : "text-brand"}`}>
+                {isFree ? "Free Tool" : "Premium Feature"}
               </p>
-            )}
-          </div>
-        </div>
+              <p className="text-sm text-fg font-bold leading-snug">{feature}</p>
+              <p className="text-[11px] text-fg-muted leading-relaxed">
+                {isFree
+                  ? "This tool is completely free — just sign in to get started."
+                  : "Sign in to continue and unlock all premium tools."}
+              </p>
+            </div>
+          )}
+        </AuthArtPanel>
     </Modal>
   );
 }
