@@ -13,7 +13,7 @@
     "build:no-db": "next build",
     "postbuild": "node scripts/postbuild.js",
     "start": "node .next/standalone/server.js",
-    "lint": "eslint && npm run check:costs && npm run check:theme && npm run check:crons",
+    "lint": "eslint && npm run check:costs && npm run check:theme && npm run check:crons && npm run check:captions",
     "check:costs": "node scripts/check-unverified-costs.mjs",
     "check:theme": "node scripts/check-theme-debt.mjs",
     "check:crons": "node scripts/check-cron-coverage.mjs",
@@ -29,7 +29,8 @@
     "mobile:install": "npm --prefix apps/mobile ci",
     "typecheck:mobile": "npm --prefix apps/mobile run typecheck",
     "lint:mobile": "npm --prefix apps/mobile run lint",
-    "test:mobile": "npm --prefix apps/mobile test"
+    "test:mobile": "npm --prefix apps/mobile test",
+    "check:captions": "node scripts/check-caption-templates.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -69,6 +70,7 @@
     "eslint-config-prettier": "^10.1.8",
     "exceljs": "^4.4.0",
     "ffmpeg-static": "^5.3.0",
+    "fontkit": "2.0.4",
     "framer-motion": "^12.42.2",
     "ioredis": "^5.11.1",
     "jsonwebtoken": "^9.0.3",

@@ -1,0 +1,416 @@
+[
+  {
+    "family": "Montserrat",
+    "weight": 700,
+    "italic": false,
+    "file": "Montserrat-700.ttf",
+    "fullName": "Montserrat Bold",
+    "postscriptName": "Montserrat-Bold",
+    "devanagari": false
+  },
+  {
+    "family": "Montserrat",
+    "weight": 800,
+    "italic": false,
+    "file": "Montserrat-800.ttf",
+    "fullName": "Montserrat ExtraBold",
+    "postscriptName": "Montserrat-ExtraBold",
+    "devanagari": false
+  },
+  {
+    "family": "Montserrat",
+    "weight": 900,
+    "italic": false,
+    "file": "Montserrat-900.ttf",
+    "fullName": "Montserrat Black",
+    "postscriptName": "Montserrat-Black",
+    "devanagari": false
+  },
+  {
+    "family": "Montserrat",
+    "weight": 900,
+    "italic": true,
+    "file": "Montserrat-900i.ttf",
+    "fullName": "Montserrat Black Italic",
+    "postscriptName": "Montserrat-BlackItalic",
+    "devanagari": false
+  },
+  {
+    "family": "Anton",
+    "weight": 400,
+    "italic": false,
+    "file": "Anton-400.ttf",
+    "fullName": "Anton Regular",
+    "postscriptName": "Anton-Regular",
+    "devanagari": false
+  },
+  {
+    "family": "Archivo Black",
+    "weight": 400,
+    "italic": false,
+    "file": "ArchivoBlack-400.ttf",
+    "fullName": "Archivo Black Regular",
+    "postscriptName": "ArchivoBlack-Regular",
+    "devanagari": false
+  },
+  {
+    "family": "Bebas Neue",
+    "weight": 400,
+    "italic": false,
+    "file": "BebasNeue-400.ttf",
+    "fullName": "Bebas Neue Regular",
+    "postscriptName": "BebasNeue-Regular",
+    "devanagari": false
+  },
+  {
+    "family": "Rubik",
+    "weight": 800,
+    "italic": false,
+    "file": "Rubik-800.ttf",
+    "fullName": "Rubik ExtraBold",
+    "postscriptName": "Rubik-ExtraBold",
+    "devanagari": false
+  },
+  {
+    "family": "Rubik",
+    "weight": 900,
+    "italic": false,
+    "file": "Rubik-900.ttf",
+    "fullName": "Rubik Black",
+    "postscriptName": "Rubik-Black",
+    "devanagari": false
+  },
+  {
+    "family": "Poppins",
+    "weight": 600,
+    "italic": false,
+    "file": "Poppins-600.ttf",
+    "fullName": "Poppins SemiBold",
+    "postscriptName": "Poppins-SemiBold",
+    "devanagari": true
+  },
+  {
+    "family": "Poppins",
+    "weight": 700,
+    "italic": false,
+    "file": "Poppins-700.ttf",
+    "fullName": "Poppins Bold",
+    "postscriptName": "Poppins-Bold",
+    "devanagari": true
+  },
+  {
+    "family": "Poppins",
+    "weight": 800,
+    "italic": false,
+    "file": "Poppins-800.ttf",
+    "fullName": "Poppins ExtraBold",
+    "postscriptName": "Poppins-ExtraBold",
+    "devanagari": true
+  },
+  {
+    "family": "Unbounded",
+    "weight": 700,
+    "italic": false,
+    "file": "Unbounded-700.ttf",
+    "fullName": "Unbounded Bold",
+    "postscriptName": "Unbounded-Bold",
+    "devanagari": false
+  },
+  {
+    "family": "Space Grotesk",
+    "weight": 700,
+    "italic": false,
+    "file": "SpaceGrotesk-700.ttf",
+    "fullName": "Space Grotesk Bold",
+    "postscriptName": "SpaceGrotesk-Bold",
+    "devanagari": false
+  },
+  {
+    "family": "Fredoka",
+    "weight": 700,
+    "italic": false,
+    "file": "Fredoka-700.ttf",
+    "fullName": "Fredoka Bold",
+    "postscriptName": "Fredoka-Bold",
+    "devanagari": false
+  },
+  {
+    "family": "Barlow Condensed",
+    "weight": 700,
+    "italic": false,
+    "file": "BarlowCondensed-700.ttf",
+    "fullName": "Barlow Condensed Bold",
+    "postscriptName": "BarlowCondensed-Bold",
+    "devanagari": false
+  },
+  {
+    "family": "Barlow",
+    "weight": 700,
+    "italic": false,
+    "file": "Barlow-700.ttf",
+    "fullName": "Barlow Bold",
+    "postscriptName": "Barlow-Bold",
+    "devanagari": false
+  },
+  {
+    "family": "Barlow",
+    "weight": 800,
+    "italic": false,
+    "file": "Barlow-800.ttf",
+    "fullName": "Barlow ExtraBold",
+    "postscriptName": "Barlow-ExtraBold",
+    "devanagari": false
+  },
+  {
+    "family": "Lilita One",
+    "weight": 400,
+    "italic": false,
+    "file": "LilitaOne-400.ttf",
+    "fullName": "Lilita One",
+    "postscriptName": "LilitaOne",
+    "devanagari": false
+  },
+  {
+    "family": "Manrope",
+    "weight": 700,
+    "italic": false,
+    "file": "Manrope-700.ttf",
+    "fullName": "Manrope Bold",
+    "postscriptName": "Manrope-Bold",
+    "devanagari": false
+  },
+  {
+    "family": "Bangers",
+    "weight": 400,
+    "italic": false,
+    "file": "Bangers-400.ttf",
+    "fullName": "Bangers Regular",
+    "postscriptName": "Bangers-Regular",
+    "devanagari": false
+  },
+  {
+    "family": "Permanent Marker",
+    "weight": 400,
+    "italic": false,
+    "file": "PermanentMarker-400.ttf",
+    "fullName": "Permanent Marker Regular",
+    "postscriptName": "PermanentMarker-Regular",
+    "devanagari": false
+  },
+  {
+    "family": "Caveat",
+    "weight": 700,
+    "italic": false,
+    "file": "Caveat-700.ttf",
+    "fullName": "Caveat Bold",
+    "postscriptName": "Caveat-Bold",
+    "devanagari": false
+  },
+  {
+    "family": "Baloo 2",
+    "weight": 800,
+    "italic": false,
+    "file": "Baloo2-800.ttf",
+    "fullName": "Baloo 2 ExtraBold",
+    "postscriptName": "Baloo2-ExtraBold",
+    "devanagari": true
+  },
+  {
+    "family": "Nunito",
+    "weight": 900,
+    "italic": false,
+    "file": "Nunito-900.ttf",
+    "fullName": "Nunito Black",
+    "postscriptName": "Nunito-Black",
+    "devanagari": false
+  },
+  {
+    "family": "Inter",
+    "weight": 500,
+    "italic": false,
+    "file": "Inter-500.ttf",
+    "fullName": "Inter Medium",
+    "postscriptName": "Inter-Medium",
+    "devanagari": false
+  },
+  {
+    "family": "Inter",
+    "weight": 700,
+    "italic": false,
+    "file": "Inter-700.ttf",
+    "fullName": "Inter Bold",
+    "postscriptName": "Inter-Bold",
+    "devanagari": false
+  },
+  {
+    "family": "Inter",
+    "weight": 800,
+    "italic": false,
+    "file": "Inter-800.ttf",
+    "fullName": "Inter ExtraBold",
+    "postscriptName": "Inter-ExtraBold",
+    "devanagari": false
+  },
+  {
+    "family": "Inter Tight",
+    "weight": 800,
+    "italic": false,
+    "file": "InterTight-800.ttf",
+    "fullName": "Inter Tight ExtraBold",
+    "postscriptName": "InterTight-ExtraBold",
+    "devanagari": false
+  },
+  {
+    "family": "Plus Jakarta Sans",
+    "weight": 700,
+    "italic": false,
+    "file": "PlusJakartaSans-700.ttf",
+    "fullName": "Plus Jakarta Sans Bold",
+    "postscriptName": "PlusJakartaSans-Bold",
+    "devanagari": false
+  },
+  {
+    "family": "DM Sans",
+    "weight": 500,
+    "italic": false,
+    "file": "DMSans-500.ttf",
+    "fullName": "DM Sans Medium",
+    "postscriptName": "DMSans-Medium",
+    "devanagari": false
+  },
+  {
+    "family": "DM Sans",
+    "weight": 800,
+    "italic": false,
+    "file": "DMSans-800.ttf",
+    "fullName": "DM Sans ExtraBold",
+    "postscriptName": "DMSans-ExtraBold",
+    "devanagari": false
+  },
+  {
+    "family": "Outfit",
+    "weight": 300,
+    "italic": false,
+    "file": "Outfit-300.ttf",
+    "fullName": "Outfit Light",
+    "postscriptName": "Outfit-Light",
+    "devanagari": false
+  },
+  {
+    "family": "Cormorant Garamond",
+    "weight": 600,
+    "italic": false,
+    "file": "CormorantGaramond-600.ttf",
+    "fullName": "Cormorant Garamond SemiBold",
+    "postscriptName": "CormorantGaramond-SemiBold",
+    "devanagari": false
+  },
+  {
+    "family": "Cinzel",
+    "weight": 700,
+    "italic": false,
+    "file": "Cinzel-700.ttf",
+    "fullName": "Cinzel Bold",
+    "postscriptName": "Cinzel-Bold",
+    "devanagari": false
+  },
+  {
+    "family": "Playfair Display",
+    "weight": 700,
+    "italic": false,
+    "file": "PlayfairDisplay-700.ttf",
+    "fullName": "Playfair Display Bold",
+    "postscriptName": "PlayfairDisplay-Bold",
+    "devanagari": false
+  },
+  {
+    "family": "Playfair Display",
+    "weight": 700,
+    "italic": true,
+    "file": "PlayfairDisplay-700i.ttf",
+    "fullName": "Playfair Display Bold Italic",
+    "postscriptName": "PlayfairDisplay-BoldItalic",
+    "devanagari": false
+  },
+  {
+    "family": "Syne",
+    "weight": 800,
+    "italic": false,
+    "file": "Syne-800.ttf",
+    "fullName": "Syne ExtraBold",
+    "postscriptName": "Syne-ExtraBold",
+    "devanagari": false
+  },
+  {
+    "family": "Instrument Serif",
+    "weight": 400,
+    "italic": true,
+    "file": "InstrumentSerif-400i.ttf",
+    "fullName": "Instrument Serif Italic",
+    "postscriptName": "InstrumentSerif-Italic",
+    "devanagari": false
+  },
+  {
+    "family": "DM Serif Display",
+    "weight": 400,
+    "italic": false,
+    "file": "DMSerifDisplay-400.ttf",
+    "fullName": "DM Serif Display Regular",
+    "postscriptName": "DMSerifDisplay-Regular",
+    "devanagari": false
+  },
+  {
+    "family": "DM Serif Display",
+    "weight": 400,
+    "italic": true,
+    "file": "DMSerifDisplay-400i.ttf",
+    "fullName": "DM Serif Display Italic",
+    "postscriptName": "DMSerifDisplay-Italic",
+    "devanagari": false
+  },
+  {
+    "family": "Press Start 2P",
+    "weight": 400,
+    "italic": false,
+    "file": "PressStart2P-400.ttf",
+    "fullName": "Press Start 2P Regular",
+    "postscriptName": "PressStart2P-Regular",
+    "devanagari": false
+  },
+  {
+    "family": "Righteous",
+    "weight": 400,
+    "italic": false,
+    "file": "Righteous-400.ttf",
+    "fullName": "Righteous",
+    "postscriptName": "Righteous-Regular",
+    "devanagari": false
+  },
+  {
+    "family": "VT323",
+    "weight": 400,
+    "italic": false,
+    "file": "VT323-400.ttf",
+    "fullName": "VT323 Regular",
+    "postscriptName": "VT323-Regular",
+    "devanagari": false
+  },
+  {
+    "family": "Mukta",
+    "weight": 800,
+    "italic": false,
+    "file": "Mukta-800.ttf",
+    "fullName": "Mukta ExtraBold",
+    "postscriptName": "Mukta-ExtraBold",
+    "devanagari": true
+  },
+  {
+    "family": "Rozha One",
+    "weight": 400,
+    "italic": false,
+    "file": "RozhaOne-400.ttf",
+    "fullName": "Rozha One Regular",
+    "postscriptName": "RozhaOne-Regular",
+    "devanagari": true
+  }
+]

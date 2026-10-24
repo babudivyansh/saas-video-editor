@@ -80,3 +80,4 @@ ds-bundle/
 
 # Local AI-assistant output (mockups, exports) — never part of the app
 /Claude outputs/
+.caption-samples/

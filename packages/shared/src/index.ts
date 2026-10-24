@@ -23,3 +23,5 @@ export * from "./editor/timeline-utils";
 export * from "./api/editor";
 export * from "./api/create";
 export * from "./editor/captions";
+export * from "./captions/templates";
+export * from "./captions/emoji";
