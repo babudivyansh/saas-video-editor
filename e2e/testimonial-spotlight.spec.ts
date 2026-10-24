@@ -1,11 +1,13 @@
 import { test, expect } from "@playwright/test";
 import { prisma } from "@/lib/prisma";
 
-// The auto-scroll testimonial marquee (app/components/landing/TestimonialMarquee.tsx)
-// reuses the same .clipiro-marquee CSS loop as SocialProof.tsx's brand strip —
-// real reviews seeded directly via Prisma, same precedent as
-// e2e/homepage-reviews.spec.ts, since this is server-rendered on the homepage.
-test.describe.serial("testimonial marquee", () => {
+// The landing reviews spotlight (app/components/landing/TestimonialWall.tsx):
+// a featured review plus karaoke-captioned cards, with CSS motion that must
+// switch off under prefers-reduced-motion. Real reviews seeded directly via
+// Prisma, same precedent as e2e/homepage-reviews.spec.ts, since this is
+// server-rendered on the homepage. The spec's review gets a high helpfulCount
+// so the "helpful" sort makes it the featured card regardless of other data.
+test.describe.serial("testimonial spotlight", () => {
   const unique = Date.now();
   const email = `e2e-marquee-review-${unique}@example.com`;
   let userId: string;
@@ -39,6 +41,7 @@ test.describe.serial("testimonial marquee", () => {
         featureUsed: "auto_clips",
         status: "published",
         verifiedCustomer: true,
+        helpfulCount: 9999,
         company: "Acme Studios",
         country: "Canada",
         tierAtSubmit: "pro",
@@ -53,33 +56,43 @@ test.describe.serial("testimonial marquee", () => {
     await prisma.user.deleteMany({ where: { id: userId } });
   });
 
-  test("renders the marquee and the enriched grid card fields", async ({ page }) => {
+  test("features the review with its enriched fields", async ({ page }) => {
     await page.goto("/");
 
-    // The review text appears both in the marquee (doubled) and the grid —
-    // .first() just confirms at least one instance renders.
-    await expect(page.getByText(/shockingly good/i).first()).toBeVisible();
-
-    // Enriched fields only shown on the full grid card, not the compact marquee pill.
-    await expect(page.getByText("Acme Studios · Canada")).toBeVisible();
-    await expect(page.getByText("Pro", { exact: true })).toBeVisible();
+    const featured = page.locator("figure.reviews-feature");
+    await expect(featured).toContainText(/shockingly good/i);
+    await expect(featured.getByText("Acme Studios · Canada")).toBeVisible();
+    await expect(featured.getByText("Pro", { exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: /write a review/i })).toHaveAttribute("href", "/dashboard?prompt=1");
   });
 
   test("respects prefers-reduced-motion", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/");
-    await expect(page.getByText(/shockingly good/i).first()).toBeVisible();
+    const featured = page.locator("figure.reviews-feature");
+    await featured.scrollIntoViewIfNeeded();
+    await expect(featured).toContainText(/shockingly good/i);
 
-    const animationName = await page.locator(".clipiro-marquee").first().evaluate((el) => getComputedStyle(el).animationName);
-    expect(animationName).toBe("none");
+    for (const selector of [".reviews-shine", ".reviews-feature", ".reviews-mark"]) {
+      const animationName = await page.locator(selector).first().evaluate((el) => getComputedStyle(el).animationName);
+      expect(animationName, selector).toBe("none");
+    }
+    // The score never counts up: it reads the real average at rest.
+    await expect(page.locator(".reviews-score")).not.toHaveText("0.0");
   });
 
   test("animates normally without reduced motion", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "no-preference" });
     await page.goto("/");
-    await expect(page.getByText(/shockingly good/i).first()).toBeVisible();
+    const featured = page.locator("figure.reviews-feature");
+    await featured.scrollIntoViewIfNeeded();
+    await expect(featured).toContainText(/shockingly good/i);
 
-    const animationName = await page.locator(".clipiro-marquee").first().evaluate((el) => getComputedStyle(el).animationName);
-    expect(animationName).toBe("clipiro-marquee");
+    const shine = await page.locator(".reviews-shine").first().evaluate((el) => getComputedStyle(el).animationName);
+    expect(shine).toBe("reviews-shine");
+    // The highlight sweep only starts once the section has scrolled in.
+    await expect(page.locator(".reviews-live")).toHaveCount(1);
+    const sweep = await page.locator(".reviews-mark").first().evaluate((el) => getComputedStyle(el).animationName);
+    expect(sweep).toBe("reviews-sweep");
   });
 });

@@ -21,7 +21,7 @@ test.describe.serial("homepage rating & testimonials", () => {
     // and is meant to be there at any review count — it's what keeps /reviews
     // reachable while the hero badge is still gated off.
     await expect(page.getByRole("main").getByRole("link", { name: /review/i })).toHaveCount(0);
-    await expect(page.getByText(/from real Clipiro users/i)).toHaveCount(0);
+    await expect(page.getByText(/reviews? from real creators/i)).toHaveCount(0);
   });
 
   test.describe("with 3+ published reviews", () => {
@@ -87,12 +87,11 @@ test.describe.serial("homepage rating & testimonials", () => {
       const badgePattern = new RegExp(`${expectedAverage.replace(".", "\\.")}.*${expectedCount} reviews`, "i");
       await expect(page.getByRole("link", { name: badgePattern })).toBeVisible();
 
-      await expect(page.getByText(/from real Clipiro users/i)).toBeVisible();
+      await expect(page.getByText(new RegExp(`${expectedCount} reviews from real creators`, "i"))).toBeVisible();
       // Only the two rating>=4 reviews with a substantive body qualify — the
-      // 2-star "It's fine." review must not appear as a testimonial. Each
-      // qualifying review's text appears 3x in the DOM (once in the grid
-      // card, twice in the auto-scroll marquee's doubled-for-looping list)
-      // — .first() just confirms at least one instance renders.
+      // 2-star "It's fine." review must not appear as a testimonial. A
+      // karaoke card holds its text twice (screen-reader copy + per-word
+      // spans) — .first() just confirms at least one instance renders.
       await expect(page.getByText(/turned a 40 minute podcast/i).first()).toBeVisible();
       await expect(page.getByText(/Solid captioning/i).first()).toBeVisible();
       await expect(page.getByText("It's fine.")).toHaveCount(0);
