@@ -136,6 +136,7 @@ TOOL_NAMES["editor-captions"] = "Editor captions";
 TOOL_NAMES["editor-render"] = "Editor export";
 TOOL_NAMES["auto-clip-dub"] = "Clip dubbing";
 TOOL_NAMES["auto-clip-rerender"] = "AutoClip re-render";
+// Retired (captions are rendered in-house now); kept so old ledger rows still read well.
 TOOL_NAMES["caption-render"] = "Premium captions";
 
 function toolName(slug: string) {

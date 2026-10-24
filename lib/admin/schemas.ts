@@ -444,7 +444,7 @@ export const metricsQuerySchema = z.object({
     // Keep in sync with MetricsSection in lib/admin/metrics.ts — the two lists
     // are separate and a section missing from either one silently 400s or
     // never renders.
-    "lifecycle", "credits", "pipeline", "acquisition", "captions",
+    "lifecycle", "credits", "pipeline", "acquisition",
   ]),
   range: z.coerce.number().pipe(z.union([z.literal(7), z.literal(30), z.literal(90), z.literal(365)])).default(30),
   compare: z.coerce.boolean().default(false),

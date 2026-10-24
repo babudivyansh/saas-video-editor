@@ -9,6 +9,8 @@ export interface RawWordTiming {
   word: string;
   start: number; // ms, source-time (matches /api/editor/captions' WordTiming response)
   end: number;
+  /** Diarized speaker label, when the transcriber provides one. */
+  speaker?: string;
 }
 
 /** Groups doc.tracks.video by unique assetId, in first-seen timeline order,
@@ -74,6 +76,7 @@ export function wordsToCaptionCues(words: RawWordTiming[], clip: VideoClip, styl
       word: w.word,
       startMs: Math.max(0, Math.min(durationMs, (w.start - srcStartMs) / speed)),
       endMs: Math.max(0, Math.min(durationMs, (w.end - srcStartMs) / speed)),
+      ...(w.speaker ? { speaker: w.speaker } : {}),
     }));
 
     cues.push({
@@ -98,4 +101,56 @@ export function newClipId(): string {
     const r = (Math.random() * 16) | 0;
     return (ch === "x" ? r : (r & 0x3) | 0x8).toString(16);
   });
+}
+
+export interface TemplateCaptionWord {
+  word: string;
+  /** Timeline ms. */
+  start: number;
+  end: number;
+  speaker?: string;
+}
+
+export interface TemplateCaptionGroup {
+  templateId: string;
+  accent?: string;
+  words: TemplateCaptionWord[];
+}
+
+/**
+ * The editor's template-styled caption cues as one timed word list per
+ * template, on the timeline clock. Shared by the preview (CaptionTemplateRender
+ * at the playhead) and the export (lib/captions/engine), so they agree. A cue
+ * without word timings spreads its text evenly over the cue.
+ */
+export function templateCaptionGroups(clips: CaptionClip[]): TemplateCaptionGroup[] {
+  const groups = new Map<string, TemplateCaptionGroup>();
+  const sorted = [...clips].filter((c) => c.templateId && !c.hidden).sort((a, b) => a.timelineStart - b.timelineStart);
+  for (const c of sorted) {
+    const key = `${c.templateId}|${c.templateAccent ?? ""}`;
+    let g = groups.get(key);
+    if (!g) {
+      g = { templateId: c.templateId!, ...(c.templateAccent ? { accent: c.templateAccent } : {}), words: [] };
+      groups.set(key, g);
+    }
+    const group = g;
+    const base = c.timelineStart * 1000;
+    const endMs = base + c.duration * 1000;
+    if (c.words?.length) {
+      for (const w of c.words) {
+        if (!w.word.trim()) continue;
+        group.words.push({
+          word: w.word,
+          start: Math.min(endMs, base + w.startMs),
+          end: Math.min(endMs, base + w.endMs),
+          ...(w.speaker ? { speaker: w.speaker } : {}),
+        });
+      }
+    } else {
+      const parts = c.text.split(/\s+/).filter(Boolean);
+      const step = (c.duration * 1000) / Math.max(1, parts.length);
+      parts.forEach((word, i) => group.words.push({ word, start: base + i * step, end: base + (i + 1) * step }));
+    }
+  }
+  return [...groups.values()];
 }

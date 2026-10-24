@@ -44,7 +44,6 @@ export const CRON_SCHEDULE: readonly CronScheduleEntry[] = [
   { schedule: "0 6 * * *", path: "/api/cron/subscription-reminder", secret: "CRON_SECRET" },
   { schedule: "*/15 * * * *", path: "/api/cron/stale-clip-sweep", secret: "CRON_SECRET" },
   { schedule: "*/2 * * * *", path: "/api/cron/dub-sweep", secret: "CRON_SECRET" },
-  { schedule: "*/2 * * * *", path: "/api/cron/submagic-sweep", secret: "CRON_SECRET" },
   { schedule: "*/10 * * * *", path: "/api/cron/clip-publish", secret: "CRON_SECRET" },
 ];
 

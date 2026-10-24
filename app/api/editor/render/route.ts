@@ -6,6 +6,7 @@ import { redis } from "@/lib/redis";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { createRenderQueue } from "@/lib/render-queue";
 import { normalizeDoc, validateDoc, type TimelineDoc } from "@/lib/editor/types";
+import { checkTemplateChoice } from "@/lib/captions/gate";
 import {
   editorRenderJob,
   EDITOR_RENDER_CREDIT_COST,
@@ -51,6 +52,12 @@ async function handlePOST(req: NextRequest) {
   if (docError) return NextResponse.json({ error: `Invalid timeline: ${docError}` }, { status: 400 });
   if (doc.tracks.video.length === 0) {
     return NextResponse.json({ error: "Add at least one video clip before exporting" }, { status: 400 });
+  }
+
+  // Caption templates above the user's plan can't be exported.
+  for (const templateId of new Set(doc.tracks.caption.flatMap((c) => (c.templateId ? [c.templateId] : [])))) {
+    const locked = await checkTemplateChoice(auth.userId, templateId);
+    if (locked) return NextResponse.json(locked.body, { status: locked.status });
   }
 
   // Resolve every referenced asset and confirm ownership.

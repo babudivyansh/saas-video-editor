@@ -39,7 +39,7 @@ export type DeleteAccountResult =
 // if a model is in neither list — a new user-owned table has to be classified
 // here, or a paying customer's copy of it would outlive their deletion.
 export const PURGED_USER_MODELS = [
-  "Project", // cascades Clip, ClipDub, CaptionRenderJob and the rest of a project
+  "Project", // cascades Clip, ClipDub and the rest of a project
   "ClipPublish", // posts made from an asset outlive the project cascade (assetId is SetNull)
   "Asset",
   "AssetFolder",
@@ -243,7 +243,6 @@ function anonymiseOps(
         experienceLevel: null,
         teamOrIndividual: null,
         adminNotes: null,
-        captionVocabulary: [],
         dismissedHints: [],
         claimedRankRewards: [],
         billingName: null,

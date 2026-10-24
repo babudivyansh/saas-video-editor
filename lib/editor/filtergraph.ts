@@ -26,6 +26,7 @@ import { docDuration, videoSegments } from "./doc-utils";
 import { clipDuckSegments, musicVolumeFilter, speechRangesFromCaptions } from "./music-envelope";
 import { keyframeExpr } from "./keyframes";
 import { adjustFilters, needsWrapping, wrappedEffect } from "./video-look";
+import { buildCaptionFilterChain, type CaptionTrack } from "@/lib/captions/engine";
 
 export interface ClipInput {
   /** local downloaded file path */
@@ -42,8 +43,10 @@ export interface FiltergraphInput {
   assets: Map<string, ClipInput>;
   /** textClipId → path of a UTF-8 file containing the clip's text */
   textFiles: Map<string, string>;
-  /** path to a generated ASS file covering the whole caption track (undefined/omitted when there are no captions) */
+  /** path to a generated ASS file covering the plain (non-template) caption cues; omitted when there are none */
   captionAssPath?: string;
+  /** Template-styled caption cues, one engine track per template (lib/captions/engine). */
+  captionTemplateTracks?: { track: CaptionTrack; assPath: string }[];
   /** Free-tier output treatment: cap the short edge at 720p and burn a
    * "Clipiro" corner watermark. Decided by the caller from the user's tier. */
   watermark?: boolean;
@@ -151,7 +154,7 @@ function atempoChain(speed: number): string {
 }
 
 export function buildFilterGraph(input: FiltergraphInput): FiltergraphResult {
-  const { doc, assets, textFiles, captionAssPath, outputPath } = input;
+  const { doc, assets, textFiles, captionAssPath, captionTemplateTracks, outputPath } = input;
   const { w: W, h: H } = ASPECT_DIMENSIONS[doc.aspect];
   const total = docDuration(doc);
   if (total <= 0) throw new Error("Timeline is empty");
@@ -417,14 +420,25 @@ export function buildFilterGraph(input: FiltergraphInput): FiltergraphResult {
   // via explicit file paths — without it, libass can only resolve fonts by
   // NAME through the OS font system, which won't know about our bundled
   // (not OS-installed) Google Fonts.
+  //
+  // The `ass` filter rather than `subtitles`: same libass, but it exposes
+  // complex shaping, without which Devanagari (Hindi) is drawn unshaped.
   if (captionAssPath) {
     const fontsDir = path.join(process.cwd(), "public/fonts");
     const outLabel = "[vcap]";
     filters.push(
-      `${videoOut}subtitles=filename='${escapeFilterPath(captionAssPath)}':fontsdir='${escapeFilterPath(fontsDir)}'${outLabel}`,
+      `${videoOut}ass=filename='${escapeFilterPath(captionAssPath)}':fontsdir='${escapeFilterPath(fontsDir)}':shaping=complex${outLabel}`,
     );
     videoOut = outLabel;
   }
+
+  // Template-styled cues: the same engine AutoClip renders with (motion,
+  // shapes, colour emoji overlays, glass blur), one chain per template.
+  (captionTemplateTracks ?? []).forEach(({ track, assPath }, i) => {
+    const out = `vct${i}`;
+    filters.push(buildCaptionFilterChain({ track, assPath, inLabel: videoOut.slice(1, -1), outLabel: out, prefix: `ct${i}` }));
+    videoOut = `[${out}]`;
+  });
 
   // ── Music/audio track: adelay + amix over the base audio ──
   let audioOut = baseAudio;

@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { withRateLimit } from "@/lib/with-rate-limit";
+import { checkTemplateChoice } from "@/lib/captions/gate";
 import {
   requestRerender, subtitleStyleOverrideSchema, silenceSettingsSchema,
 } from "@/lib/autoclip-rerender";
@@ -54,6 +55,13 @@ async function handlePUT(req: NextRequest, { params }: { params: Promise<{ id: s
     if (!parsed.data.subtitleStyleOverride) {
       return NextResponse.json({ error: "Nothing to save" }, { status: 400 });
     }
+    const current = (clip.subtitleStyleOverride as Record<string, unknown> | null)?.templateId;
+    const locked = await checkTemplateChoice(
+      auth.userId,
+      parsed.data.subtitleStyleOverride.templateId,
+      typeof current === "string" ? current : null,
+    );
+    if (locked) return NextResponse.json(locked.body, { status: locked.status });
     await prisma.clip.update({
       where: { id: clip.id },
       data: {

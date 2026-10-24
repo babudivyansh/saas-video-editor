@@ -13,10 +13,6 @@ const t = Date.now().toString(36);
 
 // One entry per enqueue call site (grep "\.enqueue(" in lib/ and app/api/).
 const CALL_SITE_IDS = {
-  "caption-render submit": uuid,
-  "caption-render export": `${uuid}-export-${t}`,
-  "caption-render download": `${uuid}-download-${t}`,
-  "caption-render sync": `${uuid}:sync:${Date.now()}`,
   "editor render": `${uuid}-${t}`,
   "autoclip pick": `${uuid}-${t}`,
   "autoclip rerender": `${uuid}-2-${t}`,

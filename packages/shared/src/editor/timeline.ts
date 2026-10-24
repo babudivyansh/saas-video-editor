@@ -3,6 +3,8 @@
 // re-validated server-side before rendering. Keep this file dependency-free —
 // it is imported by both client components and the render job.
 
+import { isKnownTemplateId } from "../captions/templates";
+
 export type Aspect = "9:16" | "1:1" | "16:9";
 
 export const ASPECT_DIMENSIONS: Record<Aspect, { w: number; h: number }> = {
@@ -294,6 +296,8 @@ export interface CaptionWord {
   word: string;
   startMs: number; // CLIP-RELATIVE: 0 = this cue's own timelineStart
   endMs: number;
+  /** Diarized speaker label, when the transcript has one (speaker-coloured templates). */
+  speaker?: string;
 }
 
 export const CAPTION_HIGHLIGHT_MODES = {
@@ -316,6 +320,15 @@ export interface CaptionClip extends ClipBase {
   type: "caption";
   text: string;
   words?: CaptionWord[]; // absent = manually-typed cue, no karaoke data; highlightMode should be "none" for these
+  /**
+   * A Clipiro caption template (packages/shared/src/captions/templates.ts).
+   * When set, the template owns the whole look: the preview draws it with
+   * CaptionTemplateRender and the export burns it with lib/captions/engine,
+   * and the per-cue style fields below are ignored.
+   */
+  templateId?: string;
+  /** Template accent override, #rrggbb. */
+  templateAccent?: string;
 
   fontFamily: FontFamily;
   fontSizePct: number;
@@ -599,6 +612,9 @@ export function validateDoc(doc: unknown): string | null {
       return "caption clip invalid safeMarginPct";
 
     if (!(c.highlightMode in CAPTION_HIGHLIGHT_MODES)) return "caption clip invalid highlightMode";
+    if (c.templateId !== undefined && (typeof c.templateId !== "string" || !isKnownTemplateId(c.templateId)))
+      return "caption clip invalid templateId";
+    if (c.templateAccent !== undefined && !HEX_COLOR.test(c.templateAccent)) return "caption clip invalid templateAccent";
     if (c.highlightColor !== undefined && !HEX_COLOR.test(c.highlightColor)) return "caption clip invalid highlightColor";
     if (c.activeWordScale !== undefined && !isFiniteInRange(c.activeWordScale, 1, 2))
       return "caption clip invalid activeWordScale";
@@ -615,7 +631,8 @@ export function validateDoc(doc: unknown): string | null {
           typeof w.word !== "string" ||
           !isFiniteNonNeg(w.startMs) ||
           !isFiniteNonNeg(w.endMs) ||
-          w.startMs > w.endMs
+          w.startMs > w.endMs ||
+          (w.speaker !== undefined && (typeof w.speaker !== "string" || w.speaker.length > 64))
         )
           return "caption clip invalid word timing";
       }

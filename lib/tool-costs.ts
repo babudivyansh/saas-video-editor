@@ -103,34 +103,6 @@ export const TOOL_COSTS: Record<string, ToolCost> = {
     generationType: "audio",
     requiredTier: "pro",
   },
-  // TODO verify-before-ship: Submagic's pricing page lists $0.69/min for
-  // pay-per-minute API use (checked 2026-09-26), but confirming what WE are
-  // billed requires an invoice against real usage — creating a project is the
-  // billable act, so it cannot be probed for free. Priced at
-  // ceil(0.69*3/0.0784) = 27 cr per billable minute (was 8, below cost after
-  // GST). Two mitigations, the same pair clip-dub and subtitle-remover use:
-  //
-  //   1. Gated creator+ (see SUBMAGIC_ROUTING_DEFAULTS.tiers in
-  //      lib/captions/CaptionRendererFactory.ts), so credit revenue absorbs an
-  //      unknown provider rate.
-  //   2. Priced per BILLABLE minute, not per render — providers in this
-  //      category round a partial minute up to a whole one, so a 12-second clip
-  //      and a 59-second clip cost the same. billableMinutes() in
-  //      lib/captions/pricing.ts encodes that, and it is the reason §26 of the
-  //      spec insists only user-selected clips get a provider render.
-  //
-  // creditCost here is display-only; real billing is duration-scaled through
-  // getCaptionRenderPricing (admin-editable, no deploy). Replace the null with
-  // the confirmed rate — computed as cost x margin / REVENUE_FLOOR_USD_PER_CREDIT
-  // (see lib/plans/tiers.ts) — then drop the tier gate and shrink
-  // the allowlist entry in scripts/check-unverified-costs.mjs back to 2.
-  "caption-render": {
-    creditCost: 27, // display price for a <=1 minute clip (perBillableMinute x 1)
-    costUsd: 0.69,
-    costBasis: "Submagic animated-caption render, $0.69 per billable minute (published PAYG rate, not yet invoice-confirmed)",
-    generationType: "video",
-    requiredTier: "creator",
-  },
 
   // ── Features that charge credits but had no entry here ──────────────────
   //

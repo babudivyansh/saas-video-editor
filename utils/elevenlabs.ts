@@ -18,7 +18,7 @@ const TTS_MODEL_ID = "eleven_flash_v2_5";
  * once, each failing in its own local way with no single signal saying why.
  *
  * Callers gate on this so a misconfiguration reads as "not configured" rather
- * than as a dozen unrelated provider errors. Mirrors isSubmagicConfigured().
+ * than as a dozen unrelated provider errors.
  */
 export function isElevenLabsConfigured(): boolean {
   const key = env.ELEVENLABS_API_KEY;

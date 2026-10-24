@@ -76,7 +76,6 @@ describe("GET /api/cron-tick", () => {
       "/api/cron/social-refresh",
       "/api/cron/social-refresh?job=scores",
       "/api/cron/stale-clip-sweep",
-      "/api/cron/submagic-sweep",
     ]);
     const auth = Object.fromEntries(called().map((c) => [c.path, c.auth]));
     expect(auth["/api/cron/refill-credits"]).toBe("Bearer cron-s");

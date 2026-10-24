@@ -19,11 +19,8 @@ import {
   probeMediaDuration,
   getMediaDimensions,
   analyzeAudio,
-  generateASS,
-  styleIndexToSubtitleStyle,
   encodeArgs,
   maybeUseFilterScript,
-  type SubtitleStyle,
   type RenderTarget,
 } from "@/utils/ffmpeg-render";
 import { uploadFileToS3 } from "@/utils/s3-upload";
@@ -59,8 +56,8 @@ import {
   parseLiteEdits, planLitePass, speechRangesFromWords, type LiteEdits,
 } from "@/lib/autoclip-lite";
 import { computeDuckEnvelope, duckVolumeExpr } from "@/lib/audio-ducking";
-import { getCaptionTemplate } from "@/lib/caption-templates";
-import { captionMotion } from "@/lib/caption-motion";
+import { buildClipCaptionTrack } from "@/lib/captions/clip-captions";
+import { buildCaptionFilterChain } from "@/lib/captions/engine";
 // position is a pure, dependency-free helper so it imports statically.
 // deferral is NOT: it reaches Redis and the Config table through the renderer
 // factory, and importing it here would pull a live ioredis client into the
@@ -1145,10 +1142,9 @@ export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATT
             subtitleStyleOverride: {
               animated: animatedCaptions,
               captionPositionY: recommendCaptionPositionY(allFaces, { startSec: seg.start, endSec: seg.end }),
-              // The chosen look, as a template slug. Writing it here means the
-              // render path (getCaptionTemplate), the Studio drawer and
-              // shouldDeferCaptionsToProvider all pick it up with no further
-              // plumbing — this blob is already what every one of them reads.
+              // The chosen look, as a template id. Writing it here means the
+              // render path (lib/captions/clip-captions.ts) and the Studio
+              // drawer both pick it up with no further plumbing.
               ...(hasCaptions && templateId ? { templateId } : {}),
             } as unknown as Prisma.InputJsonValue,
             silenceSettings: {
@@ -1683,6 +1679,298 @@ async function linkClipProvenance(
   }
 }
 
+export interface ClipFileOptions {
+  /** Burn the clip's caption template in. Off for a dub, which burns its own translated captions. */
+  captions: boolean;
+  /** Free-tier watermark. */
+  watermark: boolean;
+  target?: RenderTarget;
+  /** Encode progress, 0-100. */
+  onProgress?: (pct: number) => void;
+}
+
+/**
+ * Encodes one clip from the source video into `outPath`: crop and reframe,
+ * B-roll, split screen, mood grade, captions, watermark and the lite-editor
+ * pass. Returns the rendered length and the words on the rendered timeline.
+ *
+ * Shared by the clip render and the dub, which needs the same clip without
+ * its captions underneath the translated ones. Temp files go in `tmp`, which
+ * the caller owns and removes.
+ */
+export async function renderClipFile(
+  args: { projectId: string; clip: Clip; videoPath: string; tmp: string; outPath: string } & ClipFileOptions,
+): Promise<{ finalDurationSec: number; words: WordTiming[] | null }> {
+  const { projectId, clip, videoPath, tmp, watermark } = args;
+  const target: RenderTarget = args.target ?? "cpu";
+  const clipPath = args.outPath;
+  const base = path.join(tmp, `${projectId}-clip${clip.index}-${clip.id}`);
+  const assPath = `${base}.ass`;
+  const brollPath = `${base}-broll.mp4`;
+  const scriptPath = `${base}.filter`;
+  const litePath = `${base}-lite.mp4`;
+  const musicPath = `${base}-music.mp3`;
+
+  const aspect = (clip.aspectRatio as Aspect) || "9:16";
+  let stored = clip.cropKeyframes as unknown as StoredCrop | null;
+  const moodKey = (clip.mood && (MOODS as readonly string[]).includes(clip.mood)) ? (clip.mood as MoodTag) : "neutral";
+  const moodFilter = FILTER_PRESETS[MOOD_TO_FILTER[moodKey]].ffmpeg;
+
+  // Load silence and filler removal settings
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const silenceOpts = (clip.silenceSettings as any) ?? {};
+  const removeSilence = !!silenceOpts.removeSilence;
+  const silenceThresholdMs = (silenceOpts.silenceThresholdMs as number) ?? 400;
+  const removeFillers = !!silenceOpts.removeFillers;
+
+  let words = clip.transcriptJson as unknown as WordTiming[] | null;
+  let keeps: KeepSegment[] = [];
+  let isTrimmed = false;
+  let finalDurationSec = clip.durationSec;
+
+  if (words && words.length > 0 && (removeSilence || removeFillers)) {
+    // The WINDOW, not durationSec: durationSec is the rendered (trimmed)
+    // length once a clip has rendered, and the words are on the window.
+    const result = computeKeeps(words, clip.endSec - clip.startSec, removeSilence, silenceThresholdMs, removeFillers);
+    if (result.cuts.length > 0) {
+      keeps = result.keeps;
+      isTrimmed = true;
+
+      // Shift word timings
+      words = words
+        .filter((w) => {
+          const mid = (w.start + w.end) / 2;
+          return keeps.some((k) => mid >= k.startMs && mid <= k.endMs);
+        })
+        .map((w) => ({
+          word: w.word,
+          start: shiftTime(w.start, keeps),
+          end: shiftTime(w.end, keeps),
+          // Kept so speaker-coloured caption templates still know who is talking.
+          ...(w.speaker ? { speaker: w.speaker } : {}),
+        }));
+
+      // Shift crop keyframes
+      if (stored) {
+        if (stored.mode === "single") {
+          stored = {
+            mode: "single",
+            keyframes: stored.keyframes
+              .filter((kf) => keeps.some((k) => kf.tSec * 1000 >= k.startMs && kf.tSec * 1000 <= k.endMs))
+              .map((kf) => ({
+                ...kf,
+                tSec: shiftTime(kf.tSec * 1000, keeps) / 1000,
+              })),
+          };
+        } else if (stored.mode === "split") {
+          stored = {
+            mode: "split",
+            a: stored.a
+              .filter((kf) => keeps.some((k) => kf.tSec * 1000 >= k.startMs && kf.tSec * 1000 <= k.endMs))
+              .map((kf) => ({ ...kf, tSec: shiftTime(kf.tSec * 1000, keeps) / 1000 })),
+            b: stored.b
+              .filter((kf) => keeps.some((k) => kf.tSec * 1000 >= k.startMs && kf.tSec * 1000 <= k.endMs))
+              .map((kf) => ({ ...kf, tSec: shiftTime(kf.tSec * 1000, keeps) / 1000 })),
+          };
+        }
+      }
+
+      finalDurationSec = keeps.reduce((s, k) => s + (k.endMs - k.startMs), 0) / 1000;
+
+      // The shifted words and keyframes are used for THIS render only and
+      // deliberately not written back. They used to be, while startSec/
+      // endSec kept the original window — so the next re-render ran the
+      // trim again over already-trimmed timings against the untrimmed
+      // source: the tail was cut off and captions drifted, worse on every
+      // re-render. The stored transcript stays on the source window, and
+      // durationSec (written with the final status below) records the
+      // trimmed length. wordsOnRenderedTimeline gives the shifted view to
+      // anything that lays words over the rendered file.
+    }
+  }
+
+  let signal = (clip.signalTrack as unknown as SignalTrack | null) ?? null;
+
+  // The signal track is indexed on the clip's ORIGINAL timeline. Silence and
+  // filler removal shorten that timeline, so without remapping, the camera
+  // and captions would react to moments that have been cut out — drifting
+  // further out of sync the more was removed. Same problem the word timings
+  // and crop keyframes above already solve, so it uses the same keeps.
+  if (signal && isTrimmed && keeps.length > 0) {
+    signal = remapSignalTrack(signal, keeps, finalDurationSec);
+  }
+
+  // Lite-editor adjustments (speed, music bed, fades) are applied as a
+  // separate pass AFTER this render — see applyLiteEditsPass. Doing them
+  // here would mean rescaling every time-indexed artifact the clip owns
+  // (words, crop keyframes, B-roll window, signal track) and threading three
+  // filtergraph branches; doing them afterwards means captions and the zoom
+  // path are already pixels and scale with the video for free, which cannot
+  // desync. The cost is one extra encode on clips that use the lite editor.
+  const lite = parseLiteEdits(clip.liteEdits);
+
+  // Energy-reactive camera (P2.2). The zoom curve is layered onto whatever
+  // crop path the layout produced, so it composes with speaker tracking
+  // rather than replacing it — the camera keeps following the subject and
+  // tightens around them when the delivery intensifies.
+  if (signal && signal.energy?.length > 0 && stored?.mode === "single" && stored.keyframes.length > 0) {
+    const zoomStrength = (silenceOpts.zoomStrength as "low" | "medium" | "high") ?? "medium";
+    const smartOn = silenceOpts.smartAutoReframe !== false;
+    if (smartOn) {
+      const curve = buildCameraZoom(signal, finalDurationSec, { maxZoom: ZOOM_STRENGTH_MAX[zoomStrength] });
+      stored = { mode: "single", keyframes: applyZoomToKeyframes(stored.keyframes, curve) };
+    }
+  }
+
+  // Captions are authored at the target resolution and burned after the crop/
+  // B-roll/split stage, onto `[video]` scaled to that size: the engine pins
+  // every word, emoji and glass panel in pixels, so it must know the frame.
+  // Caption animation reads the SAME energy envelope the camera does, so the
+  // two agree about where the emphasis is.
+  const capRes = TARGET_RES[aspect];
+  const captionTrack = args.captions && words && words.length > 0
+    ? buildClipCaptionTrack({
+        words,
+        subtitleStyleOverride: clip.subtitleStyleOverride,
+        captionStyleIndex: clip.captionStyleIndex,
+        signal,
+        W: capRes.w,
+        H: capRes.h,
+        durationMs: finalDurationSec * 1000,
+      })
+    : null;
+  if (captionTrack) fs.writeFileSync(assPath, captionTrack.ass);
+  // `[video]` → captions → `[videocap]`; empty when the clip has none.
+  const captionComplex = captionTrack
+    ? `;[video]scale=${capRes.w}:${capRes.h},setsar=1[capin];` +
+      buildCaptionFilterChain({ track: captionTrack, assPath, inLabel: "capin", outLabel: "videocap" })
+    : "";
+  const captionedLabel = captionTrack ? "videocap" : "video";
+
+  const baseArgs = ["-y", "-ss", String(clip.startSec), "-to", String(clip.endSec), "-i", videoPath];
+  const outputArgs = encodeArgs(target);
+
+  let selectFilter: string | null = null;
+  let aselectFilter: string | null = null;
+  if (isTrimmed && keeps.length > 0) {
+    const parts = keeps.map((k) => `between(t,${(k.startMs / 1000).toFixed(3)},${(k.endMs / 1000).toFixed(3)})`);
+    selectFilter = `select='${parts.join("+")}',setpts=PTS-STARTPTS`;
+    aselectFilter = `aselect='${parts.join("+")}',asetpts=PTS-STARTPTS`;
+  }
+
+  // B-roll downloads are best-effort: any window that fails is dropped and
+  // the clip renders with whatever succeeded (or none at all), rather than
+  // failing over a stock clip.
+  const plannedWindows: { startSec: number; endSec: number; url: string }[] =
+    (clip.brollWindows as unknown as { startSec: number; endSec: number; url: string }[] | null)
+    ?? (clip.brollUrl && clip.brollStartSec != null && clip.brollEndSec != null
+      ? [{ startSec: clip.brollStartSec, endSec: clip.brollEndSec, url: clip.brollUrl }]
+      : []);
+
+  const readyWindows: { startSec: number; endSec: number; path: string }[] = [];
+  for (const [i, w] of plannedWindows.entries()) {
+    const dest = i === 0 ? brollPath : `${brollPath}-${i}.mp4`;
+    try {
+      await downloadFile(w.url, dest);
+      readyWindows.push({ startSec: w.startSec, endSec: w.endSec, path: dest });
+    } catch (err) {
+      logger.warn("auto-clip", `B-roll window ${i} failed for clip ${clip.index}, skipping it`, err);
+    }
+  }
+  const brollReady = readyWindows.length > 0;
+
+  const videoSrc = isTrimmed ? "[trimmedv]" : "[0:v]";
+  const audioSrc = isTrimmed ? "[trimmeda]" : "0:a";
+  const prepends = isTrimmed && selectFilter && aselectFilter ? `[0:v]${selectFilter}[trimmedv];[0:a]${aselectFilter}[trimmeda];` : "";
+  // Every branch exposes its result as [video]; captions and then the
+  // free-tier watermark are chained onto it.
+  const wmComplex = captionComplex + (watermark ? `;[${captionedLabel}]${watermarkFilterChain()}[videowm]` : "");
+  const videoMap = watermark ? "[videowm]" : `[${captionedLabel}]`;
+
+  // `useBroll` is a parameter rather than just reading `brollReady`, so the
+  // render can be retried with B-roll forced off (see below). The B-roll
+  // splice uses a much heavier -filter_complex + concat graph with one looped
+  // input per window; on some hosts/inputs that graph fails where the plain
+  // -vf path renders fine — a mid-stream filter reinit the concat path can't
+  // survive, or the extra filter/encoder threads tripping a constrained
+  // host's resource limit (the -11 EAGAIN "Could not open encoder" seen in
+  // prod logs). Building args in one place keeps the retry identical bar B-roll.
+  const buildRenderArgs = (useBroll: boolean): string[] => {
+    if (useBroll && brollReady) {
+      // Silence removal shifts the clip's timeline, so the windows move with it.
+      const shifted = readyWindows
+        .map((w) => ({
+          ...w,
+          startSec: isTrimmed ? shiftTime(w.startSec * 1000, keeps) / 1000 : w.startSec,
+          endSec: isTrimmed ? shiftTime(w.endSec * 1000, keeps) / 1000 : w.endSec,
+        }))
+        .filter((w) => w.endSec > w.startSec && w.startSec < finalDurationSec)
+        .sort((a, b) => a.startSec - b.startSec);
+
+      // Speaker tracking now survives a B-roll splice (P2.6).
+      const brollKeyframes = stored?.mode === "single" && stored.keyframes.length > 1 ? stored.keyframes : null;
+      const complex = prepends + buildMultiBrollFilterComplex(
+        finalDurationSec, shifted, aspect, moodFilter, null, videoSrc,
+        brollKeyframes ? buildDynamicCropFilter(brollKeyframes, aspect) : null,
+      ) + wmComplex;
+      return [
+        ...baseArgs,
+        // Each window is its own input, looped so a short stock clip still
+        // covers its window.
+        ...shifted.flatMap((w) => ["-stream_loop", "-1", "-i", w.path]),
+        "-filter_complex", complex, "-map", videoMap, "-map", audioSrc,
+        ...outputArgs, "-shortest", clipPath,
+      ];
+    }
+    if (stored?.mode === "split" && stored.a.length > 1 && stored.b.length > 1) {
+      // Two-speaker split-screen: two independent dynamic crops, vstacked.
+      const complex = prepends + buildSplitScreenFilterComplex(stored.a, stored.b, moodFilter, null, videoSrc) + wmComplex;
+      return [...baseArgs, "-filter_complex", complex, "-map", videoMap, "-map", audioSrc, ...outputArgs, "-shortest", clipPath];
+    }
+    const keyframes = stored?.mode === "single" ? stored.keyframes : null;
+    const cropExpr = keyframes && keyframes.length > 1
+      ? buildDynamicCropFilter(keyframes, aspect)
+      : aspectRatioFilter(aspect);
+    const filters = [cropExpr, moodFilter].filter((f): f is string => !!f);
+    // Trimming happens in `prepends` ([trimmedv]/[trimmeda]); the source may
+    // have no audio when untrimmed, hence the optional map.
+    const complex = `${prepends}${videoSrc}${filters.join(",")}[video]${wmComplex}`;
+    return [...baseArgs, "-filter_complex", complex, "-map", videoMap, "-map", isTrimmed ? audioSrc : "0:a?", ...outputArgs, clipPath];
+  };
+
+  const onRenderProgress = (pct: number) => args.onProgress?.(pct);
+  // The pan/zoom expressions can push the filtergraph past the command-line
+  // length limit on long clips; spill it to a file when that happens.
+  const renderOnce = (useBroll: boolean) => timeStage(
+    "render",
+    () => runFFmpegWithProgress(maybeUseFilterScript(buildRenderArgs(useBroll), scriptPath), onRenderProgress),
+    // `target` is what makes the CPU-vs-GPU comparison measurable rather
+    // than assumed — see gpu-service/README.md's ROI note.
+    { target, meta: { durationSec: Math.round(finalDurationSec), aspect, broll: useBroll && brollReady } },
+  );
+
+  try {
+    await renderOnce(brollReady);
+  } catch (err) {
+    if (!brollReady) throw err;
+    // B-roll is a best-effort enhancement (already best-effort at the download
+    // step) — a splice that ffmpeg can't render must not cost the user the
+    // whole clip. Retry without it: the exact path a B-roll-less clip takes,
+    // so the clip still renders (just without the stock cutaways).
+    logger.warn("auto-clip", `B-roll render failed for clip ${clip.index}, retrying without B-roll`, err);
+    await renderOnce(false);
+  }
+
+  // Lite-editor pass: speed / fades / music bed over the finished clip.
+  if (lite) {
+    finalDurationSec = await applyLiteEditsPass({
+      lite, clipPath, litePath, musicPath, durationSec: finalDurationSec, words, target,
+    });
+  }
+
+  return { finalDurationSec, words };
+}
+
 async function renderOneClip(
   projectId: string,
   clip: Clip,
@@ -1699,303 +1987,17 @@ async function renderOneClip(
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), `autoclip-${clip.id}-`));
   const clipPath = path.join(tmp, `${projectId}-clip${clip.index}-${clip.id}.mp4`);
   const thumbPath = path.join(tmp, `${projectId}-clip${clip.index}-${clip.id}.jpg`);
-  const assPath = path.join(tmp, `${projectId}-clip${clip.index}-${clip.id}.ass`);
-  const brollPath = path.join(tmp, `${projectId}-clip${clip.index}-${clip.id}-broll.mp4`);
-  const scriptPath = path.join(tmp, `${projectId}-clip${clip.index}-${clip.id}.filter`);
-  const litePath = path.join(tmp, `${projectId}-clip${clip.index}-${clip.id}-lite.mp4`);
-  const musicPath = path.join(tmp, `${projectId}-clip${clip.index}-${clip.id}-music.mp3`);
 
   try {
     await prisma.clip.update({ where: { id: clip.id }, data: { status: "rendering", progress: 5 } });
 
-    const aspect = (clip.aspectRatio as Aspect) || "9:16";
-    let stored = clip.cropKeyframes as unknown as StoredCrop | null;
-    const moodKey = (clip.mood && (MOODS as readonly string[]).includes(clip.mood)) ? (clip.mood as MoodTag) : "neutral";
-    const moodFilter = FILTER_PRESETS[MOOD_TO_FILTER[moodKey]].ffmpeg;
-
-    // Load silence and filler removal settings
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const silenceOpts = (clip.silenceSettings as any) ?? {};
-    const removeSilence = !!silenceOpts.removeSilence;
-    const silenceThresholdMs = (silenceOpts.silenceThresholdMs as number) ?? 400;
-    const removeFillers = !!silenceOpts.removeFillers;
-
-    let words = clip.transcriptJson as unknown as WordTiming[] | null;
-    let keeps: KeepSegment[] = [];
-    let isTrimmed = false;
-    let finalDurationSec = clip.durationSec;
-
-    if (words && words.length > 0 && (removeSilence || removeFillers)) {
-      // The WINDOW, not durationSec: durationSec is the rendered (trimmed)
-      // length once a clip has rendered, and the words are on the window.
-      const result = computeKeeps(words, clip.endSec - clip.startSec, removeSilence, silenceThresholdMs, removeFillers);
-      if (result.cuts.length > 0) {
-        keeps = result.keeps;
-        isTrimmed = true;
-
-        // Shift word timings
-        words = words
-          .filter((w) => {
-            const mid = (w.start + w.end) / 2;
-            return keeps.some((k) => mid >= k.startMs && mid <= k.endMs);
-          })
-          .map((w) => ({
-            word: w.word,
-            start: shiftTime(w.start, keeps),
-            end: shiftTime(w.end, keeps),
-          }));
-
-        // Shift crop keyframes
-        if (stored) {
-          if (stored.mode === "single") {
-            stored = {
-              mode: "single",
-              keyframes: stored.keyframes
-                .filter((kf) => keeps.some((k) => kf.tSec * 1000 >= k.startMs && kf.tSec * 1000 <= k.endMs))
-                .map((kf) => ({
-                  ...kf,
-                  tSec: shiftTime(kf.tSec * 1000, keeps) / 1000,
-                })),
-            };
-          } else if (stored.mode === "split") {
-            stored = {
-              mode: "split",
-              a: stored.a
-                .filter((kf) => keeps.some((k) => kf.tSec * 1000 >= k.startMs && kf.tSec * 1000 <= k.endMs))
-                .map((kf) => ({ ...kf, tSec: shiftTime(kf.tSec * 1000, keeps) / 1000 })),
-              b: stored.b
-                .filter((kf) => keeps.some((k) => kf.tSec * 1000 >= k.startMs && kf.tSec * 1000 <= k.endMs))
-                .map((kf) => ({ ...kf, tSec: shiftTime(kf.tSec * 1000, keeps) / 1000 })),
-            };
-          }
-        }
-
-        finalDurationSec = keeps.reduce((s, k) => s + (k.endMs - k.startMs), 0) / 1000;
-
-        // The shifted words and keyframes are used for THIS render only and
-        // deliberately not written back. They used to be, while startSec/
-        // endSec kept the original window — so the next re-render ran the
-        // trim again over already-trimmed timings against the untrimmed
-        // source: the tail was cut off and captions drifted, worse on every
-        // re-render. The stored transcript stays on the source window, and
-        // durationSec (written with the final status below) records the
-        // trimmed length. wordsOnRenderedTimeline gives the shifted view to
-        // anything that lays words over the rendered file.
-      }
-    }
-
-    let signal = (clip.signalTrack as unknown as SignalTrack | null) ?? null;
-
-    // The signal track is indexed on the clip's ORIGINAL timeline. Silence and
-    // filler removal shorten that timeline, so without remapping, the camera
-    // and captions would react to moments that have been cut out — drifting
-    // further out of sync the more was removed. Same problem the word timings
-    // and crop keyframes above already solve, so it uses the same keeps.
-    if (signal && isTrimmed && keeps.length > 0) {
-      signal = remapSignalTrack(signal, keeps, finalDurationSec);
-    }
-
-    // Lite-editor adjustments (speed, music bed, fades) are applied as a
-    // separate pass AFTER this render — see applyLiteEditsPass. Doing them
-    // here would mean rescaling every time-indexed artifact the clip owns
-    // (words, crop keyframes, B-roll window, signal track) and threading three
-    // filtergraph branches; doing them afterwards means captions and the zoom
-    // path are already pixels and scale with the video for free, which cannot
-    // desync. The cost is one extra encode on clips that use the lite editor.
-    const lite = parseLiteEdits(clip.liteEdits);
-
-    // Energy-reactive camera (P2.2). The zoom curve is layered onto whatever
-    // crop path the layout produced, so it composes with speaker tracking
-    // rather than replacing it — the camera keeps following the subject and
-    // tightens around them when the delivery intensifies.
-    if (signal && signal.energy?.length > 0 && stored?.mode === "single" && stored.keyframes.length > 0) {
-      const zoomStrength = (silenceOpts.zoomStrength as "low" | "medium" | "high") ?? "medium";
-      const smartOn = silenceOpts.smartAutoReframe !== false;
-      if (smartOn) {
-        const curve = buildCameraZoom(signal, finalDurationSec, { maxZoom: ZOOM_STRENGTH_MAX[zoomStrength] });
-        stored = { mode: "single", keyframes: applyZoomToKeyframes(stored.keyframes, curve) };
-      }
-    }
-
-    // A provider-rendered caption template means the captions are added AFTER
-    // this render, by an external renderer working on the finished file. Burning
-    // them here too would stack two caption tracks in the exported MP4, so this
-    // render deliberately produces a clean video. shouldDeferCaptionsToProvider
-    // resolves to false for every reason a provider render might not actually
-    // follow (flag off, tier ineligible, breaker open, a previous provider
-    // render for this clip already failed), so the fallback is always captions
-    // rather than none. See lib/captions/deferral.ts.
-    const templateId = (clip.subtitleStyleOverride as Record<string, unknown> | null)?.templateId as
-      | string
-      | undefined;
-    // Dynamically imported — see the note on the position import at the top of
-    // this file. Costs one module resolution per clip render, against an ffmpeg
-    // encode; the static import cost a Redis client in every test that touches
-    // this module.
-    //
-    // The TIER must be passed. Without it the factory skipped its tier check,
-    // so a free user's provider template was deferred here — captions left
-    // off — and then requestCaptionRender, which does check the tier, refused
-    // the provider render. The clip shipped with no captions, on every render.
-    const deferCaptions = templateId
-      ? await (async () => {
-          const [{ shouldDeferCaptionsToProvider }, { getUserTier }] = await Promise.all([
-            import("@/lib/captions/deferral"),
-            import("@/lib/auth"),
-          ]);
-          const owner = await prisma.project.findUnique({ where: { id: projectId }, select: { userId: true } });
-          const tier = owner ? await getUserTier(owner.userId) : undefined;
-          return shouldDeferCaptionsToProvider({ clipId: clip.id, templateId, durationSec: finalDurationSec, tier });
-        })()
-      : false;
-
-    let assEscaped: string | null = null;
-    if (clip.hasCaptions && !deferCaptions && words && words.length > 0) {
-      // Resolve custom subtitle style overrides if they exist
-      let style = styleIndexToSubtitleStyle(clip.captionStyleIndex ?? 0, "oneword");
-      const customStyle = clip.subtitleStyleOverride as unknown as SubtitleStyle | null;
-      if (customStyle) {
-        style = { ...style, ...customStyle };
-      }
-      // Caption animation reads the SAME energy envelope the camera does, so
-      // the two agree about where the emphasis is instead of each reacting on
-      // its own — that disagreement is what makes auto-captions look amateur.
-      // A caption template, if one is chosen, supplies the look AND whether
-      // emoji/keyword colouring apply — one named decision instead of a dozen
-      // colour pickers.
-      const template = getCaptionTemplate(templateId);
-      if (template) style = { ...template.style, ...customStyle };
-
-      const motion = captionMotion(words, template, signal);
-      if (motion) style = { ...style, motion };
-      generateASS(words, style, assPath);
-      assEscaped = assPath.replace(/\\/g, "/").replace(/:/g, "\\:");
-    }
-    const captionsFilter = assEscaped ? `subtitles='${assEscaped}'` : null;
-
-    const baseArgs = ["-y", "-ss", String(clip.startSec), "-to", String(clip.endSec), "-i", videoPath];
-    const outputArgs = encodeArgs(target);
-
-    let selectFilter: string | null = null;
-    let aselectFilter: string | null = null;
-    if (isTrimmed && keeps.length > 0) {
-      const parts = keeps.map((k) => `between(t,${(k.startMs / 1000).toFixed(3)},${(k.endMs / 1000).toFixed(3)})`);
-      selectFilter = `select='${parts.join("+")}',setpts=PTS-STARTPTS`;
-      aselectFilter = `aselect='${parts.join("+")}',asetpts=PTS-STARTPTS`;
-    }
-
-    // B-roll downloads are best-effort: any window that fails is dropped and
-    // the clip renders with whatever succeeded (or none at all), rather than
-    // failing over a stock clip.
-    const plannedWindows: { startSec: number; endSec: number; url: string }[] =
-      (clip.brollWindows as unknown as { startSec: number; endSec: number; url: string }[] | null)
-      ?? (clip.brollUrl && clip.brollStartSec != null && clip.brollEndSec != null
-        ? [{ startSec: clip.brollStartSec, endSec: clip.brollEndSec, url: clip.brollUrl }]
-        : []);
-
-    const readyWindows: { startSec: number; endSec: number; path: string }[] = [];
-    for (const [i, w] of plannedWindows.entries()) {
-      const dest = i === 0 ? brollPath : `${brollPath}-${i}.mp4`;
-      try {
-        await downloadFile(w.url, dest);
-        readyWindows.push({ startSec: w.startSec, endSec: w.endSec, path: dest });
-      } catch (err) {
-        logger.warn("auto-clip", `B-roll window ${i} failed for clip ${clip.index}, skipping it`, err);
-      }
-    }
-    const brollReady = readyWindows.length > 0;
-
-    const videoSrc = isTrimmed ? "[trimmedv]" : "[0:v]";
-    const audioSrc = isTrimmed ? "[trimmeda]" : "0:a";
-    const prepends = isTrimmed && selectFilter && aselectFilter ? `[0:v]${selectFilter}[trimmedv];[0:a]${aselectFilter}[trimmeda];` : "";
-    // Complex branches expose their result as [video]; chain the free-tier
-    // watermark onto it and remap. The -vf branch just appends the chain.
-    const wmComplex = watermark ? `;[video]${watermarkFilterChain()}[videowm]` : "";
-    const videoMap = watermark ? "[videowm]" : "[video]";
-
-    // `useBroll` is a parameter rather than just reading `brollReady`, so the
-    // render can be retried with B-roll forced off (see below). The B-roll
-    // splice uses a much heavier -filter_complex + concat graph with one looped
-    // input per window; on some hosts/inputs that graph fails where the plain
-    // -vf path renders fine — a mid-stream filter reinit the concat path can't
-    // survive, or the extra filter/encoder threads tripping a constrained
-    // host's resource limit (the -11 EAGAIN "Could not open encoder" seen in
-    // prod logs). Building args in one place keeps the retry identical bar B-roll.
-    const buildRenderArgs = (useBroll: boolean): string[] => {
-      if (useBroll && brollReady) {
-        // Silence removal shifts the clip's timeline, so the windows move with it.
-        const shifted = readyWindows
-          .map((w) => ({
-            ...w,
-            startSec: isTrimmed ? shiftTime(w.startSec * 1000, keeps) / 1000 : w.startSec,
-            endSec: isTrimmed ? shiftTime(w.endSec * 1000, keeps) / 1000 : w.endSec,
-          }))
-          .filter((w) => w.endSec > w.startSec && w.startSec < finalDurationSec)
-          .sort((a, b) => a.startSec - b.startSec);
-
-        // Speaker tracking now survives a B-roll splice (P2.6).
-        const brollKeyframes = stored?.mode === "single" && stored.keyframes.length > 1 ? stored.keyframes : null;
-        const complex = prepends + buildMultiBrollFilterComplex(
-          finalDurationSec, shifted, aspect, moodFilter, captionsFilter, videoSrc,
-          brollKeyframes ? buildDynamicCropFilter(brollKeyframes, aspect) : null,
-        ) + wmComplex;
-        return [
-          ...baseArgs,
-          // Each window is its own input, looped so a short stock clip still
-          // covers its window.
-          ...shifted.flatMap((w) => ["-stream_loop", "-1", "-i", w.path]),
-          "-filter_complex", complex, "-map", videoMap, "-map", audioSrc,
-          ...outputArgs, "-shortest", clipPath,
-        ];
-      }
-      if (stored?.mode === "split" && stored.a.length > 1 && stored.b.length > 1) {
-        // Two-speaker split-screen: two independent dynamic crops, vstacked.
-        const complex = prepends + buildSplitScreenFilterComplex(stored.a, stored.b, moodFilter, captionsFilter, videoSrc) + wmComplex;
-        return [...baseArgs, "-filter_complex", complex, "-map", videoMap, "-map", audioSrc, ...outputArgs, "-shortest", clipPath];
-      }
-      const keyframes = stored?.mode === "single" ? stored.keyframes : null;
-      const cropExpr = keyframes && keyframes.length > 1
-        ? buildDynamicCropFilter(keyframes, aspect)
-        : aspectRatioFilter(aspect);
-      const filters = [cropExpr, moodFilter, captionsFilter].filter((f): f is string => !!f);
-      if (isTrimmed && selectFilter) {
-        filters.unshift(selectFilter);
-      }
-      if (watermark) filters.push(watermarkFilterChain());
-      return [...baseArgs, "-vf", filters.join(","), ...(isTrimmed && aselectFilter ? ["-af", aselectFilter] : []), ...outputArgs, clipPath];
-    };
-
-    const onRenderProgress = (pct: number) => {
-      void prisma.clip.update({ where: { id: clip.id }, data: { progress: Math.round(5 + pct * 0.75) } }).catch(() => {});
-    };
-    // The pan/zoom expressions can push the filtergraph past the command-line
-    // length limit on long clips; spill it to a file when that happens.
-    const renderOnce = (useBroll: boolean) => timeStage(
-      "render",
-      () => runFFmpegWithProgress(maybeUseFilterScript(buildRenderArgs(useBroll), scriptPath), onRenderProgress),
-      // `target` is what makes the CPU-vs-GPU comparison measurable rather
-      // than assumed — see gpu-service/README.md's ROI note.
-      { target, meta: { durationSec: Math.round(finalDurationSec), aspect, broll: useBroll && brollReady } },
-    );
-
-    try {
-      await renderOnce(brollReady);
-    } catch (err) {
-      if (!brollReady) throw err;
-      // B-roll is a best-effort enhancement (already best-effort at the download
-      // step) — a splice that ffmpeg can't render must not cost the user the
-      // whole clip. Retry without it: the exact path a B-roll-less clip takes,
-      // so the clip still renders (just without the stock cutaways).
-      logger.warn("auto-clip", `B-roll render failed for clip ${clip.index}, retrying without B-roll`, err);
-      await renderOnce(false);
-    }
-
-    // Lite-editor pass: speed / fades / music bed over the finished clip.
-    if (lite) {
-      finalDurationSec = await applyLiteEditsPass({
-        lite, clipPath, litePath, musicPath, durationSec: finalDurationSec, words, target,
-      });
-    }
+    const { finalDurationSec, words } = await renderClipFile({
+      projectId, clip, videoPath, tmp, outPath: clipPath,
+      captions: clip.hasCaptions, watermark, target,
+      onProgress: (pct) => {
+        void prisma.clip.update({ where: { id: clip.id }, data: { progress: Math.round(5 + pct * 0.75) } }).catch(() => {});
+      },
+    });
 
     await prisma.clip.update({ where: { id: clip.id }, data: { progress: 82 } });
     await runFFmpegArgs([
@@ -2072,41 +2074,6 @@ async function renderOneClip(
         reason: (e as Error).message,
       });
     });
-
-    // Captions were skipped above because a provider is meant to add them, so
-    // the clip is playable but currently bare. Start that render now — nothing
-    // else will, and a deferred clip that is never handed to the provider would
-    // silently ship with no captions at all.
-    //
-    // Same posture as provenance: best-effort, AFTER the status flip. A failure
-    // here must not turn a rendered clip into a failed one — and if it does
-    // fail, shouldDeferCaptionsToProvider stops deferring for this clip, so the
-    // next re-render burns the template's native look instead.
-    //
-    // Dynamically imported so this module doesn't pull the caption queues (and
-    // their workers) into every context that merely reads the pipeline's pure
-    // helpers.
-    if (deferCaptions && templateId) {
-      try {
-        const { requestCaptionRender } = await import("@/lib/caption-render-job");
-        const owner = await prisma.project.findUnique({
-          where: { id: projectId },
-          select: { userId: true },
-        });
-        if (owner) {
-          const res = await requestCaptionRender({
-            clipId: clip.id,
-            userId: owner.userId,
-            templateId,
-          });
-          if (!res.ok) {
-            logger.warn("auto-clip", `caption render not started for clip ${clip.id}: ${res.reason}`);
-          }
-        }
-      } catch (e) {
-        logger.error("auto-clip", `caption render request failed for clip ${clip.id}`, e);
-      }
-    }
 
     return { ok: true };
   } catch (err) {

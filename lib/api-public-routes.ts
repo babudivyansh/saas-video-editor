@@ -65,12 +65,6 @@ const PUBLIC_API_PREFIXES = [
   // dead addresses keep getting mailed, which is the exact failure the webhook
   // exists to prevent.
   "/api/webhooks/resend",
-  // Caption-render completion callbacks. Authenticated by an unguessable token
-  // in the path (SUBMAGIC_WEBHOOK_TOKEN) plus, when configured, an HMAC
-  // signature — the provider has no session here, so this gate could only ever
-  // 401 it. Matching is by prefix, which is what un-gates the /[token] segment.
-  //
-  "/api/webhooks/submagic",
   // ElevenLabs dubbing completion. Authenticated by its HMAC signature and
   // fails closed while ELEVENLABS_WEBHOOK_SECRET is unset; until it was listed
   // here every callback 401'd at this gate and dubs finished only through the

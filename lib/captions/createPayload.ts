@@ -9,7 +9,7 @@
 // a string and the only backstop was a clamp buried in
 // styleIndexToSubtitleStyle. This closes that, once, for both.
 
-import { CAPTION_TEMPLATES } from "@/lib/caption-templates";
+import { isKnownTemplateId, resolveTemplateId } from "@/lib/caption-templates";
 import { templateIdForIndex, indexForTemplateId, DEFAULT_TEMPLATE_ID } from "./legacyStyleIndex";
 
 /** Highest legacy index the style tables actually define. */
@@ -52,9 +52,13 @@ export function resolveCaptionCreateInput(body: CaptionCreateInput): CaptionCrea
     return { captionStyleIndex: CAPTIONS_OFF, templateId: null };
   }
 
+  // Retired ids (old native looks, partner templates) still arrive from
+  // saved brand kits, phone preferences and API clients; they resolve to
+  // their replacement.
   const slug = typeof body.captionTemplateId === "string" ? body.captionTemplateId : null;
-  if (slug && CAPTION_TEMPLATES.some((t) => t.id === slug)) {
-    return { captionStyleIndex: indexForTemplateId(slug), templateId: slug };
+  if (slug && isKnownTemplateId(slug)) {
+    const id = resolveTemplateId(slug);
+    return { captionStyleIndex: indexForTemplateId(id), templateId: id };
   }
 
   // No usable slug: fall back to the legacy index, clamped into range.

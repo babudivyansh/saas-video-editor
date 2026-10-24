@@ -1,5 +1,8 @@
 import {
+  CAPTION_FAMILIES,
   CAPTION_TEMPLATE_CATALOG,
+  PLAN_LABEL,
+  planAtLeast,
   CLIP_LENGTHS,
   MAX_INSTRUCTIONS_CHARS,
   sourceLinkSchema,
@@ -8,6 +11,7 @@ import {
   type AutoClipSettings,
   type AutoClipSource,
   type CaptionTemplate,
+  type PlanTier,
 } from "@clipiro/shared";
 import { Image } from "expo-image";
 import { useState } from "react";
@@ -21,9 +25,9 @@ import type { CreateContext } from "./queries";
 // The sheets behind AutoClip's tiles. None are drawn in the designs; they're
 // composed from the system (BottomSheet, OptionList, Toggle, Stepper).
 
-/** Caption highlight swatch → token colour. */
-export function highlightColor(name: string): string {
-  return ({ emerald: colors.emeraldBright, warning: colors.warning, info: colors.info, error: colors.error } as Record<string, string>)[name] ?? colors.emeraldBright;
+/** A caption template's highlight colour (#rrggbb, from the shared template library). */
+export function highlightColor(hex: string): string {
+  return /^#[0-9a-fA-F]{6}$/.test(hex) ? hex : colors.emeraldBright;
 }
 
 /**
@@ -185,18 +189,26 @@ export function RatioSheet({ visible, value, onClose, onChange }: { visible: boo
 export function CaptionSheet({
   visible,
   value,
+  plan,
   onClose,
   onChange,
 }: {
   visible: boolean;
   value: string | null;
+  /** The user's plan; templates above it show the plan they need. */
+  plan: PlanTier;
   onClose: () => void;
   onChange: (v: string | null) => void;
 }) {
   const [lastOn, setLastOn] = useState(value ?? "clean");
   const on = value !== null;
-  const rows: CaptionTemplate[][] = [];
-  for (let i = 0; i < CAPTION_TEMPLATE_CATALOG.length; i += 2) rows.push(CAPTION_TEMPLATE_CATALOG.slice(i, i + 2));
+  // Two per row, grouped under each family heading.
+  const sections = CAPTION_FAMILIES.map((f) => {
+    const list = CAPTION_TEMPLATE_CATALOG.filter((t) => t.family === f.id);
+    const rows: CaptionTemplate[][] = [];
+    for (let i = 0; i < list.length; i += 2) rows.push(list.slice(i, i + 2));
+    return { family: f, rows };
+  }).filter((s) => s.rows.length > 0);
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Captions">
       <View style={styles.toggleRow}>
@@ -205,7 +217,10 @@ export function CaptionSheet({
       </View>
       {on ? (
         <SheetBody>
-          <Text style={text.caption}>Premium styles render for extra AI credits.</Text>
+          <Text style={text.caption}>Creator and Pro styles need that plan.</Text>
+          {sections.map(({ family, rows }) => (
+          <View key={family.id} style={{ gap: 10 }}>
+          <Text style={type(12, "bold", { color: colors.fgMuted, tracking: 0.04 })}>{family.name.toUpperCase()}</Text>
           {rows.map((row) => (
             <View key={row.map((r) => r.id).join()} style={styles.styleRow}>
               {row.map((t) => {
@@ -219,7 +234,7 @@ export function CaptionSheet({
                     }}
                     accessibilityRole="radio"
                     aria-checked={sel}
-                    accessibilityLabel={`${t.name}${t.premium ? ", premium" : ""}`}
+                    accessibilityLabel={`${t.name}${planAtLeast(plan, t.tier) ? "" : `, needs ${PLAN_LABEL[t.tier]}`}`}
                     style={[styles.styleCard, sel && styles.styleOn]}
                   >
                     <View style={styles.styleSample}>
@@ -237,13 +252,19 @@ export function CaptionSheet({
                       <Text style={[type(13, "semibold"), { flex: 1 }]} numberOfLines={1}>
                         {t.name}
                       </Text>
-                      {t.premium ? <Text style={type(10, "bold", { color: colors.warning, tracking: 0.04 })}>PREMIUM</Text> : null}
+                      {t.tier !== "free" ? (
+                        <Text style={type(10, "bold", { color: planAtLeast(plan, t.tier) ? colors.fgMuted : colors.warning, tracking: 0.04 })}>
+                          {PLAN_LABEL[t.tier].toUpperCase()}
+                        </Text>
+                      ) : null}
                     </View>
                   </Pressable>
                 );
               })}
               {row.length === 1 ? <View style={{ flex: 1 }} /> : null}
             </View>
+          ))}
+          </View>
           ))}
         </SheetBody>
       ) : (

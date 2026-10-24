@@ -13,7 +13,10 @@ const nextConfig: NextConfig = {
   //   ENOENT … node_modules/pdfkit/js/data/Helvetica.afm
   // Only the standalone build shows this — in dev the files resolve from the
   // source tree, so it looked fine locally while PDF was broken in production.
-  serverExternalPackages: ["ffmpeg-static", "@napi-rs/canvas", "pdfkit", "youtube-dl-exec"],
+  // fontkit (the caption engine's text measurement, lib/captions/engine/fonts.ts)
+  // is Node-only and large; bundling it into every route that imports the
+  // render pipeline made dev compiles noticeably slower.
+  serverExternalPackages: ["ffmpeg-static", "@napi-rs/canvas", "pdfkit", "youtube-dl-exec", "fontkit"],
   // youtube-dl-exec spawns a plain `yt-dlp` executable that lives in the
   // package's bin/ — it is not a JS `require`, so Next's standalone tracer never
   // followed it and the binary was left out of the deploy. At runtime all three

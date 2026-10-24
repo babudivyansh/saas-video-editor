@@ -180,15 +180,6 @@ stopped.
 # POST /api/admin/ops/run-dub-sweep (admin-authenticated).
 */2 * * * * curl -s -H "Authorization: Bearer $CRON_SECRET" https://clipiro.com/api/cron/dub-sweep
 
-# Premium caption-render sweep — reconciles Submagic renders
-# (lib/caption-render-job.ts). Same 2-minute reasoning as dub-sweep, plus one
-# more: this is also where a render whose PAID create/export failed
-# inconclusively gets resolved, and until it is, that render cannot be retried
-# and the user's credits are neither spent-and-delivered nor refunded. It is
-# the only thing that finishes a caption render until Submagic's webhook is
-# confirmed live (SUBMAGIC_WEBHOOK_TOKEN set + a callback observed).
-*/2 * * * * curl -s -H "Authorization: Bearer $CRON_SECRET" https://clipiro.com/api/cron/submagic-sweep
-
 # Scheduled clip publishing — fires posts whose ClipPublish.scheduledFor has
 # arrived. A schedule is only as precise as its polling interval, hence 10
 # minutes.

@@ -152,13 +152,13 @@ describe("My Voices", () => {
 describe("Brand Kit", () => {
   it("refuses a colour that isn't hex, then saves one", async () => {
     open("/you/brand-kit");
-    fireEvent.press(await screen.findByRole("button", { name: /^Highlight colour #20d68a/ }));
+    fireEvent.press(await screen.findByRole("button", { name: /^Accent colour #20d68a/ }));
     fireEvent.changeText(screen.getByLabelText("Hex"), "green");
     press("Save colour");
     expect(screen.getByText("Use a hex colour like #20d68a")).toBeOnTheScreen();
     fireEvent.press(screen.getByRole("radio", { name: "#facc15" }));
     press("Save colour");
-    expect(await screen.findByRole("button", { name: /^Highlight colour #facc15/ })).toBeOnTheScreen();
+    expect(await screen.findByRole("button", { name: /^Accent colour #facc15/ })).toBeOnTheScreen();
   });
 
   it("uploads a new logo to Assets and points the kit at it", async () => {

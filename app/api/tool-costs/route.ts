@@ -26,7 +26,6 @@ const LABELS: Record<string, string> = {
   "face-swap": "AI Face Swap",
   "auto-clip": "Auto Clips",
   "clip-dub": "Clip Dubbing",
-  "caption-render": "Animated Captions",
   "social-exec-report": "Social Tracker: Exec Report",
   "social-content-recs": "Social Tracker: Content Ideas",
   "social-caption": "Social Tracker: AI Caption",

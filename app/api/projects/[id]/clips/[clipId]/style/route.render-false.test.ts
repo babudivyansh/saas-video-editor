@@ -41,27 +41,27 @@ beforeEach(() => vi.clearAllMocks());
 
 describe("PUT .../style with render:false", () => {
   it("saves the style without re-rendering or charging", async () => {
-    const res = await put({ subtitleStyleOverride: { fontSize: 90 }, render: false });
+    const res = await put({ subtitleStyleOverride: { sizeScale: 1.2 }, render: false });
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ status: "saved", creditsCharged: 0 });
     expect(requestRerender).not.toHaveBeenCalled();
     // Merged, like a real re-render merges it — the other fields survive.
     expect(clipUpdate).toHaveBeenCalledWith({
       where: { id: "c2" },
-      data: { subtitleStyleOverride: { fontSize: 90, animated: true } },
+      data: { subtitleStyleOverride: { fontSize: 70, animated: true, sizeScale: 1.2 } },
     });
   });
 
   it("only touches a clip the caller owns in this project", async () => {
     clipFind.mockResolvedValueOnce(null);
-    const res = await put({ subtitleStyleOverride: { fontSize: 90 }, render: false });
+    const res = await put({ subtitleStyleOverride: { sizeScale: 1.2 }, render: false });
     expect(res.status).toBe(404);
     expect(clipUpdate).not.toHaveBeenCalled();
     expect(clipFind.mock.calls[0][0]).toMatchObject({ where: { id: "c2", projectId: "p1", project: { userId: "u1" } } });
   });
 
   it("still re-renders (and bills) when render is not false", async () => {
-    await put({ subtitleStyleOverride: { fontSize: 90 } });
+    await put({ subtitleStyleOverride: { sizeScale: 1.2 } });
     expect(requestRerender).toHaveBeenCalledTimes(1);
     expect((requestRerender.mock.calls[0][0] as { patch: Record<string, unknown> }).patch).not.toHaveProperty("render");
   });

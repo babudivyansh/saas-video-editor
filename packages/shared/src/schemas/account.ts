@@ -207,11 +207,10 @@ export const contactRequest = z.object({
   message: z.string().trim().min(10, "Tell us a little more").max(5000, "Keep it under 5,000 characters"),
 });
 
+// Only the accent renders: a brand kit is a caption template plus this colour
+// (the template sets everything else). The other colour columns predate templates.
 export const BRAND_COLOR_FIELDS = [
-  { key: "baseColor", label: "Text" },
-  { key: "highlightColor", label: "Highlight" },
-  { key: "outlineColor", label: "Outline" },
-  { key: "shadowColor", label: "Shadow" },
+  { key: "highlightColor", label: "Accent" },
 ] as const;
 
 // ── Notifications (prisma Notification; types from lib/notify.ts) ─────────

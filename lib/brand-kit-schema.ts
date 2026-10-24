@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isKnownTemplateId } from "@clipiro/shared/caption-templates";
 
 // One schema for creating (POST /api/brand-kits) and editing
 // (PATCH /api/brand-kits/[id]) a brand kit. PATCH used to copy fields raw, and
@@ -26,10 +27,9 @@ export const brandKitFields = z.object({
   alignment: z.number().int().min(1).max(9).nullable().optional(),
   animated: z.boolean().nullable().optional(),
   logoUrl: z.string().max(2048).nullable().optional(),
-  // A Clipiro caption-template slug, so a kit can capture a PREMIUM
-  // (provider-rendered) look and not just the ASS fields above.
-  captionTemplateId: z.string().max(64).nullable().optional(),
-  providerPresetId: z.string().max(128).nullable().optional(),
+  // The kit's caption template (packages/shared/src/captions/templates.ts).
+  // Retired ids are accepted; they resolve to their replacement when applied.
+  captionTemplateId: z.string().max(64).refine(isKnownTemplateId, "unknown caption template").nullable().optional(),
 });
 
 export const brandKitCreateSchema = brandKitFields.extend({ name: z.string().trim().min(1).max(100) }).strict();

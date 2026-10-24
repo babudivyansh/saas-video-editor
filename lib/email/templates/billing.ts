@@ -381,7 +381,7 @@ export function clipMinutesLaunch(p: {
         kind: "paragraph",
         text: html`Hi ${greet(p.name)}, we've changed how Auto Clips are paid for. Instead of credits per clip, a run now uses
           <strong>1 Clip Minute per minute of video</strong> — a 45-minute podcast uses 45 minutes whether you ask for 3 clips or 20.
-          Your AI credits now go only to the AI tools, dubbing and premium captions.`,
+          Your AI credits now go only to the AI tools and dubbing.`,
       },
       {
         kind: "kv",

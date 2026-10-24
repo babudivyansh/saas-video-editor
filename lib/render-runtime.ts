@@ -21,9 +21,11 @@ import { spawn } from "child_process";
  * streamer-video titles. `subtitles` (libass) is listed independently — the
  * caption path depends on it separately and its presence must never be
  * inferred from drawtext's.
+ * Caption templates burn through `ass` (same libass, but with complex
+ * shaping for Devanagari); the editor's plain cues still use `subtitles`.
  */
 export const REQUIRED_FILTERS = [
-  "adelay", "afade", "aformat", "amix", "anullsrc", "asetpts", "atempo", "atrim",
+  "adelay", "afade", "aformat", "amix", "anullsrc", "ass", "asetpts", "atempo", "atrim",
   "color", "colorbalance", "colorchannelmixer", "concat", "crop", "drawtext",
   "eq", "fade", "format", "fps", "hue", "noise", "overlay", "rgbashift",
   "scale", "setpts", "setsar", "settb", "subtitles", "tpad", "trim",
@@ -167,4 +169,63 @@ export async function getRenderRuntimeHealth(binaryPath: string): Promise<Runtim
 /** Test seam — lets a suite exercise the gate without a real binary. */
 export function resetRenderRuntimeHealthCache(): void {
   cached = null;
+  shapingCached = null;
+}
+
+// ── Complex-script shaping (Hindi captions) ─────────────────────────────────
+// Devanagari only renders correctly when libass shapes it with HarfBuzz: KA +
+// VIRAMA + SSA must become one conjunct glyph. Build flags can't answer this
+// (ffmpeg's --enable-libharfbuzz is about drawtext; libass has its own), and
+// the `subtitles` filter never shapes at all, which is why captions use the
+// `ass` filter with shaping=complex. The probe asks the binary directly, with
+// that exact filter: render the conjunct, then the same letters with a
+// zero-width non-joiner that forbids it. Shaped output is clearly narrower.
+
+let shapingCached: Promise<boolean> | null = null;
+
+function inkWidth(log: string): number | null {
+  const m = [...log.matchAll(/crop=(\d+):\d+:\d+:\d+/g)].pop();
+  return m ? Number(m[1]) : null;
+}
+
+async function renderedTextWidth(binaryPath: string, fontsDir: string, text: string): Promise<number | null> {
+  const fs = await import("node:fs");
+  const os = await import("node:os");
+  const path = await import("node:path");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "shaping-"));
+  const ass = path.join(dir, "t.ass");
+  fs.writeFileSync(ass, [
+    "[Script Info]", "ScriptType: v4.00+", "PlayResX: 600", "PlayResY: 200", "",
+    "[V4+ Styles]",
+    "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
+    "Style: Default,Mukta ExtraBold,120,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1",
+    "", "[Events]", "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
+    `Dialogue: 0,0:00:00.00,0:00:01.00,Default,,0,0,0,,${text}`, "",
+  ].join("\n"));
+  const esc = (p: string) => p.replace(/\\/g, "/").replace(/:/g, "\\:");
+  const r = await exec(binaryPath, [
+    "-hide_banner", "-f", "lavfi", "-i", "color=black:s=600x200:d=0.4",
+    "-vf", `ass=filename='${esc(ass)}':fontsdir='${esc(fontsDir)}':shaping=complex,cropdetect=limit=0.1:round=2:reset=1`,
+    "-frames:v", "6", "-f", "null", "-",
+  ]);
+  try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* best effort */ }
+  return inkWidth(r.stderr);
+}
+
+export async function probeComplexShaping(binaryPath: string, fontsDir: string): Promise<boolean> {
+  const conjunct = await renderedTextWidth(binaryPath, fontsDir, "\u0915\u094D\u0937");
+  const broken = await renderedTextWidth(binaryPath, fontsDir, "\u0915\u094D\u200C\u0937");
+  if (!conjunct || !broken) return false;
+  return conjunct < broken * 0.9;
+}
+
+/** Cached; a failed probe (spawn error, no output) is retried next time. */
+export function getComplexShapingSupport(binaryPath: string, fontsDir: string): Promise<boolean> {
+  if (!shapingCached) {
+    shapingCached = probeComplexShaping(binaryPath, fontsDir).catch(() => false).then((ok) => {
+      if (!ok) shapingCached = null;
+      return ok;
+    });
+  }
+  return shapingCached;
 }

@@ -21,8 +21,10 @@ let dubRow: {
   dubbingId: string | null;
   clip: Record<string, unknown>;
 } | null;
+let projectRow: { uploadedVideoUrl: string | null; userId: string } | null = { uploadedVideoUrl: "https://bucket/uploads/u1/src.mp4", userId: "u1" };
 vi.mock("@/lib/prisma", () => ({
   prisma: {
+    project: { findUnique: vi.fn(async () => projectRow) },
     clipDub: {
       findUnique: vi.fn(async () => dubRow),
       update: (...a: unknown[]) => clipDubUpdate(...a),
@@ -47,22 +49,33 @@ vi.mock("@/lib/render-queue", () => ({
   createRenderQueue: () => ({ enqueue: dubFinishEnqueue }),
 }));
 
-vi.mock("@/utils/download", () => ({ downloadFile: vi.fn(async () => {}) }));
-const generateASS = vi.fn(() => {});
+const downloadFile = vi.fn(async (_url: string, _dest: string) => {});
+vi.mock("@/utils/download", () => ({ downloadFile: (url: string, dest: string) => downloadFile(url, dest) }));
+vi.mock("@/lib/source-url", () => ({ freshSourceUrl: vi.fn(async (u: string) => `${u}?fresh`) }));
+vi.mock("@/lib/auth", () => ({ getUserTier: vi.fn(async () => "pro") }));
+const renderClipFile = vi.fn(async (_a: Record<string, unknown>) => ({ finalDurationSec: 30, words: null }));
+vi.mock("@/lib/autoclip-pipeline", () => ({
+  wordsOnRenderedTimeline: (w: unknown) => w,
+  renderClipFile: (a: Record<string, unknown>) => renderClipFile(a),
+}));
+const buildClipCaptionTrack = vi.fn((_i: unknown) => ({ ass: "[Script Info]", emoji: [], glass: null, layout: { W: 1080, H: 1920, chunks: [] } }));
 vi.mock("@/utils/ffmpeg-render", () => ({
   runFFmpegArgs: vi.fn(async () => {}),
-  styleIndexToSubtitleStyle: vi.fn(() => ({})),
-  generateASS: (...a: unknown[]) => generateASS(...a),
+  getMediaDimensions: vi.fn(async () => ({ w: 1080, h: 1920 })),
 }));
+vi.mock("@/lib/captions/clip-captions", () => ({ buildClipCaptionTrack: (i: unknown) => buildClipCaptionTrack(i) }));
+vi.mock("@/lib/captions/engine", () => ({ buildCaptionFilterChain: vi.fn(() => "[0:v]ass=filename=x[v]") }));
 vi.mock("@/utils/s3-upload", () => ({ uploadFileToS3: vi.fn(async () => "https://cdn.example/out.mp4") }));
 const translateTranscript = vi.fn(async (w: unknown) => w);
 vi.mock("@/lib/caption-translate", () => ({ translateTranscript: (...a: unknown[]) => translateTranscript(...a) }));
 vi.mock("@/lib/logger", () => ({ logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
 vi.mock("fs", () => ({
-  default: { existsSync: () => false, writeFileSync: () => {}, unlinkSync: () => {} },
+  default: { existsSync: () => false, writeFileSync: () => {}, unlinkSync: () => {}, mkdtempSync: (p: string) => `${p}work`, rmSync: () => {} },
   existsSync: () => false,
   writeFileSync: () => {},
   unlinkSync: () => {},
+  mkdtempSync: (p: string) => `${p}work`,
+  rmSync: () => {},
 }));
 
 const { startDubJob, finishDubJob, claimAndEnqueueFinish } = await import("./autoclip-dub");
@@ -75,6 +88,8 @@ beforeEach(() => {
   forcedAlign.mockResolvedValue([{ word: "hola", start: 0, end: 200 }]);
   translateTranscript.mockImplementation(async (w: unknown) => w);
   clipDubUpdateMany.mockResolvedValue({ count: 1 });
+  renderClipFile.mockResolvedValue({ finalDurationSec: 30, words: null });
+  projectRow = { uploadedVideoUrl: "https://bucket/uploads/u1/src.mp4", userId: "u1" };
   dubRow = {
     id: "dub1",
     targetLang: "es",
@@ -218,6 +233,39 @@ describe("finishDubJob", () => {
     expect(clipDubUpdate).toHaveBeenCalledWith({ where: { id: "dub1" }, data: { status: "failed" } });
   });
 
+  // The rendered clip already has its original captions burned in. Putting
+  // the translated captions on it showed both, one over the other.
+  it("puts translated captions on a caption-free render, not over the captioned clip", async () => {
+    dubRow!.clip.hasCaptions = true;
+    dubRow!.clip.transcriptJson = [{ word: "hello", start: 0, end: 200 }];
+
+    await finishDubJob({ projectId: "proj1", clipDubId: "dub1", userId: "u1", refId: "ref1" });
+
+    expect(renderClipFile).toHaveBeenCalledWith(expect.objectContaining({ captions: false, outPath: expect.stringContaining("dub1-dub-src.mp4") }));
+    // The source video is downloaded for the clean render; the captioned clip never is.
+    expect(downloadFile).toHaveBeenCalledWith("https://bucket/uploads/u1/src.mp4?fresh", expect.any(String));
+    expect(downloadFile).not.toHaveBeenCalledWith(expect.stringContaining("cdn.example/clip.mp4"), expect.any(String));
+    expect(buildClipCaptionTrack).toHaveBeenCalled();
+  });
+
+  it("keeps the original captions and adds no translated ones when the clean render fails", async () => {
+    dubRow!.clip.hasCaptions = true;
+    dubRow!.clip.transcriptJson = [{ word: "hello", start: 0, end: 200 }];
+    renderClipFile.mockRejectedValueOnce(new Error("source gone"));
+
+    await finishDubJob({ projectId: "proj1", clipDubId: "dub1", userId: "u1", refId: "ref1" });
+
+    expect(downloadFile).toHaveBeenCalledWith(expect.stringContaining("cdn.example/clip.mp4"), expect.any(String));
+    expect(buildClipCaptionTrack).not.toHaveBeenCalled();
+    expect(clipDubUpdate).toHaveBeenCalledWith({ where: { id: "dub1" }, data: { status: "ready", videoUrl: "https://cdn.example/out.mp4" } });
+  });
+
+  it("reuses the clip's own render when it has no captions", async () => {
+    await finishDubJob({ projectId: "proj1", clipDubId: "dub1", userId: "u1", refId: "ref1" });
+    expect(renderClipFile).not.toHaveBeenCalled();
+    expect(downloadFile).toHaveBeenCalledWith(expect.stringContaining("cdn.example/clip.mp4"), expect.any(String));
+  });
+
   it("burns in forced-aligned captions and marks ready on the happy path", async () => {
     dubRow!.clip.hasCaptions = true;
     dubRow!.clip.transcriptJson = [{ word: "hello", start: 0, end: 200 }];
@@ -225,11 +273,7 @@ describe("finishDubJob", () => {
     await finishDubJob({ projectId: "proj1", clipDubId: "dub1", userId: "u1", refId: "ref1" });
 
     expect(forcedAlign).toHaveBeenCalled();
-    expect(generateASS).toHaveBeenCalledWith(
-      [{ word: "hola", start: 0, end: 200 }],
-      expect.anything(),
-      expect.stringContaining("dub-sub.ass"),
-    );
+    expect(buildClipCaptionTrack).toHaveBeenCalledWith(expect.objectContaining({ words: [{ word: "hola", start: 0, end: 200 }] }));
     expect(clipDubUpdate).toHaveBeenCalledWith({
       where: { id: "dub1" },
       data: { status: "ready", videoUrl: "https://cdn.example/out.mp4" },
@@ -243,11 +287,7 @@ describe("finishDubJob", () => {
 
     await finishDubJob({ projectId: "proj1", clipDubId: "dub1", userId: "u1", refId: "ref1" });
 
-    expect(generateASS).toHaveBeenCalledWith(
-      [{ word: "hello", start: 0, end: 200 }],
-      expect.anything(),
-      expect.stringContaining("dub-sub.ass"),
-    );
+    expect(buildClipCaptionTrack).toHaveBeenCalledWith(expect.objectContaining({ words: [{ word: "hello", start: 0, end: 200 }] }));
     expect(clipDubUpdate).toHaveBeenCalledWith({
       where: { id: "dub1" },
       data: { status: "ready", videoUrl: "https://cdn.example/out.mp4" },
@@ -261,11 +301,7 @@ describe("finishDubJob", () => {
 
     await finishDubJob({ projectId: "proj1", clipDubId: "dub1", userId: "u1", refId: "ref1" });
 
-    expect(generateASS).toHaveBeenCalledWith(
-      [{ word: "hello", start: 0, end: 200 }],
-      expect.anything(),
-      expect.stringContaining("dub-sub.ass"),
-    );
+    expect(buildClipCaptionTrack).toHaveBeenCalledWith(expect.objectContaining({ words: [{ word: "hello", start: 0, end: 200 }] }));
   });
 
   it("renders without subtitles when translation itself throws, without failing the whole job", async () => {

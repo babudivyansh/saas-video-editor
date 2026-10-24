@@ -90,7 +90,7 @@ Legend for the screen table (§2):
 - **Clip actions:**
   - Star: `PATCH …/clips/[clipId] {isFavorite}`.
   - Download: `…/clips/[clipId]/download` (streams the file), `…/clips/download-all` (zip).
-  - Also: `rerender`, `dub`, `translate`, `captions/render`, `publish`.
+  - Also: `rerender`, `dub`, `translate`, `publish`.
 - **Cost:** 1 Clip Minute per source minute, rounded up (`lib/autoclip-pricing.ts`, `lib/autoclip-minutes.ts`).
   - Re-running the same source within 7 days is free.
   - A minutes shortfall can be paid in credits at 3 minutes per credit.
@@ -117,11 +117,10 @@ Legend for the screen table (§2):
 - **Export:** `POST api/editor/render {projectId}` costs 1 credit and renders server-side with ffmpeg (`lib/editor/render-job.ts`). Poll the project for status.
 - **Captions:**
   - Speech-to-text: `api/editor/captions`, billed in minutes.
-  - Templates: `api/caption-templates` (`lib/captions/templateRegistry.ts`).
-  - Renders: `api/caption-renders/[id]`.
-  - The Submagic provider is fully built but inactive until `SUBMAGIC_API_KEY` is set.
+  - Templates: `api/caption-templates` returns the 50 shared templates (`packages/shared/src/captions/templates.ts`) with a `locked` flag per plan.
+  - Rendering is in-house: `lib/captions/engine` turns a template into an ASS file plus emoji/glass overlays.
 - **Stock media:** `api/editor/stock/*` (Pexels, Giphy, Jamendo).
-- **Brand kits:** `api/brand-kits`. The `BrandKit` model holds **caption style only** (font, colours, outline).
+- **Brand kits:** `api/brand-kits`. A kit is a caption template plus an accent colour (`highlightColor`) and a logo.
 
 ### AI tools (`app/api/tools/*`, prices in `lib/tool-costs.ts`)
 - **Image generator:** 9 models via fal (`lib/models/imageModels.ts`).
@@ -132,7 +131,7 @@ Legend for the screen table (§2):
 - **Free:** compressor, mp3-converter, YouTube and Instagram downloaders.
 - **Clip dubbing:** 20 credits per minute.
 - **Job model is the weak spot.** Tool routes return `{jobId}` and are polled with `GET ?jobId=`. The jobs are held in a **per-process in-memory Map** (`lib/job-routes.ts:54`). They are lost on restart and not shared across instances, which is bad for a phone that backgrounds and reconnects.
-- **DB-backed status** does exist for: `Generation` rows (status, progress; history at `api/generations`), caption renders, clip dubs, account export, and bulk downloads.
+- **DB-backed status** does exist for: `Generation` rows (status, progress; history at `api/generations`), clip dubs, account export, and bulk downloads.
 - **Charging:** `chargeCredits` / `refundCredits` with idempotency keys (`lib/credits.ts`).
 
 ### Billing
@@ -186,7 +185,6 @@ Legend for the screen table (§2):
   - Storage: `AWS_*`, `AWS_S3_BUCKET`, `CDN_BASE_URL`
   - AI: `FAL_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`
   - ElevenLabs: `ELEVENLABS_API_KEY`, `ELEVENLABS_MAX_VOICE_SLOTS`, `ELEVENLABS_WEBHOOK_SECRET`, `ELEVENLABS_VOICE_*`
-  - Submagic: `SUBMAGIC_*`
   - Stock and social data: `PEXELS_API_KEY`, `GIPHY_API_KEY`, `JAMENDO_CLIENT_ID`, `SCRAPECREATORS_API_KEY`
   - GPU and rendering: `GPU_SERVICE_*`, `CLIPIRO_FFMPEG_PATH`, `RENDER_*`
   - Payments: `RAZORPAY_*`
@@ -324,7 +322,7 @@ Credits and plans are digital goods, so Google Play requires Play Billing.
 - A DB-backed job status (extend `Generation` or add a `Job` table) is required before the app relies on "POST job → poll → push" (Phase 5).
 - Completion push must also fire from the refund/failure path.
 
-**R5. Provider limits.** Voice cloning needs the ElevenLabs upgrade to land before Phase 12. Submagic stays inactive without a key.
+**R5. Provider limits.** Voice cloning needs the ElevenLabs upgrade to land before Phase 12.
 
 **R6. Social publishing.** YouTube upload exists. Instagram and Facebook publishing need `instagram_content_publish` / `pages_manage_posts` and Meta app review. SCHEDULING.md (Phase 11) comes first.
 

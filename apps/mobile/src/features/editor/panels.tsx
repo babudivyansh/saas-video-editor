@@ -47,9 +47,6 @@ import { VoiceoverSheet } from "./voiceoverSheet";
 
 const mmss = (s: number) => clock(s, false);
 
-// Colours written into the video itself (the doc stores #rrggbb), not UI colours.
-const HIGHLIGHT_HEX: Record<string, string> = { emerald: "#20d68a", warning: "#f5a524", info: "#3b9eff", error: "#ef4444" };
-const highlightHex = (name: string) => HIGHLIGHT_HEX[name] ?? "#20d68a";
 
 // ── Media ─────────────────────────────────────────────────────────────────
 
@@ -309,14 +306,15 @@ export function CaptionsPanel() {
   return (
     <PanelShell panel="captions">
       <View style={styles.styleStrip}>
-        {CAPTION_TEMPLATE_CATALOG.slice(0, 6).map((t, i) => {
-          const color = t.look.highlight ? highlightHex(t.look.highlight) : null;
-          const on = (first.textTransform === "uppercase") === t.look.uppercase && (color ? first.highlightColor === color : first.highlightMode === "none");
+        {CAPTION_TEMPLATE_CATALOG.filter((t) => t.tier === "free").slice(0, 6).map((t, i) => {
+          // Applies the template itself: the export burns it with the same
+          // engine as AutoClip. The app's canvas shows a static approximation.
+          const on = first.templateId === t.id;
           const photo: SampleImage = (["creator-smile", "founder-portrait", "creator-hat", "dj-neon", "creator-violet", "gym-lift"] as const)[i] ?? "creator-smile";
           return (
             <Pressable
               key={t.id}
-              onPress={() => style({ textTransform: t.look.uppercase ? "uppercase" : "none", bold: true, ...(color ? { highlightColor: color, highlightMode: "word" } : { highlightMode: "none" }) })}
+              onPress={() => style(on ? { templateId: undefined } : { templateId: t.id })}
               accessibilityRole="radio"
               aria-checked={on}
               accessibilityLabel={`${t.name} caption style`}

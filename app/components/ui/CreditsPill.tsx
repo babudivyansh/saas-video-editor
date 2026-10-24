@@ -64,7 +64,7 @@ export function CreditsPill({ credits, minutes, minutesLow = false, href, onClic
   const className =
     "flex items-center gap-2 bg-tint-violet hover:bg-tint-fuchsia rounded-full px-3 py-1.5 transition-all hover:scale-[1.03] cursor-pointer";
   const tip = both
-    ? "Clip Minutes pay for Auto Clips — 1 minute per minute of video. AI credits pay for the AI tools, dubbing and premium captions."
+    ? "Clip Minutes pay for Auto Clips — 1 minute per minute of video. AI credits pay for the AI tools and dubbing."
     : "Credits are spent each time you generate content. Different tools cost different amounts.";
 
   return (

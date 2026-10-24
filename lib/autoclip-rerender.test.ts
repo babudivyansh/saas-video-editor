@@ -111,37 +111,37 @@ describe("sanitizeCaptionWord", () => {
 });
 
 describe("validation", () => {
-  it("rejects a fontSize large enough to be a libass memory bomb", async () => {
+  it("bounds the size multiplier", async () => {
     const { subtitleStyleOverrideSchema } = await import("./autoclip-rerender");
-    expect(subtitleStyleOverrideSchema.safeParse({ fontSize: 1e9 }).success).toBe(false);
-    expect(subtitleStyleOverrideSchema.safeParse({ fontSize: 80 }).success).toBe(true);
+    expect(subtitleStyleOverrideSchema.safeParse({ sizeScale: 1e9 }).success).toBe(false);
+    expect(subtitleStyleOverrideSchema.safeParse({ sizeScale: 0.1 }).success).toBe(false);
+    expect(subtitleStyleOverrideSchema.safeParse({ sizeScale: 1.2 }).success).toBe(true);
   });
 
-  it("rejects a malformed ASS colour", async () => {
+  it("only accepts a #RRGGBB accent", async () => {
     const { subtitleStyleOverrideSchema } = await import("./autoclip-rerender");
-    expect(subtitleStyleOverrideSchema.safeParse({ baseColor: "red" }).success).toBe(false);
-    expect(subtitleStyleOverrideSchema.safeParse({ baseColor: "&H00FFFFFF" }).success).toBe(true);
+    expect(subtitleStyleOverrideSchema.safeParse({ accent: "red" }).success).toBe(false);
+    expect(subtitleStyleOverrideSchema.safeParse({ accent: "&H00FFFFFF" }).success).toBe(false);
+    expect(subtitleStyleOverrideSchema.safeParse({ accent: "#FFD60A" }).success).toBe(true);
   });
 
-  // fontName is written raw into the ASS Style line: a comma starts the next
-  // field and a newline a new line, so it could inject whole events.
+  it("only accepts a known template id, current or retired", async () => {
+    const { subtitleStyleOverrideSchema } = await import("./autoclip-rerender");
+    expect(subtitleStyleOverrideSchema.safeParse({ templateId: "boardroom" }).success).toBe(true);
+    expect(subtitleStyleOverrideSchema.safeParse({ templateId: "hormozi" }).success).toBe(true);
+    expect(subtitleStyleOverrideSchema.safeParse({ templateId: "not-a-template" }).success).toBe(false);
+  });
+
+  // The retired font/colour fields were written raw into the ASS Style line.
+  // The schema is strict, so they can't come back in through this route.
   it.each([
-    "Arial,200,&H00FFFFFF",
-    "Arial\n[Events]\nDialogue: 0,0:00:00.00,9:59:59.00,Default,,0,0,0,,INJECTED",
-    "{\\pos(0,0)}Arial",
-    "Arial\\N",
-  ])("rejects a font name carrying ASS syntax: %s", async (fontName) => {
+    { fontName: "Arial\n[Events]\nDialogue: 0,0:00:00.00,9:59:59.00,Default,,0,0,0,,INJECTED" },
+    { fontSize: 80 },
+    { baseColor: "&H00FFFFFF" },
+  ])("rejects a retired style field: %o", async (field) => {
     const { subtitleStyleOverrideSchema } = await import("./autoclip-rerender");
-    expect(subtitleStyleOverrideSchema.safeParse({ fontName }).success).toBe(false);
+    expect(subtitleStyleOverrideSchema.safeParse(field).success).toBe(false);
   });
-
-  it.each(["Arial", "Bebas Neue", "Playfair Display", "Times New Roman", "Noto-Sans 2"])(
-    "accepts a real family name: %s",
-    async (fontName) => {
-      const { subtitleStyleOverrideSchema } = await import("./autoclip-rerender");
-      expect(subtitleStyleOverrideSchema.safeParse({ fontName }).success).toBe(true);
-    },
-  );
 
   it("bounds the transcript array", async () => {
     const { transcriptSchema } = await import("./autoclip-rerender");
@@ -174,7 +174,7 @@ describe("requestRerender billing", () => {
     let charged = 0;
     for (let i = 0; i < 5; i++) {
       clip.status = "ready"; // the render completes between clicks
-      const res = await requestRerender({ ...base(), patch: { subtitleStyleOverride: { fontSize: 70 } } });
+      const res = await requestRerender({ ...base(), patch: { subtitleStyleOverride: { sizeScale: 1.1 } } });
       if (res.ok) charged += res.creditsCharged;
     }
     expect(charged).toBe(4);
@@ -226,7 +226,7 @@ describe("requestRerender patching", () => {
 
   it("keeps crop keyframes when only the caption style changes", async () => {
     const { requestRerender } = await import("./autoclip-rerender");
-    await requestRerender({ ...base(), patch: { subtitleStyleOverride: { fontSize: 64 } } });
+    await requestRerender({ ...base(), patch: { subtitleStyleOverride: { sizeScale: 0.9 } } });
     expect(lastUpdate).not.toHaveProperty("cropKeyframes");
   });
 

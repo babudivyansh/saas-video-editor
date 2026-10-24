@@ -2,9 +2,9 @@ import { describe, it, expect } from "vitest";
 import { resolveCaptionCreateInput, CAPTIONS_OFF } from "./createPayload";
 
 describe("resolveCaptionCreateInput", () => {
-  it("prefers a valid template slug over the legacy index", () => {
-    const r = resolveCaptionCreateInput({ captionTemplateId: "viral-beast", captionStyleIndex: 3 });
-    expect(r.templateId).toBe("viral-beast");
+  it("prefers a valid template id over the legacy index", () => {
+    const r = resolveCaptionCreateInput({ captionTemplateId: "hypestack", captionStyleIndex: 3 });
+    expect(r.templateId).toBe("hypestack");
     // The index is re-derived from the slug, not taken from the request — the
     // two must not disagree downstream.
     expect(r.captionStyleIndex).not.toBe(3);
@@ -25,8 +25,13 @@ describe("resolveCaptionCreateInput", () => {
 
   it("derives a template from the legacy index for existing v1 API clients", () => {
     // An API-key client that only knows about integers must keep working.
-    expect(resolveCaptionCreateInput({ captionStyleIndex: 10 }).templateId).toBe("hormozi");
-    expect(resolveCaptionCreateInput({ captionStyleIndex: 2 }).templateId).toBe("news");
+    expect(resolveCaptionCreateInput({ captionStyleIndex: 10 }).templateId).toBe("slam");
+    expect(resolveCaptionCreateInput({ captionStyleIndex: 2 }).templateId).toBe("documentary");
+  });
+
+  it("maps a retired template id to its replacement", () => {
+    expect(resolveCaptionCreateInput({ captionTemplateId: "viral-beast" }).templateId).toBe("slam");
+    expect(resolveCaptionCreateInput({ captionTemplateId: "hormozi" }).templateId).toBe("boardroom");
   });
 
   it("rejects hostile index values instead of passing them through", () => {
