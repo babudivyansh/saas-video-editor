@@ -30,6 +30,8 @@ import { restoreSpend } from "@/lib/credits";
 import { createRenderQueue } from "@/lib/render-queue";
 import { logger } from "@/lib/logger";
 import { fetchableMediaUrl } from "@/lib/signed-media";
+import { freshSourceUrl } from "@/lib/source-url";
+import type { Clip } from "@prisma/client";
 import type { WordTiming } from "@/utils/elevenlabs";
 import os from "os";
 import path from "path";
@@ -146,6 +148,27 @@ export async function claimAndEnqueueFinish(dub: {
   return true;
 }
 
+/**
+ * Re-renders a clip from its source video exactly as its own render was made
+ * (crop, trims, B-roll, speed and fades, so the dubbed audio still lines up)
+ * but without captions, into `outPath`. Returns false when the source is gone.
+ */
+async function renderCaptionFreeClip(clip: Clip, outPath: string): Promise<boolean> {
+  const project = await prisma.project.findUnique({ where: { id: clip.projectId }, select: { uploadedVideoUrl: true, userId: true } });
+  if (!project?.uploadedVideoUrl) return false;
+  const work = fs.mkdtempSync(path.join(os.tmpdir(), `dub-clean-${clip.id}-`));
+  try {
+    const sourcePath = path.join(work, "source.mp4");
+    await downloadFile(await freshSourceUrl(project.uploadedVideoUrl, project.userId), sourcePath);
+    const [{ getUserTier }, { renderClipFile }] = await Promise.all([import("@/lib/auth"), import("@/lib/autoclip-pipeline")]);
+    const watermark = (await getUserTier(project.userId)) === "free";
+    await renderClipFile({ projectId: clip.projectId, clip, videoPath: sourcePath, tmp: work, outPath, captions: false, watermark });
+    return true;
+  } finally {
+    try { fs.rmSync(/*turbopackIgnore: true*/ work, { recursive: true, force: true }); } catch { /* best effort */ }
+  }
+}
+
 export async function finishDubJob(payload: FinishDubPayload): Promise<void> {
   const { clipDubId, userId, refId } = payload;
   const dub = await prisma.clipDub.findUnique({ where: { id: clipDubId }, include: { clip: true } });
@@ -181,9 +204,25 @@ export async function finishDubJob(payload: FinishDubPayload): Promise<void> {
 
     const audioBuffer = await getDubbedAudio(dub.dubbingId, dub.targetLang);
     fs.writeFileSync(dubbedAudioPath, audioBuffer);
-    await downloadFile(await fetchableMediaUrl(dub.clip.videoUrl!), sourceVideoPath);
 
+    // The clip's own render has its original captions burned in, so the
+    // translated captions go on a caption-free copy instead; otherwise the
+    // dub shows both. If that copy can't be made, the dub keeps the original
+    // captions and adds no translated ones, rather than stacking them.
     let hasCaptions = dub.clip.hasCaptions;
+    if (hasCaptions) {
+      const clean = await renderCaptionFreeClip(dub.clip, sourceVideoPath).catch((err) => {
+        logger.warn("auto-clip-dub", `caption-free render failed for ${clipDubId}; keeping the original captions`, err);
+        return false;
+      });
+      if (!clean) {
+        hasCaptions = false;
+        await downloadFile(await fetchableMediaUrl(dub.clip.videoUrl!), sourceVideoPath);
+      }
+    } else {
+      await downloadFile(await fetchableMediaUrl(dub.clip.videoUrl!), sourceVideoPath);
+    }
+
     let captionTrack: CaptionTrack | null = null;
     // The stored transcript is on the clip's source window; the dub is laid
     // over the RENDERED clip, which silence/filler trimming may have made
