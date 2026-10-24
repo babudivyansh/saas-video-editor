@@ -71,9 +71,6 @@ vi.mock("@/lib/autoclip-pipeline", () => ({
   })),
 }));
 vi.mock("@/lib/autoclip-minutes", () => ({ precheckRunMinutes: (p: unknown) => precheckRunMinutes(p) }));
-vi.mock("@/lib/captions/pricing", () => ({
-  getCaptionRenderPricing: vi.fn(async () => ({ perBillableMinute: 8, perRender: 0 })),
-}));
 
 const { POST } = await import("./route");
 
@@ -119,37 +116,29 @@ describe("the admin kill-switch", () => {
 
 describe("charging at Generate (Clip Minutes model)", () => {
   // Since 2026-09-26 a run is paid in Clip Minutes, taken in pickJob once the
-  // source duration is exact. The create route charges only the premium-
-  // caption HOLD in credits, and pre-checks minutes when the length is known.
+  // source duration is exact. The create route charges no credits; it
+  // pre-checks minutes when the length is known.
 
-  it("charges no credits at all for a native caption style", async () => {
+  it("charges no credits, whatever the caption template", async () => {
     const res = await POST(req({ projectId: "p1", clipCount: 8, minDuration: 15, maxDuration: 60, captionTemplateId: "clean" }));
     expect(res.status).toBe(200);
     expect(spendCredits).not.toHaveBeenCalled();
     expect(enqueue).toHaveBeenCalled();
   });
 
-  it("holds premium-caption credits before enqueueing, under the run's refId", async () => {
-    await POST(req({ projectId: "p1", clipCount: 4, maxDuration: 60, captionTemplateId: "viral-bold-01" }));
-    expect(spendCredits).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: "u1", reason: "spend:auto-clip", refId: "auto-clip:p1" }),
-    );
-    // 4 clips x 1 billable minute x the per-minute caption rate.
-    expect((spendCredits.mock.calls[0] as unknown[])[0]).toMatchObject({ amount: 32 });
+  it("refuses a Pro caption template on the free plan with 403, before claiming", async () => {
+    userTier.mockResolvedValueOnce("free");
+    const res = await POST(req({ projectId: "p1", captionTemplateId: "hypestack" }));
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({ error: "template_locked", requiredTier: "pro" });
+    expect(projectUpdateMany).not.toHaveBeenCalled();
+    expect(enqueue).not.toHaveBeenCalled();
   });
 
-  it("returns 402 insufficient_credits when the caption hold can't be paid, and releases the claim", async () => {
-    spendCredits.mockResolvedValueOnce({
-      ok: false, reason: "insufficient_credits",
-      balances: { bonus: 0, subscription: 0, purchased: 0, total: 2 },
-    });
-    const res = await POST(req({ projectId: "p1", clipCount: 8, captionTemplateId: "viral-bold-01" }));
-    expect(res.status).toBe(402);
-    const body = await res.json();
-    expect(body.error).toBe("insufficient_credits");
-    expect(body.balance).toBe(2);
-    expect(enqueue).not.toHaveBeenCalled();
-    expect(projectUpdate).toHaveBeenCalledWith(expect.objectContaining({ data: { status: "draft" } }));
+  it("lets a Pro user pick a Pro template", async () => {
+    const res = await POST(req({ projectId: "p1", captionTemplateId: "hypestack" }));
+    expect(res.status).toBe(200);
+    expect(spendCredits).not.toHaveBeenCalled();
   });
 
   it("refuses with insufficient_minutes BEFORE claiming, when a known-length source can't be paid for", async () => {
@@ -195,8 +184,13 @@ describe("double-submit", () => {
 
 describe("caption selection", () => {
   it("passes the chosen template through to the pick job", async () => {
+    await POST(req({ projectId: "p1", captionTemplateId: "glitch" }));
+    expect(enqueue.mock.calls[0][1]).toMatchObject({ templateId: "glitch" });
+  });
+
+  it("maps a retired template id to its replacement before queueing", async () => {
     await POST(req({ projectId: "p1", captionTemplateId: "viral-beast" }));
-    expect(enqueue.mock.calls[0][1]).toMatchObject({ templateId: "viral-beast" });
+    expect(enqueue.mock.calls[0][1]).toMatchObject({ templateId: "slam" });
   });
 
   it("carries captions-off through as the -1 sentinel with no template", async () => {
@@ -241,15 +235,13 @@ describe("the enqueue", () => {
     expect((enqueue.mock.calls[0] as unknown[])[2]).toMatchObject({ rejectOnFailure: true });
   });
 
-  it("refunds and releases the project when the job can't be queued", async () => {
-    // Used to be fire-and-forget: a Redis outage left the user charged, with
-    // nothing queued and the project on "analyzing" forever.
+  it("releases the project when the job can't be queued", async () => {
+    // Used to be fire-and-forget: a Redis outage left the project on
+    // "analyzing" forever with nothing queued.
     enqueue.mockRejectedValueOnce(new Error("redis down"));
     const res = await POST(req({ projectId: "p1" }));
     expect(res.status).toBe(503);
-    expect(restoreSpend).toHaveBeenCalledWith(expect.objectContaining({ userId: "u1", refId: "auto-clip:p1" }));
     expect(projectUpdate).toHaveBeenCalledWith(expect.objectContaining({ data: { status: "draft" } }));
-    expect(logToolGeneration).not.toHaveBeenCalled();
   });
 });
 

@@ -2,7 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { captionMotion } from "./caption-motion";
 import { getCaptionTemplate } from "./caption-templates";
-import { buildAnimatedEvents } from "@/utils/ffmpeg-render";
+import { buildCaptionTrack } from "@/lib/captions/engine";
 import type { SignalTrack } from "./signal-track";
 import type { WordTiming } from "@/utils/elevenlabs";
 
@@ -19,52 +19,39 @@ const signal = {
   scenes: [], pauses: [], wordsPerSec: 2.5, emphasis: [2],
 } as unknown as SignalTrack;
 
-const emojiTemplate = getCaptionTemplate("hormozi");   // emoji: true
-const plainTemplate = getCaptionTemplate("minimal");   // emoji: false, no keywordColor
+const emojiTemplate = getCaptionTemplate("boardroom"); // emoji above keywords
+const plainTemplate = getCaptionTemplate("clean");     // no emoji
 
 describe("captionMotion", () => {
   it("places emoji when there is NO signal track at all", () => {
-    // The regression this helper exists for. Both call sites used to nest the
-    // whole motion block inside `if (signal?.energy.length)`, so a clip with no
-    // signal rendered an emoji template with no emoji — and nothing surfaced
-    // why. Emoji come from the template, not from the audio.
+    // Emoji come from the template, not from the audio, so a clip with no
+    // signal track still gets them.
     const motion = captionMotion(words, emojiTemplate, null);
-    expect(motion?.emoji).toEqual({ 2: "🔥" });
-    expect(motion?.energy).toBeUndefined();
+    expect(motion.emoji).toEqual({ 2: "🔥" });
+    expect(motion.energy).toBeUndefined();
   });
 
   it("places emoji when the signal track exists but is empty", () => {
     const empty = { ...signal, energy: [] } as unknown as SignalTrack;
-    expect(captionMotion(words, emojiTemplate, empty)?.emoji).toEqual({ 2: "🔥" });
+    expect(captionMotion(words, emojiTemplate, empty).emoji).toEqual({ 2: "🔥" });
   });
 
   it("carries energy, emphasis and emoji together when a signal exists", () => {
     const motion = captionMotion(words, emojiTemplate, signal);
-    expect(motion?.energy).toHaveLength(words.length);
-    expect(motion?.emphasis).toEqual([2]);
-    expect(motion?.wordsPerSec).toBe(2.5);
-    expect(motion?.emoji).toEqual({ 2: "🔥" });
-    expect(motion?.keywordColor).toBe(emojiTemplate?.keywordColor);
+    expect(motion.energy).toHaveLength(words.length);
+    expect(motion.emphasis).toEqual([2]);
+    expect(motion.wordsPerSec).toBe(2.5);
+    expect(motion.emoji).toEqual({ 2: "🔥" });
   });
 
-  it("returns undefined when there is nothing to say, so style.motion stays unset", () => {
-    expect(captionMotion(words, plainTemplate, null)).toBeUndefined();
-    expect(captionMotion(words, null, null)).toBeUndefined();
+  it("adds no emoji for a template that does not ask for them, or for no template", () => {
+    expect(captionMotion(words, plainTemplate, signal).emoji).toEqual({});
+    expect(captionMotion(words, null, null).emoji).toEqual({});
   });
 
-  it("adds no emoji for a template that does not ask for them", () => {
-    expect(captionMotion(words, plainTemplate, signal)?.emoji).toBeUndefined();
-  });
-
-  it("produces a motion block the ASS builder actually burns in", () => {
-    // End to end through the real builder: an emoji-only motion object (the
-    // no-signal case) must still reach the subtitle file.
+  it("produces emoji the engine actually overlays", () => {
     const motion = captionMotion(words, emojiTemplate, null);
-    const events = buildAnimatedEvents(
-      words as { word: string; start: number; end: number }[],
-      { highlight: "&H0000FFFF", base: "&H00FFFFFF" },
-      motion,
-    );
-    expect(events).toContain("insane 🔥");
+    const track = buildCaptionTrack({ words, template: emojiTemplate!, W: 1080, H: 1920, emoji: motion.emoji });
+    expect(track.emoji.map((e) => e.file)).toEqual(["emoji_u1f525.png"]);
   });
 });

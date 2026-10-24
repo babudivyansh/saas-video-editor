@@ -18,26 +18,29 @@ export interface CaptionOverride {
   accent: string | null;
   /** 0.7–1.4 multiplier on the template's size. */
   sizeScale: number;
-  /** Block centre, % of frame height. */
+  /** Block centre, % of frame height, when the user chose one. */
   positionY: number | null;
+  /** Face-aware default written at pick time (lib/captions/position.ts). */
+  faceY: number | null;
 }
 
 /**
  * Reads Clip.subtitleStyleOverride. Older rows carry font/colour fields from
- * the retired style editor; those are ignored, and `captionPositionY` (the
- * face-aware placement written at pick time) is honoured as the position.
+ * the retired style editor; those are ignored.
  */
 export function readCaptionOverride(raw: unknown): CaptionOverride {
   const o = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
   const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
   const accent = typeof o.accent === "string" && /^#[0-9a-fA-F]{6}$/.test(o.accent) ? o.accent : null;
   const sizeScale = num(o.sizeScale);
-  const positionY = num(o.positionY) ?? num(o.captionPositionY);
+  const positionY = num(o.positionY);
+  const faceY = num(o.captionPositionY);
   return {
     templateId: typeof o.templateId === "string" && o.templateId ? o.templateId : null,
     accent,
     sizeScale: sizeScale != null ? Math.min(1.4, Math.max(0.7, sizeScale)) : 1,
     positionY: positionY != null ? Math.min(85, Math.max(15, positionY)) : null,
+    faceY: faceY != null ? Math.min(85, Math.max(15, faceY)) : null,
   };
 }
 
@@ -73,7 +76,11 @@ export function buildClipCaptionTrack(input: ClipCaptionInput): CaptionTrack | n
     durationMs: input.durationMs,
     accent: override.accent,
     sizeScale: override.sizeScale,
-    positionY: override.positionY,
+    // An explicit position always wins. Otherwise the template's placement
+    // applies, except that centred templates move to the face-aware spot so
+    // they don't sit on the speaker's face; low and high templates are
+    // already clear of it by design.
+    positionY: override.positionY ?? (template.placement.y === "mid" ? override.faceY : null),
     energy: motion.energy,
     emphasis: motion.emphasis,
     wordsPerSec: motion.wordsPerSec,

@@ -48,12 +48,13 @@ vi.mock("@/lib/render-queue", () => ({
 }));
 
 vi.mock("@/utils/download", () => ({ downloadFile: vi.fn(async () => {}) }));
-const generateASS = vi.fn(() => {});
+const buildClipCaptionTrack = vi.fn((_i: unknown) => ({ ass: "[Script Info]", emoji: [], glass: null, layout: { W: 1080, H: 1920, chunks: [] } }));
 vi.mock("@/utils/ffmpeg-render", () => ({
   runFFmpegArgs: vi.fn(async () => {}),
-  styleIndexToSubtitleStyle: vi.fn(() => ({})),
-  generateASS: (...a: unknown[]) => generateASS(...a),
+  getMediaDimensions: vi.fn(async () => ({ w: 1080, h: 1920 })),
 }));
+vi.mock("@/lib/captions/clip-captions", () => ({ buildClipCaptionTrack: (i: unknown) => buildClipCaptionTrack(i) }));
+vi.mock("@/lib/captions/engine", () => ({ buildCaptionFilterChain: vi.fn(() => "[0:v]ass=filename=x[v]") }));
 vi.mock("@/utils/s3-upload", () => ({ uploadFileToS3: vi.fn(async () => "https://cdn.example/out.mp4") }));
 const translateTranscript = vi.fn(async (w: unknown) => w);
 vi.mock("@/lib/caption-translate", () => ({ translateTranscript: (...a: unknown[]) => translateTranscript(...a) }));
@@ -225,11 +226,7 @@ describe("finishDubJob", () => {
     await finishDubJob({ projectId: "proj1", clipDubId: "dub1", userId: "u1", refId: "ref1" });
 
     expect(forcedAlign).toHaveBeenCalled();
-    expect(generateASS).toHaveBeenCalledWith(
-      [{ word: "hola", start: 0, end: 200 }],
-      expect.anything(),
-      expect.stringContaining("dub-sub.ass"),
-    );
+    expect(buildClipCaptionTrack).toHaveBeenCalledWith(expect.objectContaining({ words: [{ word: "hola", start: 0, end: 200 }] }));
     expect(clipDubUpdate).toHaveBeenCalledWith({
       where: { id: "dub1" },
       data: { status: "ready", videoUrl: "https://cdn.example/out.mp4" },
@@ -243,11 +240,7 @@ describe("finishDubJob", () => {
 
     await finishDubJob({ projectId: "proj1", clipDubId: "dub1", userId: "u1", refId: "ref1" });
 
-    expect(generateASS).toHaveBeenCalledWith(
-      [{ word: "hello", start: 0, end: 200 }],
-      expect.anything(),
-      expect.stringContaining("dub-sub.ass"),
-    );
+    expect(buildClipCaptionTrack).toHaveBeenCalledWith(expect.objectContaining({ words: [{ word: "hello", start: 0, end: 200 }] }));
     expect(clipDubUpdate).toHaveBeenCalledWith({
       where: { id: "dub1" },
       data: { status: "ready", videoUrl: "https://cdn.example/out.mp4" },
@@ -261,11 +254,7 @@ describe("finishDubJob", () => {
 
     await finishDubJob({ projectId: "proj1", clipDubId: "dub1", userId: "u1", refId: "ref1" });
 
-    expect(generateASS).toHaveBeenCalledWith(
-      [{ word: "hello", start: 0, end: 200 }],
-      expect.anything(),
-      expect.stringContaining("dub-sub.ass"),
-    );
+    expect(buildClipCaptionTrack).toHaveBeenCalledWith(expect.objectContaining({ words: [{ word: "hello", start: 0, end: 200 }] }));
   });
 
   it("renders without subtitles when translation itself throws, without failing the whole job", async () => {

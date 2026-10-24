@@ -177,7 +177,7 @@ const INITIAL_KIT: BrandKit = {
   highlightColor: "#20d68a",
   outlineColor: "#050908",
   shadowColor: "#000000",
-  captionTemplateId: "hormozi",
+  captionTemplateId: "boardroom",
 };
 let KIT: BrandKit | null = INITIAL_KIT;
 

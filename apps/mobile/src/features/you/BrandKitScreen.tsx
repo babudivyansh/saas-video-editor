@@ -1,8 +1,7 @@
 import {
   BRAND_COLOR_FIELDS,
   BRAND_COLOR_PRESETS,
-  BRAND_FONT_SIZE,
-  CAPTION_FONTS,
+  PLAN_LABEL,
   type BrandKitPatch,
 } from "@clipiro/shared";
 import { useQueryClient } from "@tanstack/react-query";
@@ -20,7 +19,6 @@ import {
   OptionList,
   SkeletonCard,
   StatusBadge,
-  Stepper,
   TextField,
   useToast,
 } from "@/components";
@@ -134,7 +132,7 @@ export function BrandKitScreen() {
             />
           </View>
 
-          <Label>Caption colors</Label>
+          <Label>Accent colour</Label>
           <View style={styles.swatches}>
             {BRAND_COLOR_FIELDS.map((f) => (
               <Pressable
@@ -155,33 +153,6 @@ export function BrandKitScreen() {
               </Pressable>
             ))}
           </View>
-
-          <Label>Font</Label>
-          <ListGroup>
-            <ListRow
-              first
-              title="Caption font"
-              onPress={() => setPicking("font")}
-              trailing={<Trailing value={k.fontName} />}
-            />
-            <View style={styles.sizeRow}>
-              <Text style={[type(15, "semibold"), { flex: 1 }]}>Size</Text>
-              <View style={styles.stepper}>
-                <Stepper
-                  label="Caption font size"
-                  value={k.fontSize}
-                  min={BRAND_FONT_SIZE.min}
-                  max={BRAND_FONT_SIZE.max}
-                  step={BRAND_FONT_SIZE.step}
-                  size="md"
-                  onChange={(v) => {
-                    qc.setQueryData(youKeys.brandKit, { ...k, fontSize: v });
-                    save({ fontSize: v });
-                  }}
-                />
-              </View>
-            </View>
-          </ListGroup>
 
           <Label>Default caption style</Label>
           <Pressable
@@ -273,21 +244,6 @@ export function BrandKitScreen() {
       </BottomSheet>
 
       <BottomSheet
-        visible={picking === "font"}
-        onClose={() => setPicking(null)}
-        title="Caption font"
-      >
-        <ScrollView style={{ maxHeight: 420 }}>
-          <OptionList
-            accessibilityLabel="Caption font"
-            value={(k?.fontName ?? null) as string | null}
-            options={CAPTION_FONTS.map((f) => ({ value: f, label: f }))}
-            onChange={(f) => (setPicking(null), save({ fontName: f as (typeof CAPTION_FONTS)[number] }))}
-          />
-        </ScrollView>
-      </BottomSheet>
-
-      <BottomSheet
         visible={picking === "style"}
         onClose={() => setPicking(null)}
         title="Default caption style"
@@ -299,22 +255,13 @@ export function BrandKitScreen() {
             options={(templates.data ?? []).map((t) => ({
               value: t.id,
               label: t.name,
-              trailing: t.premium ? "Premium" : undefined,
+              trailing: t.tier !== "free" ? PLAN_LABEL[t.tier] : undefined,
             }))}
             onChange={(id) => (setPicking(null), save({ captionTemplateId: id }))}
           />
         </ScrollView>
       </BottomSheet>
     </Page>
-  );
-}
-
-function Trailing({ value }: { value: string }) {
-  return (
-    <View style={styles.trailing}>
-      <Text style={type(15, "bold")}>{value}</Text>
-      <Icon name="chevronRight" size={16} color={colors.fgSubtle} />
-    </View>
   );
 }
 
@@ -342,18 +289,6 @@ const styles = StyleSheet.create({
   swatches: { flexDirection: "row", gap: 10 },
   swatchCol: { flex: 1, gap: 6 },
   swatch: { height: 56, borderRadius: radius.tile, borderWidth: 1, borderColor: colors.lineStrong },
-  sizeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    minHeight: 64,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderTopWidth: 1,
-    borderTopColor: colors.line,
-  },
-  stepper: { width: 150 },
-  trailing: { flexDirection: "row", alignItems: "center", gap: 8 },
   preview: {
     height: 112,
     borderRadius: radius.card,

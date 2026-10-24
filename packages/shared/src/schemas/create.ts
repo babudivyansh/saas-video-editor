@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CAPTION_TEMPLATES, DEFAULT_CAPTION_TEMPLATE_ID } from "../captions/templates";
 
 // Create tab: AutoClip and AI Media. Values mirror the web app so the phone
 // and clipiro.com agree on what's allowed and what it costs:
@@ -109,8 +110,8 @@ export const autoClipSettingsSchema = z.object({
   clipLength: clipLengthSchema.default("standard"),
   clipCount: z.number().int().min(1).max(MAX_CLIPS_PER_RUN).default(8),
   aspectRatio: aspectRatioSchema.default("9:16"),
-  /** null = captions off. */
-  captionTemplateId: z.string().nullable().default("clean"),
+  /** null = captions off. Retired ids still validate; the server maps them to their replacement. */
+  captionTemplateId: z.string().nullable().default(DEFAULT_CAPTION_TEMPLATE_ID),
   smartAutoReframe: z.boolean().default(true),
   reframingPreset: z.enum(["balanced", "minimal", "dynamic", "cinematic"]).default("balanced"),
   zoomStrength: z.enum(["low", "medium", "high"]).default("medium"),
@@ -139,32 +140,36 @@ export const overflowCreditsFor = (minutesShort: number) => (minutesShort > 0 ? 
 export const captionTemplateSchema = z.object({
   id: z.string(),
   name: z.string(),
-  category: z.enum(["viral", "creator", "podcast", "minimal", "professional", "more"]),
-  /** Premium (Submagic) styles render for extra AI credits. */
-  premium: z.boolean(),
-  /** How the preview draws the highlighted word. */
-  look: z.object({ highlight: z.string().nullable(), uppercase: z.boolean() }),
+  family: z.enum(["viral", "karaoke", "box", "creator", "podcast", "minimal", "cinema", "retro", "desi"]),
+  /** The plan the template needs; the server refuses runs and saves below it. */
+  tier: z.enum(["free", "creator", "pro"]),
+  /** What the app's static swatch draws. Colours are #rrggbb; highlight is null when the spoken word keeps the base colour. */
+  look: z.object({ highlight: z.string().nullable(), base: z.string(), uppercase: z.boolean(), boxed: z.boolean() }),
 });
 export type CaptionTemplate = z.infer<typeof captionTemplateSchema>;
 
-/** The web's AutoClip caption templates (the ids the web sends as captionTemplateId); the look is the app's preview hint. */
-export const CAPTION_TEMPLATE_CATALOG: CaptionTemplate[] = [
-  { id: "clean", name: "Clean", category: "minimal", premium: false, look: { highlight: null, uppercase: false } },
-  { id: "hormozi", name: "Bold Impact", category: "viral", premium: false, look: { highlight: "emerald", uppercase: true } },
-  { id: "podcast", name: "Podcast", category: "podcast", premium: false, look: { highlight: "warning", uppercase: false } },
-  { id: "minimal", name: "Minimal", category: "minimal", premium: false, look: { highlight: null, uppercase: false } },
-  { id: "neon", name: "Neon", category: "creator", premium: false, look: { highlight: "info", uppercase: true } },
-  { id: "news", name: "Headline", category: "professional", premium: false, look: { highlight: "error", uppercase: true } },
-  { id: "viral-bold-01", name: "Hormozi 1", category: "viral", premium: true, look: { highlight: "warning", uppercase: true } },
-  { id: "viral-bold-02", name: "Hormozi 2", category: "viral", premium: true, look: { highlight: "emerald", uppercase: true } },
-  { id: "viral-punch", name: "Hormozi 3", category: "viral", premium: true, look: { highlight: "error", uppercase: true } },
-  { id: "viral-beast", name: "Beast", category: "viral", premium: true, look: { highlight: "warning", uppercase: true } },
-  { id: "creator-modern", name: "Ali", category: "creator", premium: true, look: { highlight: "info", uppercase: false } },
-  { id: "creator-pop", name: "Maya", category: "creator", premium: true, look: { highlight: "emerald", uppercase: false } },
-  { id: "podcast-bold", name: "Carlos", category: "podcast", premium: true, look: { highlight: "warning", uppercase: true } },
-  { id: "clean-minimal", name: "Sara", category: "minimal", premium: true, look: { highlight: null, uppercase: false } },
-  { id: "professional-01", name: "David", category: "professional", premium: true, look: { highlight: "info", uppercase: false } },
-];
+/**
+ * The caption templates, derived from the shared library
+ * (src/captions/templates.ts) so the app can never drift from what the server
+ * renders. The app can't run the animated preview, so each template carries
+ * a static swatch hint.
+ */
+export const CAPTION_TEMPLATE_CATALOG: CaptionTemplate[] = CAPTION_TEMPLATES.map((t) => {
+  const accent = t.colors.accent.slice(0, 7);
+  const base = t.colors.base.length === 9 && t.colors.base.endsWith("00") ? "#FFFFFF" : t.colors.base.slice(0, 7);
+  return {
+    id: t.id,
+    name: t.name,
+    family: t.family,
+    tier: t.tier,
+    look: {
+      highlight: accent.toUpperCase() === base.toUpperCase() ? null : accent,
+      base,
+      uppercase: t.type.case === "upper",
+      boxed: t.container !== "none" || t.motion === "boxword" || t.motion === "bubble" || t.motion === "blocks",
+    },
+  };
+});
 
 // ── AI Media ──────────────────────────────────────────────────────────────
 export const imageRatioSchema = z.enum(["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3", "21:9"]);

@@ -1,4 +1,4 @@
-import { ACCOUNT_PURGE_DAYS, LANGUAGES, type Settings } from "@clipiro/shared";
+import { ACCOUNT_PURGE_DAYS, LANGUAGES, PLAN_LABEL, type Settings } from "@clipiro/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Linking, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -267,7 +267,7 @@ export function SettingsScreen() {
             options={(templates.data ?? []).map((t) => ({
               value: t.id,
               label: t.name,
-              trailing: t.premium ? "Premium" : undefined,
+              trailing: t.tier !== "free" ? PLAN_LABEL[t.tier] : undefined,
             }))}
             onChange={(v) => (setPicker(null), set({ captionTemplateId: v }))}
           />

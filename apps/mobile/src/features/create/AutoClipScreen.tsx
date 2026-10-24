@@ -7,6 +7,7 @@ import {
   MAX_CLIPS_PER_RUN,
   NetworkError,
   PLAN_LABEL,
+  planAtLeast,
   autoClipMinutes,
   formatBytes,
   formatHours,
@@ -196,6 +197,8 @@ export function AutoClipScreen() {
   const busy = starting || upload.status === "uploading" || upload.status === "starting";
   const length = CLIP_LENGTHS.find((l) => l.id === settings.clipLength) ?? CLIP_LENGTHS[1];
   const caption = CAPTION_TEMPLATE_CATALOG.find((c) => c.id === settings.captionTemplateId) ?? null;
+  // The server refuses a run on a template above the plan; say so before it does.
+  const captionLocked = !!caption && !planAtLeast(plan, caption.tier);
   const barBottom = layout.tabBar.height + layout.tabBar.inset + insets.bottom;
 
   return (
@@ -297,6 +300,9 @@ export function AutoClipScreen() {
                     </View>
                   ) : null}
                   <Text style={type(12, "semibold")}>{caption ? caption.name : "Captions off"}</Text>
+                  {captionLocked && caption ? (
+                    <Text style={type(11, "semibold", { color: colors.warning })}>Needs {PLAN_LABEL[caption.tier]}</Text>
+                  ) : null}
                 </View>
               </Pressable>
             </View>
@@ -332,9 +338,9 @@ export function AutoClipScreen() {
             label="Generate clips"
             onPress={() => generate()}
             loading={busy}
-            disabled={!source || busy}
+            disabled={!source || busy || captionLocked}
             style={{ flex: 1 }}
-            accessibilityHint={!source ? "Choose a video first" : short ? `You have ${ctx.data.clipMinutes} Clip Minutes` : undefined}
+            accessibilityHint={!source ? "Choose a video first" : captionLocked && caption ? `${caption.name} captions need ${PLAN_LABEL[caption.tier]}` : short ? `You have ${ctx.data.clipMinutes} Clip Minutes` : undefined}
           />
         </View>
       ) : null}
@@ -374,6 +380,7 @@ export function AutoClipScreen() {
       <CaptionSheet
         visible={sheet === "captions"}
         value={settings.captionTemplateId}
+        plan={plan}
         onClose={() => setSheet(null)}
         onChange={(captionTemplateId) => update({ captionTemplateId })}
       />

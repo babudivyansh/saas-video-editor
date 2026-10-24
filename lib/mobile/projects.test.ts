@@ -9,13 +9,11 @@ const clipFindMany = vi.fn();
 const clipFindFirst = vi.fn();
 const clipCount = vi.fn(async () => 2);
 const clipDeleteMany = vi.fn();
-const captionJobs = vi.fn(async () => [] as { clipId: string }[]);
 const dubs = vi.fn(async () => [] as { clipId: string }[]);
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     project: { findMany: projectFindMany, findFirst: projectFindFirst, count: projectCount, deleteMany: projectDeleteMany },
     clip: { findMany: clipFindMany, findFirst: clipFindFirst, count: clipCount, deleteMany: clipDeleteMany },
-    captionRenderJob: { findMany: captionJobs },
     clipDub: { findMany: dubs },
   },
 }));
@@ -181,7 +179,7 @@ describe("bulk delete", () => {
     expect(projectDeleteMany).not.toHaveBeenCalled();
   });
 
-  it("skips clips still rendering, queued, captioning or dubbing, like the web's delete", async () => {
+  it("skips clips still rendering, queued or dubbing, like the web's delete", async () => {
     clipFindMany.mockResolvedValue([
       { id: "c1", status: "ready", videoUrl: "https://b.s3.ap-south-1.amazonaws.com/uploads/c1.mp4", thumbnailUrl: null },
       { id: "c2", status: "rendering", videoUrl: null, thumbnailUrl: null },
@@ -189,7 +187,7 @@ describe("bulk delete", () => {
       { id: "c4", status: "ready", videoUrl: null, thumbnailUrl: null },
       { id: "c5", status: "failed", videoUrl: null, thumbnailUrl: null },
     ]);
-    captionJobs.mockResolvedValueOnce([{ clipId: "c4" }]);
+    dubs.mockResolvedValueOnce([{ clipId: "c4" }]);
     clipDeleteMany.mockResolvedValue({ count: 2 });
     expect(await deleteClips("u1", ["c1", "c2", "c3", "c4", "c5"])).toEqual({ deleted: 2, skipped: 3 });
     expect(clipFindMany.mock.calls[0]![0].where).toEqual({ id: { in: ["c1", "c2", "c3", "c4", "c5"] }, project: { userId: "u1" } });

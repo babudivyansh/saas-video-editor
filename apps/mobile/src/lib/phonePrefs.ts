@@ -10,7 +10,7 @@ export type PhonePrefs = typeof prefsSchema._output;
 
 export const DEFAULT_PHONE_PREFS: PhonePrefs = {
   aspectRatio: DEFAULT_AUTOCLIP_SETTINGS.aspectRatio,
-  captionTemplateId: DEFAULT_AUTOCLIP_SETTINGS.captionTemplateId ?? "hormozi",
+  captionTemplateId: DEFAULT_AUTOCLIP_SETTINGS.captionTemplateId ?? "boardroom",
   autoplay: true,
 };
 

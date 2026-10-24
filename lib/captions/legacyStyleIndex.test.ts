@@ -41,15 +41,15 @@ describe("templateIdForIndex", () => {
   });
 
   it("maps the families the way the look implies", () => {
-    expect(templateIdForIndex(10)).toBe("hormozi"); // Impact
-    expect(templateIdForIndex(2)).toBe("news");     // Serif
-    expect(templateIdForIndex(6)).toBe("neon");     // Green
-    expect(templateIdForIndex(0)).toBe("clean");    // Classic
+    expect(templateIdForIndex(10)).toBe("slam");        // Impact
+    expect(templateIdForIndex(2)).toBe("documentary");  // Serif
+    expect(templateIdForIndex(6)).toBe("neontrace");    // Green
+    expect(templateIdForIndex(0)).toBe("clean");        // Classic
   });
 });
 
 describe("indexForTemplateId", () => {
-  it("maps every shipped template, premium included", () => {
+  it("maps every shipped template", () => {
     // The v1 API still returns this integer, so a template with no entry would
     // report style 0 for a clip that is visibly nothing like Classic.
     for (const t of CAPTION_TEMPLATES) {
@@ -64,10 +64,15 @@ describe("indexForTemplateId", () => {
     }
   });
 
-  it("round-trips a native template through its canonical index", () => {
-    for (const slug of ["clean", "podcast", "news", "neon", "hormozi"]) {
+  it("round-trips a template that has its own legacy index", () => {
+    for (const slug of ["clean", "studio", "documentary", "neontrace", "boardroom", "lowkey"]) {
       expect(templateIdForIndex(indexForTemplateId(slug))).toBe(slug);
     }
+  });
+
+  it("resolves retired ids through their replacement", () => {
+    expect(indexForTemplateId("hormozi")).toBe(indexForTemplateId("boardroom"));
+    expect(indexForTemplateId("viral-beast")).toBe(indexForTemplateId("slam"));
   });
 
   it("falls back to 0 for an unknown slug", () => {

@@ -141,7 +141,7 @@ export function setClipVolume(doc: TimelineDoc, track: "audio" | "video", id: st
 }
 
 /** Caption look shared by every cue (the panel styles them together, as the web's caption style does). */
-export type CaptionStyle = Partial<Pick<CaptionClip, "fontFamily" | "fontSizePct" | "color" | "bold" | "highlightMode" | "highlightColor" | "textTransform" | "x" | "y" | "positionPreset" | "strokeColor" | "strokeWidthPct" | "bgColor">>;
+export type CaptionStyle = Partial<Pick<CaptionClip, "fontFamily" | "fontSizePct" | "color" | "bold" | "highlightMode" | "highlightColor" | "textTransform" | "x" | "y" | "positionPreset" | "strokeColor" | "strokeWidthPct" | "bgColor" | "templateId">>;
 
 export function styleCaptions(doc: TimelineDoc, style: CaptionStyle): TimelineDoc {
   // A cue without word timings can't highlight word by word.

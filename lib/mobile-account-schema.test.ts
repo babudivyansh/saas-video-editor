@@ -77,9 +77,12 @@ describe("mobile account rules match the web", () => {
     expect(RANKS.map((r) => [r.level, r.minXp])).toEqual(WEB_RANKS.map((r) => [r.level, r.minXp]));
   });
 
-  it("brand-kit fonts are ones the caption templates use", () => {
-    const templates = readFileSync(path.join(__dirname, "caption-templates.ts"), "utf8");
-    for (const f of CAPTION_FONTS) expect({ f, used: templates.includes(`fontName: "${f}"`) }).toEqual({ f, used: true });
+  it("brand-kit fonts are bundled caption fonts, or legacy fonts older app versions still send", () => {
+    // Templates own the font now; fontName stays accepted so older app builds
+    // can still save a kit. Impact and Oswald predate the template library.
+    const manifest = JSON.parse(readFileSync(path.join(__dirname, "captions/engine/font-manifest.json"), "utf8")) as { family: string }[];
+    const bundled = new Set([...manifest.map((m) => m.family), "Impact", "Oswald"]);
+    for (const f of CAPTION_FONTS) expect({ f, bundled: bundled.has(f) }).toEqual({ f, bundled: true });
   });
 
   it("languages, cloned voices and account deletion", () => {

@@ -1,14 +1,16 @@
 /**
- * Smoke test: generates an ASS subtitle file, runs FFmpeg with a synthetic
- * color-source background and a sine-wave audio track, and confirms a
- * portrait 9:16 output is produced. Run with:
+ * Smoke test: builds a caption track with the template engine, runs FFmpeg with
+ * a synthetic color-source background and a sine-wave audio track, and confirms
+ * a portrait 9:16 output is produced. Run with:
  *   npx tsx utils/test-ffmpeg.ts
  */
 import path from "path";
 import fs from "fs";
 import os from "os";
-import { generateASS } from "./ffmpeg-render";
 import { spawn } from "child_process";
+import { buildCaptionTrack, buildCaptionFilterChain } from "@/lib/captions/engine";
+import { resolveCaptionTemplate } from "@clipiro/shared/caption-templates";
+import { ffmpegBin } from "./ffmpeg-render";
 import type { WordTiming } from "./elevenlabs";
 
 const TMP = os.tmpdir();
@@ -26,17 +28,16 @@ const words: WordTiming[] = [
 ];
 
 console.log("1. Writing ASS subtitle file...");
-generateASS(words, { fontName: "Arial", fontSize: 60 }, assPath);
+const track = buildCaptionTrack({ words, template: resolveCaptionTemplate("clean"), W: 1080, H: 1920 });
+fs.writeFileSync(assPath, track.ass);
 console.log("   Written to", assPath);
-
-const assEscaped = assPath.replace(/\\/g, "/").replace(/:/g, "\\:");
 
 const args = [
   "-y",
   "-f", "lavfi", "-i", `color=c=blue:s=1080x1920:d=4:r=30`,
   "-f", "lavfi", "-i", "sine=frequency=440:duration=4",
   "-filter_complex",
-  `[0:v]subtitles='${assEscaped}'[v]`,
+  buildCaptionFilterChain({ track, assPath, inLabel: "0:v", outLabel: "v" }),
   "-map", "[v]",
   "-map", "1:a",
   "-c:v", "libx264",
@@ -47,7 +48,7 @@ const args = [
 ];
 
 console.log("2. Running FFmpeg...");
-const proc = spawn("ffmpeg", args, { stdio: ["ignore", "pipe", "pipe"] });
+const proc = spawn(ffmpegBin, args, { stdio: ["ignore", "pipe", "pipe"] });
 
 let stderr = "";
 proc.stderr.on("data", (d: Buffer) => { stderr += d.toString(); });
@@ -64,6 +65,5 @@ proc.on("close", (code) => {
 
 proc.on("error", (err) => {
   console.error("Could not spawn ffmpeg:", err.message);
-  console.error("Make sure FFmpeg is installed and on your PATH.");
   process.exit(1);
 });

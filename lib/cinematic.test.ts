@@ -29,7 +29,8 @@ import {
 import {
   classifyScene, groupIntoPeople, buildCutKeyframes, buildGroupKeyframes, buildDriftKeyframes,
 } from "./scene-layout";
-import { buildAnimatedEvents } from "@/utils/ffmpeg-render";
+import { buildCaptionTrack } from "@/lib/captions/engine";
+import { resolveCaptionTemplate } from "@clipiro/shared/caption-templates";
 import type { FaceBox } from "./reframe";
 
 const track = (over: Partial<SignalTrack> = {}): SignalTrack => ({
@@ -338,12 +339,14 @@ describe("buildDriftKeyframes", () => {
 
 // ── caption animation ───────────────────────────────────────────────────────
 
-describe("buildAnimatedEvents", () => {
+describe("caption engine motion", () => {
   const words = Array.from({ length: 8 }, (_, i) => ({ word: `w${i}`, start: i * 400, end: i * 400 + 350 }));
-  const colors = { highlight: "&H0000FFFF", base: "&H00FFFFFF" };
+  const pop = resolveCaptionTemplate("boardroom");
+  const track = (opts: Partial<Parameters<typeof buildCaptionTrack>[0]> = {}) =>
+    buildCaptionTrack({ words, template: pop, W: 1080, H: 1920, ...opts }).ass;
 
   it("eases the active word with \\t rather than stepping its size", () => {
-    const out = buildAnimatedEvents(words, colors);
+    const out = track();
     expect(out).toContain("\\t(");
     expect(out).toContain("Dialogue:");
   });
@@ -351,33 +354,24 @@ describe("buildAnimatedEvents", () => {
   // Readability is a hard limit, not a preference: past ~1.25x a word reflows
   // its neighbours and the line jitters.
   it("never scales a word past the readability ceiling", () => {
-    const energy = new Array(words.length).fill(1);
-    const out = buildAnimatedEvents(words, colors, { energy, emphasis: words.map((_, i) => i) });
+    const out = track({ energy: new Array(words.length).fill(1), emphasis: words.map((_, i) => i) });
     const scales = [...out.matchAll(/\\fscx(\d+)/g)].map((m) => parseInt(m[1], 10));
     expect(Math.max(...scales)).toBeLessThanOrEqual(125);
   });
 
   it("scales a high-energy word further than a quiet one", () => {
-    const quiet = buildAnimatedEvents(words, colors, { energy: new Array(8).fill(0) });
-    const loud = buildAnimatedEvents(words, colors, { energy: new Array(8).fill(1) });
-    const peak = (s: string) => Math.max(...[...s.matchAll(/\\fscx(\d+)/g)].map((m) => parseInt(m[1], 10)));
-    expect(peak(loud)).toBeGreaterThan(peak(quiet));
+    const peak = (s: string) => Math.max(...[...s.matchAll(/\\t\(0,99,\\fscx(\d+)/g)].map((m) => parseInt(m[1], 10)));
+    expect(peak(track({ energy: new Array(8).fill(1) }))).toBeGreaterThan(peak(track({ energy: new Array(8).fill(0) })));
   });
 
-  it("only glows on genuinely high-energy words", () => {
-    expect(buildAnimatedEvents(words, colors, { energy: new Array(8).fill(0.2) })).not.toContain("\\blur");
-    expect(buildAnimatedEvents(words, colors, { energy: new Array(8).fill(0.9) })).toContain("\\blur");
-  });
-
-  it("shortens lines for fast speech so the viewer isn't reading behind", () => {
-    const slow = buildAnimatedEvents(words, colors, { wordsPerSec: 1.5 }).split("\n").filter(Boolean);
-    const fast = buildAnimatedEvents(words, colors, { wordsPerSec: 5 }).split("\n").filter(Boolean);
-    // Fewer words per line => more lines for the same words.
-    expect(fast.length).toBeGreaterThanOrEqual(slow.length);
+  it("shows fewer words at once for fast speech so the viewer isn't reading behind", () => {
+    const studio = resolveCaptionTemplate("studio"); // 4 words on screen
+    const chunks = (wps: number) => buildCaptionTrack({ words, template: studio, W: 1080, H: 1920, wordsPerSec: wps }).layout.chunks.length;
+    expect(chunks(5)).toBeGreaterThan(chunks(1.5));
   });
 
   it("produces no events for an empty transcript", () => {
-    expect(buildAnimatedEvents([], colors)).toBe("");
+    expect(buildCaptionTrack({ words: [], template: pop, W: 1080, H: 1920 }).ass).not.toContain("Dialogue:");
   });
 });
 

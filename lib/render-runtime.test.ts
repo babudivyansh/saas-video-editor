@@ -69,6 +69,8 @@ describe("probeRuntimeCapabilities — against the real binary", () => {
     // subtitles is a separate capability and must be required independently —
     // the caption path depends on libass, not on drawtext.
     expect(REQUIRED_FILTERS).toContain("subtitles");
+    // Caption templates burn through `ass` (complex shaping for Hindi).
+    expect(REQUIRED_FILTERS).toContain("ass");
   }, 60_000);
 
   it("marks a runtime unhealthy when the binary cannot be executed at all", async () => {
@@ -87,7 +89,7 @@ describe("contract completeness", () => {
     for (const f of ["drawtext", "subtitles", "overlay", "scale", "crop", "xfade", "amix", "adelay", "volume", "fps", "format", "concat"]) {
       expect(REQUIRED_FILTERS).toContain(f);
     }
-    expect(REQUIRED_FILTERS).toHaveLength(33);
+    expect(REQUIRED_FILTERS).toHaveLength(34);
   });
 
   it("requires the encoders the production render commands actually request", () => {

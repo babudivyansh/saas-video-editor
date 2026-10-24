@@ -14,7 +14,7 @@ import { planBrollWindows, MAX_BROLL_WINDOWS, type BrollCue } from "./broll";
 import { normaliseSpan, isSupportedCaptionLanguage } from "./caption-translate";
 import { isAllowedSourceUrl } from "./url-import";
 import { CAPTION_LANGUAGES, DUB_LANGUAGES, captionLanguageName } from "./languages";
-import { buildAnimatedEvents } from "@/utils/ffmpeg-render";
+import { buildCaptionTrack } from "@/lib/captions/engine";
 
 describe("caption templates", () => {
   it("gives every template a distinct id", () => {
@@ -22,16 +22,17 @@ describe("caption templates", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("resolves a template by id and returns null for anything else", () => {
-    expect(getCaptionTemplate("clean")?.label).toBe("Clean");
-    expect(getCaptionTemplate("nope")).toBeNull();
+  it("resolves current and retired ids, and falls back to the default for unknown ones", () => {
+    expect(getCaptionTemplate("clean")?.name).toBe("Clean");
+    expect(getCaptionTemplate("hormozi")?.id).toBe("boardroom");
+    expect(getCaptionTemplate("nope")?.id).toBe("clean");
     expect(getCaptionTemplate(null)).toBeNull();
   });
 
-  it("uses ASS &HBBGGRR colours, not hex — the byte order is reversed", () => {
+  it("stores colours as #RRGGBB or #RRGGBBAA hex (the engine converts to ASS byte order)", () => {
     for (const t of CAPTION_TEMPLATES) {
-      for (const c of [t.style.baseColor, t.style.highlightColor, t.style.outlineColor]) {
-        if (c) expect(c).toMatch(/^&H[0-9A-F]{8}$/i);
+      for (const c of [t.colors.base, t.colors.accent, t.colors.outline, t.colors.box].filter(Boolean)) {
+        expect(c).toMatch(/^#[0-9A-F]{6}([0-9A-F]{2})?$/i);
       }
     }
   });
@@ -69,10 +70,16 @@ describe("planEmoji", () => {
     }
   });
 
-  it("renders the emoji alongside its word, never on its own line", () => {
+  it("draws the emoji as a colour image beside its word, for exactly its word's time", () => {
     const w = [{ word: "make", start: 0, end: 300 }, { word: "money", start: 300, end: 700 }];
-    const out = buildAnimatedEvents(w, { highlight: "&H0000FFFF", base: "&H00FFFFFF" }, { emoji: { 1: "💰" } });
-    expect(out).toContain("money 💰");
+    const t = getCaptionTemplate("slam")!; // emoji after the word
+    const track = buildCaptionTrack({ words: w, template: t, W: 1080, H: 1920, emoji: { 1: "💰" } });
+    const money = track.layout.chunks[0].words[1];
+    expect(track.emoji).toHaveLength(1);
+    expect(track.emoji[0].file).toBe("emoji_u1f4b0.png");
+    expect(track.emoji[0].start).toBeCloseTo(0.3);
+    expect(track.emoji[0].x).toBeGreaterThan(money.x);
+    expect(track.ass).not.toContain("💰");
   });
 });
 

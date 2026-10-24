@@ -67,7 +67,7 @@ export function CaptionTweakControls({
       <div className="flex items-center justify-between gap-3">
         <div>
           <label htmlFor="caption-accent" className="text-xs font-semibold text-ink">Accent colour</label>
-          <p className="text-[10px] text-ink-soft mt-0.5">The spoken word's colour.</p>
+          <p className="text-[10px] text-ink-soft mt-0.5">The spoken word&apos;s colour.</p>
         </div>
         <div className="flex items-center gap-2">
           {accent && (
@@ -109,7 +109,7 @@ export function CaptionTweakControls({
       <div className="border-t border-card-border pt-3">
         <label htmlFor="caption-position-y" className="text-xs font-semibold text-ink">Position</label>
         <p className="text-[10px] text-ink-soft mt-0.5">
-          Keep captions clear of the speaker's face. They never go below the area platforms cover with buttons.
+          Keep captions clear of the speaker&apos;s face. They never go below the area platforms cover with buttons.
         </p>
         <input
           id="caption-position-y"
