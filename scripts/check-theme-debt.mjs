@@ -27,6 +27,9 @@ const EXCLUDED = [
   "app/opengraph-image.tsx",
   "app/twitter-image.tsx",
 ];
+// The same Satori cards at any depth (blog posts, tool pages). Only the root
+// pair was listed, so each per-route card was being counted as debt.
+const EXCLUDED_FILE_RE = /^(?:opengraph|twitter)-image\.tsx$/;
 
 const PATTERNS = {
   // Stock Tailwind gray ramp used as a colour. Bridged by the inverted ramp in
@@ -187,7 +190,7 @@ const BUDGET = {
   // copy of the provider's voice ids purely to build preview URLs by hand.
   // 44 -> 41: AI video generator removal.
   // 41 -> 38: quest card locked-rank chips moved onto theme tokens.
-  "inline-hex": 16, /* launch audit 2026-10-23: quest icons, social chips, error icon, blog covers → tokens (was 23). AI tools audit 2026-10-14: face-swap light-mode zones + button, downloader pages (was 26); toolPreviews.tsx deleted (was 27) */ // audit 2026-09-29 stage 7 (pastel chips, old brand hex, editor violet → tokens)
+  "inline-hex": 14, /* SEO pass 2026-10-25: nested opengraph/twitter-image cards excluded like the root pair (was 16). launch audit 2026-10-23: quest icons, social chips, error icon, blog covers → tokens (was 23). AI tools audit 2026-10-14: face-swap light-mode zones + button, downloader pages (was 26); toolPreviews.tsx deleted (was 27) */ // audit 2026-09-29 stage 7 (pastel chips, old brand hex, editor violet → tokens)
 };
 
 function walk(dir, out = []) {
@@ -195,6 +198,7 @@ function walk(dir, out = []) {
     const abs = join(dir, entry);
     const rel = relative(ROOT, abs).split("\\").join("/");
     if (EXCLUDED.some((p) => rel === p || rel.startsWith(p + "/"))) continue;
+    if (EXCLUDED_FILE_RE.test(entry)) continue;
     if (statSync(abs).isDirectory()) walk(abs, out);
     else if (/\.tsx?$/.test(entry) && !/\.test\.tsx?$/.test(entry)) out.push({ abs, rel });
   }

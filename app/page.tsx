@@ -43,17 +43,52 @@ export default async function HomePage() {
     "@graph": [
       {
         "@type": "Organization",
+        "@id": "https://clipiro.com/#organization",
         name: "Clipiro",
         url: "https://clipiro.com",
+        logo: "https://clipiro.com/icon.png",
         description: "AI-powered tool that turns long videos into viral short-form clips.",
+        // The same profiles SiteFooter links to — this is what lets search and
+        // answer engines tie those accounts to the brand.
+        sameAs: [
+          "https://x.com/ClipiroOfficial",
+          "https://youtube.com/@clipiroofficial",
+          "https://www.instagram.com/clipiroapp/",
+          "https://www.linkedin.com/company/109881774",
+          "https://www.facebook.com/profile.php?id=61593101997903",
+        ],
+        contactPoint: {
+          "@type": "ContactPoint",
+          contactType: "customer support",
+          email: "support@clipiro.com",
+        },
+      },
+      {
+        "@type": "WebSite",
+        "@id": "https://clipiro.com/#website",
+        name: "Clipiro",
+        url: "https://clipiro.com",
+        publisher: { "@id": "https://clipiro.com/#organization" },
       },
       {
         "@type": "SoftwareApplication",
         name: "Clipiro",
+        url: "https://clipiro.com",
         applicationCategory: "MultimediaApplication",
         operatingSystem: "Web",
+        publisher: { "@id": "https://clipiro.com/#organization" },
         offers: { "@type": "Offer", price: "0", priceCurrency: "INR" },
         ...(aggregateRating ? { aggregateRating } : {}),
+      },
+      {
+        // The hero film (components/landing/Hero.tsx).
+        "@type": "VideoObject",
+        name: "Clipiro product film",
+        description: "A tour of Clipiro: AutoClip turning a long video into captioned shorts, plus the AI tools, editor and exports.",
+        thumbnailUrl: "https://clipiro.com/hero/launch-film-poster.jpg",
+        contentUrl: "https://clipiro.com/hero/launch-film.mp4",
+        uploadDate: "2026-10-23",
+        duration: "PT1M48S",
       },
       {
         "@type": "FAQPage",

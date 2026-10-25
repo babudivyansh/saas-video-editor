@@ -37,7 +37,7 @@ export interface ToolContent {
 const CREDITS_FAQ: ToolFaq = {
   question: "How do credits work?",
   answer:
-    "Every plan shares one credit balance you can spend on any paid tool. Subscription credits refill each month and roll over up to 2× your monthly allowance; add-on credit packs never expire. Free tools never touch your balance.",
+    "Every plan shares one credit balance you can spend on any paid AI tool (AutoClip runs on separate Clip Minutes). Subscription credits refill each month and roll over up to 2× your monthly allowance; add-on credit packs never expire. Free tools never touch your balance.",
 };
 
 const CANCEL_FAQ: ToolFaq = {
@@ -88,7 +88,7 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
     h1: "Turn one long video into a week of clips",
     metaTitle: "AutoClip — Long Video to Short Clips with AI",
     metaDescription:
-      "Drop in a podcast, stream, or interview and AutoClip finds the strongest moments, captions them, and cuts them to vertical. Unlimited runs on paid plans.",
+      "Drop in a podcast, stream, or interview and AutoClip finds the strongest moments, captions them, and cuts them to vertical. 30 free minutes a month.",
     lede: "Drop in a podcast, stream, or interview. AutoClip finds the moments worth posting, captions them, reframes them vertical, and hands back a set of ready-to-upload shorts.",
     steps: [
       { title: "Add your video", body: "Upload a file or paste a link. Paid plans handle uploads from two hours up to six, depending on your plan." },
@@ -98,10 +98,11 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
     benefits: [
       { title: "Hours become minutes", body: "The slow part of clipping is watching everything back to find the good bits. That is the part AutoClip removes." },
       { title: "Captioned and reframed already", body: "Clips come out vertical with burned-in captions, so they are postable without another pass." },
-      { title: "Unlimited on paid plans", body: "No per-clip metering. Run a whole back catalogue through it in an afternoon." },
+      { title: "Priced per minute of video, not per clip", body: "One Clip Minute per minute of source, however many clips come out of it. Re-running the same video within 7 days is free." },
     ],
     faqs: [
-      { question: "How long can the source video be?", answer: "Creator handles uploads up to 2 hours, Pro up to 4, and Studio up to 6. The free plan includes 2 watermarked runs per month." },
+      { question: "How long can the source video be?", answer: "The free plan takes videos up to 30 minutes, Creator up to 2 hours, Pro up to 4, and Studio up to 6." },
+      { question: "How is AutoClip priced?", answer: "In Clip Minutes: one minute per minute of source video, however many clips it produces. Creator includes 150 minutes a month, Pro 400, and Studio 1,000. The free plan gets 30 watermarked minutes a month." },
       { question: "Can I edit the clips afterwards?", answer: "Yes. Every clip opens in the editor, so you can retime the cut, change the caption style, or swap the crop before exporting." },
       { question: "What source videos work best?", answer: "Anything with clear speech — podcasts, interviews, streams, lectures, reaction videos. Clean audio matters more than resolution." },
       COMMERCIAL_FAQ,
@@ -154,7 +155,7 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
       { title: "Goes straight into your videos", body: "Generated images land in your asset library and drop onto the editor timeline directly." },
     ],
     faqs: [
-      { question: "Which models are available?", answer: "Gemini Flash 2.0, Seedream 5.0, GPT Image 2, Flux 2, Nano Banana 2, Ideogram 4, Krea 2, and Qwen Image 2.0. Nano Banana Pro is Studio-only." },
+      { question: "Which models are available?", answer: "Gemini 2.5 Flash Image, Seedream 5.0, GPT Image 2, Flux 2, Nano Banana 2, Ideogram 4, Krea 2, and Qwen Image 2.0. Nano Banana Pro is Studio-only." },
       { question: "How many credits does an image cost?", answer: "It depends on the model — cheaper models cost less per image. The pricing page lists the cost of every model, and the credit calculator estimates a monthly total from your expected usage." },
       COMMERCIAL_FAQ,
       CREDITS_FAQ,
