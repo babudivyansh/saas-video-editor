@@ -114,6 +114,11 @@ export function BillingOverlay({ state, onClose }: { state: BillingOverlayState;
       ["billing", "tab", "view", "success", "autotopup"].forEach(k => params.delete(k));
     }
     const qs = params.toString();
+    // Nothing to mirror: navigating anyway is not a no-op. A same-URL replace
+    // from StrictMode's second effect run (or a new router identity) lands as
+    // a real navigation, which re-added ?editReview=1 after its handler had
+    // stripped it and cut across the next page.goto in e2e.
+    if (qs === window.location.search.replace(/^\?/, "")) return;
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   }, [state.open, tab, view, pathname, router]);
 
