@@ -46,8 +46,9 @@ describe("POST /api/admin/ops/cron/run", () => {
     const res = await run({ path: "/api/cron/clip-publish" });
     expect(res.status).toBe(202);
     await Promise.all(pending);
+    // Over loopback, never back out through the request's public host.
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://clipiro.test/api/cron/clip-publish",
+      expect.stringMatching(/^http:\/\/127\.0\.0\.1:\d+\/api\/cron\/clip-publish$/),
       expect.objectContaining({ headers: { Authorization: "Bearer cron-s", "X-Cron-Secret": "cron-s" } }),
     );
     expect(audit).toHaveBeenCalledWith("admin1", "cron.run_manual", "clip-publish", expect.objectContaining({ after: { path: "/api/cron/clip-publish" } }));

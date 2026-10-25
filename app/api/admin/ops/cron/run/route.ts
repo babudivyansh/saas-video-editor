@@ -43,8 +43,7 @@ export const POST = withAdmin(async (req, { admin }) => {
     ip: auditIp(req),
   });
 
-  const origin = req.nextUrl.origin;
-  after(() => dispatchCronJob(origin, entry, secret));
+  after(() => dispatchCronJob(entry, secret));
 
   return NextResponse.json({ ok: true, started: path, at }, { status: 202 });
 });

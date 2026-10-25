@@ -85,8 +85,7 @@ export async function GET(req: NextRequest) {
 
   // Answer the scheduler straight away (the cron's curl gives up after 25s);
   // the jobs themselves run after the response, in parallel.
-  const origin = req.nextUrl.origin;
-  after(() => Promise.all(toRun.map((entry) => dispatchCronJob(origin, entry, secretFor(entry) as string))));
+  after(() => Promise.all(toRun.map((entry) => dispatchCronJob(entry, secretFor(entry) as string))));
 
   await redis.set("cron:tick:last", now.toISOString(), "EX", CLAIM_TTL_SEC).catch(() => {});
 

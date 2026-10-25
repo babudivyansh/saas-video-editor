@@ -20,11 +20,20 @@ export function secretFor(entry: CronScheduleEntry): string | null {
   return env[entry.secret] || null;
 }
 
-export async function dispatchCronJob(origin: string, entry: CronScheduleEntry, secret: string): Promise<void> {
+/** Where this process can reach itself. Never the incoming request's origin:
+ * behind Hostinger's proxy that is not an address Node can call back on, so
+ * every self-call died with "fetch failed" and no scheduled job ever ran.
+ * Loopback also skips the CDN and its header stripping. */
+export function selfOrigin(): string {
+  return `http://127.0.0.1:${process.env.PORT || 3000}`;
+}
+
+export async function dispatchCronJob(entry: CronScheduleEntry, secret: string): Promise<void> {
   try {
-    const res = await fetch(`${origin}${entry.path}`, {
-      // Both header forms: this self-call goes back through the same web
-      // server, which strips Authorization on Hostinger (lib/cron-auth.ts).
+    const res = await fetch(`${selfOrigin()}${entry.path}`, {
+      // Both header forms, so the call still authenticates should it ever go
+      // back through the web server, which strips Authorization on Hostinger
+      // (lib/cron-auth.ts).
       headers: cronAuthHeaders(secret),
       cache: "no-store",
       // Longer than any job runs; only a wedged self-call ever reaches it.

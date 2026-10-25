@@ -20,10 +20,24 @@ export const logger = {
     write("warn", tag, message, meta);
   },
   error(tag: string, message: string, error?: unknown) {
-    write("error", tag, message, error instanceof Error ? { message: error.message, stack: error.stack } : error);
+    write("error", tag, message, error instanceof Error ? serializeError(error) : error);
     captureException(error, { tag, message });
   },
 };
+
+// `cause` carries the real reason behind wrapper errors: undici's bare
+// "fetch failed" says nothing; the ECONNREFUSED / ENOTFOUND is in its cause.
+function serializeError(error: Error): Record<string, unknown> {
+  const out: Record<string, unknown> = { message: error.message, stack: error.stack };
+  const { cause } = error as { cause?: unknown };
+  if (cause instanceof Error) {
+    const { code } = cause as { code?: unknown };
+    out.cause = { message: cause.message, ...(code !== undefined ? { code } : {}) };
+  } else if (cause !== undefined) {
+    out.cause = cause;
+  }
+  return out;
+}
 
 // Lazily resolved so this file has no hard dependency on @sentry/nextjs being
 // installed/configured — captureException is a no-op until Sentry is set up.
