@@ -15,7 +15,7 @@
 // Driving both from the registry's `category` is what makes it impossible to
 // ship a marketing email with no way out of it.
 
-import nodemailer from "nodemailer";
+import nodemailer, { type Transporter } from "nodemailer";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
@@ -54,8 +54,8 @@ const RESEND_ENDPOINT = "https://api.resend.com/emails";
 const TIMEOUT_MS = 10_000;
 
 /** Lazily built so importing this module never opens a connection. */
-let transporter: nodemailer.Transporter | null = null;
-function smtp(): nodemailer.Transporter {
+let transporter: Transporter | null = null;
+function smtp(): Transporter {
   transporter ??= nodemailer.createTransport({
     host: env.EMAIL_HOST || "smtp.gmail.com",
     port: Number(env.EMAIL_PORT) || 587,

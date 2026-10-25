@@ -1,5 +1,5 @@
 import type { NextConfig } from "next";
-import { withSentryConfig } from "@sentry/nextjs";
+import { withSentryConfig } from "@sentry/nextjs/config";
 import createNextIntlPlugin from "next-intl/plugin";
 
 const nextConfig: NextConfig = {
@@ -38,6 +38,11 @@ const nextConfig: NextConfig = {
   //     falls through to when the pinned runtime is missing.
   outputFileTracingIncludes: {
     "/**": [
+      // sharp's native libvips libraries. The tracer copies sharp's .node
+      // binary but not the DLLs/.so it loads beside it (sharp 0.35 only hints
+      // the Linux one via require.resolve), and without them the server dies
+      // at boot loading the instrumentation hook.
+      "./node_modules/@img/**/*",
       "./vendor/ffmpeg/ffmpeg",
       "./node_modules/ffmpeg-static/ffmpeg",
       "./node_modules/ffmpeg-static/ffmpeg.exe",
@@ -152,6 +157,5 @@ export default withSentryConfig(withNextIntl(nextConfig), {
   org: process.env.SENTRY_ORG,
   project: process.env.SENTRY_PROJECT,
   authToken: process.env.SENTRY_AUTH_TOKEN,
-  disableLogger: true,
   widenClientFileUpload: true,
 });
