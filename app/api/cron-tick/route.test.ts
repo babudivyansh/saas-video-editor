@@ -33,7 +33,7 @@ const tick = (authz: string | null = "Bearer cron-s") =>
   GET(new NextRequest("https://clipiro.test/api/cron-tick", { headers: authz ? { authorization: authz } : {} }));
 const called = () => fetchMock.mock.calls.map((c) => {
   const [url, init] = c as unknown as [string, RequestInit];
-  return { path: url.replace("https://clipiro.test", ""), auth: (init.headers as Record<string, string>).Authorization };
+  return { path: url.replace(/^http:\/\/127\.0\.0\.1:\d+/, ""), auth: (init.headers as Record<string, string>).Authorization };
 });
 
 beforeEach(() => {
