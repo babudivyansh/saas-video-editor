@@ -87,7 +87,7 @@ function Avatar({ review, size, className = "" }: { review: PublicReviewDTO; siz
   const style = { width: size, height: size };
   return review.author.avatarUrl ? (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={review.author.avatarUrl} alt="" style={style} className={`flex-shrink-0 rounded-full object-cover ${className}`} />
+    <img src={review.author.avatarUrl} alt="" loading="lazy" decoding="async" style={style} className={`flex-shrink-0 rounded-full object-cover ${className}`} />
   ) : (
     <span
       aria-hidden="true"

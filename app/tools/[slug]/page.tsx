@@ -1,19 +1,18 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { buildBreadcrumbSchema } from "@/app/blog/schema";
+import { buildBreadcrumbSchema, buildFaqPageSchema } from "@/app/blog/schema";
 import { JsonLd } from "@/app/components/JsonLd";
 import MarketingShell from "@/app/components/marketing/MarketingShell";
 import PageHero from "@/app/components/marketing/PageHero";
+import Section from "@/app/components/marketing/Section";
 import { Button } from "@/app/components/ui/Button";
+import FaqAccordion from "@/app/components/ui/FaqAccordion";
 import { ALL_TOOLS, CATEGORY_LABELS, getToolBySlug } from "@/app/components/featureLinks";
 import ToolImage from "@/app/components/marketing/ToolImage";
 import ToolMock from "@/app/components/marketing/ToolMock";
 import { hasSecondaryMotif } from "@/app/components/marketing/toolMotifs";
 import SocialProof from "@/app/components/landing/SocialProof";
-import Features from "@/app/components/landing/Features";
-import HowItWorks from "@/app/components/landing/HowItWorks";
 import FounderSection from "@/app/components/landing/FounderSection";
-import FAQ from "@/app/components/landing/FAQ";
 import CTABanner from "@/app/components/landing/CTABanner";
 import { getToolContent } from "../content";
 import { getToolImages } from "../toolImages";
@@ -68,7 +67,9 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
       operatingSystem: "Web",
       description: content.metaDescription,
       url: `${SITE_URL}/tools/${slug}`,
-      publisher: { "@type": "Organization", name: "Clipiro", url: SITE_URL },
+      // The @id ties this to the homepage's full Organization node; name and
+      // url stay because a parser reading only this page cannot follow it.
+      publisher: { "@type": "Organization", "@id": `${SITE_URL}/#organization`, name: "Clipiro", url: SITE_URL },
       // Only tools with real artwork can fill this — schema.org needs an
       // absolute URL to a raster, which inline SVG cannot provide. Tools still
       // on a generated motif simply omit it rather than pointing at nothing.
@@ -78,9 +79,23 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
           .map((i) => `${SITE_URL}${i.src}`),
       }),
       ...(isFree && {
-        offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+        // INR, matching the homepage and the Razorpay plans.
+        offers: { "@type": "Offer", price: "0", priceCurrency: "INR" },
       }),
     },
+    {
+      "@context": "https://schema.org",
+      "@type": "HowTo",
+      name: content.h1,
+      description: content.lede,
+      step: content.steps.map((step, i) => ({
+        "@type": "HowToStep",
+        position: i + 1,
+        name: step.title,
+        text: step.body,
+      })),
+    },
+    buildFaqPageSchema(content.faqs),
     buildBreadcrumbSchema([
       { name: "Home", path: "/" },
       { name: "Tools", path: "/tools" },
@@ -128,14 +143,44 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
         )}
       </PageHero>
 
-      {/* Below the hero artwork, every tool page reuses the homepage's
-          product story instead of a bespoke steps/benefits/FAQ stack — one
-          pitch to maintain instead of 22. */}
+      {/* The tool's own steps, benefits and FAQs come first: they are what
+          makes each of the 22 pages distinct. Reusing the homepage story here
+          left the pages ~98% identical text — near-duplicates to a search
+          engine, and nothing tool-specific for an answer engine to quote. */}
+      <Section eyebrow="How it works" title="Three steps, start to finish">
+        <ol className="grid grid-cols-1 gap-4 sm:gap-5 md:grid-cols-3">
+          {content.steps.map((step, i) => (
+            <li key={step.title} className="flex h-full flex-col rounded-2xl border border-card-border bg-panel p-6">
+              <span className="mb-4 inline-flex h-8 w-8 items-center justify-center rounded-full bg-brand text-[13px] font-bold text-on-primary">
+                {i + 1}
+              </span>
+              <h3 className="mb-2 text-[17px] font-semibold leading-[1.3] tracking-tight text-ink">{step.title}</h3>
+              <p className="text-[14px] leading-[1.6] text-ink-soft">{step.body}</p>
+            </li>
+          ))}
+        </ol>
+      </Section>
+
+      <Section className="border-t border-card-border" eyebrow="Why creators use it" title={`What ${tool.title} gives you`}>
+        <ul className="grid grid-cols-1 gap-4 sm:gap-5 md:grid-cols-3">
+          {content.benefits.map((benefit) => (
+            <li key={benefit.title} className="flex h-full flex-col rounded-2xl border border-card-border bg-panel p-6">
+              <h3 className="mb-2 text-[17px] font-semibold leading-[1.3] tracking-tight text-ink">{benefit.title}</h3>
+              <p className="text-[14px] leading-[1.6] text-ink-soft">{benefit.body}</p>
+            </li>
+          ))}
+        </ul>
+      </Section>
+
       <SocialProof />
-      <Features />
-      <HowItWorks />
       <FounderSection />
-      <FAQ />
+
+      <Section className="border-t border-card-border" eyebrow="FAQs" title={`${tool.title} questions`}>
+        <div className="max-w-[760px]">
+          <FaqAccordion items={content.faqs} />
+        </div>
+      </Section>
+
       <CTABanner />
     </MarketingShell>
   );

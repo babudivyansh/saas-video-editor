@@ -74,37 +74,43 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // The tool pages are the site's main organic surface — one indexable page per
   // tool, each targeting its own search intent. Priority sits just under
   // /pricing and above the blog for that reason.
+  // Tool, help and the static marketing pages carry no edit date anywhere in
+  // the code, so they omit lastModified rather than claim "now" on every
+  // fetch — Google ignores a lastmod it has caught being wrong, but treats a
+  // missing one as simply unknown.
   const toolEntries: MetadataRoute.Sitemap = ALL_TOOLS.map((tool) => ({
     url: `${base}/tools/${tool.slug}`,
-    lastModified: new Date(),
     changeFrequency: "monthly",
     priority: 0.8,
   }));
 
   const helpEntries: MetadataRoute.Sitemap = HELP_ARTICLES.map((a) => ({
     url: `${base}/help/${a.slug}`,
-    lastModified: new Date(),
     changeFrequency: "monthly",
     priority: 0.5,
   }));
 
+  // Index pages change exactly when their newest entry does.
+  const latest = (dates: (string | Date)[]) =>
+    dates.length === 0 ? undefined : dates.map((d) => new Date(d)).reduce((a, b) => (b > a ? b : a));
+
   return [
-    { url: base, lastModified: new Date(), changeFrequency: "weekly", priority: 1 },
-    { url: `${base}/pricing`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.9 },
-    { url: `${base}/tools`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.9 },
+    { url: base, changeFrequency: "weekly", priority: 1 },
+    { url: `${base}/pricing`, changeFrequency: "weekly", priority: 0.9 },
+    { url: `${base}/tools`, changeFrequency: "weekly", priority: 0.9 },
     ...toolEntries,
-    { url: `${base}/about`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.7 },
-    { url: `${base}/blog`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.7 },
+    { url: `${base}/about`, changeFrequency: "monthly", priority: 0.7 },
+    { url: `${base}/blog`, lastModified: latest(BLOG_POSTS.map((p) => p.updatedAt)), changeFrequency: "weekly", priority: 0.7 },
     ...categoryEntries,
     ...authorEntries,
     ...blogEntries,
-    { url: `${base}/reviews`, lastModified: new Date(), changeFrequency: "daily", priority: 0.8 },
+    { url: `${base}/reviews`, lastModified: latest(publishedReviews.map((r) => r.updatedAt)), changeFrequency: "daily", priority: 0.8 },
     ...reviewEntries,
-    { url: `${base}/help`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.6 },
+    { url: `${base}/help`, changeFrequency: "weekly", priority: 0.6 },
     ...helpEntries,
-    { url: `${base}/contact`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.5 },
-    { url: `${base}/affiliate-program`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.5 },
-    { url: `${base}/legal`, lastModified: new Date(), changeFrequency: "yearly", priority: 0.4 },
+    { url: `${base}/contact`, changeFrequency: "monthly", priority: 0.5 },
+    { url: `${base}/affiliate-program`, changeFrequency: "monthly", priority: 0.5 },
+    { url: `${base}/legal`, lastModified: latest(LEGAL_DOCS.map((d) => d.updated)), changeFrequency: "yearly", priority: 0.4 },
     ...legalEntries,
   ];
 }

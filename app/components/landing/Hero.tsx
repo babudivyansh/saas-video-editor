@@ -68,10 +68,13 @@ export default function Hero({ reviewSummary }: HeroProps) {
       </div>
 
       <div className="mx-auto flex w-full max-w-screen-2xl flex-col items-center gap-6 px-4 pt-8 pb-20 text-center md:px-12 lg:px-[120px] lg:pt-10 lg:pb-28">
-        {/* The visible headline lives inside the film now. The page still
-            needs its one h1 for search engines and screen readers, so it
-            stays in the document, visually hidden. */}
-        <h1 className="sr-only">Create Viral Shorts From Long Videos in Seconds</h1>
+        {/* Visible, not sr-only: search and answer engines discount hidden
+            headings, and the film's own headline is pixels they cannot read.
+            Kept compact so the film still leads; its height cap below budgets
+            for this line. */}
+        <h1 className="hero-rise max-w-3xl text-balance text-2xl font-semibold tracking-tight text-fg md:text-4xl">
+          Create viral shorts from long videos in seconds
+        </h1>
 
         {/* Hero visual: the Clipiro launch film, rendered from the Claude Design
             project "Clipiro Launch Film" to a silent 108s loop. Muted + playsInline
@@ -86,9 +89,9 @@ export default function Hero({ reviewSummary }: HeroProps) {
             in globals.css) it animates on the page itself. On lg it reaches 80px
             past the content padding on each side (the section clips overflow),
             but never so tall that it pushes the CTA below the fold: the width
-            is also capped at 16:9 of the viewport height minus ~15rem (navbar,
-            button, reassurance line; the button overlaps the film by ~2rem). */}
-        <div className="hero-rise w-full max-w-[1360px] lg:w-[min(calc(100%+160px),calc((100svh-15rem)*16/9))]">
+            is also capped at 16:9 of the viewport height minus ~19rem (navbar,
+            h1, button, reassurance line; the button overlaps the film by ~2rem). */}
+        <div className="hero-rise w-full max-w-[1360px] lg:w-[min(calc(100%+160px),calc((100svh-19rem)*16/9))]">
           <div className="hero-film-fade">
             <video
               ref={filmRef}
