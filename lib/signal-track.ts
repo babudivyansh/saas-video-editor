@@ -13,7 +13,7 @@
 // signal is expressed relative to that clip's own distribution.
 
 import { spawn } from "child_process";
-import { runFFmpegArgs, ffmpegBin } from "@/utils/ffmpeg-render";
+import { runFFmpegArgs, ffmpegBin, capFfmpegArgs, deprioritize } from "@/utils/ffmpeg-render";
 import { logger } from "@/lib/logger";
 import type { WordTiming } from "@/utils/elevenlabs";
 import os from "os";
@@ -66,15 +66,16 @@ function decodePcm(mediaPath: string, startSec = 0, endSec?: number, timeoutMs =
     // rather than recomputing the path (which also skipped the chmod fix).
     const proc = spawn(
       ffmpegBin,
-      [
+      capFfmpegArgs([
         "-v", "error",
         "-ss", String(startSec),
         ...(Number.isFinite(endSec) ? ["-to", String(endSec)] : []),
         "-i", mediaPath,
         "-vn", "-ac", "1", "-ar", String(PCM_RATE), "-f", "s16le", "-",
-      ],
+      ]),
       { stdio: ["ignore", "pipe", "ignore"] },
     );
+    deprioritize(proc);
 
     let settled = false;
     const chunks: Buffer[] = [];

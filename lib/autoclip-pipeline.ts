@@ -2156,9 +2156,10 @@ export async function renderJob(payload: RenderPayload, ctx: JobContext = SINGLE
     //
     // The bound matters: each render is itself multi-threaded ffmpeg, so
     // unbounded parallelism would thrash. RENDER_CLIP_CONCURRENCY tunes it per
-    // deployment; 3 is a reasonable default for a small VPS.
+    // deployment; 2 suits the few cores a shared Hostinger plan gets (3 kept
+    // that plan at 100% CPU — see ffmpegThreads in utils/ffmpeg-render.ts).
     const poolSize = Math.max(1, Math.min(
-      parseInt(env.RENDER_CLIP_CONCURRENCY || "3", 10) || 3,
+      parseInt(env.RENDER_CLIP_CONCURRENCY || "2", 10) || 2,
       clips.length,
     ));
 

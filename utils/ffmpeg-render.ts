@@ -1,4 +1,5 @@
 import fs from "fs";
+import os from "os";
 import path from "path";
 import { spawn } from "child_process";
 import ffmpegStatic from "ffmpeg-static";
@@ -73,7 +74,58 @@ export const ffmpegBin = resolveFfmpegBin();
 // honoured for spawn (verified against Next 16.2's Turbopack); passing the
 // command through a parameter is, since a parameter is fully opaque to it.
 // Typed as `spawn` so each call keeps its overload-specific stdio types.
-const spawnFfmpeg = ((...args: unknown[]) => (spawn as (...a: unknown[]) => unknown)(...args)) as typeof spawn;
+//
+// Every ffmpeg also gets its thread caps (capFfmpegArgs) and a lowered OS
+// priority (deprioritize) here, so no call site can forget them.
+const spawnFfmpeg = ((cmd: unknown, args: unknown, ...rest: unknown[]) => {
+  const proc = (spawn as (...a: unknown[]) => unknown)(cmd, capFfmpegArgs(args as string[]), ...rest);
+  deprioritize(proc as ReturnType<typeof spawn>);
+  return proc;
+}) as typeof spawn;
+
+// Threads per ffmpeg for decoding and filtering. Encoding is already pinned to
+// one thread (encodeArgs), but decode and the filtergraph default to one
+// thread PER CORE THE OS REPORTS — and production is a shared Hostinger box
+// that reports 48 cores while the plan gets only a few. Three parallel clip
+// renders therefore ran ~100+ busy threads against that limit: 100% CPU and
+// the account's resource limits exhausted for as long as a run lasted.
+// FFMPEG_THREADS tunes it per deployment.
+export function ffmpegThreads(): number {
+  const n = parseInt(process.env.FFMPEG_THREADS || "", 10);
+  return Number.isFinite(n) && n > 0 ? n : 2;
+}
+
+/**
+ * Caps ffmpeg's decoder and filtergraph threads (see ffmpegThreads). Adds
+ * `-filter_threads`/`-filter_complex_threads` as global options and a
+ * `-threads` input option before every `-i` that doesn't already set one. An
+ * output `-threads` (encodeArgs' libx264 pin) comes after the last `-i`, so
+ * it is never mistaken for an input's. Probe-only calls (`-i file` and
+ * nothing else) are left as they are.
+ */
+export function capFfmpegArgs(args: string[]): string[] {
+  if (args.length <= 2 || !args.includes("-i")) return args;
+  const t = String(ffmpegThreads());
+  const out: string[] = args.includes("-filter_threads") ? [] : ["-filter_threads", t, "-filter_complex_threads", t];
+  let inputHasThreads = false;
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (a === "-threads") inputHasThreads = true;
+    if (a === "-i") {
+      if (!inputHasThreads) out.push("-threads", t);
+      inputHasThreads = false;
+    }
+    out.push(a);
+    if (a === "-i" && i + 1 < args.length) out.push(args[++i]);
+  }
+  return out;
+}
+
+/** Below the web server, so a render can't make the site itself unresponsive. */
+export function deprioritize(proc: { pid?: number }): void {
+  if (!proc.pid) return;
+  try { os.setPriority(proc.pid, 10); } catch { /* not permitted here — harmless */ }
+}
 
 /**
  * Where ffmpeg was resolved from, and whether that path exists on disk.
