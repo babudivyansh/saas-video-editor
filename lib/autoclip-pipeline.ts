@@ -27,7 +27,7 @@ import { uploadFileToS3 } from "@/utils/s3-upload";
 import { type WordTiming } from "@/utils/elevenlabs";
 import { transcribe } from "@/lib/transcription";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { withRetry } from "@/lib/with-retry";
+import { generateWithOverloadFallback } from "@/lib/gemini-overload";
 import { NonRetryableError, type JobContext } from "@/lib/render-queue";
 import { logger } from "@/lib/logger";
 import { notify } from "@/lib/notify";
@@ -538,6 +538,11 @@ export function splitIntoWindows(
   return windows;
 }
 
+// Clip picking. The fallback only runs while the primary is overloaded; it is
+// the same family on separate capacity, and cheaper, so an outage costs less.
+const GEMINI_PICK_MODEL = "gemini-2.5-flash";
+const GEMINI_PICK_FALLBACK_MODEL = "gemini-2.5-flash-lite";
+
 async function getClipsFromGemini(
   transcriptText: string,
   durationSec: number,
@@ -547,7 +552,7 @@ async function getClipsFromGemini(
   instructions: string,
 ): Promise<GeminiSegment[]> {
   const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY!);
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+  const model = genAI.getGenerativeModel({ model: GEMINI_PICK_MODEL });
   const hasTranscript = transcriptText.trim().length > 0;
 
   const sharedRules = `Return ONLY a valid JSON array — no explanation, no markdown fences. Example:
@@ -606,7 +611,18 @@ ${sharedRules}`;
   // on a long source (nine straight timeouts across three job retries,
   // Sentry CLIPIRO-WEB-B/-C). A timeout that repeats at two minutes won't
   // clear on a third try, so two attempts.
-  const result = await withRetry((signal) => model.generateContent(prompt, { signal }), { timeoutMs: 120_000, maxAttempts: 2 });
+  // A 503 "high demand" is a capacity spike, not a bad request: backed off and,
+  // if 2.5 Flash stays saturated, retried on Flash-Lite (lib/gemini-overload.ts).
+  const result = await generateWithOverloadFallback({
+    call: (name, signal) => (name === GEMINI_PICK_MODEL ? model : genAI.getGenerativeModel({ model: name }))
+      .generateContent(prompt, { signal }),
+    primary: GEMINI_PICK_MODEL,
+    fallback: GEMINI_PICK_FALLBACK_MODEL,
+    timeoutMs: 120_000,
+    onFallback: (err) => logger.warn("auto-clip", `${GEMINI_PICK_MODEL} overloaded, using ${GEMINI_PICK_FALLBACK_MODEL}`, {
+      reason: err instanceof Error ? err.message.slice(0, 200) : String(err),
+    }),
+  });
   const text = result.response.text().trim();
   const jsonMatch = text.match(/\[[\s\S]*\]/);
   if (!jsonMatch) throw new Error("Gemini returned no JSON array");
@@ -2089,6 +2105,12 @@ async function renderOneClip(
 
     return { ok: true };
   } catch (err) {
+    // The clip row is gone (its project was deleted, or the picks were redone,
+    // mid-render): nothing to record a failure on, and nothing went wrong.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2025") {
+      logger.info("auto-clip", `clip ${clip.index} of ${projectId} was deleted mid-render; skipped`);
+      return { ok: false };
+    }
     logger.error("auto-clip", `clip ${clip.index} failed for ${projectId}`, err);
     // Record WHY, not just that it failed. Without this the UI can only say
     // "Failed to render" — Project has carried a user-facing failureReason for

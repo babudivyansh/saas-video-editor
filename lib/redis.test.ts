@@ -13,7 +13,9 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 const state = {
   connected: false,
   getCalls: 0,
+  status: "wait",
   handlers: {} as Record<string, (arg?: unknown) => void>,
+  onceHandlers: [] as Array<{ event: string; fn: () => void }>,
 };
 
 vi.mock("@/lib/env", () => ({ env: { REDIS_URL: "redis://localhost:6379" } }));
@@ -22,9 +24,12 @@ vi.mock("@/lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: 
 vi.mock("ioredis", () => {
   class FakeRedis {
     on(event: string, handler: (arg?: unknown) => void) { state.handlers[event] = handler; return this; }
+    get status() { return state.status; }
+    once(event: string, fn: () => void) { state.onceHandlers.push({ event, fn }); return this; }
+    off(_event: string, fn: () => void) { state.onceHandlers = state.onceHandlers.filter((h) => h.fn !== fn); return this; }
     // Resolves on a later tick, exactly like a real handshake.
     connect() {
-      return new Promise<void>((resolve) => setTimeout(() => { state.connected = true; resolve(); }, 10));
+      return new Promise<void>((resolve) => setTimeout(() => { state.connected = true; state.status = "ready"; resolve(); }, 10));
     }
     async get(key: string) {
       state.getCalls++;
@@ -44,6 +49,8 @@ vi.mock("ioredis", () => {
 beforeEach(() => {
   state.connected = false;
   state.getCalls = 0;
+  state.status = "wait";
+  state.onceHandlers = [];
   vi.resetModules();
   // The client is cached on globalThis outside production, and resetModules
   // does not clear globals — without this, every test after the first reuses
@@ -93,5 +100,46 @@ describe("redis client readiness", () => {
     for (const event of ["error", "close", "reconnecting", "ready"]) {
       expect(state.handlers[event], `missing ${event} handler`).toBeTypeOf("function");
     }
+  });
+});
+
+describe("redis reconnects (Sentry CLIPIRO-WEB-5/-6/-7/-8)", () => {
+  it("waits out a reconnect already under way instead of failing into the fallback", async () => {
+    const { redis } = await import("./redis");
+    await redis.get("warm"); // first connection settled
+    state.handlers.ready?.();
+    // Upstash dropped the idle connection; ioredis is reconnecting.
+    state.connected = false;
+    state.status = "reconnecting";
+    state.handlers.close?.();
+    setTimeout(() => {
+      state.connected = true;
+      state.status = "ready";
+      for (const h of state.onceHandlers.filter((x) => x.event === "ready")) h.fn();
+    }, 20);
+    expect(await redis.get("session:abc")).toBe("value:session:abc");
+  });
+
+  it("does not make every command wait while Redis is genuinely down", async () => {
+    // Never connected (or long gone): the old fail-fast-into-fallback stands,
+    // or every request would pay the wait.
+    const { redis } = await import("./redis");
+    await redis.get("warm");
+    state.connected = false;
+    state.status = "reconnecting"; // no fresh drop of a live connection
+    const t0 = Date.now();
+    expect(await redis.get("session:abc")).toBeNull(); // in-memory fallback
+    expect(Date.now() - t0).toBeLessThan(500);
+  });
+
+  it("logs a routine close/reconnect as a warning, a real error as an error", async () => {
+    const { logger } = await import("@/lib/logger");
+    await import("./redis");
+    state.handlers.close?.();
+    state.handlers.reconnecting?.();
+    expect(logger.warn).toHaveBeenCalledWith("redis", "connection closed", undefined);
+    expect(logger.warn).toHaveBeenCalledWith("redis", "connection reconnecting", undefined);
+    state.handlers.error?.(new Error("WRONGPASS"));
+    expect(logger.error).toHaveBeenCalledWith("redis", "connection error", expect.any(Error));
   });
 });
