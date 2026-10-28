@@ -7,6 +7,7 @@ import { isPublicApiRoute } from "@/lib/api-public-routes";
 import { ATTRIBUTION_COOKIE, buildAttributionCookie } from "@/lib/marketing-attribution";
 import { rateLimit } from "@/lib/rate-limit";
 import { buildCsp } from "@/lib/csp";
+import { adminOrigin, isAdminApiPath, isAdminHostAuthPage, isAdminPagePath, isStaticFilePath, requestHost } from "@/lib/admin-host";
 
 // Sets the enforcing CSP (see lib/csp.ts) on every response this file returns,
 // API responses included.
@@ -76,7 +77,16 @@ export async function proxy(request: NextRequest) {
   const nonce = Buffer.from(randomUUID()).toString("base64");
   const csp = buildCsp();
 
+  const admin = adminOrigin();
+  const onAdminHost = admin !== null && requestHost(request) === admin.host;
+
   if (pathname.startsWith("/api/")) {
+    // Once the admin console has its own host, its API answers only there:
+    // a session cookie from the main site can't reach it. (Nothing outside
+    // app/admin calls /api/admin.)
+    if (admin && !onAdminHost && isAdminApiPath(pathname)) {
+      return withCsp(NextResponse.json({ error: "Not found" }, { status: 404 }), csp);
+    }
     if (isPublicApiRoute(pathname)) {
       return withCsp(NextResponse.next(), csp);
     }
@@ -129,6 +139,31 @@ export async function proxy(request: NextRequest) {
   }
 
   const auth = getOptimisticAuth(request);
+
+  // Admin console on its own host (lib/admin-host.ts). The main site sends
+  // /admin there; the admin host serves /admin plus the sign-in pages it
+  // needs, and hands everything else back to the main site.
+  if (admin && !onAdminHost && isAdminPagePath(pathname)) {
+    return withCsp(NextResponse.redirect(new URL(pathname + request.nextUrl.search, admin), 308), csp);
+  }
+  if (onAdminHost && !isStaticFilePath(pathname)) {
+    // "/" is the subdomain's front door; "/dashboard" is where /login sends
+    // anyone who arrived without a ?next=.
+    if (pathname === "/" || pathname === "/dashboard") {
+      return withCsp(NextResponse.redirect(new URL("/admin", request.url)), csp);
+    }
+    if (isAdminPagePath(pathname) && !auth) {
+      // The real /login, not the console's inline form: that one can't finish a 2FA sign-in.
+      return withCsp(NextResponse.redirect(new URL(withNextParam("/login", pathname + request.nextUrl.search), request.url)), csp);
+    }
+    if (isAdminHostAuthPage(pathname) && auth) {
+      return withCsp(NextResponse.redirect(new URL("/admin", request.url)), csp);
+    }
+    if (!isAdminPagePath(pathname) && !isAdminHostAuthPage(pathname)) {
+      const mainSite = process.env.NEXT_PUBLIC_APP_URL || "https://clipiro.com";
+      return withCsp(NextResponse.redirect(new URL(pathname + request.nextUrl.search, mainSite)), csp);
+    }
+  }
 
   const isProtectedPage = PROTECTED_PAGE_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
   if (isProtectedPage && !auth) {
@@ -200,6 +235,9 @@ export async function proxy(request: NextRequest) {
       });
     }
   }
+
+  // The admin host's sign-in pages are copies of the main site's; keep them out of search.
+  if (onAdminHost) response.headers.set("X-Robots-Tag", "noindex, nofollow");
 
   return response;
 }

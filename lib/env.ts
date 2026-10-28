@@ -220,6 +220,9 @@ const schema = z.object({
   ELEVENLABS_VOICE_SPONGEBOB: z.string().optional(),
 
   NEXT_PUBLIC_APP_URL: z.string().default("http://localhost:3000"),
+  // The admin console's own origin, e.g. https://admin.clipiro.com — routed by
+  // Host in proxy.ts (lib/admin-host.ts). Unset: /admin stays on the main site.
+  ADMIN_ORIGIN: z.union([z.literal(""), z.string().url()]).optional(),
   NEXT_PUBLIC_MUSIC_BASE: z.string().optional(),
   NEXT_PUBLIC_DISCORD_INVITE_URL: z.string().optional(),
   NEXT_PUBLIC_INSTAGRAM_URL: z.string().optional(),
