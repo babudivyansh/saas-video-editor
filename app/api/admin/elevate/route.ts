@@ -6,6 +6,7 @@ import { createElevationOtp, isElevated, verifyElevationOtp, ELEVATION_HOURS } f
 import { sendOtpEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
 import { verifySecondFactor } from "@/lib/two-factor-verify";
+import { isAdminHostRequest } from "@/lib/admin-host";
 
 // Admin step-up auth. Deliberately uses requireAdmin (role check) WITHOUT the
 // elevation gate — this is the route that grants elevation.
@@ -42,6 +43,9 @@ export async function GET(req: NextRequest) {
     elevated: await isElevated(admin.userId, admin.sessionId),
     hours: ELEVATION_HOURS,
     twoFactorEnabled: Boolean(user?.twoFactorEnabled && user.twoFactorSecretEnc),
+    // On the admin host, signing in grants elevation (2fa/verify-login), so an
+    // expired window means "sign in again", not this route's email-code form.
+    signInElevates: isAdminHostRequest(req),
   });
 }
 

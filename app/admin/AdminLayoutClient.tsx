@@ -39,6 +39,22 @@ function IcMenu({ open }: { open: boolean }) {
   );
 }
 
+// Admin host only: the 8h admin window closed (or this session predates it),
+// and the way back in is the same single sign-in that opened it.
+function AdminSignInAgain({ onSignOut }: { onSignOut: () => void | Promise<void> }) {
+  return (
+    <div className="flex h-screen items-center justify-center bg-bg text-fg px-4">
+      <div className="bg-panel rounded-2xl border border-line shadow-sm p-8 w-full max-w-sm text-center">
+        <h1 className="text-lg font-bold text-fg mb-1">Admin session expired</h1>
+        <p className="text-sm text-fg-muted mb-5">For security, admin access lasts 8 hours. Sign in again to continue.</p>
+        <Button variant="primary" className="w-full" onClick={() => void onSignOut()}>
+          Sign in again
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // Step-up sign-in: even with a valid dashboard session, /admin requires a
 // fresh emailed code plus the admin's authenticator code (8h window). The
 // screen mirrors the real server-side gate — every /api/admin/* call 403s
@@ -356,7 +372,9 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
     queryKey: ["admin-elevated", token],
     queryFn: async () => {
       const r = await fetch("/api/admin/elevate", { headers: { Authorization: `Bearer ${token}` } });
-      return r.ok ? ((await r.json()) as { elevated: boolean }) : { elevated: false };
+      return r.ok
+        ? ((await r.json()) as { elevated: boolean; twoFactorEnabled?: boolean; signInElevates?: boolean })
+        : { elevated: false };
     },
     enabled: !!token && !!user && user.role === "ADMIN",
     refetchInterval: 5 * 60 * 1000,
@@ -381,6 +399,12 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
   }
 
   if (!elevated) {
+    // On the admin host the sign-in itself unlocks the console, so a closed
+    // window only needs a fresh sign-in. Without 2FA the gate below still
+    // shows, because it explains that 2FA has to be turned on first.
+    if (elevatedData?.signInElevates && elevatedData.twoFactorEnabled) {
+      return <AdminSignInAgain onSignOut={signOut} />;
+    }
     return <AdminGate email={user.email} onElevated={() => refetchElevated()} />;
   }
 

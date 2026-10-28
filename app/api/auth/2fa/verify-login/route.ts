@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { setSessionCookie, setLocaleCookieFromUser } from "@/lib/auth";
+import { setSessionCookie, setLocaleCookieFromUser, verifyToken } from "@/lib/auth";
+import { isAdminHostRequest } from "@/lib/admin-host";
+import { ELEVATION_HOURS, grantElevation } from "@/lib/admin/elevation";
+import { auditEvent, auditIp } from "@/lib/admin/audit";
 import { finishLogin } from "@/lib/login-tail";
 import { verifySecondFactor } from "@/lib/two-factor-verify";
 import {
@@ -76,6 +79,24 @@ async function handlePOST(req: NextRequest) {
 
   const ip = getClientIp(req);
   const token = await finishLogin(req, user, ip);
+
+  // On the admin host this sign-in IS the admin step-up: a fresh session that
+  // just proved the password (or an emailed code) and the authenticator, on a
+  // host whose cookie and /api/admin nothing else can reach. Asking for an
+  // emailed code + authenticator again (app/api/admin/elevate) repeated it.
+  if (user.role === "ADMIN" && isAdminHostRequest(req)) {
+    const { sessionId } = verifyToken(token);
+    await grantElevation(user.id, sessionId);
+    await auditEvent({
+      actorId: user.id,
+      actorType: "admin",
+      action: "admin.elevated",
+      after: { hours: ELEVATION_HOURS, via: "admin-host-sign-in" },
+      ip: auditIp(req),
+      userAgent: req.headers.get("user-agent") ?? undefined,
+      sessionId,
+    });
+  }
 
   const res = NextResponse.json({
     token,

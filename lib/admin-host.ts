@@ -26,6 +26,12 @@ export function requestHost(req: NextRequest): string {
   return (req.headers.get("host") ?? req.nextUrl.host).toLowerCase();
 }
 
+/** True when ADMIN_ORIGIN is configured and this request came in on it. */
+export function isAdminHostRequest(req: NextRequest): boolean {
+  const admin = adminOrigin();
+  return admin !== null && requestHost(req) === admin.host;
+}
+
 export function isAdminPagePath(pathname: string): boolean {
   return pathname === "/admin" || pathname.startsWith("/admin/");
 }
