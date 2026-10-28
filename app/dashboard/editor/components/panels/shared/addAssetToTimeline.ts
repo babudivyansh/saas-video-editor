@@ -5,6 +5,8 @@
 import { useEditorStore } from "../../../store/editorStore";
 import { docDuration } from "@/lib/editor/doc-utils";
 import { type AssetRow, probeDuration } from "./assetData";
+import { playUiSound } from "../../../hooks/useUiSound";
+import { showPanelToast } from "../../ui/PanelToast";
 
 export async function addAssetToTimeline(asset: AssetRow): Promise<void> {
   const store = useEditorStore.getState();
@@ -46,4 +48,6 @@ export async function addAssetToTimeline(asset: AssetRow): Promise<void> {
       opacity: 1,
     });
   }
+  playUiSound("add");
+  showPanelToast(`Added to the ${asset.kind === "video" ? "video" : asset.kind === "audio" ? "audio" : "image"} track`);
 }

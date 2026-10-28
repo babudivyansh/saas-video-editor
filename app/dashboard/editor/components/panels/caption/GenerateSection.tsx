@@ -13,7 +13,8 @@ import { useEditorStore } from "../../../store/editorStore";
 import { planCaptionGeneration, wordsToCaptionCues, type RawWordTiming } from "@/lib/editor/caption-generation";
 import type { CaptionClip } from "@/lib/editor/types";
 import { DUB_LANGUAGES } from "@/lib/languages";
-import { Button, SelectField } from "../../ui";
+import { Button, SelectField, showPanelToast } from "../../ui";
+import { playUiSound } from "../../../hooks/useUiSound";
 import { clientAuthToken } from "@/lib/client-session";
 
 const AUTO_DETECT = "Auto-detect";
@@ -22,6 +23,7 @@ const LANGUAGE_OPTIONS = [AUTO_DETECT, ...DUB_LANGUAGES.map((l) => l.label)];
 export default function GenerateSection() {
   const doc = useEditorStore((s) => s.doc);
   const addCaptionClips = useEditorStore((s) => s.addCaptionClips);
+  const setActivePanel = useEditorStore((s) => s.setActivePanel);
   const { user, refreshUser } = useAuth();
   const [language, setLanguage] = useState(AUTO_DETECT);
   const [working, setWorking] = useState(false);
@@ -67,6 +69,9 @@ export default function GenerateSection() {
       addCaptionClips(allCues, { replace });
       setProgress("");
       refreshUser();
+      playUiSound("go");
+      showPanelToast(`Captions ready · ${allCues.length} cues`);
+      setActivePanel("captionEdit");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Transcription failed");
       setProgress("");
@@ -76,19 +81,26 @@ export default function GenerateSection() {
     }
   };
 
+  const videoMinutes = Math.max(minMinutes, Math.ceil(doc.tracks.video.reduce((n, c) => n + c.duration, 0) / 60));
+
   return (
-    <div className="flex flex-col gap-2">
-      <SelectField label="Language" value={language} options={LANGUAGE_OPTIONS} onChange={setLanguage} />
-      <Button variant="primary" onClick={() => generate(false)} disabled={working}>
-        {working ? progress || "Transcribing…" : "Generate Captions"}
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-1 rounded-editor-md border border-editor-border bg-editor-card p-3">
+        <div className="flex items-center justify-between text-[12.5px] font-semibold text-editor-text">
+          <span>{plan.length === 0 ? "No video on the timeline" : `${plan.length} video${plan.length === 1 ? "" : "s"} to transcribe`}</span>
+          {plan.length > 0 && <span className="font-mono text-[11px] text-editor-text-muted">~{videoMinutes} min</span>}
+        </div>
+        <p className="text-[11.5px] text-editor-text-muted">
+          1 Clip Minute per minute of video · you have {user?.minutes ?? 0} left
+        </p>
+      </div>
+      <SelectField label="Spoken language" value={language} options={LANGUAGE_OPTIONS} onChange={setLanguage} />
+      <Button variant="primary" onClick={() => generate(hasCaptions)} disabled={working} className={working ? "editor-thinking" : "editor-press"}>
+        {working ? progress || "Transcribing…" : hasCaptions ? "Regenerate captions" : "Generate captions"}
       </Button>
-      {hasCaptions && (
-        <Button variant="subtle" size="sm" onClick={() => generate(true)} disabled={working}>
-          Regenerate
-        </Button>
-      )}
-      <p className="text-[11px] text-fg-subtle">Uses 1 Clip Minute per minute of each video on the timeline.</p>
-      {error && <p className="text-xs text-red-400">{error}</p>}
+      {hasCaptions && <p className="text-[11px] text-editor-text-muted">Regenerating replaces the captions you have now.</p>}
+      <p className="text-[11px] text-editor-text-faint">Takes about 20 seconds per minute of video. You&apos;ll land on Edit when it&apos;s done.</p>
+      {error && <p role="alert" className="text-xs text-red-400">{error}</p>}
     </div>
   );
 }

@@ -9,6 +9,8 @@ import React from "react";
 import { useEditorStore } from "../../../store/editorStore";
 import CaptionTemplateGallery from "@/app/components/captions/CaptionTemplateGallery";
 import { useUpgradePrompt } from "@/app/components/captions/useUpgradePrompt";
+import { showPanelToast } from "../../ui";
+import { playUiSound } from "../../../hooks/useUiSound";
 
 export default function TemplatesGallery() {
   const selection = useEditorStore((s) => s.selection);
@@ -24,6 +26,8 @@ export default function TemplatesGallery() {
     const patch = { templateId };
     if (selected) updateClip("caption", selected.id, patch, true);
     else applyCaptionStyle(patch);
+    playUiSound("pick");
+    if (captions.length > 0) showPanelToast(`${templateId ? "Style" : "Plain captions"} applied to ${selected ? "this cue" : `all ${captions.length} cues`}`);
   };
 
   return (
@@ -31,7 +35,7 @@ export default function TemplatesGallery() {
       <button
         type="button"
         onClick={() => apply(undefined)}
-        className={`w-full rounded-editor-md border px-2.5 py-1.5 text-left text-xs transition-colors ${
+        className={`editor-press w-full rounded-editor-md border px-2.5 py-2 text-left text-xs transition-colors ${
           current ? "border-editor-border text-editor-text-faint hover:border-editor-accent" : "border-editor-accent text-editor-text"
         }`}
       >

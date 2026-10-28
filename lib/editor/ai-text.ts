@@ -112,3 +112,41 @@ export function buildAiTextPrompt(operation: AiTextLlmOperation, text: string, t
       return `Translate the following text into ${targetLang || "Spanish"}. Keep proper nouns and numbers unchanged. ${base}\n\nText:\n${text}`;
   }
 }
+
+// ── "AI write" ideas (Text panel) ───────────────────────────────────────────
+//
+// Generates a few fresh lines from a one-line brief — hooks, titles or calls
+// to action — rather than transforming existing text, so it sits beside the
+// operations above instead of joining AI_TEXT_LLM_OPERATIONS (which the
+// mobile app mirrors one-for-one). Served by app/api/editor/ai-ideas.
+export const AI_IDEA_KINDS = ["hooks", "titles", "ctas"] as const;
+export type AiIdeaKind = (typeof AI_IDEA_KINDS)[number];
+export const AI_IDEA_COUNT = 4;
+
+export function buildAiIdeasPrompt(kind: AiIdeaKind, brief: string): string {
+  const what = {
+    hooks: "opening hook lines that stop a viewer scrolling in the first second",
+    titles: "on-screen titles, 3 to 7 words each",
+    ctas: "end-of-video calls to action (follow, save, comment, link in bio)",
+  }[kind];
+  return `Write ${AI_IDEA_COUNT} different ${what} for a short-form vertical video about the topic below. Each under 70 characters, in the same language as the topic. Return ONLY the lines, one per line — no numbering, no bullets, no quotes, no extra text.\n\nTopic:\n${brief}`;
+}
+
+/** Model output → clean, de-duplicated lines (numbering, bullets and wrapping quotes stripped). */
+export function parseAiIdeas(raw: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const line of raw.split(/\r?\n/)) {
+    const clean = line
+      .replace(/^\s*(?:[-*•]|\d+[.)])\s*/, "")
+      .trim()
+      .replace(/^["“”'‘’]+|["“”'‘’]+$/g, "")
+      .trim();
+    const key = clean.toLowerCase();
+    if (!clean || seen.has(key)) continue;
+    seen.add(key);
+    out.push(clean);
+    if (out.length === AI_IDEA_COUNT) break;
+  }
+  return out;
+}

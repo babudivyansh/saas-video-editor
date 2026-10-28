@@ -21,11 +21,13 @@ import {
 import { useEditorStore, type PanelKind } from "../store/editorStore";
 import { useIsCompactEditor } from "../hooks/useIsCompactEditor";
 import { useIsPhoneEditor } from "../hooks/useIsPhoneEditor";
+import { playUiSound } from "../hooks/useUiSound";
+import { PanelHeader, PanelScreen, PanelToaster } from "./ui";
 
-// Only one of these ever renders at a time (the active tab), so all 11 were
-// loading into the editor's initial bundle for the 10 the user isn't looking
-// at. ssr:false is safe — this whole shell is itself a "use client" component
-// already client-only rendered inside the editor route.
+// Only one of these ever renders at a time (the active tab), so all of them
+// were loading into the editor's initial bundle for the ones the user isn't
+// looking at. ssr:false is safe — this whole shell is itself a "use client"
+// component already client-only rendered inside the editor route.
 const MediaPanel = dynamic(() => import("./panels/MediaPanel"), { ssr: false });
 const StockImagePanel = dynamic(() => import("./panels/StockImagePanel"), { ssr: false });
 const StockAudioPanel = dynamic(() => import("./panels/StockAudioPanel"), { ssr: false });
@@ -33,61 +35,75 @@ const StockVideoPanel = dynamic(() => import("./panels/StockVideoPanel"), { ssr:
 const TextPanel = dynamic(() => import("./panels/TextPanel"), { ssr: false });
 const CaptionPanel = dynamic(() => import("./panels/CaptionPanel"), { ssr: false });
 const StickerPanel = dynamic(() => import("./panels/StickerPanel"), { ssr: false });
+const ShapesPanel = dynamic(() => import("./panels/ShapesPanel"), { ssr: false });
 const EffectPanel = dynamic(() => import("./panels/EffectPanel"), { ssr: false });
 const FilterPanel = dynamic(() => import("./panels/FilterPanel"), { ssr: false });
 const TransitionPanel = dynamic(() => import("./panels/TransitionPanel"), { ssr: false });
 const AiToolsPanel = dynamic(() => import("./panels/AiToolsPanel"), { ssr: false });
 
-// Seven groups (redesign, 2026-10). Each opens on its first panel; groups with
-// more than one panel show a small tab row at the top of the panel.
+// Seven groups (tabbed redesign, 2026-10). Every group opens on its first
+// tab and shows the same header: title, sound switch, sliding tab bar.
 const GROUPS: { id: string; label: string; icon: React.ReactNode; panels: { id: PanelKind; label: string }[]; ai?: boolean }[] = [
   { id: "media", label: "Media", icon: <Clapperboard className="h-5 w-5" />, panels: [
-    { id: "media", label: "Your media" }, { id: "video", label: "Stock video" }, { id: "image", label: "Stock images" },
+    { id: "media", label: "Yours" }, { id: "video", label: "Stock video" }, { id: "image", label: "Images" },
   ] },
-  { id: "text", label: "Text", icon: <Type className="h-5 w-5" />, panels: [{ id: "text", label: "Text" }] },
-  { id: "caption", label: "Captions", icon: <Captions className="h-5 w-5" />, panels: [{ id: "caption", label: "Captions" }] },
-  { id: "audio", label: "Audio", icon: <Music2 className="h-5 w-5" />, panels: [{ id: "audio", label: "Music" }] },
-  { id: "elements", label: "Elements", icon: <Shapes className="h-5 w-5" />, panels: [{ id: "sticker", label: "Stickers & GIFs" }] },
+  { id: "text", label: "Text", icon: <Type className="h-5 w-5" />, panels: [
+    { id: "text", label: "Basic" }, { id: "textTemplates", label: "Templates" }, { id: "textAi", label: "AI write" },
+  ] },
+  { id: "caption", label: "Captions", icon: <Captions className="h-5 w-5" />, panels: [
+    { id: "caption", label: "Generate" }, { id: "captionEdit", label: "Edit" }, { id: "captionStyle", label: "Style" },
+  ] },
+  { id: "audio", label: "Audio", icon: <Music2 className="h-5 w-5" />, panels: [
+    { id: "audio", label: "Music" }, { id: "myAudio", label: "Your audio" },
+  ] },
+  { id: "elements", label: "Elements", icon: <Shapes className="h-5 w-5" />, panels: [
+    { id: "sticker", label: "Stickers" }, { id: "shape", label: "Shapes" },
+  ] },
   { id: "effects", label: "Effects", icon: <Wand2 className="h-5 w-5" />, panels: [
     { id: "effect", label: "Effects" }, { id: "filter", label: "Filters" }, { id: "transition", label: "Transitions" },
   ] },
-  { id: "ai", label: "AI tools", icon: <Sparkles className="h-5 w-5" />, panels: [{ id: "ai", label: "AI tools" }], ai: true },
+  { id: "ai", label: "AI tools", icon: <Sparkles className="h-5 w-5" />, ai: true, panels: [
+    { id: "ai", label: "Selection" }, { id: "aiCaptions", label: "All captions" }, { id: "aiVideo", label: "Video" },
+  ] },
 ];
 const groupOf = (p: PanelKind) => GROUPS.find((g) => g.panels.some((x) => x.id === p)) ?? GROUPS[0];
 
-// The active group's sub-tab row (when it has more than one panel) and panel.
+function ActivePanel({ panel }: { panel: PanelKind }) {
+  switch (panel) {
+    case "media": return <MediaPanel />;
+    case "video": return <StockVideoPanel />;
+    case "image": return <StockImagePanel />;
+    case "text": return <TextPanel tab="basic" />;
+    case "textTemplates": return <TextPanel tab="templates" />;
+    case "textAi": return <TextPanel tab="ai" />;
+    case "caption": return <CaptionPanel tab="generate" />;
+    case "captionEdit": return <CaptionPanel tab="edit" />;
+    case "captionStyle": return <CaptionPanel tab="style" />;
+    case "audio": return <StockAudioPanel />;
+    case "myAudio": return <MediaPanel kind="audio" />;
+    case "sticker": return <StickerPanel />;
+    case "shape": return <ShapesPanel />;
+    case "effect": return <EffectPanel />;
+    case "filter": return <FilterPanel />;
+    case "transition": return <TransitionPanel />;
+    case "ai": return <AiToolsPanel tab="selection" />;
+    case "aiCaptions": return <AiToolsPanel tab="captions" />;
+    case "aiVideo": return <AiToolsPanel tab="video" />;
+    default: return null;
+  }
+}
+
+// The active group's header (title, sound switch, tab bar) and its tab's screen.
 function PanelBody() {
   const activePanel = useEditorStore((s) => s.activePanel);
   const setActivePanel = useEditorStore((s) => s.setActivePanel);
+  const group = groupOf(activePanel);
   return (
     <>
-      {groupOf(activePanel).panels.length > 1 && (
-        <div role="tablist" aria-label={groupOf(activePanel).label} className="sticky top-0 z-10 flex gap-1 border-b border-editor-border bg-editor-bg/95 p-2 backdrop-blur">
-          {groupOf(activePanel).panels.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              role="tab"
-              aria-selected={activePanel === p.id}
-              onClick={() => setActivePanel(p.id)}
-              className={`flex-1 rounded-editor-sm px-2 py-1.5 text-[12px] font-semibold transition-colors ${activePanel === p.id ? "bg-editor-card text-editor-text" : "text-editor-text-muted hover:text-editor-text"}`}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-      )}
-      {activePanel === "media" && <MediaPanel />}
-      {activePanel === "image" && <StockImagePanel />}
-      {activePanel === "video" && <StockVideoPanel />}
-      {activePanel === "audio" && <StockAudioPanel />}
-      {activePanel === "text" && <TextPanel />}
-      {activePanel === "caption" && <CaptionPanel />}
-      {activePanel === "sticker" && <StickerPanel />}
-      {activePanel === "effect" && <EffectPanel />}
-      {activePanel === "filter" && <FilterPanel />}
-      {activePanel === "transition" && <TransitionPanel />}
-      {activePanel === "ai" && <AiToolsPanel />}
+      <PanelHeader title={group.label} tabs={group.panels} value={activePanel} onChange={setActivePanel} layoutId={`panel-tabs-${group.id}`} />
+      <PanelScreen screenKey={activePanel}>
+        <ActivePanel panel={activePanel} />
+      </PanelScreen>
     </>
   );
 }
@@ -132,6 +148,7 @@ export default function SidebarTabs() {
               type="button"
               aria-pressed={active}
               onClick={() => {
+                if (!active) playUiSound("tab");
                 setActivePanel(groupOf(activePanel).id === tab.id ? activePanel : tab.panels[0].id);
                 setCollapsed(false);
               }}
@@ -160,8 +177,11 @@ export default function SidebarTabs() {
         style={{ overflow: "hidden" }}
         className="fixed inset-y-0 left-16 z-40 bg-editor-bg shadow-2xl xl:static xl:inset-auto xl:left-auto xl:z-auto xl:shadow-none"
       >
-        <div className="h-full w-80 overflow-y-auto overflow-x-hidden">
-          <PanelBody />
+        <div className="relative h-full w-80">
+          <div className="h-full overflow-y-auto overflow-x-hidden">
+            <PanelBody />
+          </div>
+          <PanelToaster />
         </div>
       </motion.div>
 
@@ -233,8 +253,11 @@ function PhoneTools({ collapsed, setCollapsed }: { collapsed: boolean; setCollap
               <X className="h-5 w-5" />
             </button>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
-            <PanelBody />
+          <div className="relative min-h-0 flex-1">
+            <div className="h-full overflow-y-auto overflow-x-hidden">
+              <PanelBody />
+            </div>
+            <PanelToaster />
           </div>
         </div>
       )}

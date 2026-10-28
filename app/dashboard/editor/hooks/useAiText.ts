@@ -5,7 +5,7 @@
 // /api/editor/ai-text (free under a daily fair-use cap — lib/fair-use.ts).
 
 import { useCallback, useState } from "react";
-import { addEmojisToText, autoLineBreaks, removeFillerWords, type AiTextOperation, isLlmOperation } from "@/lib/editor/ai-text";
+import { addEmojisToText, autoLineBreaks, removeFillerWords, type AiTextOperation, type AiIdeaKind, isLlmOperation } from "@/lib/editor/ai-text";
 import { clientAuthToken } from "@/lib/client-session";
 
 export const AI_TEXT_ACTIONS: { op: AiTextOperation; label: string; free?: boolean }[] = [
@@ -57,4 +57,33 @@ export function useAiText() {
   }, []);
 
   return { run, working, error, setError };
+}
+
+/** Text panel "AI write": a few fresh hooks / titles / CTAs from a one-line brief. */
+export function useAiIdeas() {
+  const [working, setWorking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const write = useCallback(async (kind: AiIdeaKind, brief: string): Promise<string[] | null> => {
+    setError(null);
+    if (!brief.trim()) { setError("Describe the video first."); return null; }
+    setWorking(true);
+    try {
+      const res = await fetch("/api/editor/ai-ideas", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${clientAuthToken()}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ kind, brief }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { ideas?: string[]; error?: string };
+      if (!res.ok || !data.ideas?.length) throw new Error(data.error ?? "AI request failed — try again");
+      return data.ideas;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "AI request failed — try again");
+      return null;
+    } finally {
+      setWorking(false);
+    }
+  }, []);
+
+  return { write, working, error };
 }

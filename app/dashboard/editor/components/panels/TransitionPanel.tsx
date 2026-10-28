@@ -4,104 +4,75 @@
 // export via ffmpeg xfade (the outgoing clip is freeze-frame-padded so clip
 // timings never shift; see TRANSITION_PRESETS/filtergraph.ts). Presets whose
 // `xfade` is null aren't supported by the pipeline yet and are hidden here.
-// Each preset (bar "Cut") shows a decorative looping GIF via GIPHY — same key
-// already used for stickers — purely to illustrate the vibe, not the actual
-// transition motion (which only exists once applied between two real clips).
+// Each tile plays the move on hover (this clip's frame giving way to the next
+// clip's), and clicking one plays its whoosh.
 
 import React from "react";
 import { useEditorStore } from "../../store/editorStore";
 import { TRANSITION_PRESETS, type TransitionPreset } from "@/lib/editor/types";
-import { usePresetGif } from "./usePresetGif";
-
-const PREVIEW_QUERY: Partial<Record<TransitionPreset, string>> = {
-  fade: "fade transition",
-  slideLeft: "slide transition",
-  slideUp: "slide up transition",
-  zoomIn: "zoom in transition",
-  slideRight: "slide right transition",
-  slideDown: "slide down transition",
-  zoomOut: "zoom out transition",
-  wipe: "wipe transition",
-  dipToBlack: "fade to black",
-};
-
-function PresetButton({
-  presetKey,
-  label,
-  active,
-  onClick,
-}: {
-  presetKey: TransitionPreset;
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  const query = PREVIEW_QUERY[presetKey];
-  const gifUrl = usePresetGif(query ?? "");
-
-  return (
-    <button
-      onClick={onClick}
-      className={`group relative overflow-hidden rounded-xl border text-left text-sm font-semibold transition-all cursor-pointer ${
-        active ? "border-editor-accent bg-editor-accent/15 text-editor-accent" : "border-editor-border bg-editor-card text-editor-text hover:border-editor-border-strong"
-      }`}
-    >
-      {gifUrl && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={gifUrl} alt="" className="h-16 w-full object-cover opacity-60" />
-      )}
-      <span className="block p-3">{label}</span>
-    </button>
-  );
-}
+import { showPanelToast } from "../ui";
+import { playPresetSound, playUiSound } from "../../hooks/useUiSound";
+import { ClipChip, LookFrame, LookTile, NoClipSelected, useLookTarget } from "./effects/lookShared";
 
 export default function TransitionPanel() {
-  const selection = useEditorStore((s) => s.selection);
-  const doc = useEditorStore((s) => s.doc);
   const updateClip = useEditorStore((s) => s.updateClip);
   const applyAll = useEditorStore((s) => s.applyTransitionToAllCuts);
-  const cuts = Math.max(0, doc.tracks.video.length - 1);
-
-  const clip = selection?.track === "video" ? doc.tracks.video.find((c) => c.id === selection.clipId) : null;
+  const { clip, index, frame, firstClip, clipCount } = useLookTarget();
+  const cuts = Math.max(0, clipCount - 1);
 
   if (!clip) {
     return (
-      <div className="p-4">
-        <p className="text-xs leading-relaxed text-editor-text-muted">
-          Select a video clip on the timeline to set its outgoing transition.
-        </p>
+      <div className="editor-stagger flex flex-col gap-3 p-3">
+        <NoClipSelected what="set its outgoing transition" firstClip={firstClip} />
       </div>
     );
   }
 
+  const current = clip.transitionOut ?? "none";
+  const isLast = index === clipCount - 1;
+
   return (
-    <div className="flex flex-col gap-2 p-3">
-      <p className="px-1 text-xs font-semibold uppercase tracking-wide text-editor-text-muted">Transition (out)</p>
-      <div className="grid grid-cols-2 gap-2">
+    <div className="editor-stagger flex flex-col gap-3 p-3">
+      <ClipChip clip={clip} index={index} frame={frame} note={isLast ? "last clip — no cut after it" : `into clip ${index + 2}`} />
+      <div className="editor-stagger-grid grid grid-cols-3 gap-2">
         {(Object.keys(TRANSITION_PRESETS) as TransitionPreset[])
           .filter((key) => key === "none" || TRANSITION_PRESETS[key].xfade !== null)
           .map((key) => (
-          <PresetButton
-            key={key}
-            presetKey={key}
-            label={TRANSITION_PRESETS[key].label}
-            active={(clip.transitionOut ?? "none") === key}
-            onClick={() => updateClip("video", clip.id, { transitionOut: key === "none" ? undefined : key })}
-          />
-        ))}
+            <LookTile
+              key={key}
+              label={key === "none" ? "Cut" : TRANSITION_PRESETS[key].label}
+              active={current === key}
+              className="editor-tx-tile"
+              onClick={() => {
+                playPresetSound("transition", key);
+                updateClip("video", clip.id, { transitionOut: key === "none" ? undefined : key }, true);
+                showPanelToast(key === "none" ? "Straight cut" : `${TRANSITION_PRESETS[key].label} out of clip ${index + 1}`);
+              }}
+            >
+              <LookFrame src={frame} />
+              {key !== "none" && (
+                <span className={`editor-tx-incoming tx-${key} absolute inset-0 flex items-center justify-center bg-[#2e3b3a] text-[11px] font-bold text-editor-text`}>
+                  {key === "dipToBlack" ? "" : "NEXT"}
+                </span>
+              )}
+            </LookTile>
+          ))}
       </div>
       {cuts > 0 && (
         <button
           type="button"
-          onClick={() => applyAll(clip.transitionOut)}
-          className="mt-2 w-full rounded-editor-md border border-editor-border bg-editor-card px-3 py-2 text-[12px] font-semibold text-editor-text hover:border-editor-border-strong"
+          onClick={() => {
+            applyAll(clip.transitionOut);
+            playUiSound("go");
+            showPanelToast(`“${TRANSITION_PRESETS[current].label}” on all ${cuts} cut${cuts === 1 ? "" : "s"}`);
+          }}
+          className="editor-press w-full rounded-editor-md border border-editor-border bg-editor-card px-3 py-2 text-[12px] font-semibold text-editor-text hover:border-editor-accent/50"
         >
-          Use “{TRANSITION_PRESETS[clip.transitionOut ?? "none"].label}” on all {cuts} cut{cuts === 1 ? "" : "s"}
+          Use “{current === "none" ? "Cut" : TRANSITION_PRESETS[current].label}” on all {cuts} cut{cuts === 1 ? "" : "s"}
         </button>
       )}
-      <p className="mt-1 px-1 text-[10px] leading-snug text-editor-text-muted">
-        Applied to the exported video as a 0.5s crossfade into the next clip. The canvas
-        approximates it as a fade.
+      <p className="px-0.5 text-[10.5px] leading-snug text-editor-text-faint">
+        Exported as a 0.5s transition into the next clip. The canvas approximates it as a fade.
       </p>
     </div>
   );
