@@ -320,6 +320,7 @@
     "copyKey": "复制密钥",
     "done": "完成",
     "keyName": "密钥名称",
+    "confirmIdentity": "确认是你本人",
     "keyNamePlaceholder": "例如：生产服务器",
     "scopes": "权限范围",
     "expires": "到期时间",

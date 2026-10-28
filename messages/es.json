@@ -320,6 +320,7 @@
     "copyKey": "Copiar clave",
     "done": "Listo",
     "keyName": "Nombre de la clave",
+    "confirmIdentity": "Confirma que eres tú",
     "keyNamePlaceholder": "p. ej., Servidor de producción",
     "scopes": "Alcances",
     "expires": "Vence",

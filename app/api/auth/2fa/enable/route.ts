@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthUser } from "@/lib/auth";
+import { getAuthUser, invalidateAllSessions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { sendTwoFactorChangedAlertEmail } from "@/lib/email";
@@ -50,6 +50,12 @@ async function handlePOST(req: NextRequest) {
   });
 
   await redis.del(`2fa-setup:${auth.userId}`);
+
+  // Turning 2FA on is often a response to suspected compromise, so any other
+  // session (which never passed the new second factor) is signed out. This
+  // device, which just proved the code, stays signed in — same shape as
+  // disable and change-password.
+  await invalidateAllSessions(auth.userId, auth.sessionId).catch(() => {});
 
   const user = await prisma.user.findUnique({
     where: { id: auth.userId },

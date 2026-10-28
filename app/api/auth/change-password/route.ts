@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { getAuthUser, invalidateAllSessions } from "@/lib/auth";
+import { getAuthUser, invalidateAllSessions, revokeAllApiKeys } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { sendPasswordChangedAlertEmail } from "@/lib/email";
 import { logger } from "@/lib/logger";
@@ -42,6 +42,8 @@ async function handlePOST(req: NextRequest) {
   // password correctly stays signed in (matches Stripe/GitHub/Vercel; forcing
   // this tab to also re-login immediately after a successful change is bad UX).
   await invalidateAllSessions(auth.userId, auth.sessionId).catch(() => {});
+  // API keys have no "this device" to keep — all of them go.
+  await revokeAllApiKeys(auth.userId);
 
   // Non-preference-gated security alert — never suppressed by notification prefs.
   const timeStr = passwordChangedAt.toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" });

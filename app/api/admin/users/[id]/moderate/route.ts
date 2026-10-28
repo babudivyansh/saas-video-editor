@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { invalidateSession } from "@/lib/auth";
+import { invalidateSession, revokeAllApiKeys } from "@/lib/auth";
 import { withAdmin, parseBody } from "@/lib/admin/api";
 import { auditAdminAction, auditIp } from "@/lib/admin/audit";
 import { moderateUserSchema } from "@/lib/admin/schemas";
@@ -33,6 +33,9 @@ export const POST = withAdmin<{ id: string }>(async (req, { admin, params }) => 
     const suspendedAt = new Date();
     await prisma.user.update({ where: { id }, data: { suspendedAt } });
     await invalidateSession(id);
+    // getApiKeyAuth already refuses a suspended owner's keys; revoking them
+    // too means unsuspending doesn't silently bring them back.
+    await revokeAllApiKeys(id);
     await auditAdminAction(admin.userId, "user.suspended", id, {
       before: { suspendedAt: null },
       after: { suspendedAt },

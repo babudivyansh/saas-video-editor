@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthUser, invalidateAllSessions } from "@/lib/auth";
+import { getAuthUser, invalidateAllSessions, revokeAllApiKeys } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { verifyStepUp } from "@/lib/step-up";
 import { verifyStepUpSecondFactor } from "@/lib/two-factor-verify";
@@ -40,6 +40,7 @@ async function handlePOST(req: NextRequest) {
   // holding a session that outlived it. Same keep-this-device shape as
   // change-password: whoever just re-typed the password stays signed in.
   await invalidateAllSessions(auth.userId, auth.sessionId).catch(() => {});
+  await revokeAllApiKeys(auth.userId);
 
   const timeStr = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" });
   sendTwoFactorChangedAlertEmail(user.email, greetingName(user.name), false, timeStr)

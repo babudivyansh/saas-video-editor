@@ -320,6 +320,7 @@
     "copyKey": "কী কপি করুন",
     "done": "সম্পন্ন",
     "keyName": "কী নাম",
+    "confirmIdentity": "এটি আপনিই তা নিশ্চিত করুন",
     "keyNamePlaceholder": "যেমন, প্রোডাকশন সার্ভার",
     "scopes": "স্কোপ",
     "expires": "মেয়াদ শেষ",

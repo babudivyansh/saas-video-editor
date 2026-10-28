@@ -30,7 +30,8 @@ const update = vi.fn(async () => { order.push("update"); return {}; });
 vi.mock("@/lib/prisma", () => ({ prisma: { user: { findUnique, update } } }));
 
 const invalidateAllSessions = vi.fn(async () => {});
-vi.mock("@/lib/auth", () => ({ invalidateAllSessions }));
+const revokeAllApiKeys = vi.fn(async () => 0);
+vi.mock("@/lib/auth", () => ({ invalidateAllSessions, revokeAllApiKeys }));
 
 const claimUnverifiedAccount = vi.fn(async () => {});
 vi.mock("@/lib/account-claim", () => ({ claimUnverifiedAccount }));
@@ -66,6 +67,8 @@ describe("POST /api/auth/reset-password", () => {
       data: { passwordHash: "hashed", hasPassword: true, passwordChangedAt: expect.any(Date) },
     });
     expect(invalidateAllSessions).toHaveBeenCalledWith("u1");
+    // An API key minted under the old password must not survive the reset.
+    expect(revokeAllApiKeys).toHaveBeenCalledWith("u1");
     expect(sendPasswordChangedAlertEmail).toHaveBeenCalledWith("u1@test.local", "Ada", expect.any(String));
     expect(claimUnverifiedAccount).not.toHaveBeenCalled();
   });

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser, generateApiKey } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { verifyStepUp } from "@/lib/step-up";
 import { withRateLimit } from "@/lib/with-rate-limit";
 
 const VALID_SCOPES = ["read", "write"] as const;
@@ -25,13 +26,23 @@ async function handleGET(req: NextRequest) {
 
 // POST — create a new key. Returns the plaintext exactly once; the client
 // must show it to the user immediately, since it can never be retrieved again.
+// Step-up confirmed (password, or an emailed code — lib/step-up.ts): a key
+// outlives the session that minted it, so a hijacked session alone mustn't
+// be able to turn itself into one.
 async function handlePOST(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await req.json().catch(() => ({})) as { name?: string; scopes?: string[]; expiresInDays?: number };
+  const body = await req.json().catch(() => ({})) as {
+    name?: string; scopes?: string[]; expiresInDays?: number; password?: unknown; otp?: unknown;
+  };
   const name = (body.name ?? "").trim().slice(0, 100);
   if (!name) return NextResponse.json({ error: "A name is required" }, { status: 400 });
+
+  const user = await prisma.user.findUnique({ where: { id: auth.userId } });
+  if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+  const stepUp = await verifyStepUp(user, body);
+  if (!stepUp.ok) return NextResponse.json({ error: stepUp.error }, { status: 400 });
 
   const requestedScopes = Array.isArray(body.scopes) && body.scopes.length > 0 ? body.scopes : ["read", "write"];
   const scopes = requestedScopes.filter((s): s is (typeof VALID_SCOPES)[number] => (VALID_SCOPES as readonly string[]).includes(s));

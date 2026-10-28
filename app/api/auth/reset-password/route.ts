@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
-import { invalidateAllSessions } from "@/lib/auth";
+import { invalidateAllSessions, revokeAllApiKeys } from "@/lib/auth";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { validatePassword } from "@/lib/auth-validation";
 import { claimUnverifiedAccount } from "@/lib/account-claim";
@@ -68,8 +68,10 @@ export async function POST(req: NextRequest) {
   }
 
   // A password reset implies the old password may be compromised, so every
-  // device re-logs in.
+  // device re-logs in — and any API key minted under the old password is
+  // revoked too.
   await invalidateAllSessions(user.id);
+  await revokeAllApiKeys(user.id);
 
   // Non-preference-gated security alert, same as change-password.
   const timeStr = passwordChangedAt.toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" });

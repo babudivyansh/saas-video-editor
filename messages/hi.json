@@ -320,6 +320,7 @@
     "copyKey": "की कॉपी करें",
     "done": "हो गया",
     "keyName": "की का नाम",
+    "confirmIdentity": "पुष्टि करें कि यह आप हैं",
     "keyNamePlaceholder": "जैसे, प्रोडक्शन सर्वर",
     "scopes": "स्कोप",
     "expires": "समाप्ति",

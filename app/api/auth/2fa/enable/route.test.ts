@@ -4,14 +4,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { generateTotp, generateTotpSecret, hashRecoveryCode } from "@/lib/totp";
 
-let authUser: { userId: string } | null = { userId: "u1" };
+let authUser: { userId: string; sessionId?: string } | null = { userId: "u1", sessionId: "sess-this" };
 const store = new Map<string, string>();
 const userUpdate = vi.hoisted(() => vi.fn(async () => ({})));
 const codesCreate = vi.hoisted(() => vi.fn(async () => ({})));
 const codesDelete = vi.hoisted(() => vi.fn(async () => ({})));
 const sendAlert = vi.hoisted(() => vi.fn(async () => {}));
 
-vi.mock("@/lib/auth", () => ({ getAuthUser: vi.fn(async () => authUser) }));
+const invalidateAllSessions = vi.hoisted(() => vi.fn(async () => {}));
+vi.mock("@/lib/auth", () => ({ getAuthUser: vi.fn(async () => authUser), invalidateAllSessions }));
 vi.mock("@/lib/with-rate-limit", () => ({ withRateLimit: (h: unknown) => h }));
 vi.mock("@/lib/logger", () => ({ logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
 vi.mock("@/lib/email", () => ({ sendTwoFactorChangedAlertEmail: sendAlert }));
@@ -43,7 +44,7 @@ const post = (body: unknown) =>
 let secret: string;
 beforeEach(() => {
   vi.clearAllMocks();
-  authUser = { userId: "u1" };
+  authUser = { userId: "u1", sessionId: "sess-this" };
   store.clear();
   secret = generateTotpSecret();
   store.set("2fa-setup:u1", `enc:${secret}`);
@@ -66,6 +67,9 @@ describe("POST /api/auth/2fa/enable", () => {
     }));
     expect(store.has("2fa-setup:u1")).toBe(false);
     expect(sendAlert).toHaveBeenCalledWith("a@example.com", expect.any(String), true, expect.any(String));
+    // Other sessions never passed the new second factor — they're signed out;
+    // this one, which just proved the code, is kept.
+    expect(invalidateAllSessions).toHaveBeenCalledWith("u1", "sess-this");
   });
 
   it("rejects a wrong code and changes nothing", async () => {

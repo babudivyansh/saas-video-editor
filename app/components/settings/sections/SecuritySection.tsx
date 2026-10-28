@@ -19,7 +19,8 @@ const labelCls = "text-xs font-semibold text-ink-soft uppercase tracking-wide bl
 
 // With 2FA on, turning it off or changing the email also takes a code from
 // the authenticator (or a recovery code) — the password alone isn't enough
-// (app/api/auth/2fa/disable, app/api/auth/change-email).
+// (app/api/auth/2fa/disable, app/api/auth/2fa/recovery-codes,
+// app/api/auth/change-email).
 function TwoFactorCodeField({ id, value, onChange }: { id: string; value: string; onChange: (v: string) => void }) {
   const t = useTranslations("SettingsSecurity.twoFactorCode");
   return (
@@ -257,6 +258,7 @@ function TwoFactorSection() {
 
   const [regenOpen, setRegenOpen] = useState(false);
   const [regenPassword, setRegenPassword] = useState("");
+  const [regenCode, setRegenCode] = useState("");
   // The codes view is shared with enrollment; this keeps the modal from
   // claiming you're "setting up" 2FA when you're only rotating codes.
   const [codesFromRegen, setCodesFromRegen] = useState(false);
@@ -338,12 +340,13 @@ function TwoFactorSection() {
       const res = await fetch("/api/auth/2fa/recovery-codes", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify(stepUpBody(user?.hasPassword, regenPassword)),
+        body: JSON.stringify({ ...stepUpBody(user?.hasPassword, regenPassword), twoFactorCode: regenCode }),
       });
       const data = await res.json();
       if (!res.ok) { showToast(data.error ?? t("toasts.regenerateFailed"), "error"); return; }
       setRegenOpen(false);
       setRegenPassword("");
+      setRegenCode("");
       setRecoveryCodes(data.recoveryCodes);
       setCodesFromRegen(true);
       setSetupStep("codes");
@@ -423,6 +426,7 @@ function TwoFactorSection() {
         <form onSubmit={regenerateRecoveryCodes} className="space-y-4">
           <p className="text-sm text-ink-soft">{t("regenerateConfirm")}</p>
           <StepUpField autoFocus value={regenPassword} onChange={setRegenPassword} placeholder={t("currentPasswordPlaceholder")} />
+          <TwoFactorCodeField id="settings-regen-2fa-code" value={regenCode} onChange={setRegenCode} />
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" size="sm" onClick={() => setRegenOpen(false)}>{tCommon("cancel")}</Button>
             <Button type="submit" size="sm" disabled={busy}>{busy ? <><IcSpinner /> {t("generating")}</> : t("regenerate")}</Button>

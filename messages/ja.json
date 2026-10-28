@@ -320,6 +320,7 @@
     "copyKey": "キーをコピー",
     "done": "完了",
     "keyName": "キー名",
+    "confirmIdentity": "本人確認",
     "keyNamePlaceholder": "例：本番サーバー",
     "scopes": "スコープ",
     "expires": "有効期限",

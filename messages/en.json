@@ -488,6 +488,7 @@
     "copyKey": "Copy key",
     "done": "Done",
     "keyName": "Key name",
+    "confirmIdentity": "Confirm it's you",
     "keyNamePlaceholder": "e.g. Production server",
     "scopes": "Scopes",
     "expires": "Expires",

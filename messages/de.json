@@ -320,6 +320,7 @@
     "copyKey": "Schlüssel kopieren",
     "done": "Fertig",
     "keyName": "Schlüsselname",
+    "confirmIdentity": "Bestätige, dass du es bist",
     "keyNamePlaceholder": "z. B. Produktionsserver",
     "scopes": "Berechtigungen",
     "expires": "Läuft ab",
