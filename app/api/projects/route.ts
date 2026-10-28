@@ -5,6 +5,7 @@ import { invalidateDashboardSummary } from "@/lib/dashboard-summary-cache";
 import { parseS3Url } from "@/lib/s3-url";
 import { resignOwnedMediaUrl, sourceUrlError } from "@/lib/source-url";
 import { getAssetReadUrl } from "@/utils/s3-upload";
+import { withRateLimit } from "@/lib/with-rate-limit";
 
 // Stored media URLs are permanent and unsigned; re-sign before handing one out.
 // Server-written URLs only (clip thumbnails) — see resignOwnedMediaUrl below.
@@ -93,7 +94,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ projects: withMedia, nextCursor });
 }
 
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -124,3 +125,6 @@ export async function POST(req: NextRequest) {
   await invalidateDashboardSummary(auth.userId);
   return NextResponse.json({ project }, { status: 201 });
 }
+
+// Every other write route is limited; this one could fill the table at will.
+export const POST = withRateLimit(handlePOST, { limit: 30, windowSec: 60, keyBy: "user", name: "projects:create" });
