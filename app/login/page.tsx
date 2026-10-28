@@ -3,6 +3,7 @@ import React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import AuthForm from "@/app/components/AuthForm";
 import AuthArtPanel from "@/app/components/AuthArtPanel";
+import { useAuth } from "@/app/components/AuthContext";
 import { getSafeNextPath, withNextParam } from "@/lib/safe-redirect";
 
 function BlurredBackground() {
@@ -32,8 +33,16 @@ function BlurredBackground() {
 function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { refreshUser } = useAuth();
 
-  const handleSuccess = () => {
+  // Same trap /register fell into: AuthProvider is mounted once at the root
+  // layout and read the signed-in marker before this sign-in set it, so a bare
+  // router.push carried token/user = null onto /dashboard, whose gate opened
+  // the sign-in popup over a valid session. Every 2FA sign-in finishes here
+  // (Google with 2FA redirects to /login?2fa=…), so that's where it showed.
+  // refreshUser() re-reads the marker and resolves the user before we navigate.
+  const handleSuccess = async () => {
+    await refreshUser();
     const next = getSafeNextPath(searchParams.get("next"));
     router.push(next ?? "/dashboard");
   };
