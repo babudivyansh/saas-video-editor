@@ -80,6 +80,8 @@ import { isAllowedStockHost } from "@/lib/stock-hosts";
 
 /** A music bed is a few minutes of MP3; anything past this isn't one. */
 const MAX_MUSIC_BYTES = 50 * 1024 * 1024;
+/** `-map` for the source's audio: its first audio stream only (see the render). */
+export const SOURCE_AUDIO_MAP = "0:a:0";
 import { TARGET_RES } from "@/lib/reframe";
 import os from "os";
 import path from "path";
@@ -599,7 +601,12 @@ Note: no transcript is available, so these picks are not grounded in actual audi
 
 ${sharedRules}`;
 
-  const result = await withRetry((signal) => model.generateContent(prompt, { signal }), { timeoutMs: 30_000 });
+  // gemini-2.5-flash thinks before answering, and this prompt asks for ~18
+  // fields per clip over a full transcript: a 30s cap aborted every attempt
+  // on a long source (nine straight timeouts across three job retries,
+  // Sentry CLIPIRO-WEB-B/-C). A timeout that repeats at two minutes won't
+  // clear on a third try, so two attempts.
+  const result = await withRetry((signal) => model.generateContent(prompt, { signal }), { timeoutMs: 120_000, maxAttempts: 2 });
   const text = result.response.text().trim();
   const jsonMatch = text.match(/\[[\s\S]*\]/);
   if (!jsonMatch) throw new Error("Gemini returned no JSON array");
@@ -1880,7 +1887,12 @@ export async function renderClipFile(
   const brollReady = readyWindows.length > 0;
 
   const videoSrc = isTrimmed ? "[trimmedv]" : "[0:v]";
-  const audioSrc = isTrimmed ? "[trimmeda]" : "0:a";
+  // Only the FIRST audio stream: a bare `0:a` maps every audio track, and
+  // iPhone recordings carry a second spatial-audio (APAC) track FFmpeg has no
+  // decoder for — "Decoder (codec none) not found for input stream #0:1"
+  // failed every render and re-render of those uploads (Sentry CLIPIRO-WEB-A).
+  // `[0:a]` filter labels already resolve to the first matching stream.
+  const audioSrc = isTrimmed ? "[trimmeda]" : SOURCE_AUDIO_MAP;
   const prepends = isTrimmed && selectFilter && aselectFilter ? `[0:v]${selectFilter}[trimmedv];[0:a]${aselectFilter}[trimmeda];` : "";
   // Every branch exposes its result as [video]; captions and then the
   // free-tier watermark are chained onto it.
@@ -1935,7 +1947,7 @@ export async function renderClipFile(
     // Trimming happens in `prepends` ([trimmedv]/[trimmeda]); the source may
     // have no audio when untrimmed, hence the optional map.
     const complex = `${prepends}${videoSrc}${filters.join(",")}[video]${wmComplex}`;
-    return [...baseArgs, "-filter_complex", complex, "-map", videoMap, "-map", isTrimmed ? audioSrc : "0:a?", ...outputArgs, clipPath];
+    return [...baseArgs, "-filter_complex", complex, "-map", videoMap, "-map", isTrimmed ? audioSrc : `${SOURCE_AUDIO_MAP}?`, ...outputArgs, clipPath];
   };
 
   const onRenderProgress = (pct: number) => args.onProgress?.(pct);
