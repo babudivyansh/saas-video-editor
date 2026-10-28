@@ -93,6 +93,10 @@ if (process.env.NODE_ENV !== "production") globalForRedis.redis = client;
 // Awaiting this before the first command closes the race for real.
 let connectSettled: Promise<void> = Promise.resolve();
 
+// When a live connection last dropped (0: none pending), for ready() below.
+let everReady = false;
+let droppedAt = 0;
+
 // Connection-state visibility. `client.on("error", () => {})` silenced every
 // Redis error, so a real outage — wrong URL, TLS mismatch, quota lockout,
 // connection limit — was indistinguishable from a working cache, and the only
@@ -103,6 +107,11 @@ function logState(state: string, detail?: unknown) {
   if (state === lastState) return;
   lastState = state;
   if (state === "ready") logger.info("redis", "connected");
+  // A close + reconnect is routine (Upstash drops idle connections) and
+  // ioredis recovers by itself; as errors they were 130+ Sentry events of
+  // noise (CLIPIRO-WEB-7/-8). A real outage still reports: the "error" event
+  // stays an error, and so does every command that falls back (logFallback).
+  else if (state === "closed" || state === "reconnecting") logger.warn("redis", `connection ${state}`, detail);
   else logger.error("redis", `connection ${state}`, detail);
 }
 
@@ -110,9 +119,16 @@ if (isNewClient) {
   // Still swallow the event itself (an unhandled 'error' would crash the
   // process), but no longer silently.
   client.on("error", (err) => logState("error", err));
-  client.on("close", () => logState("closed"));
+  client.on("close", () => {
+    if (everReady && !droppedAt) droppedAt = Date.now();
+    logState("closed");
+  });
   client.on("reconnecting", () => logState("reconnecting"));
-  client.on("ready", () => logState("ready"));
+  client.on("ready", () => {
+    everReady = true;
+    droppedAt = 0;
+    logState("ready");
+  });
 
   // Eagerly open the connection at startup. If Redis is genuinely down this
   // rejects and commands fall back to the in-memory map as before.
@@ -133,6 +149,36 @@ async function ready(): Promise<void> {
       new Promise<void>((resolve) => setTimeout(resolve, 2000).unref?.()),
     ]);
   } catch { /* fall through to the command, which will use the fallback */ }
+  // The handshake above only covers the FIRST connection. Upstash drops idle
+  // connections; while ioredis reconnects, a command fails instantly (offline
+  // queue off) into the fallback (Sentry CLIPIRO-WEB-5/-6). Wait out THAT
+  // reconnect — a working connection that dropped moments ago, which comes
+  // back in well under a second. Not a Redis that is genuinely down: there
+  // every command (the proxy's maintenance check runs on every request) would
+  // pay the wait, so after a few seconds, or with no connection ever, it fails
+  // fast into the fallback exactly as before.
+  if (droppedAt && Date.now() - droppedAt < FRESH_DROP_MS && RECONNECTING.has(client.status)) {
+    await untilReady(1000);
+  }
+}
+
+const FRESH_DROP_MS = 5000;
+
+// States from which ioredis is on its way back to "ready" by itself. ("end"
+// means it gave up, "wait" that nothing ever connected: waiting is pointless.)
+const RECONNECTING = new Set(["connecting", "connect", "reconnecting", "close"]);
+
+function untilReady(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    const done = () => {
+      clearTimeout(timer);
+      client.off("ready", done);
+      resolve();
+    };
+    const timer = setTimeout(done, ms);
+    timer.unref?.();
+    client.once("ready", done);
+  });
 }
 
 // The fallback is per-process, so a write that lands there is invisible to a
