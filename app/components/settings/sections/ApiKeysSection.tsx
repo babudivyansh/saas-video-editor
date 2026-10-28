@@ -10,6 +10,7 @@ import { Checkbox } from "@/app/components/ui/Checkbox";
 import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
 import { Input } from "@/app/components/ui/Field";
 import { useToast } from "@/app/components/ui/Toast";
+import { StepUpField, stepUpBody } from "@/app/components/settings/StepUpField";
 
 function IcCopy() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>; }
 function IcCheck() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M5 13l4 4L19 7" /></svg>; }
@@ -33,7 +34,7 @@ function isExpired(k: ApiKeyRow) {
 }
 
 export default function ApiKeysPage() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const t = useTranslations("SettingsApiKeys");
   const format = useFormatter();
 
@@ -55,6 +56,8 @@ export default function ApiKeysPage() {
   const [newName, setNewName] = useState("");
   const [newScopes, setNewScopes] = useState<string[]>(["read", "write"]);
   const [newExpiry, setNewExpiry] = useState("");
+  // Creating a key is step-up confirmed (app/api/api-keys POST).
+  const [stepUp, setStepUp] = useState("");
   const [freshKey, setFreshKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -86,19 +89,24 @@ export default function ApiKeysPage() {
   useEffect(() => { void load(); }, [load]);
 
   async function handleCreate() {
-    if (!token || !newName.trim() || newScopes.length === 0 || submitting) return;
+    if (!token || !newName.trim() || newScopes.length === 0 || !stepUp || submitting) return;
     setError(null);
     setSubmitting(true);
     try {
       const res = await fetch("/api/api-keys", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newName.trim(), scopes: newScopes, expiresInDays: newExpiry ? Number(newExpiry) : undefined }),
+        body: JSON.stringify({
+          name: newName.trim(),
+          scopes: newScopes,
+          expiresInDays: newExpiry ? Number(newExpiry) : undefined,
+          ...stepUpBody(user?.hasPassword, stepUp),
+        }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error ?? t("errors.createFailed")); return; }
       setFreshKey(data.plaintext);
-      setNewName(""); setNewScopes(["read", "write"]); setNewExpiry("");
+      setNewName(""); setNewScopes(["read", "write"]); setNewExpiry(""); setStepUp("");
       setCreating(false);
       await load();
     } catch {
@@ -210,9 +218,13 @@ export default function ApiKeysPage() {
               {EXPIRY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </div>
+          <div>
+            <span className="text-xs font-semibold text-ink-soft uppercase tracking-wide block mb-1.5">{t("confirmIdentity")}</span>
+            <StepUpField value={stepUp} onChange={setStepUp} />
+          </div>
           <div className="flex gap-2">
-            <Button onClick={handleCreate} disabled={!newName.trim() || newScopes.length === 0} loading={submitting} size="sm">{t("create")}</Button>
-            <Button type="button" variant="secondary" size="sm" onClick={() => { setCreating(false); setNewName(""); setError(null); }}>{t("cancel")}</Button>
+            <Button onClick={handleCreate} disabled={!newName.trim() || newScopes.length === 0 || !stepUp} loading={submitting} size="sm">{t("create")}</Button>
+            <Button type="button" variant="secondary" size="sm" onClick={() => { setCreating(false); setNewName(""); setStepUp(""); setError(null); }}>{t("cancel")}</Button>
           </div>
         </Card>
       )}

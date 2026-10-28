@@ -521,16 +521,22 @@ export interface ApiKeyAuth {
  * separate from getAuthUser's session-cookie/JWT flow, since these are two
  * different trust boundaries (a leaked API key shouldn't grant the same
  * access surface as a browser session, even though both currently resolve to
- * "acting as this user"). A revoked or expired key always fails closed.
+ * "acting as this user"). A revoked or expired key always fails closed, and
+ * so does a key whose owner is suspended or deactivated — login is blocked
+ * for those accounts, and a key must not outlive that.
  */
 export async function getApiKeyAuth(req: NextRequest): Promise<ApiKeyAuth | null> {
   const authHeader = req.headers.get("authorization");
   const key = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
   if (!key || !key.startsWith(API_KEY_PREFIX)) return null;
 
-  const row = await prisma.apiKey.findUnique({ where: { keyHash: hashApiKey(key) } });
+  const row = await prisma.apiKey.findUnique({
+    where: { keyHash: hashApiKey(key) },
+    include: { user: { select: { suspendedAt: true, deactivatedAt: true } } },
+  });
   if (!row || row.revokedAt) return null;
   if (row.expiresAt && row.expiresAt < new Date()) return null;
+  if (!row.user || row.user.suspendedAt || row.user.deactivatedAt) return null;
 
   // Best-effort — a slow/failed write here shouldn't fail the actual request.
   void prisma.apiKey.update({
@@ -539,6 +545,23 @@ export async function getApiKeyAuth(req: NextRequest): Promise<ApiKeyAuth | null
   }).catch(() => {});
 
   return { userId: row.userId, apiKeyId: row.id, scopes: row.scopes };
+}
+
+/**
+ * Revokes every live API key a user holds. Called wherever the account's
+ * credentials are reset or its access is pulled (password reset/change, 2FA
+ * disable, admin suspend) — signing out sessions alone left a key minted from
+ * a hijacked session working indefinitely. Takes one id or many (admin bulk
+ * suspend). Returns how many keys were revoked.
+ */
+export async function revokeAllApiKeys(userIds: string | string[]): Promise<number> {
+  const ids = Array.isArray(userIds) ? userIds : [userIds];
+  if (ids.length === 0) return 0;
+  const { count } = await prisma.apiKey.updateMany({
+    where: { userId: { in: ids }, revokedAt: null },
+    data: { revokedAt: new Date() },
+  });
+  return count;
 }
 
 /**

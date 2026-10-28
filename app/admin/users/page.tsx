@@ -192,6 +192,9 @@ export default function AdminUsersPage() {
     const d = await res.json().catch(() => ({}));
     if (!res.ok) { showToast(d.error ?? "Bulk action failed", "error"); return; }
     showToast(`${BULK_LABEL[action]}: ${d.affected} account(s)${d.skipped ? `, ${d.skipped} skipped (admins / you)` : ""}`, "success");
+    if (d.sessionRevokeFailed?.length) {
+      showToast(`Couldn't sign out ${d.sessionRevokeFailed.length} account(s) — retry "Sign out" for them`, "error");
+    }
     setSelected(new Set());
     queryClient.invalidateQueries({ queryKey: ["admin-users"] });
   }

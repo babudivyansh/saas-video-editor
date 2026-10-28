@@ -320,6 +320,7 @@
     "copyKey": "نسخ المفتاح",
     "done": "تم",
     "keyName": "اسم المفتاح",
+    "confirmIdentity": "أكّد هويتك",
     "keyNamePlaceholder": "مثال: خادم الإنتاج",
     "scopes": "النطاقات",
     "expires": "تاريخ الانتهاء",

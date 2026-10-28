@@ -4,6 +4,7 @@ import { NextRequest } from "next/server";
 vi.mock("@/lib/auth", () => ({
   requireAdmin: vi.fn(async () => ({ userId: "admin-1", email: "admin@test.co" })),
   invalidateSession: vi.fn(async () => {}),
+  revokeAllApiKeys: vi.fn(async () => 0),
 }));
 
 let user: { suspendedAt: Date | null; role: string } | null;
@@ -29,7 +30,7 @@ vi.mock("@/lib/rate-limit", () => ({
 }));
 
 const { POST } = await import("./route");
-const { invalidateSession } = await import("@/lib/auth");
+const { invalidateSession, revokeAllApiKeys } = await import("@/lib/auth");
 
 const post = (id: string, body: unknown) =>
   POST(
@@ -44,11 +45,12 @@ beforeEach(() => {
 });
 
 describe("user moderation", () => {
-  it("suspend sets suspendedAt AND revokes the live session", async () => {
+  it("suspend sets suspendedAt AND revokes the live session and API keys", async () => {
     const res = await post("u1", { action: "suspend", reason: "abuse", confirm: true });
     expect(res.status).toBe(200);
     expect(updates[0].suspendedAt).toBeInstanceOf(Date);
     expect(invalidateSession).toHaveBeenCalledWith("u1");
+    expect(revokeAllApiKeys).toHaveBeenCalledWith("u1");
   });
 
   it("suspend without confirm is rejected with a validation error", async () => {

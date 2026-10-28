@@ -15,6 +15,7 @@ let authUser: { userId: string; sessionId: string } | null = { userId: "u1", ses
 vi.mock("@/lib/auth", () => ({
   getAuthUser: vi.fn(async () => authUser),
   invalidateAllSessions: vi.fn(async () => {}),
+  revokeAllApiKeys: vi.fn(async () => 0),
 }));
 
 const CURRENT_HASH = "current-hash";
@@ -40,6 +41,7 @@ vi.mock("@/lib/email", () => ({ sendPasswordChangedAlertEmail: vi.fn(async () =>
 vi.mock("@/lib/logger", () => ({ logger: { error: vi.fn() } }));
 
 const { POST } = await import("./route");
+const { revokeAllApiKeys } = await import("@/lib/auth");
 
 function post(body: unknown): NextRequest {
   return new NextRequest("http://localhost/api/auth/change-password", {
@@ -63,6 +65,7 @@ describe("POST /api/auth/change-password", () => {
       where: { id: "u1" },
       data: expect.objectContaining({ passwordHash: "new-hash" }),
     }));
+    expect(revokeAllApiKeys).toHaveBeenCalledWith("u1");
   });
 
   it("429s once rate-limited, before ever touching bcrypt or Prisma", async () => {

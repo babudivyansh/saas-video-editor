@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { invalidateSession } from "@/lib/auth";
+import { invalidateSession, revokeAllApiKeys } from "@/lib/auth";
+import { logger } from "@/lib/logger";
 import { withAdmin, parseBody } from "@/lib/admin/api";
 import { auditAdminAction, auditIp } from "@/lib/admin/audit";
 import { userBulkSchema } from "@/lib/admin/schemas";
@@ -24,15 +25,28 @@ export const POST = withAdmin(async (req, { admin }) => {
 
   if (action === "suspend") {
     await prisma.user.updateMany({ where: { id: { in: targets }, suspendedAt: null }, data: { suspendedAt: new Date() } });
+    await revokeAllApiKeys(targets);
   } else if (action === "unsuspend") {
     await prisma.user.updateMany({ where: { id: { in: targets } }, data: { suspendedAt: null } });
   }
-  if (action !== "unsuspend") await Promise.allSettled(targets.map((id) => invalidateSession(id)));
+
+  // One account's Redis hiccup shouldn't abort the rest, but it mustn't be
+  // silent either: the admin is told which accounts may still be signed in.
+  let sessionRevokeFailed: string[] = [];
+  if (action !== "unsuspend") {
+    const results = await Promise.allSettled(targets.map((id) => invalidateSession(id)));
+    sessionRevokeFailed = targets.filter((id, i) => {
+      const r = results[i];
+      if (r.status === "fulfilled") return false;
+      logger.error("admin-user-bulk", `session revocation failed for ${id}`, r.reason);
+      return true;
+    });
+  }
 
   await auditAdminAction(admin.userId, `user.bulk_${action}`, undefined, {
-    after: { ids: targets, skipped },
+    after: { ids: targets, skipped, ...(sessionRevokeFailed.length ? { sessionRevokeFailed } : {}) },
     reason,
     ip: auditIp(req),
   });
-  return NextResponse.json({ ok: true, affected: targets.length, skipped });
+  return NextResponse.json({ ok: true, affected: targets.length, skipped, sessionRevokeFailed });
 });

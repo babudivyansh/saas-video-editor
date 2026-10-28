@@ -81,4 +81,12 @@ describe("GET /api/v1/projects", () => {
     expect(json.projects).toHaveLength(1);
     expect(json.projects[0].id).toBe("proj_1");
   });
+
+  it("rejects a write-only key with 403, like the other v1 GETs", async () => {
+    mockAuth = { userId: "u1", scopes: ["write"] };
+    const res = await get();
+    expect(res.status).toBe(403);
+    const { prisma } = await import("@/lib/prisma");
+    expect(prisma.project.findMany).not.toHaveBeenCalled();
+  });
 });

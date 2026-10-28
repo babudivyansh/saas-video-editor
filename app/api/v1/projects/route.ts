@@ -13,6 +13,9 @@ import { sourceUrlError } from "@/lib/source-url";
 async function handleGET(req: NextRequest) {
   const auth = await getApiKeyAuth(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized — missing or invalid API key" }, { status: 401 });
+  if (!auth.scopes.includes("read")) {
+    return NextResponse.json({ error: "This API key does not have read access" }, { status: 403 });
+  }
 
   // Paged: ?limit (1–100, default 50) and ?cursor (the previous page's
   // nextCursor). This returned every project the key's owner ever made.

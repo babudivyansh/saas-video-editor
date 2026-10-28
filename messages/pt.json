@@ -320,6 +320,7 @@
     "copyKey": "Copiar chave",
     "done": "Concluído",
     "keyName": "Nome da chave",
+    "confirmIdentity": "Confirme que é você",
     "keyNamePlaceholder": "ex.: Servidor de produção",
     "scopes": "Escopos",
     "expires": "Expira",

@@ -7,11 +7,13 @@ import { NextRequest } from "next/server";
 let stepUpOk = true;
 const txOps: string[] = [];
 const invalidateAllSessions = vi.hoisted(() => vi.fn(async () => {}));
+const revokeAllApiKeys = vi.hoisted(() => vi.fn(async () => 0));
 const sendAlert = vi.hoisted(() => vi.fn(async () => {}));
 
 vi.mock("@/lib/auth", () => ({
   getAuthUser: vi.fn(async () => ({ userId: "u1", sessionId: "sess-this" })),
   invalidateAllSessions,
+  revokeAllApiKeys,
 }));
 vi.mock("@/lib/step-up", () => ({ verifyStepUp: vi.fn(async () => (stepUpOk ? { ok: true } : { ok: false, error: "Incorrect password" })) }));
 // The TOTP half of the step-up (lib/two-factor-verify.test.ts covers it).
@@ -60,6 +62,7 @@ describe("POST /api/auth/2fa/disable", () => {
     expect(txOps.some((o) => o.includes('"twoFactorEnabled":false') && o.includes('"twoFactorSecretEnc":null'))).toBe(true);
     // Keeps THIS session (the one that just re-authenticated), drops the rest.
     expect(invalidateAllSessions).toHaveBeenCalledWith("u1", "sess-this");
+    expect(revokeAllApiKeys).toHaveBeenCalledWith("u1");
     expect(sendAlert).toHaveBeenCalledWith("a@example.com", expect.any(String), false, expect.any(String));
   });
   it("with 2FA on, also requires an authenticator or recovery code", async () => {
