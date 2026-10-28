@@ -7,6 +7,7 @@ import { NextRequest } from "next/server";
 
 vi.mock("@/lib/auth", () => ({ getAuthUser: vi.fn(async () => ({ userId: "u1" })) }));
 vi.mock("@/lib/dashboard-summary-cache", () => ({ invalidateDashboardSummary: vi.fn() }));
+vi.mock("@/lib/with-rate-limit", () => ({ withRateLimit: (handler: unknown) => handler }));
 
 const getAssetReadUrl = vi.fn(async (key: string) => `https://signed.example/${key}?sig=xyz`);
 vi.mock("@/utils/s3-upload", () => ({ getAssetReadUrl }));

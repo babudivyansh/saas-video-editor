@@ -4,6 +4,8 @@ import createNextIntlPlugin from "next-intl/plugin";
 
 const nextConfig: NextConfig = {
   output: "standalone", // Optimizes build size for Node.js shared hosting
+  poweredByHeader: false, // no free framework fingerprint in every response
+
   // Keep native packages out of the server bundle to prevent Turbopack build errors.
   //
   // pdfkit is here for a different reason than the other two: it is pure JS, but

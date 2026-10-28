@@ -39,6 +39,15 @@ function ffmpegDir(): string | undefined {
   return fs.existsSync(local) ? local : undefined;
 }
 
+// yt-dlp follows redirects itself, so the host allowlist below only vets the
+// first hop: an open redirect on an allowed host could land anywhere,
+// including 169.254.169.254, where the generic extractor would fetch it and
+// hand back its "title". With generic off, a URL no site extractor claims
+// fails before any request; the site extractors still all work.
+// (Spread into each call: youtube-dl-exec's Flags type predates this yt-dlp
+// option, but it forwards every key as a --flag.)
+const SITE_EXTRACTORS_ONLY = { useExtractors: "default,-generic" };
+
 export class UrlImportError extends Error {}
 
 export interface UrlImportResult {
@@ -81,6 +90,7 @@ interface ProbeInfo { title?: string; duration?: number; is_live?: boolean }
 export async function probeSourceUrl(url: string): Promise<{ title: string; durationSec: number; isLive: boolean }> {
   const info = (await youtubeDl(url, {
     dumpSingleJson: true,
+    ...SITE_EXTRACTORS_ONLY,
     noWarnings: true,
     noPlaylist: true,
     skipDownload: true,
@@ -137,6 +147,7 @@ export async function importSourceFromUrl(args: {
       output: tmpPath,
       format: "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080][ext=mp4]/best",
       mergeOutputFormat: "mp4",
+      ...SITE_EXTRACTORS_ONLY,
       noPlaylist: true,
       noWarnings: true,
       socketTimeout: 30, // seconds without data before yt-dlp gives up

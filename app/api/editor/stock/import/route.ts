@@ -91,9 +91,10 @@ async function handlePOST(req: NextRequest) {
     const readUrl = await getAssetReadUrl(key);
     return NextResponse.json({ asset: { ...asset, size: toByteCount(asset.size), url: readUrl } });
   } catch (err) {
+    // The raw message can carry S3/Prisma/filesystem detail; it goes to the
+    // log, the client gets a fixed string.
     logger.error("stock/import", "request failed", err);
-    const message = err instanceof Error ? err.message : "Import failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: "Import failed. Please try again." }, { status: 500 });
   } finally {
     try { fs.unlinkSync(tmpPath); } catch { /* ignore */ }
   }
