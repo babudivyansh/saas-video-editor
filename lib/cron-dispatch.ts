@@ -1,13 +1,22 @@
+import { NextRequest } from "next/server";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import { redis } from "@/lib/redis";
 import { CRON_SCHEDULE, type CronScheduleEntry } from "@/lib/cron-schedule";
 import { cronAuthHeaders } from "@/lib/cron-auth";
+import { CRON_ROUTES } from "@/lib/cron-routes";
+import type { CronName } from "@/lib/cron-tracking";
 
-// Calls one scheduled job through its own /api/cron/* route, with that route's
-// own secret — so auth, outcome tracking (lib/cron-tracking.ts) and /admin/ops
-// all behave exactly as they do for a scheduled run. Shared by /api/cron-tick
-// (the per-minute scheduler) and the admin "Run now" button.
+// Runs one scheduled job through its own /api/cron/* route handler, with that
+// route's own secret — so auth, outcome tracking (lib/cron-tracking.ts) and
+// /admin/ops all behave exactly as they do for a scheduled run. Shared by
+// /api/cron-tick (the per-minute scheduler) and the admin "Run now" button.
+//
+// The handler is called in-process, not over HTTP. Both self-call addresses
+// failed in production: the request's public origin isn't callable from Node
+// behind Hostinger's proxy ("fetch failed"), and on its managed Node hosting
+// the app doesn't listen on 127.0.0.1:$PORT either (ECONNREFUSED on every
+// tick, Sentry CLIPIRO-WEB-4). A direct call has no address to get wrong.
 
 /** The schedule entry for an exact path, or null. This is the allowlist: an
  * admin can only ever trigger a path that is in CRON_SCHEDULE. */
@@ -20,29 +29,32 @@ export function secretFor(entry: CronScheduleEntry): string | null {
   return env[entry.secret] || null;
 }
 
-/** Where this process can reach itself. Never the incoming request's origin:
- * behind Hostinger's proxy that is not an address Node can call back on, so
- * every self-call died with "fetch failed" and no scheduled job ever ran.
- * Loopback also skips the CDN and its header stripping. */
-export function selfOrigin(): string {
-  return `http://127.0.0.1:${process.env.PORT || 3000}`;
+/** The route name in "/api/cron/<name>?job=…", or null for anything else. */
+export function cronRouteName(path: string): CronName | null {
+  const name = /^\/api\/cron\/([a-z0-9-]+)(?:\?|$)/.exec(path)?.[1];
+  return name && Object.hasOwn(CRON_ROUTES, name) ? (name as CronName) : null;
 }
 
 export async function dispatchCronJob(entry: CronScheduleEntry, secret: string): Promise<void> {
+  const name = cronRouteName(entry.path);
+  if (!name) {
+    logger.error("cron-dispatch", `${entry.path} is not a known cron route`);
+    return;
+  }
   try {
-    const res = await fetch(`${selfOrigin()}${entry.path}`, {
-      // Both header forms, so the call still authenticates should it ever go
-      // back through the web server, which strips Authorization on Hostinger
-      // (lib/cron-auth.ts).
+    const { GET } = await CRON_ROUTES[name]();
+    // A real request for the route, so it checks its own secret and reads
+    // ?job= exactly as it would from an external scheduler. The origin is
+    // never dialled; it only makes the URL absolute.
+    const req = new NextRequest(new URL(entry.path, env.NEXT_PUBLIC_APP_URL), {
       headers: cronAuthHeaders(secret),
-      cache: "no-store",
-      // Longer than any job runs; only a wedged self-call ever reaches it.
-      signal: AbortSignal.timeout(15 * 60_000),
     });
+    const res = await GET(req);
     // The job route records its own outcome; this is just a server-log breadcrumb.
     if (!res.ok) logger.warn("cron-dispatch", `${entry.path} answered ${res.status}`);
   } catch (e) {
-    logger.error("cron-dispatch", `${entry.path} could not be called`, e);
+    // withCronTracking has already recorded a thrown job as failed.
+    logger.error("cron-dispatch", `${entry.path} failed`, e);
   }
 }
 

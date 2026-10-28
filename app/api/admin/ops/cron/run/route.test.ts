@@ -15,7 +15,7 @@ vi.mock("@/lib/admin/api", async () => {
       },
   };
 });
-const env: Record<string, string | undefined> = { CRON_SECRET: "cron-s", SOCIAL_REFRESH_SECRET: "social-s", ASSET_CLEANUP_SECRET: undefined };
+const env: Record<string, string | undefined> = { NEXT_PUBLIC_APP_URL: "https://clipiro.test", CRON_SECRET: "cron-s", SOCIAL_REFRESH_SECRET: "social-s", ASSET_CLEANUP_SECRET: undefined };
 vi.mock("@/lib/env", () => ({ env }));
 vi.mock("@/lib/logger", () => ({ logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
 vi.mock("@/lib/rate-limit", () => ({ rateLimit: vi.fn(async () => ({ allowed: true })) }));
@@ -28,7 +28,14 @@ vi.mock("next/server", async (orig) => ({
   after: (fn: () => Promise<unknown>) => { pending.push(fn()); },
 }));
 
-const fetchMock = vi.fn(async () => new Response("{}", { status: 200 }));
+// Every cron route handler, as one recorder: jobs run in-process.
+const jobMock = vi.fn(async (_req: NextRequest) => new Response("{}", { status: 200 }));
+vi.mock("@/lib/cron-routes", async () => {
+  const { KNOWN_CRON_NAMES } = await import("@/lib/cron-tracking");
+  return {
+    CRON_ROUTES: Object.fromEntries(KNOWN_CRON_NAMES.map((n) => [n, async () => ({ GET: (req: NextRequest) => jobMock(req) })])),
+  };
+});
 const { POST } = await import("./route");
 
 const run = (body: unknown) =>
@@ -36,9 +43,8 @@ const run = (body: unknown) =>
 
 beforeEach(() => {
   audit.mockClear();
-  fetchMock.mockClear();
+  jobMock.mockClear();
   pending.length = 0;
-  vi.stubGlobal("fetch", fetchMock);
 });
 
 describe("POST /api/admin/ops/cron/run", () => {
@@ -46,11 +52,11 @@ describe("POST /api/admin/ops/cron/run", () => {
     const res = await run({ path: "/api/cron/clip-publish" });
     expect(res.status).toBe(202);
     await Promise.all(pending);
-    // Over loopback, never back out through the request's public host.
-    expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringMatching(/^http:\/\/127\.0\.0\.1:\d+\/api\/cron\/clip-publish$/),
-      expect.objectContaining({ headers: { Authorization: "Bearer cron-s", "X-Cron-Secret": "cron-s" } }),
-    );
+    // The route's own handler, in-process, carrying the route's own secret.
+    expect(jobMock).toHaveBeenCalledTimes(1);
+    const [req] = jobMock.mock.calls[0];
+    expect(req.nextUrl.pathname).toBe("/api/cron/clip-publish");
+    expect(req.headers.get("x-cron-secret")).toBe("cron-s");
     expect(audit).toHaveBeenCalledWith("admin1", "cron.run_manual", "clip-publish", expect.objectContaining({ after: { path: "/api/cron/clip-publish" } }));
   });
 
@@ -58,7 +64,7 @@ describe("POST /api/admin/ops/cron/run", () => {
     for (const path of ["/api/cron/clip-publish?x=1", "https://evil.test/api/cron/clip-publish", "/api/admin/users"]) {
       expect((await run({ path })).status).toBe(400);
     }
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(jobMock).not.toHaveBeenCalled();
   });
 
   it("requires the typed phrase for a danger-tier job, server-side", async () => {
