@@ -5,6 +5,7 @@ import { NextRequest } from "next/server";
 const claims = new Set<string>();
 const store = new Map<string, string>();
 const env: Record<string, string | undefined> = {
+  NEXT_PUBLIC_APP_URL: "https://clipiro.test",
   CRON_SECRET: "cron-s",
   SOCIAL_REFRESH_SECRET: "social-s",
   ASSET_CLEANUP_SECRET: "asset-s",
@@ -19,34 +20,39 @@ vi.mock("@/lib/redis", () => ({
     get: vi.fn(async (k: string) => store.get(k) ?? null),
   },
 }));
-// Run after() callbacks inline so the dispatched fetches are observable.
+// Run after() callbacks inline so the dispatched jobs are observable.
 const pending: Promise<unknown>[] = [];
 vi.mock("next/server", async (orig) => ({
   ...(await orig<typeof import("next/server")>()),
   after: (fn: () => Promise<unknown>) => { pending.push(fn()); },
 }));
 
-const fetchMock = vi.fn(async () => new Response("{}", { status: 200 }));
+// Every cron route handler, as one recorder: the tick runs jobs in-process.
+const jobMock = vi.fn(async (_req: NextRequest) => new Response("{}", { status: 200 }));
+vi.mock("@/lib/cron-routes", async () => {
+  const { KNOWN_CRON_NAMES } = await import("@/lib/cron-tracking");
+  return {
+    CRON_ROUTES: Object.fromEntries(KNOWN_CRON_NAMES.map((n) => [n, async () => ({ GET: (req: NextRequest) => jobMock(req) })])),
+  };
+});
 const { GET } = await import("./route");
 
 const tick = (authz: string | null = "Bearer cron-s") =>
   GET(new NextRequest("https://clipiro.test/api/cron-tick", { headers: authz ? { authorization: authz } : {} }));
-const called = () => fetchMock.mock.calls.map((c) => {
-  const [url, init] = c as unknown as [string, RequestInit];
-  return { path: url.replace(/^http:\/\/127\.0\.0\.1:\d+/, ""), auth: (init.headers as Record<string, string>).Authorization };
-});
+const called = () => jobMock.mock.calls.map(([req]) => ({
+  path: req.nextUrl.pathname + req.nextUrl.search,
+  auth: req.headers.get("authorization"),
+}));
 
 beforeEach(() => {
   claims.clear();
   store.clear();
   pending.length = 0;
-  fetchMock.mockClear();
-  vi.stubGlobal("fetch", fetchMock);
+  jobMock.mockClear();
   env.ASSET_CLEANUP_SECRET = "asset-s";
 });
 afterEach(() => {
   vi.useRealTimers();
-  vi.unstubAllGlobals();
 });
 
 async function tickAt(iso: string) {
@@ -61,7 +67,7 @@ describe("GET /api/cron-tick", () => {
   it("rejects a missing or wrong secret and runs nothing", async () => {
     expect((await tick(null)).status).toBe(401);
     expect((await tick("Bearer nope")).status).toBe(401);
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(jobMock).not.toHaveBeenCalled();
   });
 
   it("accepts X-Cron-Secret, which is what arrives on hosts that strip Authorization", async () => {
@@ -90,11 +96,11 @@ describe("GET /api/cron-tick", () => {
 
   it("never runs a job twice for the same slot (duplicate or retried tick)", async () => {
     await tickAt("2026-09-30T03:00");
-    const first = fetchMock.mock.calls.length;
-    fetchMock.mockClear();
+    const first = jobMock.mock.calls.length;
+    jobMock.mockClear();
     await tickAt("2026-09-30T03:00");
     expect(first).toBeGreaterThan(0);
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(jobMock).not.toHaveBeenCalled();
   });
 
   it("catches up a daily job whose minute the scheduler skipped", async () => {
@@ -123,8 +129,8 @@ describe("GET /api/cron-tick", () => {
     expect((await res.json()).paused).toEqual(["/api/cron/dub-sweep"]);
     expect(called().map((c) => c.path)).not.toContain("/api/cron/dub-sweep");
     store.clear();
-    fetchMock.mockClear();
+    jobMock.mockClear();
     await tickAt("2026-09-30T10:02");
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(jobMock).not.toHaveBeenCalled();
   });
 });
