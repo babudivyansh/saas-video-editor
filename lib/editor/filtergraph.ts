@@ -134,6 +134,15 @@ export function escapeFilterPath(p: string): string {
 
 const num = (n: number) => Number(n.toFixed(4));
 
+// Colours go into the filtergraph unquoted, where ":" and "," are syntax: a
+// colour like "#fff:textfile=/proc/self/environ" would add a drawtext option.
+// validateDoc already enforces #rrggbb; this keeps the sink safe regardless.
+const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
+function hex(c: string): string {
+  if (!HEX_COLOR.test(c)) throw new Error("invalid colour in editor doc");
+  return c;
+}
+
 /**
  * atempo only accepts 0.5–2.0 per instance; chain instances to reach any
  * speed in our 0.25–4 range (e.g. 4x = atempo=2,atempo=2).
@@ -347,7 +356,7 @@ export function buildFilterGraph(input: FiltergraphInput): FiltergraphResult {
     if (!textFile) throw new Error(`Missing textfile for text clip ${t.id}`);
     const font = resolveFontFile(t.fontFamily);
     const fontSize = Math.round(t.fontSizePct * H);
-    const color = t.color;
+    const color = hex(t.color);
 
     // normalized position → drawtext top-left x. "center" (default) keeps t.x
     // as the midpoint; "left"/"right" instead treat t.x as the anchor edge —
@@ -373,16 +382,16 @@ export function buildFilterGraph(input: FiltergraphInput): FiltergraphResult {
       `y=${q(`(h*${Y})-(text_h/2)`)}`,
       `enable='between(t,${num(t.timelineStart)},${num(t.timelineStart + t.duration)})'`,
     ];
-    if (t.bgColor) baseParts.push(`box=1`, `boxcolor=${t.bgColor}@0.75`, `boxborderw=14`);
+    if (t.bgColor) baseParts.push(`box=1`, `boxcolor=${hex(t.bgColor)}@0.75`, `boxborderw=14`);
     if (t.strokeColor) {
       const strokeW = Math.max(1, Math.round((t.strokeWidthPct ?? 0.01) * H));
-      baseParts.push(`borderw=${strokeW}`, `bordercolor=${t.strokeColor}`);
+      baseParts.push(`borderw=${strokeW}`, `bordercolor=${hex(t.strokeColor)}`);
     }
     if (t.shadow) {
       baseParts.push(
         `shadowx=${Math.round(t.shadow.offsetXPct * W)}`,
         `shadowy=${Math.round(t.shadow.offsetYPct * H)}`,
-        `shadowcolor=${t.shadow.color}@${num(t.shadow.opacity)}`,
+        `shadowcolor=${hex(t.shadow.color)}@${num(t.shadow.opacity)}`,
       );
     }
     baseParts.push(animated ? `alpha='${keyframeExpr(t, "opacity", num)}'` : `alpha=${num(t.opacity ?? 1)}`); // alpha=1 is drawtext's own default — a no-op for docs that never set opacity
@@ -538,12 +547,13 @@ function applyTextTransform(text: string, transform: TextClip["textTransform"]):
 /** Write each text clip's content to a UTF-8 textfile; returns id → path. */
 export function writeTextFiles(doc: TimelineDoc, dir: string, prefix: string): Map<string, string> {
   const map = new Map<string, string>();
-  for (const t of doc.tracks.text) {
-    const p = path.join(dir, `${prefix}-text-${t.id}.txt`);
+  doc.tracks.text.forEach((t, i) => {
+    // Named by position, never by t.id: the id comes from the user's saved doc.
+    const p = path.join(dir, `${prefix}-text-${i}.txt`);
     // drawtext renders the file contents literally; strip trailing newline noise
     const content = applyTextTransform(t.text.replace(/\r/g, ""), t.textTransform);
     fs.writeFileSync(p, content, "utf8");
     map.set(t.id, p);
-  }
+  });
   return map;
 }

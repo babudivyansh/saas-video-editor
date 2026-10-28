@@ -420,8 +420,14 @@ function isFiniteNonNeg(n: unknown): n is number {
   return typeof n === "number" && Number.isFinite(n) && n >= 0;
 }
 
+// Clip ids are uuids (web, newClipId) or short base36 strings (mobile). The
+// exporter once built temp-file paths from them, so anything path-like ("/",
+// "..") must never validate.
+const CLIP_ID = /^[A-Za-z0-9_-]{1,64}$/;
+
 function validateBase(c: ClipBase): string | null {
   if (typeof c.id !== "string" || !c.id) return "clip missing id";
+  if (!CLIP_ID.test(c.id)) return "invalid clip id";
   if (!isFiniteNonNeg(c.timelineStart)) return "invalid timelineStart";
   if (!isFiniteNonNeg(c.duration) || c.duration < MIN_CLIP_DURATION) return "invalid duration";
   if (c.locked !== undefined && typeof c.locked !== "boolean") return "invalid locked";

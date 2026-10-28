@@ -12,6 +12,16 @@ const getAssetReadUrl = vi.fn(async (key: string) => `https://signed.example/${k
 vi.mock("@/utils/s3-upload", () => ({ getAssetReadUrl }));
 
 const S3 = "https://bucket.s3.ap-south-1.amazonaws.com";
+// Stand-in for the owner check: signs only keys under the owner's prefix.
+const resignOwnedMediaUrl = vi.fn(async (url: string | null, owner: string) => {
+  if (!url) return null;
+  const key = url.slice(S3.length + 1);
+  return key.split("/").includes(owner) ? getAssetReadUrl(key) : url;
+});
+vi.mock("@/lib/source-url", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/source-url")>()),
+  resignOwnedMediaUrl,
+}));
 let lastArgs: { where?: unknown; select?: Record<string, unknown>; take?: number; cursor?: unknown } = {};
 let rows: Record<string, unknown>[] = [];
 const findMany = vi.fn(async (args: typeof lastArgs) => {
@@ -51,6 +61,17 @@ describe("GET /api/projects", () => {
     expect(body.projects[0].coverUrl).toBe("https://signed.example/renders/p1/clip-0.jpg?sig=xyz");
     expect(body.projects[0].sourceUrl).toBe("https://signed.example/uploads/u1/src.mp4?sig=xyz");
     expect(body.projects[0]).not.toHaveProperty("clips");
+  });
+
+  it("never signs a source key the caller does not own", async () => {
+    // uploadedVideoUrl is client-settable: pointing it at another user's
+    // object must not turn the list into a signing oracle for it.
+    const foreign = `${S3}/uploads/victim/private.mp4`;
+    rows = [{ id: "p1", title: "Run", uploadedVideoUrl: foreign, _count: { clips: 0 }, clips: [] }];
+    const body = await (await GET(req("?cover=1"))).json();
+    expect(resignOwnedMediaUrl).toHaveBeenCalledWith(foreign, "u1");
+    expect(body.projects[0].sourceUrl).toBe(foreign);
+    expect(getAssetReadUrl).not.toHaveBeenCalledWith("uploads/victim/private.mp4");
   });
 
   it("with ?cover=1 adds each run's best clip score in one grouped query", async () => {

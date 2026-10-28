@@ -3,10 +3,13 @@
 // tpad+xfade fold that preserves total duration, and docs without either
 // keep the exact legacy single-concat graph shape.
 
+import fs from "fs";
+import os from "os";
+import path from "path";
 import { describe, expect, it } from "vitest";
-import { buildFilterGraph, type ClipInput } from "./filtergraph";
-import type { TimelineDoc, VideoClip } from "./types";
-import { TRANSITION_DURATION_SEC } from "./types";
+import { buildFilterGraph, writeTextFiles, type ClipInput } from "./filtergraph";
+import type { TextClip, TimelineDoc, VideoClip } from "./types";
+import { TRANSITION_DURATION_SEC, validateDoc } from "./types";
 
 function videoClip(overrides: Partial<VideoClip> & { id: string }): VideoClip {
   return {
@@ -188,5 +191,48 @@ describe("effect window, strength and colour fine-tune", () => {
     const fc = fcOf(doc([videoClip({ id: "v1", adjust: { brightness: 0.1, contrast: 1, saturation: 1.2, warmth: 0.4 } })]));
     expect(fc).toContain("eq=brightness=0.1:contrast=1:saturation=1.2");
     expect(fc).toContain("colorbalance=rm=0.06");
+  });
+});
+
+describe("untrusted doc values never reach the filesystem or the filtergraph raw", () => {
+  const textClip = (over: Partial<TextClip> = {}): TextClip => ({
+    id: "t1", type: "text", text: "Hi", timelineStart: 0, duration: 2, fontFamily: "Poppins", fontSizePct: 0.05,
+    color: "#ffffff", bold: false, align: "center", x: 0.5, y: 0.5, bgColor: null, ...over,
+  });
+
+  it("names text files by position, so a path-like clip id cannot escape the temp dir", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "fg-"));
+    try {
+      const d = doc([videoClip({ id: "v1" })]);
+      d.tracks.text = [textClip({ id: "/../../../../tmp/pwned" })];
+      const map = writeTextFiles(d, dir, "job");
+      const written = map.get("/../../../../tmp/pwned")!;
+      expect(written).toBe(path.join(dir, "job-text-0.txt"));
+      expect(fs.readdirSync(dir)).toEqual(["job-text-0.txt"]);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("validateDoc rejects a path-like clip id and accepts uuids and mobile ids", () => {
+    const d = doc([videoClip({ id: "v1" })]);
+    d.tracks.text = [textClip({ id: "../evil" })];
+    expect(validateDoc(d)).toBe("text: invalid clip id");
+    d.tracks.text = [textClip({ id: "3f2b6c1e-8a4d-4f0e-9b7a-2c5d1e6f7a8b" }), textClip({ id: "mlx3k2a0q1z9" })];
+    expect(validateDoc(d)).toBeNull();
+  });
+
+  it.each(["color", "bgColor", "strokeColor"] as const)("refuses to build a graph with an injected %s", (field) => {
+    const d = doc([videoClip({ id: "v1" })]);
+    d.tracks.text = [textClip({ [field]: "#ffffff:textfile=/proc/self/environ" })];
+    expect(() => buildFilterGraph({ doc: d, assets: assetsFor(d), textFiles: new Map([["t1", "/tmp/t1.txt"]]), outputPath: "/tmp/out.mp4" }))
+      .toThrow("invalid colour");
+  });
+
+  it("refuses an injected shadow colour", () => {
+    const d = doc([videoClip({ id: "v1" })]);
+    d.tracks.text = [textClip({ shadow: { color: "#000000,drawtext=text=x", opacity: 0.5, offsetXPct: 0.01, offsetYPct: 0.01 } as TextClip["shadow"] })];
+    expect(() => buildFilterGraph({ doc: d, assets: assetsFor(d), textFiles: new Map([["t1", "/tmp/t1.txt"]]), outputPath: "/tmp/out.mp4" }))
+      .toThrow("invalid colour");
   });
 });

@@ -86,7 +86,7 @@ export function s3KeyFromStoredUrl(rawUrl: string): string | null {
  *      some legacy sources predate Asset rows — see
  *      scripts/backfill-project-source-assets.ts.
  */
-async function ownsKey(userId: string, key: string): Promise<boolean> {
+export async function ownsKey(userId: string, key: string): Promise<boolean> {
   if (key.split("/").includes(userId)) return true;
   const asset = await prisma.asset.findFirst({ where: { userId, s3Key: key }, select: { id: true } });
   return asset !== null;
