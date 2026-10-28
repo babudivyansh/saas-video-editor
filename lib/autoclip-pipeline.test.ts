@@ -1,4 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
+import { spawnSync } from "child_process";
+import fs from "fs";
+import os from "os";
+import path from "path";
 
 // Stub the queue factory: modules loaded here (e.g. lib/asset-moderation.ts
 // via autoclip-pipeline) call createRenderQueue at import time, which would
@@ -64,7 +68,7 @@ vi.mock("@/lib/autoclip-rerender", () => ({ refundFailedRerender: vi.fn(async ()
 const {
   sliceWordsForClip, rebaseClipWords, computeCreditCost, getAutoClipPricing, AUTOCLIP_PRICING_DEFAULTS,
   buildBrollFilterComplex, computeKeeps, enforceNonOverlapping, rerenderJob, notifyRenderOutcome,
-  wordsOnRenderedTimeline,
+  wordsOnRenderedTimeline, SOURCE_AUDIO_MAP,
 } = await import("./autoclip-pipeline");
 
 describe("sliceWordsForClip", () => {
@@ -436,5 +440,67 @@ describe("wordsOnRenderedTimeline", () => {
     const b = wordsOnRenderedTimeline(words, 4, opts);
     expect(a).toEqual(b);
     expect(words[1].start).toBe(3000);
+  });
+});
+
+// ── Source audio map, executed through ffmpeg ────────────────────────────────
+// iPhone recordings carry a second, spatial-audio (APAC) track that FFmpeg has
+// no decoder for. Mapping every audio stream (`0:a`) made the render ask to
+// decode it, and every render and re-render of such an upload failed
+// (Sentry CLIPIRO-WEB-A). The fixture stands in for that file: a MOV whose
+// second audio track's sample entry is rewritten to an unknown fourcc.
+
+function ffmpegBin(): string | null {
+  const bin = process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg";
+  const local = path.join(process.cwd(), "node_modules", "ffmpeg-static", bin);
+  return fs.existsSync(local) ? local : null;
+}
+const FFMPEG = ffmpegBin();
+const withFfmpeg = FFMPEG ? describe : describe.skip;
+
+withFfmpeg("SOURCE_AUDIO_MAP — a source with an undecodable second audio track", () => {
+  const run = (args: string[]) => {
+    const res = spawnSync(FFMPEG!, ["-hide_banner", "-y", ...args], { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
+    return { code: res.status ?? -1, stderr: res.stderr ?? "" };
+  };
+
+  function makeSource(dir: string): string {
+    const src = path.join(dir, "src.mov");
+    const made = run([
+      "-f", "lavfi", "-i", "testsrc=s=320x180:r=30:d=1",
+      "-f", "lavfi", "-i", "sine=frequency=440:duration=1",
+      "-f", "lavfi", "-i", "sine=frequency=220:duration=1",
+      "-map", "0:v", "-map", "1:a", "-map", "2:a",
+      "-c:v", "libx264", "-c:a:0", "aac", "-c:a:1", "pcm_s16le", "-f", "mov", src,
+    ]);
+    expect(made.code, made.stderr).toBe(0);
+    // PCM's sample entry is just its fourcc (no esds to recover the codec
+    // from), so an unknown fourcc leaves the demuxer with codec "none".
+    const buf = fs.readFileSync(src);
+    const at = buf.indexOf("sowt");
+    expect(at).toBeGreaterThan(-1);
+    buf.write("zzzz", at);
+    fs.writeFileSync(src, buf);
+    return src;
+  }
+
+  const render = (src: string, audioMap: string) => run([
+    "-i", src, "-filter_complex", "[0:v]null[video]",
+    "-map", "[video]", "-map", audioMap, "-c:a", "aac", "-f", "null", "-",
+  ]);
+
+  it("renders with the first audio track, where mapping all audio fails", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "autoclip-audio-"));
+    try {
+      const src = makeSource(dir);
+      // The pre-fix map reproduces the prod failure…
+      expect(render(src, "0:a?").code).not.toBe(0);
+      // …and the map the render uses now gets past it, optional or not.
+      const fixed = render(src, SOURCE_AUDIO_MAP);
+      expect(fixed.code, fixed.stderr).toBe(0);
+      expect(render(src, `${SOURCE_AUDIO_MAP}?`).code).toBe(0);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
