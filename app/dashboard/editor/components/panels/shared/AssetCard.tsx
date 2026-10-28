@@ -32,7 +32,7 @@ export default function AssetCard({
         onClick={onClick}
         disabled={adding}
         title={attribution}
-        className="flex items-center gap-2.5 rounded-editor-md border border-editor-border bg-editor-card px-2.5 py-2 text-left transition-colors hover:border-editor-accent disabled:opacity-50 cursor-pointer"
+        className="editor-press flex items-center gap-2.5 rounded-editor-md border border-editor-border bg-editor-card px-2.5 py-2 text-left transition-colors hover:border-editor-accent disabled:opacity-50 cursor-pointer"
       >
         <span className="h-8 w-8 flex-shrink-0 overflow-hidden rounded-editor-sm">{thumb}</span>
         <span className="min-w-0 flex-1">
@@ -49,7 +49,7 @@ export default function AssetCard({
       onClick={onClick}
       disabled={adding}
       title={attribution}
-      className="group overflow-hidden rounded-editor-md border border-editor-border bg-editor-card text-left transition-colors hover:border-editor-accent disabled:opacity-50 cursor-pointer"
+      className="editor-tile group overflow-hidden rounded-editor-md border border-editor-border bg-editor-card text-left transition-colors hover:border-editor-accent disabled:opacity-50 cursor-pointer"
     >
       <div
         className={`relative flex ${aspect === "square" ? "aspect-square" : "aspect-video"} items-center justify-center bg-black`}

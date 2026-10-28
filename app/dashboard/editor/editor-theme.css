@@ -134,3 +134,95 @@
 .fx-vignette-pulse { animation: fx-vignette-pulse-kf 2.1s ease-in-out infinite; }
 .fx-chromatic { filter: drop-shadow(2px 0 0 rgba(255, 0, 0, 0.35)) drop-shadow(-2px 0 0 rgba(0, 80, 255, 0.35)); }
 .fx-old-film { filter: grayscale(0.65) sepia(0.15) contrast(1.1) brightness(1.02); }
+
+/* ── Left-panel motion (tabbed panels, 2026-10) ──
+   Screens fade up on every tab switch, their rows and grid tiles follow in a
+   short stagger, tiles lift on hover and press in on click, and the Effects
+   tiles play their preset's motion on hover so you see it before applying.
+   All of it switches off under prefers-reduced-motion. */
+@keyframes editor-in-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes editor-pop {
+  0% { transform: scale(0.9); }
+  55% { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+@keyframes editor-toast {
+  0% { opacity: 0; transform: translate(-50%, 12px) scale(0.92); }
+  10%, 85% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -6px); }
+}
+@keyframes editor-eq {
+  0%, 100% { height: 3px; }
+  50% { height: 14px; }
+}
+@keyframes editor-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+.editor-stagger > *,
+.editor-stagger-grid > * { animation: editor-in-up 0.38s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.editor-stagger > :nth-child(2), .editor-stagger-grid > :nth-child(2) { animation-delay: 0.04s; }
+.editor-stagger > :nth-child(3), .editor-stagger-grid > :nth-child(3) { animation-delay: 0.08s; }
+.editor-stagger > :nth-child(4), .editor-stagger-grid > :nth-child(4) { animation-delay: 0.12s; }
+.editor-stagger > :nth-child(5), .editor-stagger-grid > :nth-child(5) { animation-delay: 0.16s; }
+.editor-stagger > :nth-child(6), .editor-stagger-grid > :nth-child(6) { animation-delay: 0.2s; }
+.editor-stagger > :nth-child(7), .editor-stagger-grid > :nth-child(7) { animation-delay: 0.24s; }
+.editor-stagger > :nth-child(8), .editor-stagger-grid > :nth-child(8) { animation-delay: 0.28s; }
+.editor-stagger-grid > :nth-child(9) { animation-delay: 0.32s; }
+.editor-stagger-grid > :nth-child(10) { animation-delay: 0.35s; }
+.editor-stagger-grid > :nth-child(11) { animation-delay: 0.38s; }
+.editor-stagger-grid > :nth-child(n+12) { animation-delay: 0.4s; }
+.editor-tile { transition: transform 0.22s cubic-bezier(0.3, 1.4, 0.5, 1), box-shadow 0.22s, border-color 0.2s; }
+.editor-tile:hover { transform: translateY(-2px) scale(1.02); box-shadow: 0 10px 22px rgba(0, 0, 0, 0.45); }
+.editor-tile:active { transform: scale(0.96); }
+.editor-press { transition: transform 0.14s cubic-bezier(0.3, 1.5, 0.6, 1), background-color 0.2s, border-color 0.2s, color 0.2s; }
+.editor-press:active { transform: scale(0.95); }
+.editor-pop { animation: editor-pop 0.35s both; }
+.editor-toast { animation: editor-toast 1.8s both; }
+.editor-eq { display: inline-flex; align-items: flex-end; gap: 2px; height: 14px; }
+.editor-eq i { display: block; width: 3px; height: 3px; border-radius: 1px; background: var(--editor-accent); animation: editor-eq 0.7s ease-in-out infinite; }
+.editor-eq i:nth-child(2) { animation-delay: -0.2s; }
+.editor-eq i:nth-child(3) { animation-delay: -0.45s; }
+.editor-eq i:nth-child(4) { animation-delay: -0.1s; }
+.editor-thinking {
+  background: linear-gradient(100deg, var(--editor-card) 30%, rgba(32, 214, 138, 0.14) 50%, var(--editor-card) 70%);
+  background-size: 300% 100%;
+  animation: editor-shimmer 1s linear infinite;
+}
+/* Effect tiles: the preset's own preview class only runs while hovered or
+   applied, so a grid of nine doesn't all shake at once. */
+.editor-fx-tile .editor-fx-frame { animation-play-state: paused; }
+.editor-fx-tile:hover .editor-fx-frame,
+.editor-fx-tile[aria-pressed="true"] .editor-fx-frame { animation-play-state: running; }
+/* Transition tiles: an incoming panel that plays the move on hover. */
+@keyframes tx-fade { 0%, 100% { opacity: 0; } 50% { opacity: 1; } }
+@keyframes tx-slide-left { 0% { transform: translateX(100%); } 60%, 100% { transform: translateX(0); } }
+@keyframes tx-slide-right { 0% { transform: translateX(-100%); } 60%, 100% { transform: translateX(0); } }
+@keyframes tx-slide-up { 0% { transform: translateY(100%); } 60%, 100% { transform: translateY(0); } }
+@keyframes tx-slide-down { 0% { transform: translateY(-100%); } 60%, 100% { transform: translateY(0); } }
+@keyframes tx-zoom-in { 0% { transform: scale(0.1); opacity: 0; } 60%, 100% { transform: scale(1); opacity: 1; } }
+@keyframes tx-zoom-out { 0% { transform: scale(1.8); opacity: 0; } 60%, 100% { transform: scale(1); opacity: 1; } }
+@keyframes tx-wipe { 0% { clip-path: inset(0 100% 0 0); } 60%, 100% { clip-path: inset(0 0 0 0); } }
+@keyframes tx-dip { 0%, 100% { opacity: 0; } 40%, 60% { opacity: 1; } }
+.editor-tx-incoming { opacity: 0; }
+.editor-tx-tile:hover .editor-tx-incoming,
+.editor-tx-tile[aria-pressed="true"] .editor-tx-incoming { opacity: 1; animation-duration: 1.3s; animation-iteration-count: infinite; animation-timing-function: cubic-bezier(0.6, 0, 0.2, 1); }
+.tx-fade { animation-name: tx-fade; }
+.tx-slideLeft { animation-name: tx-slide-left; }
+.tx-slideRight { animation-name: tx-slide-right; }
+.tx-slideUp { animation-name: tx-slide-up; }
+.tx-slideDown { animation-name: tx-slide-down; }
+.tx-zoomIn { animation-name: tx-zoom-in; }
+.tx-zoomOut { animation-name: tx-zoom-out; }
+.tx-wipe { animation-name: tx-wipe; }
+.tx-dipToBlack { animation-name: tx-dip; background: #000 !important; }
+@media (prefers-reduced-motion: reduce) {
+  .editor-stagger > *, .editor-stagger-grid > *, .editor-pop, .editor-eq i, .editor-thinking { animation: none; }
+  .editor-toast { animation: none; transform: translate(-50%, 0); }
+  .editor-tile, .editor-press { transition: none; }
+  .editor-tile:hover, .editor-tile:active, .editor-press:active { transform: none; }
+  .editor-fx-tile .editor-fx-frame, .editor-tx-tile .editor-tx-incoming { animation: none !important; }
+}

@@ -2,91 +2,63 @@
 
 // Visual effect presets — applied to the selected video clip and burned in
 // at export by the render pipeline (EFFECT_PRESETS in lib/editor/types.ts);
-// the canvas shows a CSS approximation during playback.
-// Each preset (bar "None") shows a decorative looping GIF via GIPHY — same
-// key already used for stickers — purely to illustrate the vibe; it's not
-// the actual effect motion (which only exists once applied to a real clip).
+// the canvas shows a CSS approximation during playback. Each tile plays that
+// same approximation (its previewClass) on a frame of the selected clip
+// while hovered or applied, and clicking one plays the effect's sound.
 
 import React from "react";
 import { useEditorStore } from "../../store/editorStore";
 import { EFFECT_PRESETS, type EffectPreset } from "@/lib/editor/types";
-import { usePresetGif } from "./usePresetGif";
-
-const PREVIEW_QUERY: Partial<Record<EffectPreset, string>> = {
-  shake: "camera shake",
-  zoomPulse: "zoom pulse",
-  glitch: "glitch",
-  filmGrain: "film grain texture",
-  bounce: "bounce",
-  flicker: "flicker light",
-  vignettePulse: "vignette",
-  chromaticAberration: "chromatic aberration glitch",
-  oldFilm: "old film reel",
-};
-
-function PresetButton({
-  presetKey,
-  label,
-  active,
-  onClick,
-}: {
-  presetKey: EffectPreset;
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  const query = PREVIEW_QUERY[presetKey];
-  const gifUrl = usePresetGif(query ?? "");
-
-  return (
-    <button
-      onClick={onClick}
-      className={`group relative overflow-hidden rounded-xl border text-left text-sm font-semibold transition-all cursor-pointer ${
-        active ? "border-editor-accent bg-editor-accent/15 text-editor-accent" : "border-editor-border bg-editor-card text-editor-text hover:border-editor-border-strong"
-      }`}
-    >
-      {gifUrl && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={gifUrl} alt="" className="h-16 w-full object-cover opacity-60" />
-      )}
-      <span className="block p-3">{label}</span>
-    </button>
-  );
-}
+import { Slider, showPanelToast } from "../ui";
+import { playPresetSound } from "../../hooks/useUiSound";
+import { ClipChip, LookFrame, LookTile, NoClipSelected, useLookTarget } from "./effects/lookShared";
 
 export default function EffectPanel() {
-  const selection = useEditorStore((s) => s.selection);
-  const doc = useEditorStore((s) => s.doc);
   const updateClip = useEditorStore((s) => s.updateClip);
-
-  const clip = selection?.track === "video" ? doc.tracks.video.find((c) => c.id === selection.clipId) : null;
+  const { clip, index, frame, firstClip } = useLookTarget();
 
   if (!clip) {
     return (
-      <div className="p-4">
-        <p className="text-xs leading-relaxed text-editor-text-muted">
-          Select a video clip on the timeline to apply an effect.
-        </p>
+      <div className="editor-stagger flex flex-col gap-3 p-3">
+        <NoClipSelected what="add an effect" firstClip={firstClip} />
       </div>
     );
   }
 
+  const current = clip.effect ?? "none";
+
   return (
-    <div className="flex flex-col gap-2 p-3">
-      <p className="px-1 text-xs font-semibold uppercase tracking-wide text-editor-text-muted">Effect</p>
-      <div className="grid grid-cols-2 gap-2">
+    <div className="editor-stagger flex flex-col gap-3 p-3">
+      <ClipChip clip={clip} index={index} frame={frame} note={current === "none" ? "no effect" : EFFECT_PRESETS[current].label} />
+      <div className="editor-stagger-grid grid grid-cols-3 gap-2">
         {(Object.keys(EFFECT_PRESETS) as EffectPreset[]).map((key) => (
-          <PresetButton
+          <LookTile
             key={key}
-            presetKey={key}
             label={EFFECT_PRESETS[key].label}
-            active={(clip.effect ?? "none") === key}
-            onClick={() => updateClip("video", clip.id, { effect: key === "none" ? undefined : key })}
-          />
+            active={current === key}
+            className="editor-fx-tile"
+            onClick={() => {
+              playPresetSound("effect", key);
+              updateClip("video", clip.id, { effect: key === "none" ? undefined : key }, true);
+              showPanelToast(key === "none" ? "Effect removed" : `${EFFECT_PRESETS[key].label} applied to clip ${index + 1}`);
+            }}
+          >
+            <LookFrame src={frame} className={`editor-fx-frame ${EFFECT_PRESETS[key].previewClass ?? ""}`} />
+          </LookTile>
         ))}
       </div>
-      <p className="mt-1 px-1 text-[10px] leading-snug text-editor-text-muted">
-        Applied to the exported video. The canvas shows an approximate live preview.
+      {current !== "none" && (
+        <Slider
+          label="Strength"
+          value={clip.effectStrength ?? 1}
+          min={0.1}
+          max={1}
+          step={0.05}
+          onChange={(v) => updateClip("video", clip.id, { effectStrength: v >= 1 ? undefined : v })}
+        />
+      )}
+      <p className="px-0.5 text-[10.5px] leading-snug text-editor-text-faint">
+        Hover a tile to preview it on this clip. Burned into the export; the canvas shows a close live preview. Timing lives on the right.
       </p>
     </div>
   );

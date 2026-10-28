@@ -13,8 +13,9 @@ import { docDuration } from "@/lib/editor/doc-utils";
 import type { Aspect } from "@/lib/editor/types";
 import { fmtDuration } from "./shared/assetData";
 import { useStockSearch, importStockItem, type StockItem } from "./useStockSearch";
-import { Button } from "../ui";
+import { Button, showPanelToast } from "../ui";
 import SearchField from "./shared/SearchField";
+import { playUiSound } from "../../hooks/useUiSound";
 import PanelStatus from "./shared/PanelStatus";
 
 const ORIENTATION: Record<Aspect, "portrait" | "square" | "landscape"> = {
@@ -67,6 +68,8 @@ export default function StockVideoPanel() {
         volume: 1,
         muted: false,
       });
+      playUiSound("add");
+      showPanelToast("Stock clip added to the video track");
     } finally {
       setBusy(null);
     }
@@ -87,7 +90,7 @@ export default function StockVideoPanel() {
   const tall = fitsShape && aspect === "9:16";
 
   return (
-    <div className="flex flex-col gap-3 p-3">
+    <div className="editor-stagger flex flex-col gap-3 p-3">
       <SearchField value={query} onChange={setQuery} placeholder="Search stock video…" />
 
       <div className="flex flex-wrap items-center gap-1.5">
@@ -119,7 +122,7 @@ export default function StockVideoPanel() {
       {loading && items.length === 0 && <PanelStatus state="loading" message="Searching…" />}
 
       {shown.length > 0 && (
-        <div className="grid grid-cols-2 gap-2">
+        <div className="editor-stagger-grid grid grid-cols-2 gap-2">
           {shown.map((item) => {
             const isBusy = busy?.id === item.id;
             const isSaved = saved.has(item.id);

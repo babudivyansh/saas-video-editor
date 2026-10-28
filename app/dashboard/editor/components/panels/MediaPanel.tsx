@@ -37,11 +37,13 @@ const SORTS: { key: SortKind; label: string }[] = [
   { key: "size", label: "Size" },
 ];
 
-export default function MediaPanel() {
-  const [filter, setFilter] = useState<(typeof FILTERS)[number]["key"]>("all");
+/** `kind` locks the panel to one media type (Audio › Your audio uses "audio"). */
+export default function MediaPanel({ kind }: { kind?: "audio" } = {}) {
+  const [pickedFilter, setFilter] = useState<(typeof FILTERS)[number]["key"]>("all");
+  const filter = kind ?? pickedFilter;
   const [sort, setSort] = useState<SortKind>("date");
   const [query, setQuery] = useState("");
-  const { assets, loading, refresh, loadMore, hasMore } = useAssets("all", { sort });
+  const { assets, loading, refresh, loadMore, hasMore } = useAssets(kind ?? "all", { sort });
   const { upload, uploading, error } = useUpload(refresh);
   const fileInput = useRef<HTMLInputElement>(null);
   const [adding, setAdding] = useState<string | null>(null);
@@ -63,14 +65,14 @@ export default function MediaPanel() {
     const id = ++requestId.current;
     setSearching(true);
     const timer = setTimeout(async () => {
-      const { assets: rows } = await searchAssets("all", { q, sort });
+      const { assets: rows } = await searchAssets(kind ?? "all", { q, sort });
       if (requestId.current === id) {
         setSearchResults(rows);
         setSearching(false);
       }
     }, 400);
     return () => clearTimeout(timer);
-  }, [query, sort]);
+  }, [query, sort, kind]);
 
   const isSearching = query.trim().length > 0;
   const pool = isSearching ? (searchResults ?? []) : assets;
@@ -89,11 +91,11 @@ export default function MediaPanel() {
   };
 
   return (
-    <div className="flex flex-col gap-3 p-3">
+    <div className="editor-stagger flex flex-col gap-3 p-3">
       <input
         ref={fileInput}
         type="file"
-        accept="video/*,image/*,audio/*"
+        accept={kind ? "audio/*" : "video/*,image/*,audio/*"}
         className="hidden"
         onChange={(e) => {
           const f = e.target.files?.[0];
@@ -104,7 +106,7 @@ export default function MediaPanel() {
       <button
         onClick={() => fileInput.current?.click()}
         disabled={uploading}
-        className="flex h-20 flex-col items-center justify-center gap-1 rounded-editor-lg border-2 border-dashed border-editor-border-strong text-sm font-semibold text-editor-text-muted transition-colors hover:border-editor-accent hover:text-editor-accent disabled:opacity-50 cursor-pointer"
+        className={`editor-press flex h-20 flex-col items-center justify-center gap-1 rounded-editor-lg border-2 border-dashed border-editor-border-strong text-sm font-semibold text-editor-text-muted transition-colors hover:border-editor-accent hover:bg-editor-accent/5 hover:text-editor-accent disabled:opacity-50 cursor-pointer ${uploading ? "editor-thinking" : ""}`}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
           e.preventDefault();
@@ -113,14 +115,14 @@ export default function MediaPanel() {
         }}
       >
         <UploadCloud className="h-5 w-5" />
-        {uploading ? "Uploading…" : "+ Upload media"}
-        <span className="text-[10px] font-normal">video, image, or audio — drop a file here</span>
+        {uploading ? "Uploading…" : kind ? "+ Upload audio" : "+ Upload media"}
+        <span className="text-[10px] font-normal">{kind ? "MP3, WAV or M4A — drop a file here" : "video, image, or audio — drop a file here"}</span>
       </button>
       {error && <p className="text-xs text-red-400">{error}</p>}
 
-      <SearchField value={query} onChange={setQuery} placeholder="Search your media…" />
+      <SearchField value={query} onChange={setQuery} placeholder={kind ? "Search your audio…" : "Search your media…"} />
 
-      <PillGroup options={FILTERS} value={filter} onChange={setFilter} layoutId="media-filter" />
+      {!kind && <PillGroup options={FILTERS} value={filter} onChange={setFilter} layoutId="media-filter" />}
       <SelectField
         label="Sort"
         value={SORTS.find((s) => s.key === sort)!.label}
@@ -134,10 +136,10 @@ export default function MediaPanel() {
         <PanelStatus
           state="empty"
           icon={<UploadCloud className="h-5 w-5" />}
-          message={isSearching ? "No matches. Try a different search." : "Nothing here yet. Upload a file to get started."}
+          message={isSearching ? "No matches. Try a different search." : kind ? "No audio yet. Upload a voiceover or song." : "Nothing here yet. Upload a file to get started."}
         />
       ) : (
-        <div className="grid grid-cols-2 gap-2">
+        <div className="editor-stagger-grid grid grid-cols-2 gap-2">
           {shown.map((a) => (
             <AssetCard
               key={a.id}

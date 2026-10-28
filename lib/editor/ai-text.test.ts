@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addEmojisToText, autoLineBreaks, removeFillerWords, buildAiTextPrompt } from "./ai-text";
+import { addEmojisToText, autoLineBreaks, removeFillerWords, buildAiTextPrompt, buildAiIdeasPrompt, parseAiIdeas, AI_IDEA_COUNT } from "./ai-text";
 
 describe("addEmojisToText", () => {
   it("inserts an emoji after a recognized word", () => {
@@ -67,5 +67,25 @@ describe("buildAiTextPrompt", () => {
   it("includes the target language for translate, defaulting to Spanish", () => {
     expect(buildAiTextPrompt("translate", "hi")).toContain("Spanish");
     expect(buildAiTextPrompt("translate", "hi", "French")).toContain("French");
+  });
+});
+
+describe("parseAiIdeas", () => {
+  it("strips numbering, bullets and wrapping quotes, drops blanks and duplicates", () => {
+    const raw = '1. "Your mornings are broken"\n\n- Stop scrolling before 9am\n• Stop scrolling before 9am\n2) ‘I tried this for 30 days’';
+    expect(parseAiIdeas(raw)).toEqual(["Your mornings are broken", "Stop scrolling before 9am", "I tried this for 30 days"]);
+  });
+
+  it(`keeps at most ${AI_IDEA_COUNT} lines`, () => {
+    expect(parseAiIdeas("a\nb\nc\nd\ne\nf")).toHaveLength(AI_IDEA_COUNT);
+  });
+});
+
+describe("buildAiIdeasPrompt", () => {
+  it("names the kind of line and carries the brief", () => {
+    const p = buildAiIdeasPrompt("titles", "3 habits that changed my mornings");
+    expect(p).toContain("titles");
+    expect(p).toContain("3 habits that changed my mornings");
+    expect(p).toContain("one per line");
   });
 });

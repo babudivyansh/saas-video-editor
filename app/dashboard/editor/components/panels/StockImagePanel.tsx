@@ -7,9 +7,10 @@ import React, { useState } from "react";
 import { Search } from "lucide-react";
 import { useEditorStore } from "../../store/editorStore";
 import { useStockSearch, importStockItem, type StockItem } from "./useStockSearch";
-import { Button } from "../ui";
+import { Button, showPanelToast } from "../ui";
 import AssetCard from "./shared/AssetCard";
 import SearchField from "./shared/SearchField";
+import { playUiSound } from "../../hooks/useUiSound";
 import PanelStatus from "./shared/PanelStatus";
 
 export default function StockImagePanel() {
@@ -33,13 +34,15 @@ export default function StockImagePanel() {
         scalePct: 1,
         opacity: 1,
       });
+      playUiSound("add");
+      showPanelToast("Image added at the playhead");
     } finally {
       setAdding(null);
     }
   };
 
   return (
-    <div className="flex flex-col gap-3 p-3">
+    <div className="editor-stagger flex flex-col gap-3 p-3">
       <SearchField value={query} onChange={setQuery} placeholder="Search stock photos…" />
 
       {error && <p className="text-xs text-red-400">{error}</p>}
@@ -49,7 +52,7 @@ export default function StockImagePanel() {
       {loading && items.length === 0 && <PanelStatus state="loading" message="Searching…" />}
 
       {items.length > 0 && (
-        <div className="grid grid-cols-2 gap-2">
+        <div className="editor-stagger-grid grid grid-cols-2 gap-2">
           {items.map((item) => (
             <AssetCard
               key={item.id}

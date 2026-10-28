@@ -14,3 +14,6 @@ export { default as Switch } from "./Switch";
 export { default as PillGroup } from "./PillGroup";
 export { default as EmptyState } from "./EmptyState";
 export { default as PreviewOnlyBadge } from "./PreviewOnlyBadge";
+export { PanelHeader, PanelScreen, PanelSection } from "./PanelTabs";
+export type { PanelTab } from "./PanelTabs";
+export { PanelToaster, showPanelToast } from "./PanelToast";

@@ -26,12 +26,20 @@ export type PanelKind =
   | "video"
   | "text"
   | "caption"
+  | "captionEdit"
+  | "captionStyle"
+  | "textTemplates"
+  | "textAi"
+  | "myAudio"
   | "sticker"
+  | "shape"
   | "effect"
   | "filter"
   | "transition"
   | "keyboard"
-  | "ai";
+  | "ai"
+  | "aiCaptions"
+  | "aiVideo";
 
 export interface Selection {
   clipId: string;
