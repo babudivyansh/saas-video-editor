@@ -1,9 +1,17 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 vi.mock("@/lib/with-rate-limit", () => ({ withRateLimit: (h: unknown) => h }));
 vi.mock("@/lib/rate-limit", () => ({ getClientIp: vi.fn(() => "9.9.9.9") }));
-vi.mock("@/lib/auth", () => ({ setSessionCookie: vi.fn(), setLocaleCookieFromUser: vi.fn() }));
+vi.mock("@/lib/auth", () => ({
+  setSessionCookie: vi.fn(),
+  setLocaleCookieFromUser: vi.fn(),
+  verifyToken: vi.fn(() => ({ userId: "u1", email: "a@test.com", sessionId: "s1" })),
+}));
+const grantElevation = vi.fn(async () => {});
+vi.mock("@/lib/admin/elevation", () => ({ grantElevation, ELEVATION_HOURS: 8 }));
+const auditEvent = vi.fn(async () => {});
+vi.mock("@/lib/admin/audit", () => ({ auditEvent, auditIp: () => "9.9.9.9" }));
 vi.mock("@/lib/encryption", () => ({ decryptSecret: vi.fn(() => "secret") }));
 
 // In-memory Redis for lib/two-factor-verify's per-account counter and lock.
@@ -44,7 +52,7 @@ vi.mock("@/lib/two-factor-ticket", () => ({
   countFailedTwoFactorAttempt: vi.fn(async () => ({ lockedOut: false })),
 }));
 
-type Row = { id: string; email: string; name: string; credits: number; preferredLanguage: string; twoFactorEnabled: boolean; twoFactorSecretEnc: string; suspendedAt: Date | null; deactivatedAt: Date | null };
+type Row = { id: string; role?: string; email: string; name: string; credits: number; preferredLanguage: string; twoFactorEnabled: boolean; twoFactorSecretEnc: string; suspendedAt: Date | null; deactivatedAt: Date | null };
 let user: Row;
 let updateManyCount = 1;
 let recoveryCount = 1;
@@ -154,5 +162,47 @@ describe("POST /api/auth/2fa/verify-login", () => {
       where: { id: "u1" },
       data: { deactivatedAt: null, deactivationScheduledPurgeAt: null },
     });
+  });
+});
+
+describe("admin host: the sign-in is the admin step-up", () => {
+  const postTo = (origin: string) =>
+    (POST as (r: NextRequest) => Promise<Response>)(
+      new NextRequest(`${origin}/api/auth/2fa/verify-login`, { method: "POST", body: JSON.stringify({ ticket: "t1", code: "123456" }) }),
+    );
+
+  beforeEach(() => {
+    process.env.ADMIN_ORIGIN = "https://admin.clipiro.com";
+    totpStep = 100;
+  });
+  afterEach(() => {
+    delete process.env.ADMIN_ORIGIN;
+  });
+
+  it("unlocks the console for an admin who signs in on the admin host, and audits it", async () => {
+    user.role = "ADMIN";
+    expect((await postTo("https://admin.clipiro.com")).status).toBe(200);
+    expect(grantElevation).toHaveBeenCalledWith("u1", "s1");
+    expect(auditEvent).toHaveBeenCalledWith(expect.objectContaining({ action: "admin.elevated", sessionId: "s1" }));
+  });
+
+  it("does not unlock an admin who signs in on the main site", async () => {
+    user.role = "ADMIN";
+    expect((await postTo("https://clipiro.com")).status).toBe(200);
+    expect(grantElevation).not.toHaveBeenCalled();
+  });
+
+  it("does not unlock a non-admin on the admin host", async () => {
+    user.role = "USER";
+    expect((await postTo("https://admin.clipiro.com")).status).toBe(200);
+    expect(grantElevation).not.toHaveBeenCalled();
+  });
+
+  it("does not unlock anything when the second factor fails", async () => {
+    user.role = "ADMIN";
+    totpStep = null;
+    recoveryCount = 0; // nor a recovery code
+    expect((await postTo("https://admin.clipiro.com")).status).not.toBe(200);
+    expect(grantElevation).not.toHaveBeenCalled();
   });
 });
