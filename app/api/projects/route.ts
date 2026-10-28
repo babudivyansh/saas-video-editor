@@ -3,10 +3,11 @@ import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { invalidateDashboardSummary } from "@/lib/dashboard-summary-cache";
 import { parseS3Url } from "@/lib/s3-url";
-import { sourceUrlError } from "@/lib/source-url";
+import { resignOwnedMediaUrl, sourceUrlError } from "@/lib/source-url";
 import { getAssetReadUrl } from "@/utils/s3-upload";
 
 // Stored media URLs are permanent and unsigned; re-sign before handing one out.
+// Server-written URLs only (clip thumbnails) — see resignOwnedMediaUrl below.
 async function resign(url: string | null): Promise<string | null> {
   if (!url) return null;
   const loc = parseS3Url(url);
@@ -83,7 +84,8 @@ export async function GET(req: NextRequest) {
       return {
         ...rest,
         coverUrl: await resign(clips?.[0]?.thumbnailUrl ?? null),
-        sourceUrl: await resign(p.uploadedVideoUrl),
+        // Client-settable, so only signed when the caller owns the object.
+        sourceUrl: await resignOwnedMediaUrl(p.uploadedVideoUrl, auth.userId),
         bestScore: bestByProject.get(p.id) ?? null,
       };
     }),

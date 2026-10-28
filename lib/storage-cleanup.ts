@@ -13,7 +13,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
-import { s3KeyFromStoredUrl } from "@/lib/source-url";
+import { ownsKey, s3KeyFromStoredUrl } from "@/lib/source-url";
 import { deleteS3Object } from "@/utils/s3-upload";
 
 function keysFrom(urls: Array<string | null | undefined>): string[] {
@@ -31,14 +31,24 @@ export async function collectProjectMediaKeys(where: { id: string | { in: string
   const projects = await prisma.project.findMany({
     where,
     select: {
+      userId: true,
       uploadedVideoUrl: true,
       videoUrl: true,
       clips: { select: { videoUrl: true, thumbnailUrl: true } },
     },
   });
-  return keysFrom(
-    projects.flatMap((p) => [p.uploadedVideoUrl, p.videoUrl, ...p.clips.flatMap((c) => [c.videoUrl, c.thumbnailUrl])]),
+  const keys = new Set(
+    keysFrom(projects.flatMap((p) => [p.videoUrl, ...p.clips.flatMap((c) => [c.videoUrl, c.thumbnailUrl])])),
   );
+  // uploadedVideoUrl is client-settable (project PATCH/POST, the public API):
+  // anyone could point it at another user's object, so its key is only
+  // collected when the project's owner provably owns it.
+  for (const p of projects) {
+    for (const key of keysFrom([p.uploadedVideoUrl])) {
+      if (await ownsKey(p.userId, key)) keys.add(key);
+    }
+  }
+  return [...keys];
 }
 
 /** Asset keys (media + thumbnail) owned by a user — the library side of an account delete. */

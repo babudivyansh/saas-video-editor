@@ -16,7 +16,7 @@ import { logger } from "@/lib/logger";
 import { markQuestComplete } from "@/lib/quests";
 import { notify } from "@/lib/notify";
 import type { TimelineDoc } from "./types";
-import { normalizeDoc } from "./types";
+import { normalizeDoc, validateDoc } from "./types";
 import { buildFilterGraph, maybeUseFilterScript, writeTextFiles, type ClipInput } from "./filtergraph";
 import { generateCaptionASS } from "./caption-ass";
 import { ASPECT_DIMENSIONS } from "./types";
@@ -110,6 +110,11 @@ export async function editorRenderJob(payload: EditorRenderPayload): Promise<voi
     // of whatever validation already ran when the render was enqueued, so it
     // must normalize defensively rather than assume an upstream caller did.
     const doc = normalizeDoc(project.editorDoc as unknown as TimelineDoc);
+    // The render route validated the doc it was handed, but this is a fresh
+    // read: a save after that check (or before a retry) would otherwise reach
+    // ffmpeg unchecked. Fails into the catch below: marked failed, refunded.
+    const docError = validateDoc(doc);
+    if (docError) throw new Error(`Editor document failed validation: ${docError}`);
 
     // ── Download unique assets ──
     await setRenderProgress(projectId, "downloading", 5);

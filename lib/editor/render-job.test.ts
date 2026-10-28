@@ -89,6 +89,7 @@ vi.mock("fs", async (importOriginal) => {
 });
 
 const { editorRenderJob } = await import("./render-job");
+const { buildFilterGraph } = await import("./filtergraph");
 
 describe("editorRenderJob", () => {
   beforeEach(() => {
@@ -96,6 +97,7 @@ describe("editorRenderJob", () => {
     ffmpegShouldFail = null;
     restoreSpend.mockClear();
     notify.mockClear();
+    vi.mocked(buildFilterGraph).mockClear();
   });
 
   it("on success: marks the project completed with a videoUrl, clears no failureReason (none set), and never refunds", async () => {
@@ -127,6 +129,25 @@ describe("editorRenderJob", () => {
     expect(restoreSpend).toHaveBeenCalledWith(
       expect.objectContaining({ userId: "user-1", refId: "editor-render:proj-1", reason: "refund:editor-render-failed" }),
     );
+  });
+
+  it("re-validates the doc it reads back: an injected colour fails and refunds before ffmpeg", async () => {
+    // The render route validated the doc it was handed; a save after that
+    // check must not reach ffmpeg unchecked.
+    const original = projectRow.editorDoc.tracks.text;
+    projectRow.editorDoc.tracks.text = [{
+      id: "t1", type: "text", text: "x", timelineStart: 0, duration: 2, fontFamily: "Poppins", fontSizePct: 0.05,
+      color: "#ffffff:textfile=/proc/self/environ", bold: false, align: "center", x: 0.5, y: 0.5, bgColor: null,
+    }] as never;
+    try {
+      await editorRenderJob({ projectId: "proj-1", assetUrls: { "asset-1": "https://s3.example.com/asset-1.mp4" } });
+    } finally {
+      projectRow.editorDoc.tracks.text = original;
+    }
+    expect(buildFilterGraph).not.toHaveBeenCalled();
+    expect(projectUpdates.some((u) => u.status === "failed")).toBe(true);
+    expect(projectUpdates.some((u) => u.status === "completed")).toBe(false);
+    expect(restoreSpend).toHaveBeenCalledTimes(1);
   });
 
   it("on failure: never marks the project completed", async () => {
