@@ -28,6 +28,23 @@ export default function VideoClipProps({ clip, activeTab }: { clip: VideoClip; a
           <NumberField label="Duration (s)" value={clip.duration} min={0.05} step={0.1} onChange={(v) => patch({ duration: v })} />
           <NumberField label="Trim in (s)" value={clip.srcIn} min={0} step={0.1} onChange={(v) => patch({ srcIn: v })} />
         </PropertyCard>
+        <PropertyCard title="Framing" collapsible={false}>
+          <PillGroup
+            layoutId="video-fit"
+            value={clip.fit ?? "fill"}
+            onChange={(key) => patch({ fit: key === "fit" ? "fit" : undefined })}
+            options={[
+              { key: "fill", label: "Fill (crop)" },
+              { key: "fit", label: "Fit (blur)" },
+            ]}
+          />
+          {(clip.fit ?? "fill") === "fill" && (
+            <>
+              <Slider label="Left ↔ right" value={clip.focusX ?? 0.5} min={0} max={1} step={0.01} onChange={(v) => patch({ focusX: v === 0.5 ? undefined : v })} />
+              <Slider label="Top ↕ bottom" value={clip.focusY ?? 0.5} min={0} max={1} step={0.01} onChange={(v) => patch({ focusY: v === 0.5 ? undefined : v })} />
+            </>
+          )}
+        </PropertyCard>
       </div>
     );
   }

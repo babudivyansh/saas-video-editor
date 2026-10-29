@@ -2,14 +2,15 @@ import {
   AI_TEXT_OPERATIONS,
   assetUploadProblem,
   type AiTextOperationId,
-  ASPECT_DIMENSIONS,
   CAPTION_TEMPLATE_CATALOG,
+  docDimensions,
   videoClipAt,
   type Asset,
   type AudioClip,
   type CaptionClip,
   type TextClip,
   type TextEntrancePreset,
+  type TimelineDoc,
   CAPTION_HIGHLIGHTS,
   CAPTION_POSITIONS,
   EDITOR_EFFECTS,
@@ -280,7 +281,7 @@ function EmeraldButton({ label, icon, onPress, disabled }: { label: string; icon
 // ── Captions ──────────────────────────────────────────────────────────────
 
 /** Caption size in the export's pixels (the frame's height). */
-const pxFor = (pct: number, aspect: keyof typeof ASPECT_DIMENSIONS) => Math.round(pct * ASPECT_DIMENSIONS[aspect].h);
+const pxFor = (pct: number, doc: Pick<TimelineDoc, "aspect" | "size">) => Math.round(pct * docDimensions(doc).h);
 
 export function CaptionsPanel() {
   const doc = useEditor((s) => s.doc);
@@ -302,7 +303,7 @@ export function CaptionsPanel() {
     );
   }
 
-  const px = pxFor(first.fontSizePct, doc.aspect);
+  const px = pxFor(first.fontSizePct, doc);
   return (
     <PanelShell panel="captions">
       <View style={styles.styleStrip}>
@@ -349,7 +350,7 @@ export function CaptionsPanel() {
           min={24}
           max={160}
           step={2}
-          onChange={(v) => style({ fontSizePct: v / ASPECT_DIMENSIONS[doc.aspect].h })}
+          onChange={(v) => style({ fontSizePct: v / docDimensions(doc).h })}
           formatValue={(v) => `${v} pixels`}
         />
       </Field>

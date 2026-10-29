@@ -5,13 +5,67 @@
 
 import { isKnownTemplateId } from "../captions/templates";
 
-export type Aspect = "9:16" | "1:1" | "16:9";
+/** A preset frame shape. "original" (below) is the one aspect without a fixed size. */
+export type FixedAspect = "9:16" | "1:1" | "16:9" | "4:5";
+/** "original" keeps the source video's own shape; its frame lives in doc.size. */
+export type Aspect = FixedAspect | "original";
 
-export const ASPECT_DIMENSIONS: Record<Aspect, { w: number; h: number }> = {
+export const ASPECT_DIMENSIONS: Record<FixedAspect, { w: number; h: number }> = {
   "9:16": { w: 1080, h: 1920 },
   "1:1": { w: 1080, h: 1080 },
   "16:9": { w: 1920, h: 1080 },
+  "4:5": { w: 1080, h: 1350 },
 };
+
+// Bounds for an "original" frame. Even sides (yuv420p needs them), long side
+// at most 1920 like the presets, and nothing thinner than 1:4 so captions and
+// text still have room.
+export const ORIGINAL_MAX_SIDE = 1920;
+export const ORIGINAL_MIN_SIDE = 240;
+const ORIGINAL_MAX_RATIO = 4;
+
+function even(n: number): number {
+  return Math.max(2, Math.round(n / 2) * 2);
+}
+
+/**
+ * The output frame for a source of srcW×srcH kept in its own shape: scaled so
+ * the long side is ORIGINAL_MAX_SIDE (never upscaled past it, never below
+ * ORIGINAL_MIN_SIDE), sides even, ratio clamped to 1:4..4:1.
+ */
+export function originalFrame(srcW: number, srcH: number): { w: number; h: number } {
+  let w = srcW > 0 ? srcW : 1080;
+  let h = srcH > 0 ? srcH : 1920;
+  if (w / h > ORIGINAL_MAX_RATIO) w = h * ORIGINAL_MAX_RATIO;
+  if (h / w > ORIGINAL_MAX_RATIO) h = w * ORIGINAL_MAX_RATIO;
+  const scale = ORIGINAL_MAX_SIDE / Math.max(w, h);
+  w *= scale;
+  h *= scale;
+  const short = Math.min(w, h);
+  if (short < ORIGINAL_MIN_SIDE) {
+    w *= ORIGINAL_MIN_SIDE / short;
+    h *= ORIGINAL_MIN_SIDE / short;
+  }
+  return { w: even(w), h: even(h) };
+}
+
+function isValidOriginalSize(size: unknown): size is { w: number; h: number } {
+  if (!size || typeof size !== "object") return false;
+  const { w, h } = size as { w: unknown; h: unknown };
+  const side = (n: unknown): n is number =>
+    typeof n === "number" && Number.isInteger(n) && n % 2 === 0 && n >= ORIGINAL_MIN_SIDE && n <= ORIGINAL_MAX_SIDE;
+  if (!side(w) || !side(h)) return false;
+  return Math.max(w, h) / Math.min(w, h) <= ORIGINAL_MAX_RATIO + 0.01;
+}
+
+/** The output frame of a doc: the preset's size, or doc.size for "original". */
+export function docDimensions(doc: Pick<TimelineDoc, "aspect" | "size">): { w: number; h: number } {
+  if (doc.aspect === "original") return isValidOriginalSize(doc.size) ? doc.size : ASPECT_DIMENSIONS["9:16"];
+  return ASPECT_DIMENSIONS[doc.aspect] ?? ASPECT_DIMENSIONS["9:16"];
+}
+
+/** How a video fills the frame when its shape differs from the frame's. */
+export type VideoFit = "fill" | "fit";
 
 // Fonts available in the text panel. Client previews with the same family the
 // server burns in, so the whitelist is the parity contract between the two.
@@ -89,6 +143,15 @@ export interface VideoClip extends ClipBase {
   /** Colour fine-tune on top of the filter preset. */
   adjust?: VideoAdjust;
   transitionOut?: TransitionPreset;
+  /**
+   * "fill" (default) crops the video to cover the frame; "fit" shows all of it
+   * over a blurred, zoomed copy of itself. Applied by filtergraph.ts and
+   * previewed by usePlayback.ts.
+   */
+  fit?: VideoFit;
+  /** Fill only: which part of an over-sized video stays in frame, 0..1 (0.5 = centre). */
+  focusX?: number;
+  focusY?: number;
 }
 
 export interface VideoAdjust {
@@ -376,6 +439,8 @@ export type TrackKind = "video" | "text" | "audio" | "image" | "caption";
 export interface TimelineDoc {
   version: 1;
   aspect: Aspect;
+  /** The frame when aspect is "original" (see originalFrame); ignored otherwise. */
+  size?: { w: number; h: number };
   fps: 30;
   tracks: {
     video: VideoClip[]; // sorted by timelineStart, non-overlapping
@@ -446,7 +511,9 @@ export function validateDoc(doc: unknown): string | null {
   if (!doc || typeof doc !== "object") return "doc is not an object";
   if ((doc as TimelineDoc).version !== 1) return "unsupported version";
   const d = normalizeDoc(doc as TimelineDoc); // backfills missing track arrays (e.g. pre-caption-track saved docs)
-  if (!ASPECT_DIMENSIONS[d.aspect]) return "invalid aspect";
+  if (d.aspect === "original") {
+    if (!isValidOriginalSize(d.size)) return "invalid size";
+  } else if (!Object.prototype.hasOwnProperty.call(ASPECT_DIMENSIONS, d.aspect)) return "invalid aspect";
   if (!d.tracks || typeof d.tracks !== "object") return "missing tracks";
 
   for (const kind of ["video", "text", "audio", "image", "caption"] as const) {
@@ -489,6 +556,9 @@ export function validateDoc(doc: unknown): string | null {
     if (v.effectEnd !== undefined && !isFiniteNonNeg(v.effectEnd)) return "video clip invalid effectEnd";
     if (v.effectStart !== undefined && v.effectEnd !== undefined && v.effectEnd <= v.effectStart) return "video clip invalid effect range";
     if (v.effectStrength !== undefined && !isFiniteInRange(v.effectStrength, 0.1, 1)) return "video clip invalid effectStrength";
+    if (v.fit !== undefined && v.fit !== "fill" && v.fit !== "fit") return "video clip invalid fit";
+    if (v.focusX !== undefined && !isFiniteInRange(v.focusX, 0, 1)) return "video clip invalid focusX";
+    if (v.focusY !== undefined && !isFiniteInRange(v.focusY, 0, 1)) return "video clip invalid focusY";
     if (v.adjust !== undefined) {
       const a = v.adjust;
       if (typeof a !== "object" || a === null || !isFiniteInRange(a.brightness, -0.3, 0.3) || !isFiniteInRange(a.contrast, 0.5, 1.5) || !isFiniteInRange(a.saturation, 0, 2) || !isFiniteInRange(a.warmth, -1, 1))

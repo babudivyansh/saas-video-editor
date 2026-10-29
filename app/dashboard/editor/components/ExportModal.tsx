@@ -11,7 +11,7 @@ import { useAuth } from "@/app/components/AuthContext";
 import { useEditorStore } from "../store/editorStore";
 import { docDuration } from "@/lib/editor/doc-utils";
 import { hasBlockingCheck, runExportChecks } from "@/lib/editor/export-checks";
-import type { TrackKind } from "@/lib/editor/types";
+import { docDimensions, type TrackKind } from "@/lib/editor/types";
 import { useInsufficientCredits } from "@/app/components/billing/CreditModalContext";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 import { Modal } from "@/app/components/ui/Modal";
@@ -136,7 +136,8 @@ export default function ExportModal() {
   const duration = docDuration(doc);
   const checks = runExportChecks(doc);
   const blocked = hasBlockingCheck(checks);
-  const resolution = doc.aspect === "16:9" ? "1920×1080" : doc.aspect === "1:1" ? "1080×1080" : "1080×1920";
+  const frame = docDimensions(doc);
+  const resolution = `${frame.w}×${frame.h}`;
 
   // Full-screen like the upgrade page (no drawers). It can't be dismissed while
   // a render is being started — the server is already charging for it.
@@ -157,7 +158,7 @@ export default function ExportModal() {
           <section>
             <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-fg-subtle">What you&apos;re exporting</p>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <Stat label="Shape" value={doc.aspect} />
+              <Stat label="Shape" value={doc.aspect === "original" ? "Original" : doc.aspect} />
               <Stat label="Length" value={fmtLen(duration)} />
               <Stat label="Resolution" value={resolution} />
               <Stat label="Format" value="MP4" />

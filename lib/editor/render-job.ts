@@ -19,7 +19,7 @@ import type { TimelineDoc } from "./types";
 import { normalizeDoc, validateDoc } from "./types";
 import { buildFilterGraph, maybeUseFilterScript, writeTextFiles, type ClipInput } from "./filtergraph";
 import { generateCaptionASS } from "./caption-ass";
-import { ASPECT_DIMENSIONS } from "./types";
+import { docDimensions } from "./types";
 import { templateCaptionGroups } from "@clipiro/shared/captions";
 import { planEmoji } from "@clipiro/shared/caption-emoji";
 import { resolveCaptionTemplate } from "@clipiro/shared/caption-templates";
@@ -148,10 +148,10 @@ export async function editorRenderJob(payload: EditorRenderPayload): Promise<voi
     const plainCues = doc.tracks.caption.filter((c) => !c.templateId);
     if (plainCues.length > 0) {
       captionAssPath = path.join(tmp, `editor-${projectId}-captions.ass`);
-      generateCaptionASS(plainCues, doc.aspect, captionAssPath);
+      generateCaptionASS(plainCues, docDimensions(doc), captionAssPath);
       tempFiles.push(captionAssPath);
     }
-    const { w: capW, h: capH } = ASPECT_DIMENSIONS[doc.aspect];
+    const { w: capW, h: capH } = docDimensions(doc);
     const captionTemplateTracks: { track: CaptionTrack; assPath: string }[] = [];
     templateCaptionGroups(doc.tracks.caption).forEach((group, i) => {
       const template = resolveCaptionTemplate(group.templateId);

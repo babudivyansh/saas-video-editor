@@ -23,6 +23,20 @@ export interface MediaRegistry {
   /** assetId → media element rendered by PreviewStage */
   videos: Map<string, HTMLVideoElement>;
   audios: Map<string, HTMLAudioElement>;
+  /** Blurred backdrop behind a "fit" clip (filtergraph.ts fitStatements). */
+  backdrop?: HTMLCanvasElement | null;
+}
+
+/** Draws `video` into `canvas` the way object-fit: cover would (the export's
+ *  blurred copy is a cover-scaled crop too); CSS adds the blur. */
+function drawCover(canvas: HTMLCanvasElement, video: HTMLVideoElement) {
+  const ctx = canvas.getContext("2d");
+  const vw = video.videoWidth;
+  const vh = video.videoHeight;
+  if (!ctx || !vw || !vh) return;
+  const { width: cw, height: ch } = canvas;
+  const s = Math.max(cw / vw, ch / vh);
+  ctx.drawImage(video, (cw - vw * s) / 2, (ch - vh * s) / 2, vw * s, vh * s);
 }
 
 export function usePlayback(registry: React.RefObject<MediaRegistry>) {
@@ -92,6 +106,13 @@ export function usePlayback(registry: React.RefObject<MediaRegistry>) {
               opacity = Math.min(opacity, (active.duration - local) / transDur);
           }
           el.style.opacity = String(Math.max(0, Math.min(1, opacity)));
+          // Framing: the same choice the export's fill/fit filters make.
+          // object-position on a cover-fitted element offsets the overflow
+          // exactly like crop's x=(in_w-out_w)*focusX.
+          const fit = active.fit === "fit" ? "contain" : "cover";
+          if (el.style.objectFit !== fit) el.style.objectFit = fit;
+          const pos = fit === "cover" ? `${(active.focusX ?? 0.5) * 100}% ${(active.focusY ?? 0.5) * 100}%` : "50% 50%";
+          if (el.style.objectPosition !== pos) el.style.objectPosition = pos;
           // Color filter preview: same preset family the export burns in.
           // "none" clears the inline style entirely so a class-based effect
           // filter (below) isn't overridden by an inline `filter: none`.
@@ -112,6 +133,19 @@ export function usePlayback(registry: React.RefObject<MediaRegistry>) {
         } else {
           el.style.opacity = "0";
           if (!el.paused) el.pause();
+        }
+      }
+
+      const backdrop = reg.backdrop;
+      if (backdrop) {
+        const el = active?.fit === "fit" ? reg.videos.get(active.assetId) : undefined;
+        if (el && el.readyState >= 2) {
+          drawCover(backdrop, el);
+          backdrop.style.opacity = el.style.opacity;
+          const blur = `blur(10px) ${el.style.filter}`.trim();
+          if (backdrop.style.filter !== blur) backdrop.style.filter = blur;
+        } else if (backdrop.style.opacity !== "0") {
+          backdrop.style.opacity = "0";
         }
       }
 

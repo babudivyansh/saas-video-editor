@@ -9,7 +9,7 @@ import path from "path";
 import { describe, expect, it } from "vitest";
 import { buildFilterGraph, writeTextFiles, type ClipInput } from "./filtergraph";
 import type { TextClip, TimelineDoc, VideoClip } from "./types";
-import { TRANSITION_DURATION_SEC, validateDoc } from "./types";
+import { docDimensions, originalFrame, TRANSITION_DURATION_SEC, validateDoc } from "./types";
 
 function videoClip(overrides: Partial<VideoClip> & { id: string }): VideoClip {
   return {
@@ -234,5 +234,78 @@ describe("untrusted doc values never reach the filesystem or the filtergraph raw
     d.tracks.text = [textClip({ shadow: { color: "#000000,drawtext=text=x", opacity: 0.5, offsetXPct: 0.01, offsetYPct: 0.01 } as TextClip["shadow"] })];
     expect(() => buildFilterGraph({ doc: d, assets: assetsFor(d), textFiles: new Map([["t1", "/tmp/t1.txt"]]), outputPath: "/tmp/out.mp4" }))
       .toThrow("invalid colour");
+  });
+});
+
+describe("frame sizes: 4:5 and original", () => {
+  it("renders 4:5 at 1080x1350", () => {
+    const d: TimelineDoc = { ...doc([videoClip({ id: "c1" })]), aspect: "4:5" };
+    expect(validateDoc(d)).toBeNull();
+    expect(build(d).filterComplex).toContain("scale=1080:1350:force_original_aspect_ratio=increase");
+  });
+
+  it("renders original at doc.size", () => {
+    const d: TimelineDoc = { ...doc([videoClip({ id: "c1" })]), aspect: "original", size: { w: 1920, h: 816 } };
+    expect(validateDoc(d)).toBeNull();
+    expect(docDimensions(d)).toEqual({ w: 1920, h: 816 });
+    expect(build(d).filterComplex).toContain("crop=1920:816");
+  });
+
+  it("refuses original without a usable size", () => {
+    const base = doc([videoClip({ id: "c1" })]);
+    expect(validateDoc({ ...base, aspect: "original" })).toBe("invalid size");
+    expect(validateDoc({ ...base, aspect: "original", size: { w: 1081, h: 1920 } })).toBe("invalid size");
+    expect(validateDoc({ ...base, aspect: "original", size: { w: 4000, h: 1920 } })).toBe("invalid size");
+    expect(validateDoc({ ...base, aspect: "original", size: { w: 1920, h: 240 } })).toBe("invalid size");
+    expect(validateDoc({ ...base, aspect: "2:3" as TimelineDoc["aspect"] })).toBe("invalid aspect");
+  });
+
+  it("originalFrame scales the long side to 1920, keeps sides even and clamps extreme shapes", () => {
+    expect(originalFrame(3840, 2160)).toEqual({ w: 1920, h: 1080 });
+    expect(originalFrame(720, 1280)).toEqual({ w: 1080, h: 1920 });
+    expect(originalFrame(1000, 1001)).toEqual({ w: 1918, h: 1920 });
+    const strip = originalFrame(5000, 100);
+    expect(strip).toEqual({ w: 1920, h: 480 });
+    // Whatever the source, the result always validates.
+    for (const [w, h] of [[3840, 2160], [1, 1], [0, 0], [100, 5000], [1279, 719]]) {
+      const size = originalFrame(w, h);
+      expect(validateDoc({ ...doc([videoClip({ id: "c1" })]), aspect: "original", size })).toBeNull();
+    }
+  });
+});
+
+describe("framing: fill focus and fit", () => {
+  it("keeps the legacy centred crop when no focus is set", () => {
+    const { filterComplex } = build(doc([videoClip({ id: "c1" })]));
+    expect(filterComplex).toContain("scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1");
+  });
+
+  it("offsets the crop by focusX/focusY", () => {
+    const { filterComplex } = build(doc([videoClip({ id: "c1", focusX: 0.2, focusY: 1 })]));
+    expect(filterComplex).toContain("crop=1080:1920:x=(in_w-out_w)*0.2:y=(in_h-out_h)*1");
+  });
+
+  it("fit splits into a blurred cover copy and a contained copy, then overlays them", () => {
+    const { filterComplex } = build(doc([videoClip({ id: "c1", fit: "fit", focusX: 0.9 })]));
+    expect(filterComplex).toContain("fps=30,split[v0s1][v0s2]");
+    expect(filterComplex).toContain("[v0s1]scale=136:240:force_original_aspect_ratio=increase,crop=136:240,boxblur=6:2,scale=1080:1920,setsar=1[v0bg]");
+    expect(filterComplex).toContain("[v0s2]scale=1080:1920:force_original_aspect_ratio=decrease,setsar=1[v0fg]");
+    expect(filterComplex).toContain("[v0bg][v0fg]overlay=(W-w)/2:(H-h)/2[v0fit]");
+    expect(filterComplex).toContain("[v0fit]setsar=1");
+    // Focus only applies to fill.
+    expect(filterComplex).not.toContain("in_w-out_w");
+  });
+
+  it("fit still takes effects, fades and the part-clip effect wrapper", () => {
+    const { filterComplex } = build(doc([videoClip({ id: "c1", fit: "fit", fadeIn: 1, effect: "glitch", effectStart: 1, effectEnd: 2 })]));
+    expect(filterComplex).toContain("[v0fit]setsar=1[v0p]");
+    expect(filterComplex).toContain("fade=t=in:st=0:d=1");
+  });
+
+  it("validates fit and focus values", () => {
+    expect(validateDoc(doc([videoClip({ id: "c1", fit: "fit", focusX: 0, focusY: 1 })]))).toBeNull();
+    expect(validateDoc(doc([videoClip({ id: "c1", fit: "zoom" as VideoClip["fit"] })]))).toBe("video clip invalid fit");
+    expect(validateDoc(doc([videoClip({ id: "c1", focusX: 1.5 })]))).toBe("video clip invalid focusX");
+    expect(validateDoc(doc([videoClip({ id: "c1", focusY: -0.1 })]))).toBe("video clip invalid focusY");
   });
 });
