@@ -22,7 +22,7 @@ import { generateCaptionASS } from "./caption-ass";
 import { docDimensions } from "./types";
 import { templateCaptionGroups } from "@clipiro/shared/captions";
 import { planEmoji } from "@clipiro/shared/caption-emoji";
-import { resolveCaptionTemplate } from "@clipiro/shared/caption-templates";
+import { effectiveCaptionTemplate } from "@clipiro/shared/caption-style";
 import { buildCaptionTrack, type CaptionTrack } from "@/lib/captions/engine";
 import { sanitizeCaptionWord } from "@/lib/caption-sanitize";
 import { classifyRenderFailure } from "./render-failure";
@@ -154,7 +154,7 @@ export async function editorRenderJob(payload: EditorRenderPayload): Promise<voi
     const { w: capW, h: capH } = docDimensions(doc);
     const captionTemplateTracks: { track: CaptionTrack; assPath: string }[] = [];
     templateCaptionGroups(doc.tracks.caption).forEach((group, i) => {
-      const template = resolveCaptionTemplate(group.templateId);
+      const { template, positionY } = effectiveCaptionTemplate(group.templateId, doc.captionStyle, { w: capW, h: capH });
       const words = group.words
         .map((w) => ({ ...w, word: sanitizeCaptionWord(w.word).trim() }))
         .filter((w) => w.word);
@@ -165,6 +165,7 @@ export async function editorRenderJob(payload: EditorRenderPayload): Promise<voi
         W: capW,
         H: capH,
         accent: group.accent,
+        positionY,
         emoji: planEmoji(words, template.emoji !== "none"),
       });
       const assPath = path.join(tmp, `editor-${projectId}-template-${i}.ass`);

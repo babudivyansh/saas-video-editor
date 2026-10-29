@@ -4,6 +4,7 @@
 // it is imported by both client components and the render job.
 
 import { isKnownTemplateId } from "../captions/templates";
+import { validateCaptionStyle, validateWordStyle, type CaptionStyleOverride, type CaptionWordStyle } from "../captions/style";
 
 /** A preset frame shape. "original" (below) is the one aspect without a fixed size. */
 export type FixedAspect = "9:16" | "1:1" | "16:9" | "4:5";
@@ -361,6 +362,8 @@ export interface CaptionWord {
   endMs: number;
   /** Diarized speaker label, when the transcript has one (speaker-coloured templates). */
   speaker?: string;
+  /** This word's own look over the template (template cues only). */
+  style?: CaptionWordStyle;
 }
 
 export const CAPTION_HIGHLIGHT_MODES = {
@@ -441,6 +444,8 @@ export interface TimelineDoc {
   aspect: Aspect;
   /** The frame when aspect is "original" (see originalFrame); ignored otherwise. */
   size?: { w: number; h: number };
+  /** The project's caption look over every template cue (captions/style.ts). */
+  captionStyle?: CaptionStyleOverride;
   fps: 30;
   tracks: {
     video: VideoClip[]; // sorted by timelineStart, non-overlapping
@@ -515,6 +520,8 @@ export function validateDoc(doc: unknown): string | null {
     if (!isValidOriginalSize(d.size)) return "invalid size";
   } else if (!Object.prototype.hasOwnProperty.call(ASPECT_DIMENSIONS, d.aspect)) return "invalid aspect";
   if (!d.tracks || typeof d.tracks !== "object") return "missing tracks";
+  const captionStyleErr = validateCaptionStyle(d.captionStyle);
+  if (captionStyleErr) return captionStyleErr;
 
   for (const kind of ["video", "text", "audio", "image", "caption"] as const) {
     const track = d.tracks[kind];
@@ -711,6 +718,8 @@ export function validateDoc(doc: unknown): string | null {
           (w.speaker !== undefined && (typeof w.speaker !== "string" || w.speaker.length > 64))
         )
           return "caption clip invalid word timing";
+        const styleErr = validateWordStyle(w.style);
+        if (styleErr) return `caption clip ${styleErr}`;
       }
     }
 

@@ -12,7 +12,8 @@
     "./timeline-utils": "./src/editor/timeline-utils.ts",
     "./captions": "./src/editor/captions.ts",
     "./caption-templates": "./src/captions/templates.ts",
-    "./caption-emoji": "./src/captions/emoji.ts"
+    "./caption-emoji": "./src/captions/emoji.ts",
+    "./caption-style": "./src/captions/style.ts"
   },
   "dependencies": {
     "zod": "^4.4.3"

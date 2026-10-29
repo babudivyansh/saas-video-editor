@@ -74,6 +74,9 @@ export interface CaptionTrack {
 
 const f1 = (n: number) => Math.round(n * 10) / 10;
 
+/** Text colour on a boxed word (WordEmphasis "box"). */
+const BOX_TEXT = "#0A0A0A";
+
 type Segment = { s: number; e: number; pos: string; tags: string };
 
 export function buildCaptionTrack(opts: CaptionTrackOptions): CaptionTrack {
@@ -116,8 +119,11 @@ export function buildCaptionTrack(opts: CaptionTrackOptions): CaptionTrack {
     ? `\\xshad${f1(0.08 * em)}\\yshad${f1(0.1 * em)}\\4c${assColor(c.hardShadow)}\\4a${assAlpha(c.hardShadow)}`
     : "\\shad0";
 
-  const baseColor = (w: PlacedWord) => (c.speakers?.length ? c.speakers[w.speaker % c.speakers.length] : c.base);
-  const activeColor = (w: PlacedWord) => (c.cycle?.length ? c.cycle[w.index % c.cycle.length] : accentHex);
+  // A user's word colour holds in every state; a boxed word is dark text on
+  // the box (captions/style.ts, mirrored by CaptionTemplateRender).
+  const wordOwnColor = (w: PlacedWord) => (w.style?.emphasis === "box" ? BOX_TEXT : w.style?.color);
+  const baseColor = (w: PlacedWord) => wordOwnColor(w) ?? (c.speakers?.length ? c.speakers[w.speaker % c.speakers.length] : c.base);
+  const activeColor = (w: PlacedWord) => wordOwnColor(w) ?? (c.cycle?.length ? c.cycle[w.index % c.cycle.length] : accentHex);
 
   const rotTags = (ch: PlacedChunk) => {
     if (!ch.rotation) return { tags: "", frz: 0 };
@@ -131,7 +137,8 @@ export function buildCaptionTrack(opts: CaptionTrackOptions): CaptionTrack {
     const face = active ? w.activeFace : w.face;
     const fs = active ? w.activeFs : w.fs;
     const fillAlpha = assAlpha(c.base);
-    const common = `\\an5${pos}${rot}\\fn${face.fullName}\\fs${f1(fs)}\\b0\\i0\\fsp${f1(layout.trackingPx)}${strokeTags}${shadowTags}\\1a${t.motion === "hollow" ? "&HFF&" : fillAlpha}`;
+    const boxedWord = w.style?.emphasis === "box";
+    const common = `\\an5${pos}${rot}\\fn${face.fullName}\\fs${f1(fs)}\\b0\\i0\\fsp${f1(layout.trackingPx)}${boxedWord ? "\\bord0\\shad0" : strokeTags + shadowTags}\\1a${t.motion === "hollow" && !boxedWord ? "&HFF&" : fillAlpha}`;
     const grad = c.gradient && (c.gradient.target === "all" || active) ? c.gradient : null;
     if (!grad) {
       ev(2, s, e, `${common}\\1c${assColor(colorHex)}${tags}`, w.text);
@@ -281,6 +288,12 @@ export function buildCaptionTrack(opts: CaptionTrackOptions): CaptionTrack {
       const base = baseColor(w);
       const act = activeColor(w);
 
+      // A boxed word sits on its own box for the whole chunk.
+      if (w.style?.emphasis === "box") {
+        const fill = w.style.color ?? accentHex;
+        shapeEvent(1, ch.start, ch.end, 5, w.x, w.y + 0.02 * w.em, rot, roundedRect(w.w + 0.28 * w.em, 1.15 * w.em, 0.16 * w.em), fill, entry);
+      }
+
       // Shapes that travel with the word (all states).
       const wordShape = (s: number, e: number, tags: string, pos?: string) => {
         if (t.motion === "bubble") {
@@ -368,7 +381,8 @@ export function buildCaptionTrack(opts: CaptionTrackOptions): CaptionTrack {
           }
         }
         const noStroke = t.motion === "marker" || t.motion === "boxword";
-        textEvent(seg.s, seg.e, w, true, seg.pos, (noStroke ? "\\bord0" : "") + seg.tags, rot, t.motion === "bubble" || t.motion === "blocks" ? base : act);
+        const wordShake = w.style?.emphasis === "shake" && t.motion !== "shake" ? shakeTags(R) : "";
+        textEvent(seg.s, seg.e, w, true, seg.pos, (noStroke ? "\\bord0" : "") + seg.tags + wordShake, rot, t.motion === "bubble" || t.motion === "blocks" ? base : act);
       }
 
       // past
@@ -380,18 +394,18 @@ export function buildCaptionTrack(opts: CaptionTrackOptions): CaptionTrack {
       if (w.emoji) {
         const file = emojiAssetName(w.emoji);
         const s = w.activeStart / 1000;
-        if (t.emoji === "above") {
+        if (w.emojiMode === "above") {
           const size = Math.round(1.05 * em);
           emoji.push({ file, size, x: Math.round(w.x - size / 2), y: Math.round(w.y - 0.6 * em - size), start: s, end: w.activeEnd / 1000 });
-        } else if (t.emoji === "end") {
+        } else if (w.emojiMode === "end") {
           const size = Math.round(0.95 * em);
           emoji.push({ file, size, x: Math.round(w.x + w.w / 2 + 0.1 * em), y: Math.round(w.y - size / 2), start: s, end: ch.end / 1000 });
-        } else if (t.emoji === "burst") {
+        } else if (w.emojiMode === "burst") {
           const size = Math.round(0.6 * em);
           for (const [dx, dy] of [[-1.4, -1.75], [1.5, -1.5], [0, -2.4], [-1.75, 0.25], [1.75, 0.4]]) {
             emoji.push({ file, size, x: Math.round(w.x - size / 2), y: Math.round(w.y - size / 2), start: s, end: s + 0.52, vx: (dx * em) / 0.52, vy: (dy * em) / 0.52 });
           }
-        } else if (t.emoji === "rain") {
+        } else if (w.emojiMode === "rain") {
           const size = Math.round(0.09 * W);
           for (let k = 0; k < 5; k++) {
             const delay = k * 0.09;

@@ -10,6 +10,7 @@
 
 import type { CSSProperties } from "react";
 import type { CaptionTemplateSpec } from "@clipiro/shared/caption-templates";
+import { BIGGER_SCALE, type CaptionWordStyle } from "@clipiro/shared/caption-style";
 import s from "./CaptionTemplateRender.module.css";
 
 export interface PreviewWord {
@@ -21,7 +22,13 @@ export interface PreviewWord {
   emoji?: string | null;
   emphasis?: boolean;
   speaker?: number;
+  /** The user's own look for this word; the export draws the same (lib/captions/engine). */
+  style?: CaptionWordStyle;
 }
+
+/** Motions with no per-word active state, where a word's shake can't show (as in the export). */
+const NO_WORD_ACTIVE = new Set(["karaoke", "type", "typestep", "fade", "cut", "zoom", "emph"]);
+const BOX_TEXT = "#0A0A0A";
 
 export interface CaptionTemplateRenderProps {
   template: CaptionTemplateSpec;
@@ -144,21 +151,36 @@ export default function CaptionTemplateRender({
     if (c.cycle?.length && k === activeIdx) style["--act"] = c.cycle[w.i % c.cycle.length];
     const sc = speakerColor(w.speaker);
     if (sc) style["--base"] = sc;
+    const ws = w.style;
+    const own = ws?.emphasis === "box" ? BOX_TEXT : ws?.color;
+    if (own) {
+      style["--base"] = own;
+      style["--act"] = own;
+    }
+    if (ws?.emphasis === "box") style["--wbox"] = ws.color ?? act;
+    if (ws?.emphasis === "bigger") style.fontSize = `${BIGGER_SCALE}em`;
+    const wordClass = [
+      ws?.emphasis === "box" ? s.wbox : "",
+      ws?.emphasis === "shake" && t.motion !== "shake" && !NO_WORD_ACTIVE.has(t.motion) ? s.wshake : "",
+    ].filter(Boolean).join(" ");
     const dur = Math.max(80, (chunk.words[k + 1]?.start ?? chunk.end) - w.start);
     style["--dur"] = `${dur - 30}ms`;
-    const emoji = t.emoji !== "none" && w.emoji ? w.emoji : null;
+    // A user-picked emoji wins, and shows at the end of the word on a
+    // template without emoji — the export's rule (engine/layout.ts).
+    const emoji = ws?.emoji ?? (t.emoji !== "none" && w.emoji ? w.emoji : null);
+    const emojiMode = ws?.emoji && t.emoji === "none" ? "end" : t.emoji;
     const sinceActive = timeMs - w.start;
     return (
       <span key={`${chunk.index}-${k}`} className="contents">
-        <span className={`${s.w} ${state} ${w.emphasis && t.motion === "emph" ? s.em : ""}`} data-w={w.text} style={style}>
+        <span className={`${s.w} ${state} ${w.emphasis && t.motion === "emph" ? s.em : ""} ${wordClass}`} data-w={w.text} style={style}>
           {w.text}
-          {emoji && k === activeIdx && t.emoji === "above" && <i className={`${s.emo} ${s.up}`}>{emoji}</i>}
-          {emoji && k === activeIdx && t.emoji === "burst" && sinceActive < 520 &&
+          {emoji && k === activeIdx && emojiMode === "above" && <i className={`${s.emo} ${s.up}`}>{emoji}</i>}
+          {emoji && k === activeIdx && emojiMode === "burst" && sinceActive < 520 &&
             [[-1.4, -1.75], [1.5, -1.5], [0, -2.4], [-1.75, 0.25], [1.75, 0.4]].map(([dx, dy], j) => (
               <i key={j} className={`${s.emo} ${s.burst}`} style={{ "--dx": `${dx}em`, "--dy": `${dy}em` } as CSSProperties}>{emoji}</i>
             ))}
         </span>
-        {emoji && k <= activeIdx && t.emoji === "end" && <i className={`${s.emo} ${s.end}`}>{emoji}</i>}
+        {emoji && k <= activeIdx && emojiMode === "end" && <i className={`${s.emo} ${s.end}`}>{emoji}</i>}
         {t.container === "line" && k < chunk.words.length - 1 ? " " : null}
       </span>
     );
@@ -167,14 +189,14 @@ export default function CaptionTemplateRender({
   // Rain emoji live in the frame, not the caption block.
   const rain = t.emoji === "rain" && chunk
     ? chunk.words.flatMap((w) =>
-        w.emoji && timeMs >= w.start && timeMs < w.start + 1600
+        (w.style?.emoji ?? w.emoji) && timeMs >= w.start && timeMs < w.start + 1600
           ? [0, 1, 2, 3, 4].map((k) => (
               <i
                 key={`${w.i}-${k}`}
                 className={`${s.emo} ${s.rain}`}
                 style={{ left: `${8 + k * 18 + (k % 2 ? 4 : -2)}%`, animationDelay: `${k * 90}ms` }}
               >
-                {w.emoji}
+                {w.style?.emoji ?? w.emoji}
               </i>
             ))
           : [],

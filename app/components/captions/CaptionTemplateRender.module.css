@@ -168,3 +168,9 @@
 @media (prefers-reduced-motion: reduce) {
   .frame *, .frame *::before, .frame *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition: none !important; }
 }
+
+/* Per-word style (packages/shared/src/captions/style.ts), mirrored from the
+   export engine: a boxed word is dark text on its own box, a shaken word
+   shakes while spoken. Declared last so they win over the template motion. */
+.w.wbox { background: var(--wbox); text-shadow: none; padding: 0 0.14em; border-radius: 0.16em; -webkit-text-stroke: 0; }
+.w.on.wshake { animation: shake 260ms linear both; }

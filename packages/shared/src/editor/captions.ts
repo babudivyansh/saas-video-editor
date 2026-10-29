@@ -4,6 +4,7 @@
 // that actually needs to be a component (it needs fetch()).
 
 import type { CaptionClip, TimelineDoc, VideoClip } from "./timeline";
+import type { CaptionWordStyle } from "../captions/style";
 
 export interface RawWordTiming {
   word: string;
@@ -109,6 +110,7 @@ export interface TemplateCaptionWord {
   start: number;
   end: number;
   speaker?: string;
+  style?: CaptionWordStyle;
 }
 
 export interface TemplateCaptionGroup {
@@ -144,6 +146,7 @@ export function templateCaptionGroups(clips: CaptionClip[]): TemplateCaptionGrou
           start: Math.min(endMs, base + w.startMs),
           end: Math.min(endMs, base + w.endMs),
           ...(w.speaker ? { speaker: w.speaker } : {}),
+          ...(w.style ? { style: w.style } : {}),
         });
       }
     } else {
