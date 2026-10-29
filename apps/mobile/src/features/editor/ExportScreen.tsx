@@ -220,8 +220,8 @@ export function ExportScreen() {
           </View>
         </View>
 
-        <View style={styles.outputs} accessible accessibilityLabel={`Output ${exportResolution(doc.aspect, free)}, ${EXPORT_FPS} frames per second`}>
-          <Spec label="Resolution" value={exportResolution(doc.aspect, free)} />
+        <View style={styles.outputs} accessible accessibilityLabel={`Output ${exportResolution(doc.aspect, free, doc.size)}, ${EXPORT_FPS} frames per second`}>
+          <Spec label="Resolution" value={exportResolution(doc.aspect, free, doc.size)} />
           <View style={styles.divider} />
           <Spec label="Frame rate" value={`${EXPORT_FPS} fps`} />
         </View>

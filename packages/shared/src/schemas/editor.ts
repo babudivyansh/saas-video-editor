@@ -9,7 +9,9 @@ import { assetSchema } from "./assets";
 
 export type Option<T extends string = string> = { id: T; label: string };
 
-export const EDITOR_ASPECTS = ["9:16", "1:1", "16:9"] as const;
+// The preset shapes (ASPECT_DIMENSIONS' keys). "original" is not offered as
+// a pick on the phone: it takes the source's shape, set on the web.
+export const EDITOR_ASPECTS = ["9:16", "1:1", "16:9", "4:5"] as const;
 export type EditorAspect = (typeof EDITOR_ASPECTS)[number];
 
 export const EDITOR_FONTS = [
@@ -136,9 +138,15 @@ export const AI_TEXT_OPERATIONS: { id: string; label: string; instant: boolean }
 export const EDITOR_EXPORT_CREDITS = 1;
 /** Output: the aspect's 1080 frame at 30 fps; Free renders cap at 720p with a watermark. */
 export const EXPORT_FPS = 30;
-export function exportResolution(aspect: EditorAspect, free: boolean): string {
+export function exportResolution(aspect: TimelineDoc["aspect"], free: boolean, frame?: { w: number; h: number }): string {
   const long = free ? 1280 : 1920;
   const short = free ? 720 : 1080;
+  const even = (n: number) => Math.round(n / 2) * 2;
+  if (aspect === "original" && frame) {
+    const s = free ? 1280 / Math.max(frame.w, frame.h) : 1;
+    return `${even(frame.w * s)}×${even(frame.h * s)}`;
+  }
+  if (aspect === "4:5") return `${short}×${even((short * 5) / 4)}`;
   return aspect === "16:9" ? `${long}×${short}` : aspect === "1:1" ? `${short}×${short}` : `${short}×${long}`;
 }
 

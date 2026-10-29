@@ -8,6 +8,9 @@ let strandedRendering: Array<{ id: string; userId: string }> = [];
 let stuckAnalyzing: Array<{ id: string; userId: string }> = [];
 let analyzingClaim = 1;
 let strandedEditor: Array<{ id: string; userId: string }> = [];
+let strandedCaptionRenders: Array<{ id: string; batchId: string }> = [];
+let captionRenderClaim = 1;
+const settleBatchIfDone = vi.fn(async (_b: string) => "settled");
 
 const finalizeRun = vi.fn(async (..._a: unknown[]) => {});
 const refundRunCharge = vi.fn(async (..._a: unknown[]) => 5);
@@ -33,8 +36,13 @@ vi.mock("@/lib/prisma", () => ({
       ),
       updateMany: vi.fn(async () => ({ count: analyzingClaim })),
     },
+    projectRender: {
+      findMany: vi.fn(async () => strandedCaptionRenders),
+      updateMany: vi.fn(async () => ({ count: captionRenderClaim })),
+    },
   },
 }));
+vi.mock("@/lib/editor/caption-export", () => ({ settleBatchIfDone: (b: string) => settleBatchIfDone(b) }));
 vi.mock("@/lib/autoclip-pipeline", () => ({
   finalizeRun: (...a: unknown[]) => finalizeRun(...a),
   refundRunCharge: (...a: unknown[]) => refundRunCharge(...a),
@@ -58,6 +66,9 @@ beforeEach(() => {
   stuckAnalyzing = [];
   analyzingClaim = 1;
   strandedEditor = [];
+  strandedCaptionRenders = [];
+  captionRenderClaim = 1;
+  settleBatchIfDone.mockClear();
 });
 
 describe("stale clips", () => {
@@ -151,5 +162,22 @@ describe("stranded editor exports", () => {
     const result = await runStaleClipSweep();
     expect(result.editorRendersFailed).toBe(0);
     expect(restoreSpend).not.toHaveBeenCalledWith(expect.objectContaining({ refId: "editor-render:ed-2" }));
+  });
+});
+
+describe("stranded Caption Studio renders", () => {
+  it("fails each stuck ratio and settles its batch", async () => {
+    strandedCaptionRenders = [{ id: "r1", batchId: "b1" }, { id: "r2", batchId: "b1" }];
+    const result = await runStaleClipSweep();
+    expect(result.captionRendersFailed).toBe(2);
+    expect(settleBatchIfDone).toHaveBeenCalledWith("b1");
+  });
+
+  it("leaves a ratio alone if its worker wrote progress after the scan", async () => {
+    strandedCaptionRenders = [{ id: "r3", batchId: "b2" }];
+    captionRenderClaim = 0;
+    const result = await runStaleClipSweep();
+    expect(result.captionRendersFailed).toBe(0);
+    expect(settleBatchIfDone).not.toHaveBeenCalled();
   });
 });

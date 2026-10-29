@@ -1,4 +1,4 @@
-import { videoClipAt, type CaptionClip, type TextClip, type TimelineDoc, type VideoClip } from "@clipiro/shared";
+import { docDimensions, videoClipAt, type CaptionClip, type TextClip, type TimelineDoc, type VideoClip } from "@clipiro/shared";
 import { useVideoPlayer, VideoView, type VideoPlayer } from "expo-video";
 import { useEffect, useRef } from "react";
 import { StyleSheet, Text, View } from "react-native";
@@ -27,8 +27,9 @@ const FILTER_WASH: Record<string, string> = {
 const DRIFT_S = 0.35;
 const TICK_MS = 33;
 
-export function aspectHeight(aspect: TimelineDoc["aspect"], width: number) {
-  return aspect === "9:16" ? (width * 16) / 9 : aspect === "1:1" ? width : (width * 9) / 16;
+export function aspectHeight(doc: Pick<TimelineDoc, "aspect" | "size">, width: number) {
+  const f = docDimensions(doc);
+  return (width * f.h) / f.w;
 }
 
 const transform = (s: string, t?: string) => (t === "uppercase" ? s.toUpperCase() : t === "lowercase" ? s.toLowerCase() : t === "capitalize" ? s.replace(/\b\w/g, (c) => c.toUpperCase()) : s);
@@ -38,7 +39,7 @@ export function EditorPreview({ width }: { width: number }) {
   const media = useEditor((s) => s.media);
   const playhead = useEditor((s) => s.playhead);
   const playing = useEditor((s) => s.playing);
-  const height = aspectHeight(doc.aspect, width);
+  const height = aspectHeight(doc, width);
 
   const clip = videoClipAt(doc, playhead);
   const uri = clip ? media[clip.assetId]?.url ?? null : null;

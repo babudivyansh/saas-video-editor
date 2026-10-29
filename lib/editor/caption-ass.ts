@@ -16,8 +16,7 @@
 // live-preview-only feature for captions.
 
 import fs from "fs";
-import type { Aspect, CaptionClip } from "./types";
-import { ASPECT_DIMENSIONS } from "./types";
+import type { CaptionClip } from "./types";
 import { toASSTime } from "@/utils/ffmpeg-render";
 
 function toASSColor(hex: string): string {
@@ -104,8 +103,8 @@ function overrideTags(clip: CaptionClip, W: number, H: number): string {
   return `{${tags.join("")}}`;
 }
 
-export function generateCaptionASS(captions: CaptionClip[], aspect: Aspect, assPath: string): void {
-  const { w: W, h: H } = ASPECT_DIMENSIONS[aspect];
+export function generateCaptionASS(captions: CaptionClip[], frame: { w: number; h: number }, assPath: string): void {
+  const { w: W, h: H } = frame;
 
   const header = `[Script Info]
 ScriptType: v4.00+

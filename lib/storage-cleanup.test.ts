@@ -23,6 +23,7 @@ vi.mock("@/lib/prisma", () => ({
           { videoUrl: "https://bucket/renders/p1/clip-0.mp4", thumbnailUrl: "https://bucket/renders/p1/clip-0.jpg" },
           { videoUrl: "https://elsewhere.example/x.mp4", thumbnailUrl: null },
         ],
+        renders: [{ s3Key: "renders/p1/r1.mp4" }, { s3Key: null }],
       }]),
     },
     asset: { findMany: vi.fn(async () => assetRefs) },
@@ -38,9 +39,9 @@ beforeEach(() => {
 });
 
 describe("storage cleanup", () => {
-  it("collects only our own storage keys, signature stripped", async () => {
+  it("collects only our own storage keys, signature stripped, plus Caption Studio exports", async () => {
     expect((await collectProjectMediaKeys({ id: "p1" })).sort()).toEqual([
-      "renders/p1/clip-0.jpg", "renders/p1/clip-0.mp4", "uploads/u1/src.mp4",
+      "renders/p1/clip-0.jpg", "renders/p1/clip-0.mp4", "renders/p1/r1.mp4", "uploads/u1/src.mp4",
     ]);
   });
 
@@ -49,7 +50,7 @@ describe("storage cleanup", () => {
     // delete another user's object that you pointed it at.
     uploadedVideoUrl = "https://bucket/uploads/victim/private.mp4";
     expect((await collectProjectMediaKeys({ id: "p1" })).sort()).toEqual([
-      "renders/p1/clip-0.jpg", "renders/p1/clip-0.mp4",
+      "renders/p1/clip-0.jpg", "renders/p1/clip-0.mp4", "renders/p1/r1.mp4",
     ]);
   });
 

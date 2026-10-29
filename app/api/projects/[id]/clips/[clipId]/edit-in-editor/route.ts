@@ -84,7 +84,7 @@ async function handlePOST(req: NextRequest, { params }: { params: Promise<{ id: 
     skipModeration: true,
   });
 
-  const aspect: Aspect = (["9:16", "1:1", "16:9"] as const).includes(clip.aspectRatio as Aspect)
+  const aspect: Aspect = (["9:16", "1:1", "16:9"] as Aspect[]).includes(clip.aspectRatio as Aspect)
     ? (clip.aspectRatio as Aspect)
     : "9:16";
   const videoClip: VideoClip = {

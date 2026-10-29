@@ -11,7 +11,7 @@ import { motion } from "framer-motion";
 import { useEditorStore } from "../store/editorStore";
 import { usePlayback, type MediaRegistry } from "../hooks/usePlayback";
 import { docDuration } from "@/lib/editor/doc-utils";
-import { ASPECT_DIMENSIONS } from "@/lib/editor/types";
+import { docDimensions } from "@/lib/editor/types";
 import { useAssets } from "./panels/shared/assetData";
 import { buildTextCss } from "./text/textStyle";
 import { setKeyframe, textAt } from "@/lib/editor/keyframes";
@@ -21,7 +21,7 @@ import { renderCaptionWords } from "./captions/renderCaptionWords";
 import CaptionTemplateRender, { type PreviewWord } from "@/app/components/captions/CaptionTemplateRender";
 import { templateCaptionGroups } from "@clipiro/shared/captions";
 import { planEmoji } from "@clipiro/shared/caption-emoji";
-import { resolveCaptionTemplate } from "@clipiro/shared/caption-templates";
+import { effectiveCaptionTemplate } from "@clipiro/shared/caption-style";
 import PreviewControls from "./PreviewControls";
 
 export default function PreviewStage() {
@@ -42,7 +42,7 @@ export default function PreviewStage() {
   usePlayback(registry);
 
   const [stageH, setStageH] = useState(360);
-  const dims = ASPECT_DIMENSIONS[doc.aspect];
+  const dims = docDimensions(doc);
   const aspectRatio = dims.w / dims.h;
   const stageW = stageH * aspectRatio;
 
@@ -115,16 +115,16 @@ export default function PreviewStage() {
   const templateLayers = useMemo(
     () =>
       templateCaptionGroups(doc.tracks.caption).map((g) => {
-        const template = resolveCaptionTemplate(g.templateId);
+        const { template, positionY } = effectiveCaptionTemplate(g.templateId, doc.captionStyle, dims);
         const emoji = planEmoji(g.words, template.emoji !== "none");
         const speakers = new Map<string, number>();
         const words: PreviewWord[] = g.words.map((w, i) => {
           if (w.speaker && !speakers.has(w.speaker)) speakers.set(w.speaker, speakers.size);
-          return { text: w.word, start: w.start, end: w.end, emoji: emoji[i] ?? null, speaker: w.speaker ? speakers.get(w.speaker) : 0 };
+          return { text: w.word, start: w.start, end: w.end, emoji: emoji[i] ?? null, speaker: w.speaker ? speakers.get(w.speaker) : 0, style: w.style };
         });
-        return { key: `${g.templateId}|${g.accent ?? ""}`, template, accent: g.accent ?? null, words };
+        return { key: `${g.templateId}|${g.accent ?? ""}`, template, positionY, accent: g.accent ?? null, words };
       }),
-    [doc.tracks.caption],
+    [doc.tracks.caption, doc.captionStyle, dims],
   );
 
   const isEmpty =
@@ -149,6 +149,18 @@ export default function PreviewStage() {
               src=""> in that gap is exactly what triggers React's own "pass
               null instead of an empty string" warning, and briefly points
               the element at nothing. */}
+          {/* Blurred fill behind a "fit" clip; usePlayback paints it. A small
+              canvas is enough — it is blurred, and CSS scales it up. */}
+          <canvas
+            ref={(el) => {
+              registry.current.backdrop = el;
+            }}
+            width={64}
+            height={Math.max(2, Math.round((64 * dims.h) / dims.w))}
+            aria-hidden="true"
+            className="absolute inset-0 h-full w-full scale-110"
+            style={{ opacity: 0 }}
+          />
           {usedVideoAssetIds.filter((id) => assetUrl(id)).map((assetId) => (
             <video
               key={assetId}
@@ -285,7 +297,7 @@ export default function PreviewStage() {
               pickers, on the playhead clock, matching the exported burn-in. */}
           {templateLayers.map((l) => (
             <div key={l.key} className="pointer-events-none absolute inset-0">
-              <CaptionTemplateRender template={l.template} words={l.words} timeMs={currentTime * 1000} accent={l.accent} scene={false} fill />
+              <CaptionTemplateRender template={l.template} words={l.words} timeMs={currentTime * 1000} accent={l.accent} positionY={l.positionY} scene={false} fill />
             </div>
           ))}
 

@@ -28,7 +28,7 @@ import { withAdmin } from "@/lib/admin/api";
 import { auditAdminAction, auditIp } from "@/lib/admin/audit";
 import { rateLimit } from "@/lib/rate-limit";
 import { prisma } from "@/lib/prisma";
-import { normalizeDoc, type TimelineDoc } from "@/lib/editor/types";
+import { docDimensions, normalizeDoc, type TimelineDoc } from "@/lib/editor/types";
 import { buildFilterGraph, maybeUseFilterScript, writeTextFiles, type ClipInput } from "@/lib/editor/filtergraph";
 import { generateCaptionASS } from "@/lib/editor/caption-ass";
 import { hasAudioStream } from "@/lib/editor/render-job";
@@ -90,7 +90,7 @@ export const GET = withAdmin(async (req: NextRequest, { admin }) => {
     let captionAssPath: string | undefined;
     if (doc.tracks.caption.length > 0) {
       captionAssPath = path.join(tmp, `render-diagnostics-reproduce-${projectId}-captions.ass`);
-      generateCaptionASS(doc.tracks.caption, doc.aspect, captionAssPath);
+      generateCaptionASS(doc.tracks.caption, docDimensions(doc), captionAssPath);
       tempFiles.push(captionAssPath);
     }
 

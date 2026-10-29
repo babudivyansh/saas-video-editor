@@ -10,7 +10,7 @@ import React, { useState } from "react";
 import { Bookmark, BookmarkCheck, Loader2, Plus, Search } from "lucide-react";
 import { useEditorStore } from "../../store/editorStore";
 import { docDuration } from "@/lib/editor/doc-utils";
-import type { Aspect } from "@/lib/editor/types";
+import { docDimensions, type FixedAspect } from "@/lib/editor/types";
 import { fmtDuration } from "./shared/assetData";
 import { useStockSearch, importStockItem, type StockItem } from "./useStockSearch";
 import { Button, showPanelToast } from "../ui";
@@ -18,11 +18,19 @@ import SearchField from "./shared/SearchField";
 import { playUiSound } from "../../hooks/useUiSound";
 import PanelStatus from "./shared/PanelStatus";
 
-const ORIENTATION: Record<Aspect, "portrait" | "square" | "landscape"> = {
+type Orientation = "portrait" | "square" | "landscape";
+const ORIENTATION: Record<FixedAspect, Orientation> = {
   "9:16": "portrait",
   "1:1": "square",
   "16:9": "landscape",
+  "4:5": "portrait",
 };
+
+/** An "original" frame has no preset, so search by its real shape. */
+function orientationOf(frame: { w: number; h: number }): Orientation {
+  const r = frame.w / frame.h;
+  return r > 1.1 ? "landscape" : r < 0.9 ? "portrait" : "square";
+}
 
 const SHORT_SEC = 15;
 
@@ -33,11 +41,12 @@ const chip = (on: boolean) =>
 
 export default function StockVideoPanel() {
   const aspect = useEditorStore((s) => s.doc.aspect);
+  const orientation = useEditorStore((s) => (s.doc.aspect === "original" ? orientationOf(docDimensions(s.doc)) : ORIENTATION[s.doc.aspect]));
   const addVideoClip = useEditorStore((s) => s.addVideoClip);
   const [fitsShape, setFitsShape] = useState(true);
   const [shortOnly, setShortOnly] = useState(false);
   const { query, setQuery, items, loading, error, hasMore, loadMore } = useStockSearch("video", {
-    orientation: fitsShape ? ORIENTATION[aspect] : undefined,
+    orientation: fitsShape ? orientation : undefined,
   });
   const [busy, setBusy] = useState<{ id: string; action: "add" | "save" } | null>(null);
   const [saved, setSaved] = useState<Set<string>>(() => new Set());
@@ -87,7 +96,7 @@ export default function StockVideoPanel() {
     }
   };
 
-  const tall = fitsShape && aspect === "9:16";
+  const tall = fitsShape && orientation === "portrait";
 
   return (
     <div className="editor-stagger flex flex-col gap-3 p-3">

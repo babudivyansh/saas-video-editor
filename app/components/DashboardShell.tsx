@@ -7,9 +7,10 @@
 // i18n locale/messages server-side) since usePathname() needs a Client
 // Component boundary.
 //
-// Two route families opt out entirely and render bare (no header/sidebar):
-// /dashboard/editor (deliberately full-screen) and /dashboard/admin (a
-// separate internal admin surface, not part of the end-user dashboard chrome).
+// Three route families opt out entirely and render bare (no header/sidebar):
+// /dashboard/editor and /dashboard/captions (deliberately full-screen, each
+// with its own top bar) and /dashboard/admin (a separate internal admin
+// surface, not part of the end-user dashboard chrome).
 
 import { usePathname } from "next/navigation";
 import DashboardHeader from "@/app/components/DashboardHeader";
@@ -21,7 +22,7 @@ import { ReviewPromptProvider } from "@/app/components/reviews/ReviewPromptProvi
 import { SettingsOverlayProvider, useSettingsOverlay } from "@/app/components/settings/SettingsOverlayContext";
 import { SkipLink } from "@/app/components/ui/SkipLink";
 
-const CHROMELESS_PREFIXES = ["/dashboard/editor", "/dashboard/admin"];
+const CHROMELESS_PREFIXES = ["/dashboard/editor", "/dashboard/admin", "/dashboard/captions"];
 
 // Mirrors ToolsSidebar.tsx's NAV/BOTTOM_NAV ids — longest-prefix match first
 // so e.g. "/dashboard/create/auto-clip" resolves to "create", not falling

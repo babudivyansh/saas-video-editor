@@ -74,6 +74,7 @@ export interface RenderQueue<T> {
 // Update this alongside any new createRenderQueue("name", ...) call site.
 export const KNOWN_RENDER_QUEUE_NAMES = [
   "editor-render",
+  "caption-export",
   "auto-clip-pick",
   "auto-clip-render",
   "auto-clip-rerender",

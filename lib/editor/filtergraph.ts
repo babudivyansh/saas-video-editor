@@ -14,9 +14,9 @@
 import fs from "fs";
 import { logger } from "@/lib/logger";
 import path from "path";
-import type { TextClip, TimelineDoc, TransitionPreset } from "./types";
+import type { TextClip, TimelineDoc, TransitionPreset, VideoClip } from "./types";
 import {
-  ASPECT_DIMENSIONS,
+  docDimensions,
   EFFECT_PRESETS,
   FILTER_PRESETS,
   TRANSITION_DURATION_SEC,
@@ -50,6 +50,8 @@ export interface FiltergraphInput {
   /** Free-tier output treatment: cap the short edge at 720p and burn a
    * "Clipiro" corner watermark. Decided by the caller from the user's tier. */
   watermark?: boolean;
+  /** Multiplies the doc's frame on every side (2 = 4K; export-quality.ts). Captions must be built for the same frame. */
+  scale?: number;
   outputPath: string;
 }
 
@@ -162,9 +164,44 @@ function atempoChain(speed: number): string {
   return parts.map((p) => `atempo=${num(p)}`).join(",");
 }
 
+/**
+ * "fill": cover the frame, cropping the overflow. focusX/focusY pick which
+ * part survives (0.5 = centre, the old fixed behaviour, which keeps crop's
+ * own centring so existing exports are byte-identical).
+ */
+export function fillFilters(clip: Pick<VideoClip, "focusX" | "focusY">, W: number, H: number): string[] {
+  const fx = clip.focusX ?? 0.5;
+  const fy = clip.focusY ?? 0.5;
+  const centred = fx === 0.5 && fy === 0.5;
+  return [
+    `scale=${W}:${H}:force_original_aspect_ratio=increase`,
+    centred ? `crop=${W}:${H}` : `crop=${W}:${H}:x=(in_w-out_w)*${num(fx)}:y=(in_h-out_h)*${num(fy)}`,
+  ];
+}
+
+/**
+ * "fit": the whole video, letterboxed over a blurred, zoomed copy of itself.
+ * The blur runs on an eighth-size copy (then scaled back up) so it costs a
+ * fraction of a full-resolution boxblur. Ends at `[${label}fit]`.
+ */
+export function fitStatements(input: string, timing: string[], W: number, H: number, label: string): string[] {
+  const even = (x: number) => Math.max(2, Math.round(x / 2) * 2);
+  const bw = even(W / 8);
+  const bh = even(H / 8);
+  return [
+    `${input}${timing.join(",")},split[${label}s1][${label}s2]`,
+    `[${label}s1]scale=${bw}:${bh}:force_original_aspect_ratio=increase,crop=${bw}:${bh},boxblur=6:2,scale=${W}:${H},setsar=1[${label}bg]`,
+    `[${label}s2]scale=${W}:${H}:force_original_aspect_ratio=decrease,setsar=1[${label}fg]`,
+    `[${label}bg][${label}fg]overlay=(W-w)/2:(H-h)/2[${label}fit]`,
+  ];
+}
+
 export function buildFilterGraph(input: FiltergraphInput): FiltergraphResult {
   const { doc, assets, textFiles, captionAssPath, captionTemplateTracks, outputPath } = input;
-  const { w: W, h: H } = ASPECT_DIMENSIONS[doc.aspect];
+  const base = docDimensions(doc);
+  const scale = input.scale ?? 1;
+  const W = base.w * scale;
+  const H = base.h * scale;
   const total = docDuration(doc);
   if (total <= 0) throw new Error("Timeline is empty");
 
@@ -227,17 +264,24 @@ export function buildFilterGraph(input: FiltergraphInput): FiltergraphResult {
       const preset = FILTER_PRESETS[clip.filter ?? "none"];
       const effect = EFFECT_PRESETS[clip.effect ?? "none"];
 
-      const preChain = [
+      const timing = [
         `trim=start=${from}:end=${to}`,
         `setpts=PTS-STARTPTS`,
         ...(speed !== 1 ? [`setpts=PTS/${num(speed)}`] : []),
         `fps=30`,
-        `scale=${W}:${H}:force_original_aspect_ratio=increase`,
-        `crop=${W}:${H}`,
-        `setsar=1`,
-        ...(preset.ffmpeg ? [preset.ffmpeg] : []),
-        ...adjustFilters(clip.adjust),
       ];
+      const look = [`setsar=1`, ...(preset.ffmpeg ? [preset.ffmpeg] : []), ...adjustFilters(clip.adjust)];
+      // "fit" needs a split (sharp copy over a blurred one), so it becomes its
+      // own statements and the rest of the chain starts from its output label.
+      let src = `[${n}:v]`;
+      let preChain: string[];
+      if (clip.fit === "fit") {
+        filters.push(...fitStatements(`[${n}:v]`, timing, W, H, vLabel));
+        src = `[${vLabel}fit]`;
+        preChain = look;
+      } else {
+        preChain = [...timing, ...fillFilters(clip, W, H), ...look];
+      }
       const postChain = [
         ...(fadeIn > 0 ? [`fade=t=in:st=0:d=${num(fadeIn)}`] : []),
         ...(fadeOut > 0 ? [`fade=t=out:st=${num(clip.duration - fadeOut)}:d=${num(fadeOut)}`] : []),
@@ -246,12 +290,12 @@ export function buildFilterGraph(input: FiltergraphInput): FiltergraphResult {
       if (effect.ffmpeg && needsWrapping(clip)) {
         // Effect on part of the clip and/or below full strength: split, run the
         // effect on one copy, blend it back (lib/editor/video-look.ts).
-        filters.push(`[${n}:v]${preChain.join(",")}[${vLabel}p]`);
+        filters.push(`${src}${preChain.join(",")}[${vLabel}p]`);
         filters.push(wrappedEffect(effect.ffmpeg(W, H), clip, `[${vLabel}p]`, `[${vLabel}x]`, `${vLabel}fx`));
         filters.push(`[${vLabel}x]${postChain.length ? postChain.join(",") : "null"}[${vLabel}]`);
       } else {
         const vChain = [...preChain, ...(effect.ffmpeg ? [effect.ffmpeg(W, H)] : []), ...postChain];
-        filters.push(`[${n}:v]${vChain.join(",")}[${vLabel}]`);
+        filters.push(`${src}${vChain.join(",")}[${vLabel}]`);
       }
 
       if (asset.hasAudio && !clip.muted && clip.volume > 0) {

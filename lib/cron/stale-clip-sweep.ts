@@ -50,6 +50,7 @@ export interface StaleClipSweepResult {
   rerendersRefunded: number;
   analyzingFailed: number;
   editorRendersFailed: number;
+  captionRendersFailed: number;
   at: string;
 }
 
@@ -74,6 +75,9 @@ export interface StaleClipSweepResult {
  *     STALE_EDITOR_RENDER_TIMEOUT_MINUTES are failed and their credit refunded.
  *     Step 2 only ever looked at projects WITH clips, so a crashed editor
  *     export stayed "rendering" forever and every retry 409'd.
+ *
+ *  5. Caption Studio ratios (ProjectRender) stuck queued or rendering are
+ *     failed, and their batch settled (refunded if nothing rendered).
  */
 export async function runStaleClipSweep(): Promise<StaleClipSweepResult> {
   const now = Date.now();
@@ -122,8 +126,51 @@ export async function runStaleClipSweep(): Promise<StaleClipSweepResult> {
   const reconciled = await reconcileStrandedProjects();
   const analyzingFailed = await failStrandedAnalyses();
   const editorRendersFailed = await failStrandedEditorRenders();
+  const captionRendersFailed = await failStrandedCaptionRenders();
 
-  return { ok: true, swept, reconciled, rerendersRefunded, analyzingFailed, editorRendersFailed, at: new Date().toISOString() };
+  return { ok: true, swept, reconciled, rerendersRefunded, analyzingFailed, editorRendersFailed, captionRendersFailed, at: new Date().toISOString() };
+}
+
+export const STRANDED_CAPTION_RENDER_REASON = "This render was interrupted before it could finish. Please export it again.";
+
+/**
+ * Step 5 above: Caption Studio ratios (ProjectRender) a crash left queued or
+ * rendering — same timeouts as clips' queue and editor exports' silence.
+ * Each failed row's batch is then settled, which refunds it if nothing in it
+ * rendered (lib/editor/caption-export.ts).
+ */
+async function failStrandedCaptionRenders(): Promise<number> {
+  const now = Date.now();
+  const renderingCutoff = new Date(now - STALE_EDITOR_RENDER_TIMEOUT_MINUTES * 60 * 1000);
+  const queuedCutoff = new Date(now - STALE_QUEUED_TIMEOUT_MINUTES * 60 * 1000);
+  const where = {
+    OR: [
+      { status: "rendering", updatedAt: { lt: renderingCutoff } },
+      { status: "queued", updatedAt: { lt: queuedCutoff } },
+    ],
+  };
+  const stuck = await prisma.projectRender.findMany({ where, select: { id: true, batchId: true } });
+  if (stuck.length === 0) return 0;
+
+  const { settleBatchIfDone } = await import("@/lib/editor/caption-export");
+  let failed = 0;
+  for (const { id, batchId } of stuck) {
+    try {
+      // The conditional update is the claim: a render that wrote progress
+      // since the scan is left alone.
+      const moved = await prisma.projectRender.updateMany({
+        where: { id, ...where },
+        data: { status: "failed", failureReason: STRANDED_CAPTION_RENDER_REASON },
+      });
+      if (moved.count === 0) continue;
+      failed++;
+      await settleBatchIfDone(batchId);
+    } catch (e) {
+      logger.error("cron/stale-clip-sweep", `failed to fail stranded caption render ${id}`, e);
+    }
+  }
+  if (failed > 0) logger.warn("cron/stale-clip-sweep", `failed ${failed} stranded caption render(s)`);
+  return failed;
 }
 
 /** Step 2 above. Returns how many projects were moved to a terminal state. */

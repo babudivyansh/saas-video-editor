@@ -14,6 +14,7 @@ import { Button } from "./ui";
 
 const ASPECTS: { value: Aspect; label: string; hint: string; box: string }[] = [
   { value: "9:16", label: "9:16", hint: "Shorts, Reels, TikTok", box: "h-8 w-[18px]" },
+  { value: "4:5", label: "4:5", hint: "Instagram portrait", box: "h-8 w-[26px]" },
   { value: "1:1", label: "1:1", hint: "Feed posts", box: "h-6 w-6" },
   { value: "16:9", label: "16:9", hint: "YouTube", box: "h-[18px] w-8" },
 ];
@@ -115,7 +116,7 @@ export default function EmptyProjectStart() {
 
         <div>
           <p className="mb-2 text-[12px] font-medium text-editor-text-muted">Where will you post it?</p>
-          <div role="radiogroup" aria-label="Video shape" className="grid grid-cols-3 gap-2">
+          <div role="radiogroup" aria-label="Video shape" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {ASPECTS.map((a) => {
               const on = aspect === a.value;
               return (

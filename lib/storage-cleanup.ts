@@ -35,11 +35,14 @@ export async function collectProjectMediaKeys(where: { id: string | { in: string
       uploadedVideoUrl: true,
       videoUrl: true,
       clips: { select: { videoUrl: true, thumbnailUrl: true } },
+      // Caption Studio exports store a bare key, not a URL.
+      renders: { select: { s3Key: true } },
     },
   });
   const keys = new Set(
     keysFrom(projects.flatMap((p) => [p.videoUrl, ...p.clips.flatMap((c) => [c.videoUrl, c.thumbnailUrl])])),
   );
+  for (const p of projects) for (const r of p.renders) if (r.s3Key) keys.add(r.s3Key);
   // uploadedVideoUrl is client-settable (project PATCH/POST, the public API):
   // anyone could point it at another user's object, so its key is only
   // collected when the project's owner provably owns it.

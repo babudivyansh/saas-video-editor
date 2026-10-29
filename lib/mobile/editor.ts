@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { ASPECT_DIMENSIONS, DEFAULT_DOC, docDuration, normalizeDoc, type Asset, type AudioClip, type EditorAspect, type EditorOpen, type ImageClip, type TimelineDoc, type VideoClip } from "@clipiro/shared";
+import { DEFAULT_DOC, docDimensions, docDuration, normalizeDoc, type Asset, type AudioClip, type EditorAspect, type EditorOpen, type ImageClip, type TimelineDoc, type VideoClip } from "@clipiro/shared";
 import { adoptExistingS3Object } from "@/lib/asset-service";
 import { getAsset, include, serialize } from "@/lib/mobile/assets";
 import { prisma } from "@/lib/prisma";
@@ -16,10 +16,14 @@ export function assetIdsOf(doc: TimelineDoc): string[] {
   return [...new Set([...t.video, ...t.audio, ...t.image].map((c) => c.assetId))];
 }
 
-/** The caller's editor project, its doc and save version, and a playable link per file. */
-export async function openEditor(userId: string, projectId: string): Promise<EditorOpen | null> {
+/**
+ * The caller's editor project, its doc and save version, and a playable link
+ * per file. `productType` lets Caption Studio ("captions") open its own
+ * projects the same way.
+ */
+export async function openEditor(userId: string, projectId: string, productType = "editor"): Promise<EditorOpen | null> {
   const p = await prisma.project.findFirst({
-    where: { id: projectId, userId, productType: "editor" },
+    where: { id: projectId, userId, productType },
     select: { id: true, title: true, editorDoc: true, editorVersion: true },
   });
   if (!p) return null;
@@ -81,7 +85,7 @@ export async function saveExportToAssets(userId: string, projectId: string): Pro
   if (!p) return "not-found";
   if (p.status !== "completed" || !p.videoUrl) return "not-exported";
   const doc = normalizeDoc((p.editorDoc as unknown as TimelineDoc | null) ?? DEFAULT_DOC);
-  const size = ASPECT_DIMENSIONS[doc.aspect];
+  const size = docDimensions(doc);
 
   const key = sanitizeS3Key(`uploads/${userId}/${randomUUID()}.mp4`);
   // Same orphan safety as an upload: the asset-cleanup cron deletes the copy
