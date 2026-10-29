@@ -25,3 +25,4 @@ export * from "./api/create";
 export * from "./editor/captions";
 export * from "./captions/templates";
 export * from "./captions/emoji";
+export * from "./captions/style";

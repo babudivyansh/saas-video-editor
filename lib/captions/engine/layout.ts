@@ -7,7 +7,8 @@
 // the frame's short side times the template's size, so a template looks the
 // same in the picker and in the export.
 
-import type { CaptionTemplateSpec } from "@clipiro/shared/caption-templates";
+import type { CaptionEmojiMode, CaptionTemplateSpec } from "@clipiro/shared/caption-templates";
+import { BIGGER_SCALE, type CaptionWordStyle } from "@clipiro/shared/caption-style";
 import {
   DEVANAGARI_FALLBACK,
   DEVANAGARI_RE,
@@ -25,6 +26,8 @@ export interface EngineWord {
   /** ms */
   end: number;
   speaker?: string;
+  /** The user's own look for this word (captions/style.ts). */
+  style?: CaptionWordStyle;
 }
 
 export interface PlacedWord {
@@ -43,6 +46,12 @@ export interface PlacedWord {
   /** 0-based speaker order; 0 when unknown. */
   speaker: number;
   emoji: string | null;
+  /** Where this word's emoji goes: the template's mode, or "end" for a
+   *  user-picked emoji on a template that has none. */
+  emojiMode: CaptionEmojiMode;
+  style: CaptionWordStyle | null;
+  /** This word's em (px): emPx, or more for a "bigger" word. */
+  em: number;
   /** Centre of the word's text. */
   x: number;
   y: number;
@@ -163,22 +172,29 @@ export function layoutCaptions(opts: LayoutOptions): CaptionLayout {
       const src = words[wi];
       const text = applyCase(src.word, t.type.case);
       const emphasis = emphasisSet.has(wi);
+      const style = src.style ?? null;
+      const wordEm = style?.emphasis === "bigger" ? emPx * BIGGER_SCALE : emPx;
       let face = baseFace;
       if (t.motion === "emph" && emphasis) face = resolveFace(t.type.font, t.type.weight, true);
       if (DEVANAGARI_RE.test(text) && !hasGlyphs(face, text)) face = fallbackFace;
       let activeFace = face;
-      let activeEm = emPx;
+      let activeEm = wordEm;
       if (t.motion === "bold") activeFace = resolveFace(face.family, 800, face.italic);
       if (t.motion === "fontswitch") {
         activeFace = resolveFace("Instrument Serif", 400, true);
-        activeEm = emPx * 1.2;
+        activeEm = wordEm * 1.2;
       }
       const w = Math.max(
-        measureText(face, text, emPx, t.type.tracking ?? 0),
+        measureText(face, text, wordEm, t.type.tracking ?? 0),
         measureText(activeFace, text, activeEm, activeFace === face ? t.type.tracking ?? 0 : 0),
       );
-      const emoji = emojiMode !== "none" ? opts.emoji?.[wi] ?? null : null;
-      const reserve = emoji && emojiMode === "end" ? 1.05 * emPx : 0;
+      // A user-picked emoji wins over the automatic one and shows even on a
+      // template without emoji (at the end of the word).
+      const userEmoji = style?.emoji ?? null;
+      const emoji = userEmoji ?? (emojiMode !== "none" ? opts.emoji?.[wi] ?? null : null);
+      const wordEmojiMode: CaptionEmojiMode = userEmoji && emojiMode === "none" ? "end" : emojiMode;
+      const reserve = emoji && wordEmojiMode === "end" ? 1.05 * emPx : 0;
+      const boxPad = style?.emphasis === "box" && !wordPad ? 0.28 * wordEm : 0;
       let speaker = 0;
       if (src.speaker) {
         if (!speakerOrder.has(src.speaker)) speakerOrder.set(src.speaker, speakerOrder.size);
@@ -188,9 +204,9 @@ export function layoutCaptions(opts: LayoutOptions): CaptionLayout {
       const activeStart = Math.max(start, src.start);
       const activeEnd = Math.max(activeStart + 40, Math.min(end, nextInChunk));
       return {
-        index: wi, text, emphasis, face, activeFace, activeEm, emoji, speaker,
+        index: wi, text, emphasis, face, activeFace, activeEm, emoji, speaker, style, wordEm, wordEmojiMode,
         activeStart, activeEnd,
-        boxW: w * (1 + (SCALE_RESERVE[t.motion] ?? 0)) + wordPad, textW: w, reserve,
+        boxW: w * (1 + (SCALE_RESERVE[t.motion] ?? 0) + (style?.emphasis === "shake" ? 0.1 : 0)) + wordPad + boxPad, textW: w, reserve,
       };
     });
 
@@ -236,12 +252,15 @@ export function layoutCaptions(opts: LayoutOptions): CaptionLayout {
           activeStart: it.activeStart,
           activeEnd: it.activeEnd,
           face: it.face,
-          fs: assFontSize(it.face, emPx),
+          fs: assFontSize(it.face, it.wordEm),
           activeFace: it.activeFace,
           activeFs: assFontSize(it.activeFace, it.activeEm),
           emphasis: it.emphasis,
           speaker: it.speaker,
           emoji: it.emoji,
+          emojiMode: it.wordEmojiMode,
+          style: it.style,
+          em: it.wordEm,
           x: x + it.boxW / 2,
           y,
           w: it.textW,
