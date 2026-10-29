@@ -6,7 +6,9 @@
     "packages/*"
   ],
   "scripts": {
+    "predev": "node scripts/dev-guard.mjs",
     "dev": "next dev",
+    "dev:stop": "node scripts/dev-guard.mjs --stop",
     "dev:web": "next dev",
     "dev:mobile": "npm --prefix apps/mobile start",
     "build": "prisma migrate deploy && npm run verify:render-runtime && next build",
