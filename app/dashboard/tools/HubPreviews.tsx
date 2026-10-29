@@ -8,7 +8,13 @@ import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { ToolIcon } from "@/app/components/toolIcons";
 import type { FeatureLink } from "@/app/components/featureLinks";
+import { TemplatePreviewLoop } from "@/app/components/captions/CaptionTemplateGallery";
+import { resolveCaptionTemplate } from "@clipiro/shared/caption-templates";
 import s from "./hub.module.css";
+
+// Caption Studio's stage: three real templates playing their own sample lines
+// (the same renderer the Studio and the gallery use), not a picture of them.
+const STUDIO_TEMPLATES = ["boardroom", "karaoke", "bubblegum"].map((id) => resolveCaptionTemplate(id));
 
 const IMG = "/tools/hub";
 
@@ -83,6 +89,16 @@ function Centered({ backdrop, ratio, children }: { backdrop: string; ratio: stri
 export function ToolStage({ tool }: { tool: FeatureLink }) {
   const t = useTranslations("Tools.hub.preview");
   switch (tool.slug) {
+    case "caption-studio":
+      return (
+        <div className={`${s.enter} absolute inset-0 flex items-center justify-center gap-4 p-8`}>
+          {STUDIO_TEMPLATES.map((t, i) => (
+            <div key={t.id} className="h-full overflow-hidden rounded-2xl shadow-[0_30px_80px_rgb(0_0_0/.6)]" style={{ aspectRatio: "9 / 16", marginTop: i === 1 ? -24 : 24 }}>
+              <TemplatePreviewLoop template={t} className="h-full" />
+            </div>
+          ))}
+        </div>
+      );
     case "subtitle-remover":
       return (
         <Centered backdrop={`${IMG}/sub-after.webp`} ratio="445/507">
@@ -226,6 +242,12 @@ export function ToolThumb({ tool, offset = 0 }: { tool: FeatureLink; offset?: 0 
   const off = offset === 1 ? s.offset1 : offset === 2 ? s.offset2 : "";
   const box = `${s.thumb} ${off} h-10 w-14 flex-none overflow-hidden rounded-lg`;
   switch (tool.slug) {
+    case "caption-studio":
+      return (
+        <div className={box}>
+          <TemplatePreviewLoop template={STUDIO_TEMPLATES[0]!} className="-mt-6 w-14" />
+        </div>
+      );
     case "subtitle-remover":
       return (
         <Wipe size="thumb" className={box}

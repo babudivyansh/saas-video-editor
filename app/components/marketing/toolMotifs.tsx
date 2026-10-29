@@ -272,6 +272,21 @@ const PRIMARY: Record<string, ReactNode> = {
     </g>
   ),
 
+  // The same captioned shot in three shapes, one word picked out in each.
+  "caption-studio": (
+    <g>
+      <Phone x={150} y={52} h={288} />
+      <Bar x={168} y={238} w={50} h={14} fill={INK} />
+      <Panel x={224} y={234} w={60} h={22} r={6} fill={BRAND} />
+      <Panel x={360} y={92} w={208} h={208} r={18} fill={FAINT} />
+      <Bar x={392} y={232} w={64} h={14} fill={INK} />
+      <Panel x={462} y={228} w={72} h={22} r={6} fill={BRAND} />
+      <Panel x={612} y={132} w={256} h={144} r={16} fill={FAINT} />
+      <Bar x={650} y={244} w={92} h={12} fill={INK} />
+      <Panel x={748} y={240} w={80} h={20} r={6} fill={BRAND} />
+    </g>
+  ),
+
   // Trim: a frame above a waveform with an in/out selection.
   "cut-and-crop": (
     <g>
@@ -550,6 +565,7 @@ const DESCRIPTIONS: Record<string, string> = {
   "video-editor": "a video preview above a multi-track timeline with a playhead",
   "auto-clip": "a long timeline with three moments bracketed, each becoming a vertical clip",
   "cut-and-crop": "a video frame above a waveform with an in and out selection",
+  "caption-studio": "one captioned shot in vertical, square and wide frames, one word highlighted in each",
   "ai-image-generator": "a prompt box resolving into a row of generated images",
   "ai-voiceover": "a script feeding a list of voices, one of them playing",
   "ai-face-swap": "a source portrait and a result portrait either side of a swap control",

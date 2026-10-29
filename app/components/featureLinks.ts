@@ -68,6 +68,7 @@ export const VIDEO_TOOLS: FeatureLink[] = [
   { title: "Video Editor", desc: "Multi-track timeline editor in your browser", href: "/dashboard/editor", slug: "video-editor", icon: "editor", category: "video" },
   { title: "Clipiro AutoClip", desc: "Long videos into viral clips, automatically", href: "/dashboard/create/auto-clip", slug: "auto-clip", icon: "scissors", category: "video" },
   { title: "Cut & Crop", desc: "Trim & stitch clips ready to edit", href: "/dashboard/cut-and-crop", slug: "cut-and-crop", icon: "crop", appGroup: "video", homeRank: 1, category: "video" },
+  { title: "Caption Studio", desc: "Caption templates, edited word by word", href: "/dashboard/captions", slug: "caption-studio", icon: "subs", appGroup: "video", costKey: "editor-render", category: "video" },
 ];
 
 // AI tools (single-purpose generators / enhancers).

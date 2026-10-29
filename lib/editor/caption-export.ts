@@ -17,9 +17,7 @@ import { normalizeDoc, validateDoc, type Aspect, type TimelineDoc } from "./type
 import { renderTimeline, EDITOR_RENDER_CREDIT_COST } from "./render-job";
 import { classifyRenderFailure } from "./render-failure";
 
-/** The shapes an export can ask for, in the order the picker shows them. */
-export const CAPTION_EXPORT_ASPECTS = ["9:16", "4:5", "1:1", "16:9", "original"] as const satisfies readonly Aspect[];
-export type CaptionExportAspect = (typeof CAPTION_EXPORT_ASPECTS)[number];
+export { CAPTION_EXPORT_ASPECTS, type CaptionExportAspect } from "./caption-export-shapes";
 
 /** One batch is charged this many AI credits, however many ratios it has. */
 export const CAPTION_EXPORT_CREDIT_COST = EDITOR_RENDER_CREDIT_COST;
