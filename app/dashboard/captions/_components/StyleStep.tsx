@@ -33,6 +33,9 @@ function otherShapes(aspect: Aspect): Aspect[] {
 
 const MOTION_LABEL = (m: string) => m.charAt(0).toUpperCase() + m.slice(1);
 
+/** The caption outline a width turns on when the template has none (caption data, not page colour). */
+const DEFAULT_OUTLINE = "#000000";
+
 export interface StyleStepProps {
   project: StudioProject;
   save: (change: (doc: TimelineDoc) => TimelineDoc) => Promise<unknown>;
@@ -172,7 +175,7 @@ export function StyleStep({ project, save }: StyleStepProps) {
           ))}
           <label className={label}>
             <span className="flex justify-between">Outline width <span className="font-mono text-fg">{(style.outlineWidth ?? resolved.template.colors.outlineWidth ?? 0).toFixed(1)}</span></span>
-            <input type="range" min={0} max={4} step={0.5} value={style.outlineWidth ?? resolved.template.colors.outlineWidth ?? 0} onChange={(e) => update({ outlineWidth: Number(e.target.value), ...(Number(e.target.value) > 0 && !resolved.template.colors.outline ? { outline: "#000000" } : {}) })} className="accent-[var(--emerald-bright)]" />
+            <input type="range" min={0} max={4} step={0.5} value={style.outlineWidth ?? resolved.template.colors.outlineWidth ?? 0} onChange={(e) => update({ outlineWidth: Number(e.target.value), ...(Number(e.target.value) > 0 && !resolved.template.colors.outline ? { outline: DEFAULT_OUTLINE } : {}) })} className="accent-[var(--emerald-bright)]" />
           </label>
         </fieldset>
 

@@ -10,6 +10,7 @@ import { StudioHeader } from "../_components/StudioHeader";
 import { TemplateStep } from "../_components/TemplateStep";
 import { EditStep } from "../_components/EditStep";
 import { StyleStep } from "../_components/StyleStep";
+import { ExportStep } from "../_components/ExportStep";
 import { useStudioProject } from "../_components/useStudioProject";
 
 export default function CaptionStudioProjectPage({ params }: { params: Promise<{ id: string }> }) {
@@ -56,11 +57,7 @@ export default function CaptionStudioProjectPage({ params }: { params: Promise<{
       ) : step === "style" ? (
         <StyleStep project={project} save={save} />
       ) : (
-        <div className="flex flex-1 items-center justify-center p-6">
-          <p className="max-w-sm text-center text-sm text-fg-muted">
-            This step is on its way. Your captions are saved — you can also open this project in the editor.
-          </p>
-        </div>
+        <ExportStep project={project} />
       )}
     </div>
   );
