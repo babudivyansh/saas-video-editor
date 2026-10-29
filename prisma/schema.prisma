@@ -176,6 +176,7 @@ model User {
 
   createdAt           DateTime             @default(now())
   projects            Project[]
+  captionTemplates    UserCaptionTemplate[]
   assets              Asset[]
   purchases           Purchase[]
   invoices            Invoice[]
@@ -618,6 +619,8 @@ model Project {
   // Earlier editorDocs, kept on save (throttled) and always before an
   // overwrite or a restore. See lib/project-versions.ts.
   versions             ProjectVersion[]
+  // Caption Studio exports: one row per ratio rendered (lib/editor/caption-export.ts).
+  renders              ProjectRender[]
   // The source media as a real Asset row. uploadedVideoUrl above stays — too
   // many call sites read it — but it is a bare URL string with no ownership
   // or lifecycle, so it can't answer "what else came from this upload?".
@@ -2018,6 +2021,51 @@ model AppEventDaily {
 // aside when a conflict is resolved the other way), so Version history can bring
 // it back. Capped per project. clipCount/durationSec are stored so the list
 // never loads the docs themselves.
+// A caption look a user saved to reuse: a library template plus their
+// CaptionStyleOverride (packages/shared/src/captions/style.ts). Word-level
+// edits stay with the project; only the look is saved here.
+model UserCaptionTemplate {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name           String
+  baseTemplateId String
+  style          Json     @default("{}")
+  // At most one per user; applied to new Caption Studio projects.
+  isDefault      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([userId])
+}
+
+// One output ratio of a Caption Studio export. A click on Export creates one
+// row per ratio, all sharing batchId; the batch is charged once and settled
+// (refunded if nothing rendered, owner notified) by whichever render finishes
+// last, which claims settledAt so that happens exactly once.
+model ProjectRender {
+  id            String    @id @default(uuid())
+  projectId     String
+  project       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId        String
+  batchId       String
+  // "9:16" | "4:5" | "1:1" | "16:9" | "original"
+  aspect        String
+  // "queued" | "rendering" | "completed" | "failed"
+  status        String    @default("queued")
+  progress      Int       @default(0)
+  s3Key         String?
+  failureReason String?
+  settledAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([projectId, createdAt])
+  @@index([batchId])
+  // The stale sweep's scan: non-terminal rows, oldest first.
+  @@index([status, updatedAt])
+}
+
 model ProjectVersion {
   id          String   @id @default(uuid())
   projectId   String
