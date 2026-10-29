@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { ASPECT_DIMENSIONS, DEFAULT_DOC, docDuration, normalizeDoc, type Asset, type AudioClip, type EditorAspect, type EditorOpen, type ImageClip, type TimelineDoc, type VideoClip } from "@clipiro/shared";
+import { DEFAULT_DOC, docDimensions, docDuration, normalizeDoc, type Asset, type AudioClip, type EditorAspect, type EditorOpen, type ImageClip, type TimelineDoc, type VideoClip } from "@clipiro/shared";
 import { adoptExistingS3Object } from "@/lib/asset-service";
 import { getAsset, include, serialize } from "@/lib/mobile/assets";
 import { prisma } from "@/lib/prisma";
@@ -81,7 +81,7 @@ export async function saveExportToAssets(userId: string, projectId: string): Pro
   if (!p) return "not-found";
   if (p.status !== "completed" || !p.videoUrl) return "not-exported";
   const doc = normalizeDoc((p.editorDoc as unknown as TimelineDoc | null) ?? DEFAULT_DOC);
-  const size = ASPECT_DIMENSIONS[doc.aspect];
+  const size = docDimensions(doc);
 
   const key = sanitizeS3Key(`uploads/${userId}/${randomUUID()}.mp4`);
   // Same orphan safety as an upload: the asset-cleanup cron deletes the copy

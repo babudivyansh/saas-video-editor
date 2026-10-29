@@ -18,6 +18,17 @@ export interface AssetRow {
 
 export type SortKind = "date" | "oldest" | "name" | "size";
 
+/** Read a video's pixel size client-side (the editor's asset rows don't carry it). */
+export function probeVideoSize(url: string): Promise<{ w: number; h: number }> {
+  return new Promise((resolve, reject) => {
+    const el = document.createElement("video");
+    el.preload = "metadata";
+    el.onloadedmetadata = () => resolve({ w: el.videoWidth, h: el.videoHeight });
+    el.onerror = () => reject(new Error("Could not read media metadata"));
+    el.src = url;
+  });
+}
+
 /** Read a media file's duration client-side (uploads may lack metadata). */
 export function probeDuration(url: string, kind: "video" | "audio"): Promise<number> {
   return new Promise((resolve, reject) => {

@@ -11,7 +11,7 @@ import { motion } from "framer-motion";
 import { useEditorStore } from "../store/editorStore";
 import { usePlayback, type MediaRegistry } from "../hooks/usePlayback";
 import { docDuration } from "@/lib/editor/doc-utils";
-import { ASPECT_DIMENSIONS } from "@/lib/editor/types";
+import { docDimensions } from "@/lib/editor/types";
 import { useAssets } from "./panels/shared/assetData";
 import { buildTextCss } from "./text/textStyle";
 import { setKeyframe, textAt } from "@/lib/editor/keyframes";
@@ -42,7 +42,7 @@ export default function PreviewStage() {
   usePlayback(registry);
 
   const [stageH, setStageH] = useState(360);
-  const dims = ASPECT_DIMENSIONS[doc.aspect];
+  const dims = docDimensions(doc);
   const aspectRatio = dims.w / dims.h;
   const stageW = stageH * aspectRatio;
 
@@ -149,6 +149,18 @@ export default function PreviewStage() {
               src=""> in that gap is exactly what triggers React's own "pass
               null instead of an empty string" warning, and briefly points
               the element at nothing. */}
+          {/* Blurred fill behind a "fit" clip; usePlayback paints it. A small
+              canvas is enough — it is blurred, and CSS scales it up. */}
+          <canvas
+            ref={(el) => {
+              registry.current.backdrop = el;
+            }}
+            width={64}
+            height={Math.max(2, Math.round((64 * dims.h) / dims.w))}
+            aria-hidden="true"
+            className="absolute inset-0 h-full w-full scale-110"
+            style={{ opacity: 0 }}
+          />
           {usedVideoAssetIds.filter((id) => assetUrl(id)).map((assetId) => (
             <video
               key={assetId}

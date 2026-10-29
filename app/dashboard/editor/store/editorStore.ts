@@ -111,7 +111,8 @@ interface EditorState {
   setCurrentTime: (t: number) => void;
 
   // Document mutations (undoable)
-  setAspect: (a: Aspect) => void;
+  /** `size` is required the first time a doc goes "original" (see originalFrame). */
+  setAspect: (a: Aspect, size?: { w: number; h: number }) => void;
   addVideoClip: (clip: VideoClip) => void;
   addTextClip: (clip: TextClip) => void;
   addTextClips: (clips: TextClip[]) => void;
@@ -218,12 +219,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setPlaying: (p) => set({ playing: p }),
   setCurrentTime: (t) => set({ currentTime: Math.max(0, t) }),
 
-  setAspect: (a) =>
-    set((s) => ({
-      history: pushHistory(s.history, s.doc),
-      doc: { ...s.doc, aspect: a },
-      saveState: "dirty",
-    })),
+  setAspect: (a, size) =>
+    set((s) => {
+      // An "original" doc without a frame would fail validateDoc on save.
+      if (a === "original" && !size && !s.doc.size) return {};
+      return {
+        history: pushHistory(s.history, s.doc),
+        doc: { ...s.doc, aspect: a, ...(a === "original" && size ? { size } : {}) },
+        saveState: "dirty",
+      };
+    }),
 
   addVideoClip: (clip) =>
     set((s) => ({

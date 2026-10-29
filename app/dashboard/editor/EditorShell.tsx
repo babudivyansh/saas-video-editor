@@ -10,7 +10,8 @@ import Image from "next/image";
 import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
 import { ChevronLeft, Sparkles, User as UserIcon, LogOut, Undo2, Redo2, Search } from "lucide-react";
-import type { Aspect } from "@/lib/editor/types";
+import { originalFrame, type Aspect } from "@/lib/editor/types";
+import { probeVideoSize, useAssets } from "./components/panels/shared/assetData";
 import { useAuth } from "@/app/components/AuthContext";
 import { useModKey } from "./hooks/useModKey";
 import { useEditorStore } from "./store/editorStore";
@@ -33,7 +34,13 @@ import { ExportSplitButton, TitleMenu } from "./components/header/HeaderMenus";
 import SaveConflictBanner from "./components/SaveConflictBanner";
 import { clientAuthToken } from "@/lib/client-session";
 
-const ASPECTS: Aspect[] = ["9:16", "1:1", "16:9"];
+const ASPECTS: { value: Aspect; label: string }[] = [
+  { value: "9:16", label: "9:16" },
+  { value: "4:5", label: "4:5" },
+  { value: "1:1", label: "1:1" },
+  { value: "16:9", label: "16:9" },
+  { value: "original", label: "Original" },
+];
 
 const SAVE_LABEL: Record<string, { text: string; dot: string }> = {
   saved: { text: "Saved", dot: "bg-emerald-500" },
@@ -47,6 +54,17 @@ export default function EditorShell() {
   const aspect = useEditorStore((s) => s.doc.aspect);
   const docIsEmpty = useEditorStore((s) => Object.values(s.doc.tracks).every((t) => t.length === 0));
   const setAspect = useEditorStore((s) => s.setAspect);
+  const firstVideoAssetId = useEditorStore((s) => s.doc.tracks.video[0]?.assetId ?? null);
+  const { assets: videoAssets } = useAssets("video");
+  const firstVideoUrl = videoAssets.find((a) => a.id === firstVideoAssetId)?.url ?? null;
+  // "Original" takes the first video's own shape, read from the file itself.
+  const pickAspect = (a: Aspect) => {
+    if (a !== "original") return setAspect(a);
+    if (!firstVideoUrl) return;
+    probeVideoSize(firstVideoUrl)
+      .then(({ w, h }) => setAspect("original", originalFrame(w, h)))
+      .catch(() => {});
+  };
   const saveState = useEditorStore((s) => s.saveState);
   const exportOpen = useEditorStore((s) => s.exportOpen);
   const undoAction = useEditorStore((s) => s.undoAction);
@@ -107,13 +125,15 @@ export default function EditorShell() {
         <div className="flex items-center gap-2.5">
           {/* Aspect picker */}
           <div role="group" aria-label="Aspect ratio" className="max-md:hidden flex items-center rounded-editor-md border border-editor-border bg-editor-panel p-0.5">
-            {ASPECTS.map((a) => (
+            {ASPECTS.map(({ value: a, label }) => (
               <button
                 key={a}
                 type="button"
                 aria-pressed={aspect === a}
-                onClick={() => setAspect(a)}
-                className="relative rounded-editor-sm px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-editor-accent"
+                disabled={a === "original" && !firstVideoUrl}
+                title={a === "original" ? (firstVideoUrl ? "Keep the first video's own shape" : "Add a video first") : undefined}
+                onClick={() => pickAspect(a)}
+                className="relative rounded-editor-sm px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-editor-accent disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {aspect === a && (
                   <motion.span
@@ -122,7 +142,7 @@ export default function EditorShell() {
                     className="absolute inset-0 rounded-editor-sm bg-editor-card"
                   />
                 )}
-                <span className={`relative ${aspect === a ? "text-editor-text" : "text-editor-text-muted"}`}>{a}</span>
+                <span className={`relative ${aspect === a ? "text-editor-text" : "text-editor-text-muted"}`}>{label}</span>
               </button>
             ))}
           </div>

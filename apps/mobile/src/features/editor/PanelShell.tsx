@@ -1,3 +1,4 @@
+import { docDimensions } from "@clipiro/shared";
 import { router, type Href } from "expo-router";
 import type { ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
@@ -49,7 +50,8 @@ export function PanelShell({ panel, children, footer }: { panel: PanelId; childr
   const stageH = Math.round(screenH * 0.43) - insets.top - 56 + 40;
   const previewH = Math.max(120, stageH - 24);
   const width9x16 = (previewH * 9) / 16;
-  const previewW = doc.aspect === "9:16" ? width9x16 : Math.min(aspectWidthFor(doc.aspect, previewH), 300);
+  const frame = docDimensions(doc);
+  const previewW = doc.aspect === "9:16" ? width9x16 : Math.min((previewH * frame.w) / frame.h, 300);
 
   const go = (id: PanelId | "timeline") => {
     if (id === panel) return;
@@ -116,10 +118,6 @@ export function PanelShell({ panel, children, footer }: { panel: PanelId; childr
       </View>
     </View>
   );
-}
-
-function aspectWidthFor(aspect: "1:1" | "16:9", height: number) {
-  return aspect === "1:1" ? height : (height * 16) / 9;
 }
 
 const styles = StyleSheet.create({
