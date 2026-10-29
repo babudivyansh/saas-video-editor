@@ -6,6 +6,8 @@ import { redis } from "@/lib/redis";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { createRenderQueue } from "@/lib/render-queue";
 import { normalizeDoc, validateDoc, type TimelineDoc } from "@/lib/editor/types";
+import { docDuration } from "@/lib/editor/doc-utils";
+import { checkExportQuality, isExportQuality } from "@/lib/editor/export-quality";
 import { checkTemplateChoice } from "@/lib/captions/gate";
 import {
   editorRenderJob,
@@ -35,6 +37,8 @@ async function handlePOST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const projectId = body.projectId as string | undefined;
   if (!projectId) return NextResponse.json({ error: "projectId required" }, { status: 400 });
+  const quality = body.quality ?? "1080p";
+  if (!isExportQuality(quality)) return NextResponse.json({ error: "Unknown export quality" }, { status: 400 });
 
   const project = await prisma.project.findFirst({ where: { id: projectId, userId: auth.userId } });
   if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
@@ -85,6 +89,10 @@ async function handlePOST(req: NextRequest) {
   // ffmpeg lacked `drawtext`. Refunds fired afterwards, but the service was
   // knowingly selling a guaranteed failure. If the runtime cannot satisfy the
   // render contract, refuse here instead: no charge, no queue entry.
+  // 4K is plan-gated and length-capped — refused before any charge.
+  const qualityRefusal = checkExportQuality(quality, await getUserTier(auth.userId), docDuration(doc));
+  if (qualityRefusal) return NextResponse.json(qualityRefusal.body, { status: qualityRefusal.status });
+
   const runtime = await getRenderRuntimeHealth(ffmpegBin);
   if (!runtime.ok) {
     logger.error("editor-render", `${RENDER_RUNTIME_UNHEALTHY} — refusing export`, {
@@ -149,7 +157,7 @@ async function handlePOST(req: NextRequest) {
   // meant a project's second export was charged and never ran.
   const jobId = `${projectId}-${Date.now().toString(36)}`;
   try {
-    await renderQueue.enqueue(jobId, { projectId, assetUrls }, {
+    await renderQueue.enqueue(jobId, { projectId, assetUrls, quality }, {
       priority: tierPriority(await getUserTier(auth.userId)),
       rejectOnFailure: true,
     });

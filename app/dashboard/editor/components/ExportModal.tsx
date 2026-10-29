@@ -17,6 +17,10 @@ import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptPro
 import { Modal } from "@/app/components/ui/Modal";
 import { Button } from "@/app/components/ui/Button";
 import { clientAuthToken } from "@/lib/client-session";
+import { useUpgradePrompt } from "@/app/components/captions/useUpgradePrompt";
+import { effectivePlan } from "@/lib/plans/effective-plan";
+import { tierAtLeast, TIER_LABEL } from "@/lib/plans/tiers";
+import { EXPORT_4K_MAX_SECONDS, EXPORT_4K_MIN_TIER, exportFrame, type ExportQuality } from "@/lib/editor/export-quality";
 
 type Stage = "confirm" | "waiting-save" | "rendering" | "done" | "error";
 
@@ -25,6 +29,9 @@ const POLL_MS = 3000;
 
 export default function ExportModal() {
   const { user, refreshUser } = useAuth();
+  const upgrade = useUpgradePrompt();
+  const [quality, setQuality] = useState<ExportQuality>("1080p");
+  const can4k = tierAtLeast(effectivePlan(user).tier, EXPORT_4K_MIN_TIER);
   const insufficientCredits = useInsufficientCredits();
   const setExportOpen = useEditorStore((s) => s.setExportOpen);
   const projectId = useEditorStore((s) => s.projectId);
@@ -74,7 +81,7 @@ export default function ExportModal() {
       const res = await fetch("/api/editor/render", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId }),
+        body: JSON.stringify({ projectId, quality }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -83,7 +90,7 @@ export default function ExportModal() {
           setStage("confirm");
           return;
         }
-        throw new Error(data.error ?? "Export failed to start");
+        throw new Error(data.message ?? data.error ?? "Export failed to start");
       }
 
       poll.current = setInterval(async () => {
@@ -136,8 +143,9 @@ export default function ExportModal() {
   const duration = docDuration(doc);
   const checks = runExportChecks(doc);
   const blocked = hasBlockingCheck(checks);
-  const frame = docDimensions(doc);
+  const frame = exportFrame(docDimensions(doc), quality);
   const resolution = `${frame.w}×${frame.h}`;
+  const tooLong4k = duration > EXPORT_4K_MAX_SECONDS;
 
   // Full-screen like the upgrade page (no drawers). It can't be dismissed while
   // a render is being started — the server is already charging for it.
@@ -191,6 +199,24 @@ export default function ExportModal() {
               <p className="text-[13px] leading-relaxed text-fg-muted">
                 Rendering happens on our servers — you can keep editing while it runs. Preview and export are closely matched, though text may differ by a pixel or two.
               </p>
+              <div className="flex flex-col gap-2">
+                <span className="text-[12px] font-semibold uppercase tracking-wide text-fg-subtle">Quality</span>
+                <div className="grid grid-cols-2 rounded-xl border border-line bg-surface-1 p-1 text-[13px] font-semibold" role="radiogroup" aria-label="Quality">
+                  <button type="button" role="radio" aria-checked={quality === "1080p"} onClick={() => setQuality("1080p")} className={`rounded-lg py-2 ${quality === "1080p" ? "bg-fg text-bg" : "text-fg-muted hover:text-fg"}`}>1080p</button>
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={quality === "4k"}
+                    disabled={can4k && tooLong4k}
+                    onClick={() => (can4k ? setQuality("4k") : upgrade())}
+                    className={`flex items-center justify-center gap-1.5 rounded-lg py-2 disabled:opacity-40 ${quality === "4k" ? "bg-fg text-bg" : "text-fg-muted hover:text-fg"}`}
+                  >
+                    4K{!can4k && <span className="rounded-full border border-warning/30 bg-warning/10 px-1.5 text-[10px] text-warning">{TIER_LABEL[EXPORT_4K_MIN_TIER]}</span>}
+                  </button>
+                </div>
+                {can4k && tooLong4k && <p className="text-[12px] text-fg-subtle">4K takes videos up to {EXPORT_4K_MAX_SECONDS / 60} minutes.</p>}
+                {quality === "4k" && <p className="text-[12px] text-fg-subtle">4K renders take several times longer than 1080p.</p>}
+              </div>
               <div className="flex items-center justify-between rounded-xl border border-line bg-surface-1 px-3.5 py-2.5 text-[13px] text-fg-muted">
                 <span><b className="text-fg">{CREDIT_COST} credit</b> · refunded if the render fails</span>
                 <span className="text-fg-subtle">{(user?.credits ?? 0).toLocaleString()} left</span>

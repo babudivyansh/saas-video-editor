@@ -13,6 +13,11 @@ import { docDimensions, originalFrame, type Aspect } from "@/lib/editor/types";
 import { STUDIO_ASPECTS, currentTemplateId } from "@/lib/captions/studio";
 import { CAPTION_EXPORT_ASPECTS, type CaptionExportAspect } from "@/lib/editor/caption-export-shapes";
 import { useCaptionTemplates } from "@/app/components/captions/useCaptionTemplates";
+import { useUpgradePrompt } from "@/app/components/captions/useUpgradePrompt";
+import { useAuth } from "@/app/components/AuthContext";
+import { effectivePlan } from "@/lib/plans/effective-plan";
+import { tierAtLeast, TIER_LABEL } from "@/lib/plans/tiers";
+import { EXPORT_4K_MAX_SECONDS, EXPORT_4K_MIN_TIER, exportFrame, type ExportQuality } from "@/lib/editor/export-quality";
 import { StudioPreview } from "./StudioPreview";
 import type { StudioProject } from "./useStudioProject";
 
@@ -62,15 +67,27 @@ export function ExportStep({ project }: { project: StudioProject }) {
   const video = doc.tracks.video[0];
   const mediaUrl = video ? project.media[video.assetId]?.url ?? null : null;
   const [probed, setProbed] = useState<{ w: number; h: number } | null>(null);
+  // Read for every project: it is also how 4K knows whether it would upscale.
   useEffect(() => {
-    if (doc.aspect === "original" || !mediaUrl) return;
+    if (!mediaUrl) return;
     let live = true;
     probeVideoSize(mediaUrl).then((s) => { if (live && s.w && s.h) setProbed(s); }).catch(() => {});
     return () => { live = false; };
-  }, [doc.aspect, mediaUrl]);
+  }, [mediaUrl]);
   const originalSize = doc.aspect === "original" ? doc.size ?? null : probed ? originalFrame(probed.w, probed.h) : null;
   const shapes = CAPTION_EXPORT_ASPECTS.filter((a) => a !== "original" || originalSize);
   const framed = (a: CaptionExportAspect) => (a === "original" ? { ...doc, aspect: a, size: originalSize! } : { ...doc, aspect: a });
+
+  // 4K: Pro and up, videos up to EXPORT_4K_MAX_SECONDS. The server checks both again.
+  const { user } = useAuth();
+  const upgrade = useUpgradePrompt();
+  const tier = effectivePlan(user).tier;
+  const [quality, setQuality] = useState<ExportQuality>("1080p");
+  const lengthSec = doc.tracks.video[0]?.duration ?? 0;
+  const can4k = tierAtLeast(tier, EXPORT_4K_MIN_TIER);
+  const tooLong4k = lengthSec > EXPORT_4K_MAX_SECONDS;
+  // A source well under 4K is upscaled: allowed, but say so.
+  const upscales = quality === "4k" && probed && Math.max(probed.w, probed.h) < 3840 * 0.75;
 
   const refresh = useCallback(async () => {
     const res = await fetch(`/api/captions/export?projectId=${project.projectId}`, { headers: authHeaders() }).catch(() => null);
@@ -107,7 +124,7 @@ export function ExportStep({ project }: { project: StudioProject }) {
     const res = await fetch("/api/captions/export", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ projectId: project.projectId, aspects: shapes.filter((a) => picked.has(a)) }),
+      body: JSON.stringify({ projectId: project.projectId, aspects: shapes.filter((a) => picked.has(a)), quality }),
     }).catch(() => null);
     setStarting(false);
     if (!res) { setError("Couldn't reach the server. Check your connection."); return; }
@@ -136,7 +153,7 @@ export function ExportStep({ project }: { project: StudioProject }) {
           <div className="flex flex-wrap items-end gap-4">
             {shapes.map((a) => {
               const on = picked.has(a);
-              const f = docDimensions(framed(a));
+              const f = exportFrame(docDimensions(framed(a)), quality);
               return (
                 <label key={a} className={`flex cursor-pointer flex-col gap-2.5 rounded-[18px] p-3 ${on ? "border-[1.5px] border-primary bg-surface-2" : "border border-line-strong bg-surface-1"}`}>
                   <span className="flex items-center justify-between gap-3 text-sm font-bold">
@@ -166,6 +183,25 @@ export function ExportStep({ project }: { project: StudioProject }) {
       <aside aria-label="Summary" className="flex flex-col gap-5 border-line bg-surface-1 p-6 lg:border-l">
         <div className="flex flex-col gap-4 rounded-3xl border border-line bg-surface-2 p-5">
           <h2 className="text-lg font-extrabold">Summary</h2>
+          <fieldset className="flex flex-col gap-2">
+            <legend className="mb-2 text-sm text-fg-muted">Quality</legend>
+            <div className="grid grid-cols-2 rounded-xl bg-surface-3 p-1 text-sm font-bold" role="radiogroup" aria-label="Quality">
+              <button type="button" role="radio" aria-checked={quality === "1080p"} disabled={running} onClick={() => setQuality("1080p")} className={`rounded-[9px] py-2 ${quality === "1080p" ? "bg-fg text-bg" : "text-fg-muted"}`}>1080p</button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={quality === "4k"}
+                disabled={running || (can4k && tooLong4k)}
+                onClick={() => (can4k ? setQuality("4k") : upgrade())}
+                className={`flex items-center justify-center gap-1.5 rounded-[9px] py-2 disabled:opacity-40 ${quality === "4k" ? "bg-fg text-bg" : "text-fg-muted"}`}
+              >
+                4K{!can4k && <span className="rounded-full border border-warning/30 bg-warning/10 px-1.5 text-[10px] font-semibold text-warning">{TIER_LABEL[EXPORT_4K_MIN_TIER]}</span>}
+              </button>
+            </div>
+            {can4k && tooLong4k && <p className="text-xs text-fg-subtle">4K takes videos up to {EXPORT_4K_MAX_SECONDS / 60} minutes.</p>}
+            {quality === "4k" && <p className="text-xs text-fg-subtle">4K renders take several times longer than 1080p.</p>}
+            {upscales && <p className="text-xs text-warning">Your video is {probed!.w}×{probed!.h}, so 4K enlarges it — the captions get sharper, the footage won&apos;t.</p>}
+          </fieldset>
           <dl className="flex flex-col gap-2.5 text-sm">
             <div className="flex justify-between gap-3"><dt className="text-fg-muted">Videos</dt><dd className="text-right font-semibold">{count} · {shapes.filter((a) => picked.has(a)).map((a) => (a === "original" ? "Original" : a)).join(", ") || "none"}</dd></div>
             <div className="flex justify-between gap-3"><dt className="text-fg-muted">Template</dt><dd className="font-semibold">{templateName}{doc.captionStyle && Object.keys(doc.captionStyle).length ? " (styled)" : ""}</dd></div>

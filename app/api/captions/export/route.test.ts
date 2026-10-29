@@ -26,7 +26,7 @@ vi.mock("@/lib/auth", () => ({
   getAuthUser: vi.fn(async () => ({ userId: "user-1" })),
   getUserTier: vi.fn(async () => "pro"),
 }));
-vi.mock("@/lib/plans/tiers", () => ({ tierPriority: () => 1 }));
+vi.mock("@/lib/plans/tiers", async () => ({ ...(await vi.importActual<typeof import("@/lib/plans/tiers")>("@/lib/plans/tiers")), tierPriority: () => 1 }));
 vi.mock("@/lib/prisma", () => {
   const tx = {
     $executeRaw: vi.fn(async () => 1),
@@ -141,5 +141,30 @@ describe("POST /api/captions/export", () => {
     projectFindFirst.mockResolvedValue(null);
     expect((await POST(request({ projectId: "p1", aspects: ["9:16"] }))).status).toBe(404);
     expect(projectFindFirst.mock.calls[0]![0].where).toMatchObject({ userId: "user-1", productType: { in: ["captions", "editor"] } });
+  });
+});
+
+describe("4K export batches", () => {
+  it("queues every ratio with the batch's quality", async () => {
+    await POST(request({ projectId: "p1", aspects: ["9:16", "16:9"], quality: "4k" }));
+    expect(enqueue.mock.calls.map((c) => c[1].quality)).toEqual(["4k", "4k"]);
+  });
+
+  it("refuses 4K below Pro, and over the length cap, without charging", async () => {
+    const { getUserTier } = await import("@/lib/auth");
+    vi.mocked(getUserTier).mockResolvedValueOnce("creator");
+    expect((await POST(request({ projectId: "p1", aspects: ["9:16"], quality: "4k" }))).status).toBe(403);
+    projectFindFirst.mockResolvedValue({
+      id: "p1", userId: "user-1", productType: "captions",
+      editorDoc: { ...DOC, tracks: { ...DOC.tracks, video: [{ ...DOC.tracks.video[0], duration: 301 }] } },
+    });
+    expect((await POST(request({ projectId: "p1", aspects: ["9:16"], quality: "4k" }))).status).toBe(400);
+    expect(spendCredits).not.toHaveBeenCalled();
+    expect(renderCreate).not.toHaveBeenCalled();
+  });
+
+  it("defaults to 1080p", async () => {
+    await POST(request({ projectId: "p1", aspects: ["9:16"] }));
+    expect(enqueue.mock.calls[0]![1].quality).toBe("1080p");
   });
 });

@@ -50,6 +50,8 @@ export interface FiltergraphInput {
   /** Free-tier output treatment: cap the short edge at 720p and burn a
    * "Clipiro" corner watermark. Decided by the caller from the user's tier. */
   watermark?: boolean;
+  /** Multiplies the doc's frame on every side (2 = 4K; export-quality.ts). Captions must be built for the same frame. */
+  scale?: number;
   outputPath: string;
 }
 
@@ -196,7 +198,10 @@ export function fitStatements(input: string, timing: string[], W: number, H: num
 
 export function buildFilterGraph(input: FiltergraphInput): FiltergraphResult {
   const { doc, assets, textFiles, captionAssPath, captionTemplateTracks, outputPath } = input;
-  const { w: W, h: H } = docDimensions(doc);
+  const base = docDimensions(doc);
+  const scale = input.scale ?? 1;
+  const W = base.w * scale;
+  const H = base.h * scale;
   const total = docDuration(doc);
   if (total <= 0) throw new Error("Timeline is empty");
 

@@ -309,3 +309,20 @@ describe("framing: fill focus and fit", () => {
     expect(validateDoc(doc([videoClip({ id: "c1", focusY: -0.1 })]))).toBe("video clip invalid focusY");
   });
 });
+
+describe("4K", () => {
+  it("renders every size at twice the frame, text and images scaled with it", () => {
+    const d: TimelineDoc = {
+      ...doc([videoClip({ id: "c1" })]),
+      tracks: {
+        video: [videoClip({ id: "c1" })], audio: [], image: [], caption: [],
+        text: [{ type: "text", id: "t1", timelineStart: 0, duration: 2, text: "Hi", fontFamily: "Arial", fontSizePct: 0.05, color: "#ffffff", bgColor: null, x: 0.5, y: 0.5, bold: false, italic: false, align: "center" } as TextClip],
+      },
+    };
+    const { filterComplex } = buildFilterGraph({ doc: d, assets: assetsFor(d), textFiles: new Map([["t1", "/tmp/t1.txt"]]), outputPath: "/tmp/out.mp4", scale: 2 });
+    expect(filterComplex).toContain("scale=2160:3840:force_original_aspect_ratio=increase,crop=2160:3840");
+    expect(filterComplex).toContain("fontsize=192");
+    const { filterComplex: hd } = buildFilterGraph({ doc: d, assets: assetsFor(d), textFiles: new Map([["t1", "/tmp/t1.txt"]]), outputPath: "/tmp/out.mp4" });
+    expect(hd).toContain("fontsize=96");
+  });
+});
