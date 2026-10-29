@@ -95,6 +95,106 @@ async function refundCredit(projectId: string) {
   }
 }
 
+export interface RenderTimelineInput {
+  doc: TimelineDoc;
+  /** The owner: decides the free-tier watermark and 720p cap. */
+  userId: string;
+  /** assetId → presigned URL, resolved at enqueue time. */
+  assetUrls: Record<string, string>;
+  /** Prefix for this render's temp files; unique per render. */
+  tag: string;
+  outPath: string;
+  /** Every temp file made is pushed here for the caller to delete. */
+  tempFiles: string[];
+  /** 5-20 while downloading, 20-85 while ffmpeg runs. */
+  onProgress: (stage: "downloading" | "rendering", percent: number) => Promise<void>;
+}
+
+/**
+ * The render itself, shared by the editor export (one file per project) and
+ * Caption Studio's multi-ratio export (lib/editor/caption-export.ts): download
+ * the doc's media, build the caption tracks and filtergraph for the doc's own
+ * frame, and run ffmpeg into outPath. Status, upload and refunds stay with the
+ * caller.
+ */
+export async function renderTimeline({ doc, userId, assetUrls, tag, outPath, tempFiles, onProgress }: RenderTimelineInput): Promise<void> {
+  const tmp = os.tmpdir();
+  // ── Download unique assets ──
+  await onProgress("downloading", 5);
+
+  const imageAssetIds = new Set(doc.tracks.image.map((c) => c.assetId));
+
+  const assets = new Map<string, ClipInput>();
+  const entries = Object.entries(assetUrls);
+  for (let i = 0; i < entries.length; i++) {
+    const [assetId, url] = entries[i];
+    const ext = path.extname(new URL(url).pathname) || ".mp4";
+    const localPath = path.join(tmp, `${tag}-${assetId}${ext}`);
+    await downloadFile(url, localPath);
+    tempFiles.push(localPath);
+    const isImage = imageAssetIds.has(assetId);
+    const hasAudio = isImage ? false : await hasAudioStream(localPath);
+    assets.set(assetId, { filePath: localPath, hasAudio, isImage });
+    const pct = 5 + Math.round(((i + 1) / entries.length) * 15);
+    await onProgress("downloading", pct);
+  }
+
+  // ── Build + run ffmpeg ──
+  const textFiles = writeTextFiles(doc, tmp, tag);
+  for (const p of textFiles.values()) tempFiles.push(p);
+
+  // Plain cues keep the editor's own per-cue styling; cues carrying a
+  // caption template are burned by the template engine instead.
+  let captionAssPath: string | undefined;
+  const plainCues = doc.tracks.caption.filter((c) => !c.templateId);
+  if (plainCues.length > 0) {
+    captionAssPath = path.join(tmp, `${tag}-captions.ass`);
+    generateCaptionASS(plainCues, docDimensions(doc), captionAssPath);
+    tempFiles.push(captionAssPath);
+  }
+  const { w: capW, h: capH } = docDimensions(doc);
+  const captionTemplateTracks: { track: CaptionTrack; assPath: string }[] = [];
+  templateCaptionGroups(doc.tracks.caption).forEach((group, i) => {
+    const { template, positionY } = effectiveCaptionTemplate(group.templateId, doc.captionStyle, { w: capW, h: capH });
+    const words = group.words
+      .map((w) => ({ ...w, word: sanitizeCaptionWord(w.word).trim() }))
+      .filter((w) => w.word);
+    if (!words.length) return;
+    const track = buildCaptionTrack({
+      words,
+      template,
+      W: capW,
+      H: capH,
+      accent: group.accent,
+      positionY,
+      emoji: planEmoji(words, template.emoji !== "none"),
+    });
+    const assPath = path.join(tmp, `${tag}-template-${i}.ass`);
+    fs.writeFileSync(assPath, track.ass);
+    tempFiles.push(assPath);
+    captionTemplateTracks.push({ track, assPath });
+  });
+
+  // Free-tier renders are watermarked + 720p-capped. Tier is re-derived
+  // here (not passed in the payload) so it's decided in one place and is
+  // correct even for jobs that sat in the queue across an upgrade.
+  const { getUserTier } = await import("@/lib/auth");
+  const tier = await getUserTier(userId);
+  const result = buildFilterGraph({
+    doc, assets, textFiles, captionAssPath, captionTemplateTracks,
+    watermark: tier === "free",
+    outputPath: outPath,
+  });
+  const scriptPath = path.join(tmp, `${tag}-graph.txt`);
+  const args = maybeUseFilterScript(result, scriptPath);
+  if (args !== result.args) tempFiles.push(scriptPath);
+
+  await onProgress("rendering", 20);
+  await runFFmpegWithProgress(args, async (pct) => {
+    await onProgress("rendering", 20 + Math.round((pct / 100) * 65));
+  });
+}
+
 export async function editorRenderJob(payload: EditorRenderPayload): Promise<void> {
   const { projectId, assetUrls } = payload;
   const tmp = os.tmpdir();
@@ -116,83 +216,20 @@ export async function editorRenderJob(payload: EditorRenderPayload): Promise<voi
     const docError = validateDoc(doc);
     if (docError) throw new Error(`Editor document failed validation: ${docError}`);
 
-    // ── Download unique assets ──
-    await setRenderProgress(projectId, "downloading", 5);
-    await prisma.project.update({ where: { id: projectId }, data: { progress: 5 } });
-
-    const imageAssetIds = new Set(doc.tracks.image.map((c) => c.assetId));
-
-    const assets = new Map<string, ClipInput>();
-    const entries = Object.entries(assetUrls);
-    for (let i = 0; i < entries.length; i++) {
-      const [assetId, url] = entries[i];
-      const ext = path.extname(new URL(url).pathname) || ".mp4";
-      const localPath = path.join(tmp, `editor-${projectId}-${assetId}${ext}`);
-      await downloadFile(url, localPath);
-      tempFiles.push(localPath);
-      const isImage = imageAssetIds.has(assetId);
-      const hasAudio = isImage ? false : await hasAudioStream(localPath);
-      assets.set(assetId, { filePath: localPath, hasAudio, isImage });
-      const pct = 5 + Math.round(((i + 1) / entries.length) * 15);
-      await setRenderProgress(projectId, "downloading", pct);
-      await prisma.project.update({ where: { id: projectId }, data: { progress: pct } });
-    }
-
-    // ── Build + run ffmpeg ──
-    const textFiles = writeTextFiles(doc, tmp, `editor-${projectId}`);
-    for (const p of textFiles.values()) tempFiles.push(p);
-
-    // Plain cues keep the editor's own per-cue styling; cues carrying a
-    // caption template are burned by the template engine instead.
-    let captionAssPath: string | undefined;
-    const plainCues = doc.tracks.caption.filter((c) => !c.templateId);
-    if (plainCues.length > 0) {
-      captionAssPath = path.join(tmp, `editor-${projectId}-captions.ass`);
-      generateCaptionASS(plainCues, docDimensions(doc), captionAssPath);
-      tempFiles.push(captionAssPath);
-    }
-    const { w: capW, h: capH } = docDimensions(doc);
-    const captionTemplateTracks: { track: CaptionTrack; assPath: string }[] = [];
-    templateCaptionGroups(doc.tracks.caption).forEach((group, i) => {
-      const { template, positionY } = effectiveCaptionTemplate(group.templateId, doc.captionStyle, { w: capW, h: capH });
-      const words = group.words
-        .map((w) => ({ ...w, word: sanitizeCaptionWord(w.word).trim() }))
-        .filter((w) => w.word);
-      if (!words.length) return;
-      const track = buildCaptionTrack({
-        words,
-        template,
-        W: capW,
-        H: capH,
-        accent: group.accent,
-        positionY,
-        emoji: planEmoji(words, template.emoji !== "none"),
-      });
-      const assPath = path.join(tmp, `editor-${projectId}-template-${i}.ass`);
-      fs.writeFileSync(assPath, track.ass);
-      tempFiles.push(assPath);
-      captionTemplateTracks.push({ track, assPath });
-    });
-
-    // Free-tier renders are watermarked + 720p-capped. Tier is re-derived
-    // here (not passed in the payload) so it's decided in one place and is
-    // correct even for jobs that sat in the queue across an upgrade.
-    const { getUserTier } = await import("@/lib/auth");
-    const tier = await getUserTier(project.userId);
-    const result = buildFilterGraph({
-      doc, assets, textFiles, captionAssPath, captionTemplateTracks,
-      watermark: tier === "free",
-      outputPath: outPath,
-    });
-    const scriptPath = path.join(tmp, `editor-${projectId}-graph.txt`);
-    const args = maybeUseFilterScript(result, scriptPath);
-    if (args !== result.args) tempFiles.push(scriptPath);
-
-    await setRenderProgress(projectId, "rendering", 20);
-    await runFFmpegWithProgress(args, async (pct) => {
-      const overall = 20 + Math.round((pct / 100) * 65);
-      await setRenderProgress(projectId, "rendering", overall);
-      prisma.project.update({ where: { id: projectId }, data: { progress: overall } }).catch(() => {});
+    await renderTimeline({
+      doc,
+      userId: project.userId,
+      assetUrls,
+      tag: `editor-${projectId}`,
+      outPath,
+      tempFiles,
+      onProgress: async (stage, pct) => {
+        await setRenderProgress(projectId, stage, pct);
+        // Downloads are few and slow, so each step is saved; ffmpeg reports
+        // many times a second, so those writes don't hold the render up.
+        if (stage === "downloading") await prisma.project.update({ where: { id: projectId }, data: { progress: pct } });
+        else prisma.project.update({ where: { id: projectId }, data: { progress: pct } }).catch(() => {});
+      },
     });
 
     // ── Upload ──

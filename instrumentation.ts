@@ -53,6 +53,7 @@ export async function register() {
   // BullMQ's "waiting" state with no live Worker.
   const { createRenderQueue } = await import("./lib/render-queue");
   const { editorRenderJob } = await import("./lib/editor/render-job");
+  const { captionExportJob } = await import("./lib/editor/caption-export");
   const { pickJob, renderJob, rerenderJob } = await import("./lib/autoclip-pipeline");
   const { startDubJob, finishDubJob } = await import("./lib/autoclip-dub");
   const { assetModerationJob } = await import("./lib/asset-moderation");
@@ -60,6 +61,7 @@ export async function register() {
   const { accountExportJob } = await import("./lib/account-export");
 
   createRenderQueue("editor-render", editorRenderJob);
+  createRenderQueue("caption-export", captionExportJob);
   createRenderQueue("auto-clip-pick", pickJob);
   createRenderQueue("auto-clip-render", renderJob);
   createRenderQueue("auto-clip-rerender", rerenderJob);
