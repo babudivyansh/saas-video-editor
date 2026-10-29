@@ -92,8 +92,8 @@ export type RenderQueueName = typeof KNOWN_RENDER_QUEUE_NAMES[number];
 type Handler<T> = JobHandler<T>;
 
 // Cached by queue name (via globalThis, so it survives Next.js dev hot-reload
-// like the job Maps elsewhere in this codebase) so both instrumentation.ts
-// (boot-time worker start) and a route module's top-level `createRenderQueue`
+// like the job Maps elsewhere in this codebase) so both instrumentation-workers.ts
+// (boot-time worker start, production) and a route module's top-level `createRenderQueue`
 // call resolve to the same Queue/Worker instead of double-starting one.
 const g = globalThis as unknown as { __renderQueues?: Map<string, RenderQueue<unknown>> };
 const queueCache = g.__renderQueues ?? (g.__renderQueues = new Map());

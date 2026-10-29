@@ -50,7 +50,15 @@ placeholders and should stay that way.
 ```bash
 npx tsc --noEmit          # type check — should be clean
 npm run dev               # start the app
+npm run dev:stop          # stop it (also clears one left running by an IDE's Stop button)
 ```
+
+On Windows the first page after "Ready" can take 30–60 s while Turbopack sets
+up. If it's much slower than that, add the project folder to Microsoft
+Defender's exclusions (Windows Security → Virus & threat protection → Manage
+settings → Exclusions) — Next.js's own guide recommends it, and its "Slow
+filesystem detected" warning is the sign. If `npm run dev` says a server is
+already running, open that URL or run `npm run dev:stop` first.
 
 Then sign in and try a tool. If you see `503 "not configured"`, that tool's key
 is still empty. If you see `402 "Insufficient credits"`, top up credits (or use
