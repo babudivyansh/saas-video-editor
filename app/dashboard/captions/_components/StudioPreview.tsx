@@ -23,6 +23,14 @@ export interface StudioPreviewProps {
   maxWidth: number;
   maxHeight: number;
   className?: string;
+  /** Pass to control playback from outside (the editor's play button, seeking). */
+  videoRef?: React.RefObject<HTMLVideoElement | null>;
+  /** Plays muted on a loop by itself unless false. */
+  autoPlay?: boolean;
+  /** Called as the video's clock moves (ms). */
+  onTime?: (ms: number) => void;
+  /** Drawn over the frame, above the captions (safe-zone guides). */
+  children?: React.ReactNode;
 }
 
 /** The video's clock, read every frame while it plays (ms). */
@@ -41,9 +49,11 @@ function useVideoTime(ref: React.RefObject<HTMLVideoElement | null>): number {
   return ms;
 }
 
-export function StudioPreview({ doc, media, templateId, maxWidth, maxHeight, className = "" }: StudioPreviewProps) {
-  const videoRef = useRef<HTMLVideoElement>(null);
+export function StudioPreview({ doc, media, templateId, maxWidth, maxHeight, className = "", videoRef: outerRef, autoPlay = true, onTime, children }: StudioPreviewProps) {
+  const ownRef = useRef<HTMLVideoElement>(null);
+  const videoRef = outerRef ?? ownRef;
   const timeMs = useVideoTime(videoRef);
+  useEffect(() => { onTime?.(timeMs); }, [timeMs, onTime]);
   const frame = docDimensions(doc);
   const scale = Math.min(maxWidth / frame.w, maxHeight / frame.h);
   const clip = doc.tracks.video[0];
@@ -80,7 +90,7 @@ export function StudioPreview({ doc, media, templateId, maxWidth, maxHeight, cla
   return (
     <div
       className={`relative overflow-hidden rounded-[20px] border border-line-strong bg-black ${className}`}
-      style={{ width: Math.round(frame.w * scale), height: Math.round(frame.h * scale) }}
+      style={{ width: Math.round(frame.w * scale), maxWidth: "100%", aspectRatio: `${frame.w} / ${frame.h}` }}
     >
       {src && fit && (
         // The blurred fill behind a "fit" video. Its own copy, looping in
@@ -91,9 +101,10 @@ export function StudioPreview({ doc, media, templateId, maxWidth, maxHeight, cla
         <video
           ref={videoRef}
           src={src}
-          muted
+          muted={autoPlay}
           loop
-          autoPlay
+          autoPlay={autoPlay}
+          preload="auto"
           playsInline
           className="absolute inset-0 h-full w-full"
           style={{
@@ -120,6 +131,7 @@ export function StudioPreview({ doc, media, templateId, maxWidth, maxHeight, cla
           </div>
         );
       })}
+      {children}
     </div>
   );
 }
