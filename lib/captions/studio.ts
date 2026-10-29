@@ -98,6 +98,29 @@ export function studioCaptionCues(
   return wordsToCaptionCues(kept, video, { templateId: opts.templateId, highlightMode: "none" });
 }
 
+/** Where an app draws its own UI over a vertical video, as fractions of the frame. */
+export interface SafeZone {
+  label: string;
+  top: number;
+  bottom: number;
+  /** The column of like/comment/share buttons, from the right edge… */
+  right: number;
+  /** …over this vertical band only. */
+  rightFrom: number;
+  rightTo: number;
+}
+
+/**
+ * Approximate, from each app's layout on a typical phone — the apps don't
+ * publish exact numbers and move things between versions. A guide for
+ * placing captions, not a guarantee.
+ */
+export const SAFE_ZONES: Record<"reels" | "tiktok" | "shorts", SafeZone> = {
+  reels: { label: "Reels", top: 0.12, bottom: 0.2, right: 0.15, rightFrom: 0.45, rightTo: 0.8 },
+  tiktok: { label: "TikTok", top: 0.12, bottom: 0.22, right: 0.17, rightFrom: 0.4, rightTo: 0.8 },
+  shorts: { label: "Shorts", top: 0.1, bottom: 0.18, right: 0.14, rightFrom: 0.45, rightTo: 0.82 },
+};
+
 /** Every template cue moved to `templateId` (the gallery's "Use this template"). */
 export function withTemplate(doc: TimelineDoc, templateId: string): TimelineDoc {
   return {
