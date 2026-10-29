@@ -145,7 +145,8 @@ export function tierHighlights(tier: Exclude<TierId, "free">): TierHighlights {
         "Clip Dubbing in 29+ languages",
         "Face Swap & Subtitle Remover",
         `${modelCount("pro")} AI image models — adds ${addedModels("pro", "creator").join(" & ")}`,
-        "Priority rendering",
+        // EXPORT_4K_MIN_TIER in lib/editor/export-quality.ts.
+        "Priority rendering · 4K exports",
       ],
     };
   }

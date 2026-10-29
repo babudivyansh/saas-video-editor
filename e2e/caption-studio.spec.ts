@@ -85,7 +85,9 @@ test("exports two shapes in one batch and follows them to download links", async
   await page.getByRole("button", { name: "Render 2 videos" }).click();
 
   await expect(page.getByRole("link", { name: "Download" })).toHaveCount(2, { timeout: 20_000 });
-  expect(posts).toEqual([{ projectId: "p1", aspects: ["9:16", "16:9"] }]);
+  // 1080p unless 4K is picked; this user is on the free plan, where 4K is locked.
+  expect(posts).toEqual([{ projectId: "p1", aspects: ["9:16", "16:9"], quality: "1080p" }]);
+  await expect(page.getByRole("radio", { name: /4K/ })).toContainText("Pro");
 
   // Captions only: the SRT is built from the doc, no server round trip.
   const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Download SRT" }).click()]);

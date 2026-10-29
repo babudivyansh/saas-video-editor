@@ -16,6 +16,7 @@ import { markQuestComplete } from "@/lib/quests";
 import { normalizeDoc, validateDoc, type Aspect, type TimelineDoc } from "./types";
 import { renderTimeline, EDITOR_RENDER_CREDIT_COST } from "./render-job";
 import { classifyRenderFailure } from "./render-failure";
+import { isExportQuality, type ExportQuality } from "./export-quality";
 
 export { CAPTION_EXPORT_ASPECTS, type CaptionExportAspect } from "./caption-export-shapes";
 
@@ -33,6 +34,8 @@ export interface CaptionExportPayload {
   assetUrls: Record<string, string>;
   /** The frame for an "original" render, fixed when the batch was created. */
   size?: { w: number; h: number };
+  /** The whole batch's quality, checked against the plan by the route. */
+  quality?: ExportQuality;
 }
 
 /** The project's doc in another frame shape. Everything else is untouched. */
@@ -96,6 +99,7 @@ export async function settleBatchIfDone(batchId: string): Promise<"settled" | "p
 
 export async function captionExportJob(payload: CaptionExportPayload): Promise<void> {
   const { renderId, assetUrls, size } = payload;
+  const quality: ExportQuality = isExportQuality(payload.quality) ? payload.quality : "1080p";
   const tmp = os.tmpdir();
   const tempFiles: string[] = [];
   const outPath = path.join(tmp, `caption-${renderId}-out.mp4`);
@@ -121,6 +125,7 @@ export async function captionExportJob(payload: CaptionExportPayload): Promise<v
       userId: project.userId,
       assetUrls,
       tag: `caption-${renderId}`,
+      quality,
       outPath,
       tempFiles,
       onProgress: async (_stage, pct) => {

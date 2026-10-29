@@ -20,7 +20,7 @@ vi.mock("@/lib/auth", () => ({
   getAuthUser: vi.fn(async () => ({ userId: "user-1" })),
   getUserTier: vi.fn(async () => "free"),
 }));
-vi.mock("@/lib/plans/tiers", () => ({ tierPriority: () => 1 }));
+vi.mock("@/lib/plans/tiers", async () => ({ ...(await vi.importActual<typeof import("@/lib/plans/tiers")>("@/lib/plans/tiers")), tierPriority: () => 1 }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     project: {
@@ -189,5 +189,33 @@ describe("export claim, job id and enqueue failure", () => {
     expect(res.status).toBe(402);
     expect(projectUpdate).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "draft" }) }));
     expect(enqueue).not.toHaveBeenCalled();
+  });
+});
+
+describe("4K export", () => {
+  const withQuality = (quality: unknown) =>
+    ({ json: async () => ({ projectId: "p1", quality }) }) as unknown as Parameters<typeof POST>[0];
+
+  it("refuses 4K on a plan below Pro before charging or claiming", async () => {
+    getRenderRuntimeHealth.mockResolvedValue({ ok: true });
+    const res = await POST(withQuality("4k"));
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toBe("quality_locked");
+    expect(spendCredits).not.toHaveBeenCalled();
+    expect(projectUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it("refuses an unknown quality", async () => {
+    expect((await POST(withQuality("8k"))).status).toBe(400);
+  });
+
+  it("passes the quality to the render job on Pro", async () => {
+    const { getUserTier } = await import("@/lib/auth");
+    vi.mocked(getUserTier).mockResolvedValue("pro");
+    getRenderRuntimeHealth.mockResolvedValue({ ok: true });
+    const res = await POST(withQuality("4k"));
+    expect(res.status).toBe(200);
+    expect(enqueue.mock.calls[0]![1]).toMatchObject({ projectId: "p1", quality: "4k" });
+    vi.mocked(getUserTier).mockResolvedValue("free");
   });
 });

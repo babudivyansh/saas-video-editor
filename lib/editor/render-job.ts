@@ -26,6 +26,7 @@ import { effectiveCaptionTemplate } from "@clipiro/shared/caption-style";
 import { buildCaptionTrack, type CaptionTrack } from "@/lib/captions/engine";
 import { sanitizeCaptionWord } from "@/lib/caption-sanitize";
 import { classifyRenderFailure } from "./render-failure";
+import { exportFrame, isExportQuality, qualityScale, renderTimeoutMs, type ExportQuality } from "./export-quality";
 
 export const EDITOR_RENDER_CREDIT_COST = 1;
 
@@ -33,6 +34,8 @@ export interface EditorRenderPayload {
   projectId: string;
   /** assetId → public/presigned URL resolved server-side at enqueue time */
   assetUrls: Record<string, string>;
+  /** Checked against the plan by the route; absent on jobs queued before 4K existed. */
+  quality?: ExportQuality;
 }
 
 // Probe whether a media file has an audio stream by parsing ffmpeg -i stderr.
@@ -108,6 +111,8 @@ export interface RenderTimelineInput {
   tempFiles: string[];
   /** 5-20 while downloading, 20-85 while ffmpeg runs. */
   onProgress: (stage: "downloading" | "rendering", percent: number) => Promise<void>;
+  /** 1080p unless asked; 4K doubles every side (export-quality.ts). */
+  quality?: ExportQuality;
 }
 
 /**
@@ -117,7 +122,7 @@ export interface RenderTimelineInput {
  * frame, and run ffmpeg into outPath. Status, upload and refunds stay with the
  * caller.
  */
-export async function renderTimeline({ doc, userId, assetUrls, tag, outPath, tempFiles, onProgress }: RenderTimelineInput): Promise<void> {
+export async function renderTimeline({ doc, userId, assetUrls, tag, outPath, tempFiles, onProgress, quality = "1080p" }: RenderTimelineInput): Promise<void> {
   const tmp = os.tmpdir();
   // ── Download unique assets ──
   await onProgress("downloading", 5);
@@ -149,10 +154,10 @@ export async function renderTimeline({ doc, userId, assetUrls, tag, outPath, tem
   const plainCues = doc.tracks.caption.filter((c) => !c.templateId);
   if (plainCues.length > 0) {
     captionAssPath = path.join(tmp, `${tag}-captions.ass`);
-    generateCaptionASS(plainCues, docDimensions(doc), captionAssPath);
+    generateCaptionASS(plainCues, exportFrame(docDimensions(doc), quality), captionAssPath);
     tempFiles.push(captionAssPath);
   }
-  const { w: capW, h: capH } = docDimensions(doc);
+  const { w: capW, h: capH } = exportFrame(docDimensions(doc), quality);
   const captionTemplateTracks: { track: CaptionTrack; assPath: string }[] = [];
   templateCaptionGroups(doc.tracks.caption).forEach((group, i) => {
     const { template, positionY } = effectiveCaptionTemplate(group.templateId, doc.captionStyle, { w: capW, h: capH });
@@ -183,6 +188,7 @@ export async function renderTimeline({ doc, userId, assetUrls, tag, outPath, tem
   const result = buildFilterGraph({
     doc, assets, textFiles, captionAssPath, captionTemplateTracks,
     watermark: tier === "free",
+    scale: qualityScale(quality),
     outputPath: outPath,
   });
   const scriptPath = path.join(tmp, `${tag}-graph.txt`);
@@ -192,11 +198,12 @@ export async function renderTimeline({ doc, userId, assetUrls, tag, outPath, tem
   await onProgress("rendering", 20);
   await runFFmpegWithProgress(args, async (pct) => {
     await onProgress("rendering", 20 + Math.round((pct / 100) * 65));
-  });
+  }, renderTimeoutMs(result.durationSec, quality));
 }
 
 export async function editorRenderJob(payload: EditorRenderPayload): Promise<void> {
   const { projectId, assetUrls } = payload;
+  const quality: ExportQuality = isExportQuality(payload.quality) ? payload.quality : "1080p";
   const tmp = os.tmpdir();
   const tempFiles: string[] = [];
   const outPath = path.join(tmp, `editor-${projectId}-out.mp4`);
@@ -223,6 +230,7 @@ export async function editorRenderJob(payload: EditorRenderPayload): Promise<voi
       tag: `editor-${projectId}`,
       outPath,
       tempFiles,
+      quality,
       onProgress: async (stage, pct) => {
         await setRenderProgress(projectId, stage, pct);
         // Downloads are few and slow, so each step is saved; ffmpeg reports

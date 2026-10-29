@@ -8,6 +8,8 @@ import { tierPriority } from "@/lib/plans/tiers";
 import { prisma } from "@/lib/prisma";
 import { createRenderQueue } from "@/lib/render-queue";
 import { normalizeDoc, originalFrame, validateDoc, type TimelineDoc } from "@/lib/editor/types";
+import { docDuration } from "@/lib/editor/doc-utils";
+import { checkExportQuality, EXPORT_QUALITIES } from "@/lib/editor/export-quality";
 import { checkTemplateChoice } from "@/lib/captions/gate";
 import {
   CAPTION_EXPORT_ASPECTS,
@@ -33,13 +35,14 @@ const postSchema = z.object({
   projectId: z.string().min(1),
   aspects: z.array(z.enum(CAPTION_EXPORT_ASPECTS)).min(1).max(CAPTION_EXPORT_ASPECTS.length)
     .refine((a) => new Set(a).size === a.length, "Each shape once"),
+  quality: z.enum(EXPORT_QUALITIES).default("1080p"),
 });
 
 // POST /api/captions/export { projectId, aspects }
 // Renders the saved doc once per requested shape. Charged once for the whole
 // batch; lib/editor/caption-export.ts settles it when the last render ends.
 async function handlePOST(req: NextRequest, { auth }: { auth: TokenPayload }) {
-  const { projectId, aspects } = await parseBody(req, postSchema);
+  const { projectId, aspects, quality } = await parseBody(req, postSchema);
 
   const project = await prisma.project.findFirst({ where: { id: projectId, userId: auth.userId, productType: { in: EXPORTABLE } } });
   if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
@@ -76,6 +79,10 @@ async function handlePOST(req: NextRequest, { auth }: { auth: TokenPayload }) {
     const err = validateDoc(docForAspect(doc, aspect, originalSize));
     if (err) return NextResponse.json({ error: `Invalid timeline: ${err}` }, { status: 400 });
   }
+
+  // 4K is plan-gated and length-capped — refused before any charge.
+  const qualityRefusal = checkExportQuality(quality, await getUserTier(auth.userId), docDuration(doc));
+  if (qualityRefusal) return NextResponse.json(qualityRefusal.body, { status: qualityRefusal.status });
 
   const runtime = await getRenderRuntimeHealth(ffmpegBin);
   if (!runtime.ok) {
@@ -115,7 +122,7 @@ async function handlePOST(req: NextRequest, { auth }: { auth: TokenPayload }) {
   const priority = tierPriority(await getUserTier(auth.userId));
   for (const row of rows) {
     try {
-      await exportQueue.enqueue(row.id, { projectId, renderId: row.id, assetUrls, ...(row.aspect === "original" ? { size: originalSize } : {}) }, {
+      await exportQueue.enqueue(row.id, { projectId, renderId: row.id, assetUrls, quality, ...(row.aspect === "original" ? { size: originalSize } : {}) }, {
         priority,
         rejectOnFailure: true,
       });
