@@ -16,10 +16,14 @@ export function assetIdsOf(doc: TimelineDoc): string[] {
   return [...new Set([...t.video, ...t.audio, ...t.image].map((c) => c.assetId))];
 }
 
-/** The caller's editor project, its doc and save version, and a playable link per file. */
-export async function openEditor(userId: string, projectId: string): Promise<EditorOpen | null> {
+/**
+ * The caller's editor project, its doc and save version, and a playable link
+ * per file. `productType` lets Caption Studio ("captions") open its own
+ * projects the same way.
+ */
+export async function openEditor(userId: string, projectId: string, productType = "editor"): Promise<EditorOpen | null> {
   const p = await prisma.project.findFirst({
-    where: { id: projectId, userId, productType: "editor" },
+    where: { id: projectId, userId, productType },
     select: { id: true, title: true, editorDoc: true, editorVersion: true },
   });
   if (!p) return null;
