@@ -27,9 +27,9 @@ function sample(t: CaptionTemplateSpec) {
 }
 
 describe("the catalogue", () => {
-  it("has 50 templates in 9 families, every family used", () => {
-    expect(CAPTION_TEMPLATES).toHaveLength(50);
-    expect(CAPTION_FAMILIES).toHaveLength(9);
+  it("has 60 templates in 11 families, every family used", () => {
+    expect(CAPTION_TEMPLATES).toHaveLength(60);
+    expect(CAPTION_FAMILIES).toHaveLength(11);
     for (const f of CAPTION_FAMILIES) expect(CAPTION_TEMPLATES.some((t) => t.family === f.id), f.id).toBe(true);
   });
 
@@ -132,6 +132,54 @@ describe("open questions, answered", () => {
     const plan = planEmoji([{ word: "पैसा" }], true);
     expect(plan[0]).toBe("💰");
     expect(emojiAssetName(plan[0]!)).toBe("emoji_u1f4b0.png");
+  });
+});
+
+describe("drop 1 (templates 51-60)", () => {
+  const find = (id: string) => CAPTION_TEMPLATES.find((x) => x.id === id)!;
+  const two = [{ word: "left", start: 0, end: 400 }, { word: "right", start: 400, end: 800 }];
+  const lines = (id: string, words = two) => buildCaptionTrack({ words, template: find(id), W, H }).ass.split("\n").filter((l) => l.startsWith("Dialogue:"));
+
+  it("ships the ten new templates with a mix of plans", () => {
+    const ids = ["sunset", "limesoda", "molten", "oceandrop", "peachfizz", "duotone", "tuttifrutti", "popart", "pillparade", "highlighterpack"];
+    const drop = ids.map(find);
+    expect(drop.every(Boolean)).toBe(true);
+    expect(new Set(drop.map((t) => t.tier))).toEqual(new Set(["free", "creator", "pro"]));
+    expect(drop.filter((t) => t.family === "gradient")).toHaveLength(5);
+    expect(drop.filter((t) => t.family === "chroma")).toHaveLength(5);
+  });
+
+  it("gives every word of Tutti Frutti its own colour, spoken or not", () => {
+    const ass = lines("tuttifrutti").join("\n");
+    expect(ass).toContain("\\1c&H6B6BFF&"); // word 0: #FF6B6B
+    expect(ass).toContain("\\1c&H3DD9FF&"); // word 1: #FFD93D
+  });
+
+  it("rotates Pill Parade's chip colour per word and draws it as a pill", () => {
+    const shapes = lines("pillparade").filter((l) => l.includes("\\p1"));
+    expect(shapes.some((l) => l.includes("\\1c&H303BFF&"))).toBe(true); // #FF3B30
+    expect(shapes.some((l) => l.includes("\\1c&HFF840A&"))).toBe(true); // #0A84FF
+  });
+
+  it("keeps a tilt-swapped word leaning after it's spoken, alternating sides", () => {
+    const text = lines("duotone").filter((l) => !l.includes("\\p1"));
+    expect(text.some((l) => l.includes("\\frz6"))).toBe(true);
+    expect(text.some((l) => l.includes("\\frz-6"))).toBe(true);
+  });
+
+  it("frames a stamped word with an unfilled outline box", () => {
+    const frames = lines("popart").filter((l) => l.includes("\\p1") && l.includes("\\1a&HFF&"));
+    expect(frames.length).toBeGreaterThan(0);
+  });
+
+  it("drops a word in with \\move from above, then squashes it", () => {
+    const ass = lines("oceandrop").join("\n");
+    expect(ass).toMatch(/\\move\([\d.]+,[\d.]+,[\d.]+,[\d.]+\)/);
+    expect(ass).toContain("\\fscx116\\fscy80");
+  });
+
+  it.each([["limesoda", "\\fscx124"], ["molten", "\\fscx30"], ["peachfizz", "\\fscx155"], ["tuttifrutti", "\\fax-0.29"]])("%s animates its spoken word", (id, tag) => {
+    expect(lines(id).join("\n")).toContain(tag);
   });
 });
 

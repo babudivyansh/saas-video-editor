@@ -139,6 +139,7 @@ export default function CaptionTemplateRender({
     t.container !== "none" ? s[`box_${t.container}`] : "",
     t.placement.align === "left" ? s.al_left : "",
     grad ? (grad.target === "all" ? s.gradall : s.grad) : "",
+    t.wordBox === "pill" ? s.pillw : "",
     s.enter,
   ].filter(Boolean).join(" ");
 
@@ -149,6 +150,12 @@ export default function CaptionTemplateRender({
     const style: CSSProperties & Record<string, string> = {};
     if (t.motion === "bubble" || t.motion === "blocks") style["--bg"] = c.palette?.[w.i % c.palette.length] ?? "#fff";
     if (c.cycle?.length && k === activeIdx) style["--act"] = c.cycle[w.i % c.cycle.length];
+    if (c.wordColors?.length) {
+      style["--base"] = c.wordColors[w.i % c.wordColors.length];
+      style["--act"] = style["--base"];
+    }
+    if (c.boxCycle?.length) style["--box"] = c.boxCycle[w.i % c.boxCycle.length];
+    if (t.motion === "tiltswap") style["--wr"] = `${w.i % 2 ? 6 : -6}deg`;
     const sc = speakerColor(w.speaker);
     if (sc) style["--base"] = sc;
     const ws = w.style;
