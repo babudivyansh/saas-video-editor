@@ -34,12 +34,16 @@ export const STUDIO_ASPECTS: StudioAspectOption[] = [
   { value: "16:9", label: "Landscape", hint: "YouTube, web" },
 ];
 
-/** The steps, in order. A step is a `?step=` value on the project page. */
-export const STUDIO_STEPS = ["template", "edit", "style", "export"] as const;
+/**
+ * The steps after upload, in order. A step is a `?step=` value on the project
+ * page. "edit" is the template gallery and the word editor on one screen.
+ */
+export const STUDIO_STEPS = ["edit", "style", "export"] as const;
 export type StudioStep = (typeof STUDIO_STEPS)[number];
 
 export function parseStudioStep(raw: string | null | undefined): StudioStep {
-  return (STUDIO_STEPS as readonly string[]).includes(raw ?? "") ? (raw as StudioStep) : "template";
+  // "template" was its own step before it merged into "edit"; old links land there.
+  return (STUDIO_STEPS as readonly string[]).includes(raw ?? "") ? (raw as StudioStep) : "edit";
 }
 
 /**
@@ -121,7 +125,7 @@ export const SAFE_ZONES: Record<"reels" | "tiktok" | "shorts", SafeZone> = {
   shorts: { label: "Shorts", top: 0.1, bottom: 0.18, right: 0.14, rightFrom: 0.45, rightTo: 0.82 },
 };
 
-/** Every template cue moved to `templateId` (the gallery's "Use this template"). */
+/** Every template cue moved to `templateId` (a pick in the edit step's template rail). */
 export function withTemplate(doc: TimelineDoc, templateId: string): TimelineDoc {
   return {
     ...doc,

@@ -1,6 +1,6 @@
 "use client";
 
-// Caption Studio, step 5: render the captioned video in every shape at once
+// Caption Studio, step 4: render the captioned video in every shape at once
 // (POST /api/captions/export — one render credit for the whole batch), follow
 // each render, download them; or take the captions alone as SRT / VTT.
 

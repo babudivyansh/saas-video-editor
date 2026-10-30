@@ -7,8 +7,7 @@ import { use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { parseStudioStep, type StudioStep } from "@/lib/captions/studio";
 import { StudioHeader } from "../_components/StudioHeader";
-import { TemplateStep } from "../_components/TemplateStep";
-import { EditStep } from "../_components/EditStep";
+import { TemplateEditStep } from "../_components/TemplateEditStep";
 import { StyleStep } from "../_components/StyleStep";
 import { ExportStep } from "../_components/ExportStep";
 import { useStudioProject } from "../_components/useStudioProject";
@@ -20,13 +19,14 @@ export default function CaptionStudioProjectPage({ params }: { params: Promise<{
   const { project, loadError, saveError, transcribe, save, startTranscription } = useStudioProject(id);
 
   const hasCaptions = (project?.doc.tracks.caption.length ?? 0) > 0;
-  const hrefFor = (s: StudioStep) => (s === "template" || hasCaptions ? `/dashboard/captions/${id}?step=${s}` : null);
+  const hrefFor = (s: StudioStep) => (s === "edit" || hasCaptions ? `/dashboard/captions/${id}?step=${s}` : null);
   const go = (s: StudioStep) => router.push(`/dashboard/captions/${id}?step=${s}`);
   const next: { step: StudioStep; label: string } | null =
     step === "edit" ? { step: "style", label: "Next: Style" } : step === "style" ? { step: "export", label: "Next: Export" } : null;
 
   return (
-    <div className="flex min-h-screen flex-col bg-bg text-fg">
+    // Template & edit fits the window on a desktop so its columns scroll on their own.
+    <div className={`flex min-h-screen flex-col bg-bg text-fg ${step === "edit" ? "lg:h-screen" : ""}`}>
       <StudioHeader
         current={step}
         title={project?.title}
@@ -44,16 +44,14 @@ export default function CaptionStudioProjectPage({ params }: { params: Promise<{
         <div className="flex flex-1 items-center justify-center p-6"><p role="alert" className="text-sm text-error">{loadError}</p></div>
       ) : !project ? (
         <div className="flex flex-1 items-center justify-center p-6"><p className="text-sm text-fg-subtle" role="status">Opening your project…</p></div>
-      ) : step === "template" ? (
-        <TemplateStep project={project} transcribe={transcribe} save={save} startTranscription={startTranscription} onDone={() => go("edit")} />
+      ) : step === "edit" ? (
+        <TemplateEditStep project={project} transcribe={transcribe} save={save} startTranscription={startTranscription} />
       ) : !hasCaptions ? (
         <div className="flex flex-1 items-center justify-center p-6">
           <p className="max-w-sm text-center text-sm text-fg-muted">
-            Your captions aren&apos;t ready yet. <button type="button" onClick={() => go("template")} className="font-semibold text-emerald-bright underline-offset-2 hover:underline">Go back to templates</button> to make them.
+            Your captions aren&apos;t ready yet. <button type="button" onClick={() => go("edit")} className="font-semibold text-emerald-bright underline-offset-2 hover:underline">Go back to Template &amp; edit</button> to make them.
           </p>
         </div>
-      ) : step === "edit" ? (
-        <EditStep project={project} save={save} />
       ) : step === "style" ? (
         <StyleStep project={project} save={save} />
       ) : (

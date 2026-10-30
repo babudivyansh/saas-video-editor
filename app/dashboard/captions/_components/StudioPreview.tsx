@@ -29,8 +29,10 @@ export interface StudioPreviewProps {
   autoPlay?: boolean;
   /** Called as the video's clock moves (ms). */
   onTime?: (ms: number) => void;
-  /** Drawn over the frame, above the captions (safe-zone guides). */
+  /** Drawn over the frame, above the captions (safe-zone guides, the caption drag layer). */
   children?: React.ReactNode;
+  /** The frame element, for layers that measure it (the caption drag layer). */
+  frameRef?: React.Ref<HTMLDivElement>;
 }
 
 /** The video's clock, read every frame while it plays (ms). */
@@ -49,7 +51,7 @@ function useVideoTime(ref: React.RefObject<HTMLVideoElement | null>): number {
   return ms;
 }
 
-export function StudioPreview({ doc, media, templateId, maxWidth, maxHeight, className = "", videoRef: outerRef, autoPlay = true, onTime, children }: StudioPreviewProps) {
+export function StudioPreview({ doc, media, templateId, maxWidth, maxHeight, className = "", videoRef: outerRef, autoPlay = true, onTime, children, frameRef }: StudioPreviewProps) {
   const ownRef = useRef<HTMLVideoElement>(null);
   const videoRef = outerRef ?? ownRef;
   const timeMs = useVideoTime(videoRef);
@@ -89,6 +91,7 @@ export function StudioPreview({ doc, media, templateId, maxWidth, maxHeight, cla
   const fit = clip?.fit === "fit";
   return (
     <div
+      ref={frameRef}
       className={`relative overflow-hidden rounded-[20px] border border-line-strong bg-black ${className}`}
       style={{ width: Math.round(frame.w * scale), maxWidth: "100%", aspectRatio: `${frame.w} / ${frame.h}` }}
     >
@@ -122,6 +125,7 @@ export function StudioPreview({ doc, media, templateId, maxWidth, maxHeight, cla
             <CaptionTemplateRender
               template={tpl.template}
               positionY={tpl.positionY}
+              positionX={tpl.positionX}
               words={l.words}
               timeMs={l.loopMs ? timeMs % l.loopMs : timeMs}
               accent={l.accent}

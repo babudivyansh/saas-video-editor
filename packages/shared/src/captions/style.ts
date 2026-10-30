@@ -49,6 +49,8 @@ export interface CaptionStyleOverride {
   words?: number;
   /** Block centre, % of frame height (5..95). Wins over the template's placement. */
   positionY?: number;
+  /** Block centre, % of frame width (5..95). The block still stays inside the frame. */
+  positionX?: number;
   motion?: CaptionMotionId;
 }
 
@@ -76,7 +78,7 @@ export function validateCaptionStyle(override: unknown): string | null {
   if (override === undefined) return null;
   if (!override || typeof override !== "object" || Array.isArray(override)) return "invalid caption style";
   const o = override as Record<string, unknown>;
-  const known = ["font", "weight", "case", "size", "base", "accent", "outline", "outlineWidth", "words", "positionY", "motion"];
+  const known = ["font", "weight", "case", "size", "base", "accent", "outline", "outlineWidth", "words", "positionY", "positionX", "motion"];
   for (const k of Object.keys(o)) if (!known.includes(k)) return `unknown caption style field ${k}`;
   if (o.font !== undefined && !CAPTION_STYLE_FONTS.includes(o.font as string)) return "caption style font not allowed";
   if (o.weight !== undefined && !(inRange(o.weight, 100, 900) && Number.isInteger(o.weight))) return "invalid caption style weight";
@@ -89,6 +91,7 @@ export function validateCaptionStyle(override: unknown): string | null {
   if (o.outlineWidth !== undefined && !inRange(o.outlineWidth, 0, 4)) return "invalid caption style outlineWidth";
   if (o.words !== undefined && !(inRange(o.words, 1, 8) && Number.isInteger(o.words))) return "invalid caption style words";
   if (o.positionY !== undefined && !inRange(o.positionY, 5, 95)) return "invalid caption style positionY";
+  if (o.positionX !== undefined && !inRange(o.positionX, 5, 95)) return "invalid caption style positionX";
   if (o.motion !== undefined && !CAPTION_MOTIONS.includes(o.motion as CaptionMotionId)) return "invalid caption style motion";
   return null;
 }
@@ -146,7 +149,7 @@ export function effectiveCaptionTemplate(
   templateId: string,
   override: CaptionStyleOverride | null | undefined,
   frame: { w: number; h: number },
-): { template: CaptionTemplateSpec; positionY: number | null } {
+): { template: CaptionTemplateSpec; positionY: number | null; positionX: number | null } {
   const template = applyCaptionStyle(adaptTemplateToFrame(resolveCaptionTemplate(templateId), frame), override);
-  return { template, positionY: override?.positionY ?? null };
+  return { template, positionY: override?.positionY ?? null, positionX: override?.positionX ?? null };
 }

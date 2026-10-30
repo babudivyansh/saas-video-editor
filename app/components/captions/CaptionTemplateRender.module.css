@@ -65,7 +65,7 @@
   text-transform: var(--tt, none);
   letter-spacing: var(--ls, 0);
   font-size: calc(var(--sz, 1) * 9cqmin);
-  transform: rotate(var(--tilt, 0deg)) translateY(var(--ty, 0));
+  transform: rotate(var(--tilt, 0deg)) translateY(var(--ty, 0)) translateX(var(--tx, 0));
   transform-origin: center;
 }
 .pos_mid { top: 50%; --ty: -50%; }
@@ -73,6 +73,8 @@
 .pos_high { top: 20%; }
 .pos_custom { top: var(--py); --ty: -50%; }
 .al_left { text-align: left; left: 8%; right: 10%; }
+/* Dragged sideways: as wide as its text (up to the margins), centred on --px. */
+.cap.pos_x { left: var(--px); right: auto; width: max-content; max-width: 88%; --tx: -50%; }
 
 .w { display: inline-block; position: relative; margin: 0 0.1em; color: var(--base); text-shadow: var(--ol, none); isolation: isolate; }
 .w.on { color: var(--act); }
@@ -102,7 +104,7 @@
 @keyframes rise { from { transform: translateY(45%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 @keyframes blurin { from { filter: blur(0.35em); opacity: 0; } to { filter: blur(0); opacity: 1; } }
 @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
-@keyframes zoomin { from { transform: rotate(var(--tilt, 0deg)) translateY(var(--ty, 0)) scale(1.14); filter: blur(0.12em); opacity: 0; } to { transform: rotate(var(--tilt, 0deg)) translateY(var(--ty, 0)) scale(1); filter: blur(0); opacity: 1; } }
+@keyframes zoomin { from { transform: rotate(var(--tilt, 0deg)) translateY(var(--ty, 0)) translateX(var(--tx, 0)) scale(1.14); filter: blur(0.12em); opacity: 0; } to { transform: rotate(var(--tilt, 0deg)) translateY(var(--ty, 0)) translateX(var(--tx, 0)) scale(1); filter: blur(0); opacity: 1; } }
 @keyframes flick { 0% { opacity: 0; } 20% { opacity: 1; } 35% { opacity: 0.25; } 55% { opacity: 1; } 70% { opacity: 0.6; } 100% { opacity: 1; } }
 @keyframes stepPop { 0% { transform: scale(0.6); } 50% { transform: scale(1.25); } 100% { transform: scale(1.1); } }
 @keyframes jitL { 0%, 100% { transform: translate(-0.07em, 0.02em); } 50% { transform: translate(-0.11em, -0.03em); } }
@@ -217,9 +219,9 @@
 
 /* Line entries and idle loops. Entries animate transform; loops animate the
    separate translate/rotate/scale/filter properties so the two compose. */
-@keyframes inUp { from { transform: rotate(var(--tilt, 0deg)) translateY(calc(var(--ty, 0%) + 40%)); opacity: 0; } to { transform: rotate(var(--tilt, 0deg)) translateY(var(--ty, 0)); opacity: 1; } }
-@keyframes inDrop { from { transform: rotate(var(--tilt, 0deg)) translateY(calc(var(--ty, 0%) - 120%)); opacity: 0; } 70% { transform: rotate(var(--tilt, 0deg)) translateY(calc(var(--ty, 0%) + 6%)); opacity: 1; } to { transform: rotate(var(--tilt, 0deg)) translateY(var(--ty, 0)); } }
-@keyframes inSwirl { from { transform: rotate(calc(var(--tilt, 0deg) - 25deg)) translateY(var(--ty, 0)); opacity: 0; } to { transform: rotate(var(--tilt, 0deg)) translateY(var(--ty, 0)); opacity: 1; } }
+@keyframes inUp { from { transform: rotate(var(--tilt, 0deg)) translateY(calc(var(--ty, 0%) + 40%)) translateX(var(--tx, 0)); opacity: 0; } to { transform: rotate(var(--tilt, 0deg)) translateY(var(--ty, 0)) translateX(var(--tx, 0)); opacity: 1; } }
+@keyframes inDrop { from { transform: rotate(var(--tilt, 0deg)) translateY(calc(var(--ty, 0%) - 120%)) translateX(var(--tx, 0)); opacity: 0; } 70% { transform: rotate(var(--tilt, 0deg)) translateY(calc(var(--ty, 0%) + 6%)) translateX(var(--tx, 0)); opacity: 1; } to { transform: rotate(var(--tilt, 0deg)) translateY(var(--ty, 0)) translateX(var(--tx, 0)); } }
+@keyframes inSwirl { from { transform: rotate(calc(var(--tilt, 0deg) - 25deg)) translateY(var(--ty, 0)) translateX(var(--tx, 0)); opacity: 0; } to { transform: rotate(var(--tilt, 0deg)) translateY(var(--ty, 0)) translateX(var(--tx, 0)); opacity: 1; } }
 @keyframes lpFloat { 0%, 100% { translate: 0 0; } 50% { translate: 0 -4%; } }
 @keyframes lpSway { 0%, 100% { rotate: -1.6deg; } 50% { rotate: 1.6deg; } }
 @keyframes lpPulse { 0%, 100% { scale: 1; } 50% { scale: 1.04; } }
@@ -267,7 +269,7 @@
 .box_line .lnw { background: var(--box); -webkit-box-decoration-break: clone; box-decoration-break: clone; padding: 0.16em 0.3em; border-radius: 0.12em; }
 .box_line .w { display: inline; margin: 0 0.04em; }
 .box_glass { background: var(--box); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); border-radius: 0.45em; padding: 0.3em 0.4em; }
-.box_sticker { background: var(--box); border: 0.12em solid #fff; border-radius: 0.28em; padding: 0.2em 0.35em; left: 14%; right: 14%; transform: rotate(var(--rot, -3deg)) translateY(var(--ty, 0)); }
+.box_sticker { background: var(--box); border: 0.12em solid #fff; border-radius: 0.28em; padding: 0.2em 0.35em; left: 14%; right: 14%; transform: rotate(var(--rot, -3deg)) translateY(var(--ty, 0)) translateX(var(--tx, 0)); }
 .box_dark { background: var(--box); padding: 0.32em 0.45em; border-left: 0.2em solid var(--box2, #20d68a); }
 .box_wordbox .w { background: var(--box); padding: 0 0.14em; margin: 0 0.04em 0.08em; }
 

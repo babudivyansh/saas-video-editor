@@ -108,6 +108,9 @@ test("retyping a word saves the doc with the version it was read at", async ({ p
 
   await page.goto("/dashboard/captions/p1?step=edit", { waitUntil: "domcontentloaded" });
   await expect(page.getByRole("heading", { name: "Captions" })).toBeVisible({ timeout: 30_000 });
+  // Template and editor are one step: the template rail sits beside the transcript.
+  await expect(page.getByRole("heading", { name: "Template", exact: true })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Steps" })).toContainText("Template & edit");
 
   await page.getByRole("button", { name: "quit", exact: true }).first().click();
   const field = page.getByLabel("Text");
@@ -118,4 +121,46 @@ test("retyping a word saves the doc with the version it was read at", async ({ p
   expect(saves[0]!.expectedVersion).toBe(3);
   expect(saves[0]!.editorDoc.tracks.caption[0]!.text).toBe("I almost quit!");
   expect(saves[0]!.editorDoc.tracks.caption[1]!.text).toBe("then it worked");
+});
+
+test("dragging the caption moves it anywhere, and a tap resizes it", async ({ page, baseURL }) => {
+  await signIn(page, baseURL!);
+  const styles: Record<string, unknown>[] = [];
+  await page.route("**/api/projects/p1", (route) => {
+    if (route.request().method() !== "PATCH") return route.continue();
+    const body = route.request().postDataJSON();
+    styles.push(body.editorDoc.captionStyle ?? {});
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ project: { editorVersion: body.expectedVersion + 1 } }) });
+  });
+
+  await page.goto("/dashboard/captions/p1?step=style", { waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("heading", { name: "One style, every shape" })).toBeVisible({ timeout: 30_000 });
+
+  const layer = page.getByRole("button", { name: /^Caption position/ });
+  const frame = (await layer.boundingBox())!;
+  const caption = page.locator("figure").first().locator("[data-caption-block]");
+
+  // Drag: press on the caption and move it up and to the left.
+  await caption.waitFor({ state: "visible", timeout: 20_000 });
+  const from = (await caption.boundingBox())!;
+  const sx = from.x + from.width / 2;
+  const sy = from.y + from.height / 2;
+  await page.mouse.move(sx, sy);
+  await page.mouse.down();
+  await page.mouse.move(sx - frame.width * 0.15, sy - frame.height * 0.2, { steps: 8 });
+  await page.mouse.up();
+
+  await expect.poll(() => styles.at(-1)?.positionY, { timeout: 10_000 }).toBeDefined();
+  const moved = styles.at(-1)!;
+  expect(moved.positionX as number).toBeLessThan(45);
+  expect(moved.positionY as number).toBeLessThan(60);
+
+  // Tap: a quick click on the caption switches it to the large size.
+  await caption.waitFor({ state: "visible", timeout: 20_000 });
+  const at = (await caption.boundingBox())!;
+  await page.mouse.click(at.x + at.width / 2, at.y + at.height / 2);
+  await expect(page.getByRole("button", { name: "Maximize" })).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => styles.at(-1)?.size, { timeout: 10_000 }).toBe(1.4);
+  // The drag survived the resize.
+  expect(styles.at(-1)!.positionX).toBe(moved.positionX);
 });
