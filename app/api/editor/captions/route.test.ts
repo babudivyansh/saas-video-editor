@@ -27,6 +27,7 @@ vi.mock("@/lib/minutes", () => ({
   spendMinutes: (p: { amount: number }) => spendCredits(p),
   restoreMinutes: (p: unknown) => restoreSpend(p),
   billableSourceMinutes: (sec: number) => Math.max(1, Math.ceil(sec / 60)),
+  billableCaptionMinutes: (sec: number) => Math.max(1, Math.ceil(sec / 120)),
 }));
 const probeMediaDuration = vi.fn(async (_path: string) => ({ durationSec: 61 as number | null }));
 
@@ -127,13 +128,13 @@ describe("POST /api/editor/captions", () => {
     expect(JSON.stringify(json)).not.toMatch(/elevenlabs|uuid|key id|malformed/i);
   });
 
-  it("bills Clip Minutes by the asset's stored length, rounded up", async () => {
+  it("bills 1 Clip Minute per 2 minutes of the asset's stored length, rounded up", async () => {
     transcribeImpl = async () => [{ word: "hi", start: 0, end: 500 }];
     asset.duration = 150;
     const res = await POST(makeRequest({ assetId: "asset-1" }));
     expect(res.status).toBe(200);
-    expect(spendCredits).toHaveBeenCalledWith(expect.objectContaining({ amount: 3, reason: "spend:editor-captions" }));
-    expect((await res.json()).minutesCharged).toBe(3);
+    expect(spendCredits).toHaveBeenCalledWith(expect.objectContaining({ amount: 2, reason: "spend:editor-captions" }));
+    expect((await res.json()).minutesCharged).toBe(2);
   });
 
   it("downloads through a presigned URL from the key, never the stored unsigned asset.url", async () => {
@@ -150,7 +151,7 @@ describe("POST /api/editor/captions", () => {
     asset.duration = null;
     await POST(makeRequest({ assetId: "asset-1" }));
     expect(probeMediaDuration).toHaveBeenCalled();
-    expect(spendCredits).toHaveBeenCalledWith(expect.objectContaining({ amount: 2 }));
+    expect(spendCredits).toHaveBeenCalledWith(expect.objectContaining({ amount: 1 }));
     asset.duration = 150;
   });
 
@@ -162,7 +163,7 @@ describe("POST /api/editor/captions", () => {
     expect(res.status).toBe(402);
     const json = await res.json();
     expect(json.code).toBe("insufficient_minutes");
-    expect(json.error).toMatch(/needs 3 and you have 1/);
+    expect(json.error).toMatch(/needs 2 and you have 1/);
     expect(transcribed).toBe(false);
     expect(restoreSpend).not.toHaveBeenCalled();
   });

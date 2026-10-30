@@ -281,6 +281,9 @@ export function subscriptionExpiryWarning(p: {
   planName: string;
   daysLeft: number;
   expiryDate: Date;
+  /** A yearly renewal above RBI's ₹15,000 no-OTP e-mandate limit: the bank
+   *  asks the customer to approve it, so tell them to watch for that. */
+  renewalNeedsApproval?: boolean;
 }): EmailDocument {
   const urgent = p.daysLeft <= 1;
   return {
@@ -310,6 +313,14 @@ export function subscriptionExpiryWarning(p: {
         label: `Renew ${p.planName}`,
         tone: urgent ? "danger" : "warning",
       },
+      ...(p.renewalNeedsApproval
+        ? [{
+            kind: "paragraph" as const,
+            text: html`Your yearly renewal is over ₹15,000, so under RBI rules your bank will ask you to <strong>approve
+              it</strong> on the renewal date (a UPI or card OTP request). Approve it to keep your plan, or renew from your
+              billing page now.`,
+          }]
+        : []),
       { kind: "paragraph", tone: "fine", text: "Renewing takes less than 60 seconds." },
     ],
   };
@@ -358,7 +369,7 @@ export function subscriptionExpired(p: {
 export function clipMinutesLaunch(p: {
   name: string;
   /** "free" or the subscription tier. */
-  tier: "free" | "creator" | "pro" | "studio";
+  tier: "free" | "lite" | "creator" | "pro" | "studio";
   /** The Clip Minutes the account now receives each month. */
   monthlyMinutes: number;
   /** Clip Minutes in the account right now (the switch-day grant included). */

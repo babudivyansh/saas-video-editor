@@ -42,6 +42,8 @@ vi.mock("@/lib/prisma", () => {
   };
 });
 vi.mock("@/lib/with-rate-limit", () => ({ withRateLimit: (h: unknown) => h }));
+// The price itself is lib/render-pricing.test.ts's job; here a render costs 1.
+vi.mock("@/lib/render-pricing", () => ({ localRenderCredits: vi.fn(async () => 1) }));
 vi.mock("@/lib/render-queue", () => ({ createRenderQueue: () => ({ enqueue }) }));
 vi.mock("@/utils/s3-upload", () => ({ getAssetReadUrl: vi.fn(async (k: string) => `https://example.invalid/${k}`) }));
 vi.mock("@/lib/credits", () => ({ spendCredits }));

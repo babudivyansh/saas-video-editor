@@ -13,7 +13,6 @@ import { checkExportQuality, EXPORT_QUALITIES } from "@/lib/editor/export-qualit
 import { checkTemplateChoice } from "@/lib/captions/gate";
 import {
   CAPTION_EXPORT_ASPECTS,
-  CAPTION_EXPORT_CREDIT_COST,
   captionExportJob,
   captionExportRefId,
   docForAspect,
@@ -22,6 +21,7 @@ import {
 } from "@/lib/editor/caption-export";
 import { getAssetReadUrl } from "@/utils/s3-upload";
 import { spendCredits } from "@/lib/credits";
+import { localRenderCredits } from "@/lib/render-pricing";
 import { ffmpegBin } from "@/utils/ffmpeg-render";
 import { logger } from "@/lib/logger";
 import { getRenderRuntimeHealth, RENDER_RUNTIME_UNHEALTHY, RENDER_RUNTIME_UNAVAILABLE_MESSAGE } from "@/lib/render-runtime";
@@ -81,7 +81,8 @@ async function handlePOST(req: NextRequest, { auth }: { auth: TokenPayload }) {
   }
 
   // 4K is plan-gated and length-capped — refused before any charge.
-  const qualityRefusal = checkExportQuality(quality, await getUserTier(auth.userId), docDuration(doc));
+  const tier = await getUserTier(auth.userId);
+  const qualityRefusal = checkExportQuality(quality, tier, docDuration(doc));
   if (qualityRefusal) return NextResponse.json(qualityRefusal.body, { status: qualityRefusal.status });
 
   const runtime = await getRenderRuntimeHealth(ffmpegBin);
@@ -103,23 +104,26 @@ async function handlePOST(req: NextRequest, { auth }: { auth: TokenPayload }) {
   });
   if (!rows) return NextResponse.json({ error: "This project is already exporting" }, { status: 409 });
 
+  // One charge for the whole batch: 0 on a paid plan inside the daily
+  // allowance, 1 otherwise, 3 for 4K (lib/render-pricing.ts).
+  const creditCost = await localRenderCredits(auth.userId, tier, { is4k: quality === "4k" });
   const spend = await spendCredits({
     userId: auth.userId,
-    amount: CAPTION_EXPORT_CREDIT_COST,
+    amount: creditCost,
     reason: "spend:caption-export",
     refId: captionExportRefId(batchId),
   });
   if (!spend.ok) {
     await prisma.projectRender.deleteMany({ where: { batchId } });
     return NextResponse.json(
-      { error: "insufficient_credits", required: CAPTION_EXPORT_CREDIT_COST, balance: spend.balances.total },
+      { error: "insufficient_credits", required: creditCost, balance: spend.balances.total },
       { status: 402 },
     );
   }
 
   const assetUrls: Record<string, string> = {};
   await Promise.all(assets.map(async (a) => { assetUrls[a.id] = await getAssetReadUrl(a.s3Key); }));
-  const priority = tierPriority(await getUserTier(auth.userId));
+  const priority = tierPriority(tier);
   for (const row of rows) {
     try {
       await exportQueue.enqueue(row.id, { projectId, renderId: row.id, assetUrls, quality, ...(row.aspect === "original" ? { size: originalSize } : {}) }, {

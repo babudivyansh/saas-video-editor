@@ -10,7 +10,7 @@ import { isKnownTemplateId, resolveTemplateId } from "@clipiro/shared/caption-te
 import { validateCaptionStyle, type CaptionStyleOverride } from "@clipiro/shared/caption-style";
 
 /** How many saved looks each plan keeps. */
-export const SAVED_CAPTION_TEMPLATE_LIMIT: Record<TierId, number> = { free: 1, creator: 3, pro: 5, studio: 10 };
+export const SAVED_CAPTION_TEMPLATE_LIMIT: Record<TierId, number> = { free: 1, lite: 2, creator: 3, pro: 5, studio: 10 };
 
 const styleSchema = z.custom<CaptionStyleOverride>((v) => validateCaptionStyle(v) === null, {
   message: "That caption style isn't valid.",

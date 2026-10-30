@@ -87,7 +87,7 @@ describe("account", () => {
     user = { ...studio, subscriptionEndsAt: new Date(Date.now() - DAY), subscriptionCancelledAt: new Date() };
     const a = accountSchema.parse(await buildAccount("u1"));
     expect(a.plan).toEqual({ tier: "free", term: null, renewsAt: null, cancelAtPeriodEnd: false });
-    expect([a.clipMinutes.allowance, a.aiCredits.allowance]).toEqual([30, 10]);
+    expect([a.clipMinutes.allowance, a.aiCredits.allowance]).toEqual([15, 10]);
   });
 
   it("flags a cancelled-but-running plan and an affiliate's own rate", async () => {

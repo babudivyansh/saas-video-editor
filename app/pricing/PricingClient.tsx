@@ -10,8 +10,8 @@ import { ToastProvider, useToast } from "@/app/components/ui/Toast";
 import { useAuth } from "@/app/components/AuthContext";
 import { useRazorpayCheckout } from "@/app/components/useRazorpayCheckout";
 import {
-  PURCHASABLE_TIER_ORDER, TIER_LABEL, TRIAL_CREDITS, TRIAL_MINUTES, isTrialPlan,
-  FREE_TIER_MONTHLY_BONUS_CREDITS, FREE_TIER_MONTHLY_BONUS_MINUTES, SUBSCRIPTION_ROLLOVER_CAP_MULTIPLIER,
+  PURCHASABLE_TIER_ORDER, TIER_LABEL, TRIAL_CREDITS, TRIAL_MINUTES, isTrialPlan, renewalNeedsApproval,
+  FREE_TIER_MONTHLY_BONUS_CREDITS, FREE_TIER_MONTHLY_BONUS_MINUTES, FREE_TIER_SIGNUP_MINUTES, SUBSCRIPTION_ROLLOVER_CAP_MULTIPLIER,
 } from "@/lib/plans/tiers";
 import { IMAGE_MODELS } from "@/lib/models/imageModels";
 import { AUDIO_RATE_LABEL } from "@/lib/audio-pricing";
@@ -45,11 +45,11 @@ const FAQS = [
   },
   {
     question: "Do you offer refunds?",
-    answer: "Yes. Request within 3 days of purchase, before spending any of the purchased credits, and we refund you in full. See the Refund Policy for details.",
+    answer: "Yes. For a new subscription, a renewal or a pack, ask within 3 days of the payment, before using any of the minutes or credits it gave you, and we refund you in full. A refunded subscription ends straight away. See the Refund Policy for details.",
   },
   {
     question: "Can I switch plans later?",
-    answer: "Yes, from your billing page at any time. Switching starts a fresh term on the new plan from that day (it doesn't extend or pro-rate the current one), and any credits already in your account come with you.",
+    answer: "Yes, from your billing page at any time. Switching starts a fresh term on the new plan from that day. Credits and minutes already in your account come with you, and any paid months left on a yearly plan are added to your account as Clip Minutes that never expire.",
   },
   {
     question: "Can I use the clips commercially?",
@@ -61,7 +61,7 @@ const FAQS = [
   },
   {
     question: "Is there a free plan?",
-    answer: `Yes. Every account gets ${FREE_TIER_MONTHLY_BONUS_CREDITS} credits a month for AI tools, plus ${FREE_TIER_MONTHLY_BONUS_MINUTES} watermarked Clip Minutes for Auto Clip, and the free tools (audio balancer, MP3 converter, video compressor, downloaders) never use credits. No card required.`,
+    answer: `Yes. New accounts start with ${FREE_TIER_SIGNUP_MINUTES} watermarked Clip Minutes for Auto Clip, then get ${FREE_TIER_MONTHLY_BONUS_MINUTES} minutes and ${FREE_TIER_MONTHLY_BONUS_CREDITS} AI credits every month. The free tools (audio balancer, MP3 converter, video compressor, YouTube and Instagram downloaders) never use credits. No card required.`,
   },
 ];
 
@@ -256,9 +256,9 @@ function PricingPageInner({ initialPlans }: { initialPlans: DbPlan[] }) {
         ) : cards.length === 0 ? (
           <p className="py-12 text-center text-sm text-fg-muted">Pricing is being updated. Please check back shortly.</p>
         ) : (
-          // items-stretch so all four cards share the tallest height; each card
+          // items-stretch so all five cards share the tallest height; each card
           // uses the same section order, so price, CTA and bullets line up.
-          <div className="grid items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             <FreeCard currency={currency} />
             {cards.map(plan => {
               const isPro = plan.tier === "pro";
@@ -283,6 +283,10 @@ function PricingPageInner({ initialPlans }: { initialPlans: DbPlan[] }) {
                           or buy now
                         </button>
                       </p>
+                    ) : currency === "INR" && renewalNeedsApproval(plan) ? (
+                      // RBI: an e-mandate debit over ₹15,000 needs the customer's
+                      // approval, so this renewal won't go through unattended.
+                      <p className="text-center text-xs text-fg-subtle">Cancel anytime · your bank asks you to approve each yearly renewal</p>
                     ) : (
                       <p className="text-center text-xs text-fg-subtle">Cancel anytime</p>
                     )

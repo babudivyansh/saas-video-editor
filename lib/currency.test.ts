@@ -34,13 +34,18 @@ describe("getPlanPriceMinor", () => {
 
   it("falls back to FX conversion rounded to a clean .99 for an unlisted slug", async () => {
     // 59900 paise = ₹599 at default 88 INR/USD -> $6.8 -> rounds to $7 -> 699 cents.
-    expect(await getPlanPriceMinor("pack_mini", 59900, "USD")).toBe(699);
+    expect(await getPlanPriceMinor("pack_unlisted", 59900, "USD")).toBe(699);
   });
 
   it("respects an admin-updated FX rate", async () => {
     await setFxConfig({ inrPerUsd: 100 });
     // ₹599 at 100 INR/USD = $5.99 -> rounds to $6 -> 599 cents.
-    expect(await getPlanPriceMinor("pack_mini", 59900, "USD")).toBe(599);
+    expect(await getPlanPriceMinor("pack_unlisted", 59900, "USD")).toBe(599);
+  });
+
+  it("anchors credit packs in the price book, so an FX change can't reprice them", async () => {
+    await setFxConfig({ inrPerUsd: 100 });
+    expect(await getPlanPriceMinor("pack_mini", 59900, "USD")).toBe(699);
   });
 
   it("respects an admin-set price-book override for any slug", async () => {
@@ -51,14 +56,14 @@ describe("getPlanPriceMinor", () => {
 
 describe("yearly discount parity between currencies", () => {
   // The pricing cards derive "save N%" from the plan rows, so if a USD yearly
-  // price drifts away from ~33% off 12x its monthly row the card silently
+  // price drifts away from 25% off 12x its monthly row the card silently
   // advertises a different discount than the INR card does. That regression
   // shipped once already (USD read 49/42/35% against a flat 33% in INR),
   // because the yearly slugs were missing from the price book and fell through
   // to raw FX. Assert the discount, not the price, so a deliberate repricing
   // that keeps parity stays green.
-  const TIERS = ["creator", "pro", "studio"] as const;
-  const TARGET_PCT = 33;
+  const TIERS = ["lite", "creator", "pro", "studio"] as const;
+  const TARGET_PCT = 25;
 
   for (const tier of TIERS) {
     it(`prices sub_${tier}_12mo at ~${TARGET_PCT}% off 12x monthly in USD`, async () => {
@@ -75,7 +80,7 @@ describe("yearly discount parity between currencies", () => {
   it("resolves yearly USD from the price book, not the FX fallback", async () => {
     // Passing a deliberately mismatched priceInPaise: if the slug were missing
     // from the book this would convert to something else entirely.
-    expect(await getPlanPriceMinor("sub_pro_12mo", 1768000, "USD")).toBe(USD_PRICE_BOOK_DEFAULTS.sub_pro_12mo);
+    expect(await getPlanPriceMinor("sub_pro_12mo", 1979100, "USD")).toBe(USD_PRICE_BOOK_DEFAULTS.sub_pro_12mo);
   });
 });
 

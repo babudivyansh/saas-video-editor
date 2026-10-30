@@ -32,7 +32,7 @@ export default function GenerateSection() {
 
   const hasCaptions = doc.tracks.caption.length > 0;
   const plan = planCaptionGeneration(doc);
-  // Billed in Clip Minutes: 1 per minute of each unique video, rounded up,
+  // Billed in Clip Minutes: 1 per 2 minutes of each unique video, rounded up,
   // charged by the server once it knows each file's length. The client only
   // knows the floor — at least 1 minute per video — so that's the pre-check.
   const minMinutes = plan.length;
@@ -43,7 +43,7 @@ export default function GenerateSection() {
       return;
     }
     if ((user?.minutes ?? 0) < minMinutes) {
-      setError(`Not enough Clip Minutes — captions use 1 minute per minute of video (at least ${minMinutes} here).`);
+      setError(`Not enough Clip Minutes — captions use 1 minute per 2 minutes of video (at least ${minMinutes} here).`);
       return;
     }
     setWorking(true);
@@ -91,7 +91,7 @@ export default function GenerateSection() {
           {plan.length > 0 && <span className="font-mono text-[11px] text-editor-text-muted">~{videoMinutes} min</span>}
         </div>
         <p className="text-[11.5px] text-editor-text-muted">
-          1 Clip Minute per minute of video · you have {user?.minutes ?? 0} left
+          1 Clip Minute per 2 minutes of video · you have {user?.minutes ?? 0} left
         </p>
       </div>
       <SelectField label="Spoken language" value={language} options={LANGUAGE_OPTIONS} onChange={setLanguage} />

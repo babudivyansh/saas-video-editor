@@ -27,7 +27,11 @@ import { withRateLimit } from "@/lib/with-rate-limit";
 // download), POST { url, quality, idempotencyKey } starts a charged job,
 // DELETE ?jobId cancels and refunds.
 
-const CREDIT_COST = 1;
+// Free since 2026-10-30: the pricing page always sold the downloaders as free
+// tools, and bandwidth is their only cost. The job still runs through
+// chargeCredits at 0 so it keeps its Generation row, idempotency and the admin
+// kill switch; FREE_TOOL_DAILY_CAPS (25 a day) is what bounds it now.
+const CREDIT_COST = 0;
 const MAX_SOURCE_DURATION_SEC = 20 * 60;
 const Q_ORDER = [2160, 1440, 1080, 720, 480, 360, 240, 144];
 

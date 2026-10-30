@@ -25,7 +25,7 @@ import {
 function minutesAsHours(min: number): string {
   if (min < 60) return `${min} min`;
   const h = min / 60;
-  return `${Number.isInteger(h) ? h : h.toFixed(1)} hrs`;
+  return `${Number.isInteger(h) ? h : h.toFixed(1)} ${h === 1 ? "hr" : "hrs"}`;
 }
 
 export function CheckIcon({ className = "" }: { className?: string }) {

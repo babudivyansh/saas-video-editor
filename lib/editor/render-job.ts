@@ -9,6 +9,7 @@ import { spawn } from "child_process";
 import { prisma } from "@/lib/prisma";
 import { setRenderProgress } from "@/lib/render-queue";
 import { restoreSpend } from "@/lib/credits";
+import { redis } from "@/lib/redis";
 import { runFFmpegWithProgress, ffmpegBin } from "@/utils/ffmpeg-render";
 import { uploadFileToS3 } from "@/utils/s3-upload";
 import { downloadFile } from "@/utils/download";
@@ -29,6 +30,25 @@ import { classifyRenderFailure } from "./render-failure";
 import { exportFrame, isExportQuality, qualityScale, renderTimeoutMs, type ExportQuality } from "./export-quality";
 
 export const EDITOR_RENDER_CREDIT_COST = 1;
+
+// What the CURRENT export of a project was charged. An export costs 0, 1 or 3
+// credits since 2026-10-30 (lib/render-pricing.ts), and its refId
+// `editor-render:${projectId}` is shared by every export of that project, so a
+// refund can't be "whatever is refundable on the refId" — that would hand back
+// an earlier, successful export's credit. The route records the charge here;
+// the worker's failure refund and the stale-render sweep read it.
+const chargeKey = (projectId: string) => `editor-render-charge:${projectId}`;
+
+export async function recordRenderCharge(projectId: string, credits: number): Promise<void> {
+  await redis.set(chargeKey(projectId), String(credits), "EX", 7 * 24 * 60 * 60);
+}
+
+/** Falls back to the old flat price for a job queued before the key existed. */
+export async function renderChargeFor(projectId: string): Promise<number> {
+  const raw = await redis.get(chargeKey(projectId)).catch(() => null);
+  const n = raw === null ? NaN : Number(raw);
+  return Number.isInteger(n) && n >= 0 ? n : EDITOR_RENDER_CREDIT_COST;
+}
 
 export interface EditorRenderPayload {
   projectId: string;
@@ -86,11 +106,13 @@ async function refundCredit(projectId: string) {
   try {
     const proj = await prisma.project.findUnique({ where: { id: projectId }, select: { userId: true } });
     if (!proj) return;
+    const amount = await renderChargeFor(projectId);
+    if (amount === 0) return; // a free render: nothing was spent
     // Restores exactly the buckets the route's spend drained (ledger refId).
     await restoreSpend({
       userId: proj.userId,
       refId: `editor-render:${projectId}`,
-      amount: EDITOR_RENDER_CREDIT_COST,
+      amount,
       reason: "refund:editor-render-failed",
     });
   } catch (e) {

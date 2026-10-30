@@ -11,9 +11,10 @@ import { checkExportQuality, isExportQuality } from "@/lib/editor/export-quality
 import { checkTemplateChoice } from "@/lib/captions/gate";
 import {
   editorRenderJob,
-  EDITOR_RENDER_CREDIT_COST,
+  recordRenderCharge,
   type EditorRenderPayload,
 } from "@/lib/editor/render-job";
+import { localRenderCredits } from "@/lib/render-pricing";
 import { getAssetReadUrl } from "@/utils/s3-upload";
 import { restoreSpend, spendCredits } from "@/lib/credits";
 import { ffmpegBin } from "@/utils/ffmpeg-render";
@@ -90,7 +91,8 @@ async function handlePOST(req: NextRequest) {
   // knowingly selling a guaranteed failure. If the runtime cannot satisfy the
   // render contract, refuse here instead: no charge, no queue entry.
   // 4K is plan-gated and length-capped — refused before any charge.
-  const qualityRefusal = checkExportQuality(quality, await getUserTier(auth.userId), docDuration(doc));
+  const tier = await getUserTier(auth.userId);
+  const qualityRefusal = checkExportQuality(quality, tier, docDuration(doc));
   if (qualityRefusal) return NextResponse.json(qualityRefusal.body, { status: qualityRefusal.status });
 
   const runtime = await getRenderRuntimeHealth(ffmpegBin);
@@ -110,12 +112,16 @@ async function handlePOST(req: NextRequest) {
     );
   }
 
+  // 0 on a paid plan inside the daily allowance, 1 otherwise, 3 for 4K
+  // (lib/render-pricing.ts).
+  const creditCost = await localRenderCredits(auth.userId, tier, { is4k: quality === "4k" });
+
   // Fast-path credit check via Redis cache.
   const cachedCredits = await redis.get(`credits:${auth.userId}`);
   const cached = cachedCredits !== null ? parseInt(cachedCredits, 10) : null;
-  if (cached !== null && cached < EDITOR_RENDER_CREDIT_COST) {
+  if (cached !== null && cached < creditCost) {
     return NextResponse.json(
-      { error: "insufficient_credits", required: EDITOR_RENDER_CREDIT_COST, balance: cached },
+      { error: "insufficient_credits", required: creditCost, balance: cached },
       { status: 402 },
     );
   }
@@ -140,17 +146,19 @@ async function handlePOST(req: NextRequest) {
   const refId = `editor-render:${projectId}`;
   const spend = await spendCredits({
     userId: auth.userId,
-    amount: EDITOR_RENDER_CREDIT_COST,
+    amount: creditCost,
     reason: "spend:editor-render",
     refId,
   });
   if (!spend.ok) {
     await releaseClaim();
     return NextResponse.json(
-      { error: "insufficient_credits", required: EDITOR_RENDER_CREDIT_COST, balance: spend.balances.total },
+      { error: "insufficient_credits", required: creditCost, balance: spend.balances.total },
       { status: 402 },
     );
   }
+  // The worker's failure refund reads this back (the refId is per project).
+  await recordRenderCharge(projectId, creditCost);
 
   // A fresh job id per export. BullMQ silently ignores an add whose id it
   // still retains (completed/failed jobs are kept), so reusing the project id
@@ -158,12 +166,12 @@ async function handlePOST(req: NextRequest) {
   const jobId = `${projectId}-${Date.now().toString(36)}`;
   try {
     await renderQueue.enqueue(jobId, { projectId, assetUrls, quality }, {
-      priority: tierPriority(await getUserTier(auth.userId)),
+      priority: tierPriority(tier),
       rejectOnFailure: true,
     });
   } catch (err) {
     logger.error("editor-render", `enqueue failed for ${projectId}`, err);
-    await restoreSpend({ userId: auth.userId, refId, amount: EDITOR_RENDER_CREDIT_COST, reason: "refund:editor-render-enqueue-failed" })
+    if (creditCost > 0) await restoreSpend({ userId: auth.userId, refId, amount: creditCost, reason: "refund:editor-render-enqueue-failed" })
       .catch((e) => logger.error("editor-render", `refund after failed enqueue failed for ${projectId}`, e));
     await releaseClaim();
     return NextResponse.json({ error: "Couldn't start the export. You weren't charged — please try again." }, { status: 503 });

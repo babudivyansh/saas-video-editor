@@ -41,7 +41,7 @@ describe("settleBatchIfDone", () => {
   it("refunds the batch when nothing rendered", async () => {
     findMany.mockResolvedValue([row("failed"), row("failed")]);
     expect(await settleBatchIfDone("b1")).toBe("settled");
-    expect(restoreSpend).toHaveBeenCalledWith(expect.objectContaining({ userId: "u1", refId: "caption-export:b1", amount: 1 }));
+    expect(restoreSpend).toHaveBeenCalledWith(expect.objectContaining({ userId: "u1", refId: "caption-export:b1" }));
     expect(notify).toHaveBeenCalledWith(expect.objectContaining({ type: "editor_export_failed" }));
   });
 

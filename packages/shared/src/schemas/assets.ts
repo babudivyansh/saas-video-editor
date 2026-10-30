@@ -53,7 +53,7 @@ export const assetFolderSchema = z.object({ id: z.string(), name: z.string().tri
 export type AssetFolder = z.infer<typeof assetFolderSchema>;
 
 /** Storage per plan, GB (lib/plans/tiers.ts STORAGE_LIMIT_GB). */
-export const STORAGE_LIMIT_GB: Record<PlanTier, number> = { free: 0.5, creator: 2, pro: 5, studio: 15 };
+export const STORAGE_LIMIT_GB: Record<PlanTier, number> = { free: 0.5, lite: 1, creator: 2, pro: 5, studio: 15 };
 export const storageLimitBytes = (plan: PlanTier) => STORAGE_LIMIT_GB[plan] * 1024 ** 3;
 /** Biggest single file per plan (same cap as AutoClip uploads). */
 export const maxFileBytes = (plan: PlanTier) => AUTOCLIP_LIMITS[plan].maxBytes;

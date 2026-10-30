@@ -39,11 +39,14 @@ export const LEGAL_DOCS: LegalDocMeta[] = [
   {
     slug: "/refund",
     title: "Refund Policy",
-    description: "How refunds, cancellations, and billing work for Clipiro credit packs.",
+    description: "How refunds, cancellations and renewals work for Clipiro subscriptions, minute packs and credit packs.",
     effective: "2026-06-14",
     // 2026-09-26: money-back window 48 hours -> 3 days.
     // 2026-09-27: Clip Minutes and minute packs covered on the same terms as credits.
-    updated: "2026-09-27",
+    // 2026-10-30: rewritten for subscriptions (the page still said there were
+    // none), refunds ending the plan, plan-switch credit, yearly renewal
+    // approval and chargebacks.
+    updated: "2026-10-30",
   },
   {
     slug: "/affiliate-tos",

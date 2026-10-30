@@ -319,4 +319,9 @@ async function handlePOST(req: NextRequest) {
 // user could previously spam order creation without limit — provider quota
 // abuse plus junk orders and coupon-validation load. Sized to allow genuine
 // retries and currency/plan switching without obstructing a real checkout.
-export const POST = withRateLimit(handlePOST, { limit: 20, windowSec: 60, keyBy: "user", name: "billing:checkout" });
+// The hourly cap on top (2026-10-30) bounds a slow script that stays under the
+// burst limit: 60 checkouts an hour is far beyond any real buyer.
+export const POST = withRateLimit(
+  withRateLimit(handlePOST, { limit: 20, windowSec: 60, keyBy: "user", name: "billing:checkout" }),
+  { limit: 60, windowSec: 3600, keyBy: "user", name: "billing:checkout-hourly" },
+);

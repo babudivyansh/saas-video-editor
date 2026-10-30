@@ -2,10 +2,12 @@
 // subscription" (or an expired one), exactly as today's code already treats
 // it implicitly (see requireSubscriber in lib/auth.ts). It exists in
 // TIER_ORDER only so comparisons work uniformly; the pricing page markets
-// exactly 3 tiers (creator/pro/studio), matching what's already live.
-export type TierId = "free" | "creator" | "pro" | "studio";
+// four tiers (lite/creator/pro/studio). Lite was added in the 2026-10-30
+// pricing restructure as a ₹499 entry point below Creator: no watermark and
+// 1080p, but none of the creator-gated tools or image models.
+export type TierId = "free" | "lite" | "creator" | "pro" | "studio";
 
-export const TIER_ORDER: readonly TierId[] = ["free", "creator", "pro", "studio"];
+export const TIER_ORDER: readonly TierId[] = ["free", "lite", "creator", "pro", "studio"];
 
 export function tierIndex(t: TierId): number {
   const i = TIER_ORDER.indexOf(t);
@@ -24,9 +26,10 @@ export function lowestTier(tiers: readonly TierId[]): TierId {
 // Subset of TIER_ORDER excluding the "free" sentinel — used anywhere a
 // purchasable-plan-per-card layout is needed (pricing page, landing preview,
 // admin tier <select>).
-export const PURCHASABLE_TIER_ORDER: readonly Exclude<TierId, "free">[] = ["creator", "pro", "studio"];
+export const PURCHASABLE_TIER_ORDER: readonly Exclude<TierId, "free">[] = ["lite", "creator", "pro", "studio"];
 
 export const TIER_LABEL: Record<Exclude<TierId, "free">, string> = {
+  lite: "Lite",
   creator: "Creator",
   pro: "Pro",
   studio: "Studio",
@@ -41,6 +44,7 @@ export const TIER_LABEL: Record<Exclude<TierId, "free">, string> = {
 // popover, not the place this value is displayed.
 export const STORAGE_LIMIT_GB: Record<TierId, number> = {
   free: 0.5,
+  lite: 1,
   creator: 2,
   pro: 5,
   studio: 15,
@@ -60,6 +64,7 @@ export function storageLimitBytesForTier(tier: TierId): number {
 // resolveUploadPolicy). Numbers are business policy and freely tunable.
 export const MAX_UPLOAD_BYTES_BY_TIER: Record<TierId, number> = {
   free: 250 * 1024 ** 2, // 250 MB
+  lite: 500 * 1024 ** 2, // 500 MB
   creator: 1 * 1024 ** 3, // 1 GB
   pro: 2 * 1024 ** 3, // 2 GB
   studio: 5 * 1024 ** 3, // 5 GB
@@ -151,7 +156,8 @@ export const TIER_RENDER_PRIORITY: Record<TierId, number> = {
   studio: 1,
   pro: 2,
   creator: 3,
-  free: 4,
+  lite: 4,
+  free: 5,
 };
 
 export function tierPriority(tier: TierId): number {
@@ -162,6 +168,7 @@ export function tierPriority(tier: TierId): number {
 // clean upgrade trigger).
 export const TIER_MAX_AUTOCLIP_SOURCE_SECONDS: Record<TierId, number> = {
   free: 30 * 60,
+  lite: 60 * 60,
   creator: 2 * 60 * 60,
   pro: 4 * 60 * 60,
   studio: 6 * 60 * 60,
@@ -173,8 +180,15 @@ export const TIER_MAX_AUTOCLIP_SOURCE_SECONDS: Record<TierId, number> = {
 // produces — the unit Opus Clip, Vizard and 2short all sell.
 
 /** Free tier: watermarked Clip Minutes granted monthly as expiring bonus minutes
- *  (replaces the old "2 runs a month" allowance). */
-export const FREE_TIER_MONTHLY_BONUS_MINUTES = 30;
+ *  (replaces the old "2 runs a month" allowance). 30 -> 15 in the 2026-10-30
+ *  restructure: most free minutes expired unused, and a recurring 30 a month
+ *  per email was the cheapest thing to farm. New accounts still start with
+ *  FREE_TIER_SIGNUP_MINUTES. */
+export const FREE_TIER_MONTHLY_BONUS_MINUTES = 15;
+
+/** One-off Clip Minutes a new account starts with (same bonus bucket and expiry
+ *  as the monthly drip), so a first AutoClip run of a real video still fits. */
+export const FREE_TIER_SIGNUP_MINUTES = 30;
 
 /** Re-running a source this user already paid for, within this many days, is
  *  free — its transcript and face timeline are cached, so a re-run costs us
@@ -214,11 +228,21 @@ export const TRIAL_MINUTES = 60;
 export const TRIAL_DAYS = 7;
 
 /** Only the MONTHLY Pro plan carries a trial — an annual Pro trial would end in
- *  a ₹17,680 auto-debit, above RBI's ₹15,000 no-OTP e-mandate limit, which the
+ *  a ₹19,791 auto-debit, above RBI's ₹15,000 no-OTP e-mandate limit, which the
  *  bank will not let through unattended. Client-safe: the pricing page uses it
  *  to decide which card offers the trial. */
 export function isTrialPlan(plan: { kind: string; tier: string | null; intervalMonths: number | null }): boolean {
   return plan.kind === "subscription" && plan.tier === "pro" && (plan.intervalMonths ?? 1) === 1;
+}
+
+/** RBI's limit for an e-mandate debit without customer authentication, paise. */
+export const RBI_EMANDATE_NO_OTP_LIMIT_PAISE = 15_000 * 100;
+
+/** Whether an INR renewal of this plan needs the customer to approve it at
+ *  their bank (Pro and Studio yearly today). Client-safe: the pricing page and
+ *  the expiry-warning email both say so up front. */
+export function renewalNeedsApproval(plan: { priceInPaise: number; currency?: string | null }): boolean {
+  return (plan.currency ?? "INR") === "INR" && plan.priceInPaise > RBI_EMANDATE_NO_OTP_LIMIT_PAISE;
 }
 
 // Monthly bonus-credit grant for users without an active subscription.

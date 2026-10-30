@@ -5,7 +5,7 @@ import { MAX_UPLOAD_BYTES_BY_TIER, STORAGE_LIMIT_GB as WEB_STORAGE } from "./pla
 
 // The phone shows storage limits and the archive window from @clipiro/shared;
 // this fails if the web's values change and the copy doesn't.
-const TIERS: PlanTier[] = ["free", "creator", "pro", "studio"];
+const TIERS: PlanTier[] = ["free", "lite", "creator", "pro", "studio"];
 
 describe("mobile Assets rules match the web", () => {
   it("storage, per-file limits and archive retention", () => {

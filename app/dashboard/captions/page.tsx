@@ -17,6 +17,7 @@ import { ACCEPTED_VIDEO_TYPES } from "@/lib/autoclip-source";
 import { DUB_LANGUAGES } from "@/lib/languages";
 import { ASPECT_DIMENSIONS, originalFrame, type Aspect } from "@/lib/editor/types";
 import { STUDIO_ASPECTS } from "@/lib/captions/studio";
+import { billableCaptionMinutes } from "@/lib/autoclip-pricing";
 import { StudioHeader } from "./_components/StudioHeader";
 
 type Source =
@@ -104,7 +105,7 @@ export default function CaptionStudioUploadPage() {
 
   const frame = aspect === "original" ? (videoSize ? originalFrame(videoSize.w, videoSize.h) : null) : ASPECT_DIMENSIONS[aspect];
   const previewBox = frame ? Math.min(560 / frame.h, 520 / frame.w) : 0;
-  const minutes = duration ? Math.max(1, Math.ceil(duration / 60)) : null;
+  const minutes = duration ? billableCaptionMinutes(duration) : null;
 
   const start = async () => {
     if (!view || view.state !== "ready" || !view.assetId || starting) return;
@@ -270,7 +271,7 @@ export default function CaptionStudioUploadPage() {
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" className="h-4 w-4" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
             </button>
             <p className="text-center text-xs text-fg-subtle">
-              {minutes ? `Captioning uses ${minutes} Clip Minute${minutes === 1 ? "" : "s"}` : "Captioning uses 1 Clip Minute per minute of video"}
+              {minutes ? `Captioning uses ${minutes} Clip Minute${minutes === 1 ? "" : "s"}` : "Captioning uses 1 Clip Minute per 2 minutes of video"}
               {user ? ` · you have ${user.minutes ?? 0}` : ""}
             </p>
           </div>

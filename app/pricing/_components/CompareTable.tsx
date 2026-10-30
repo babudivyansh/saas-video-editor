@@ -58,7 +58,7 @@ function buildGroups(subs: DbPlan[], term: number): { core: Group; more: Group[]
       { label: "Watermark-free exports", cells: byTier(t => t !== "free") },
       { label: "AI image models", cells: byTier(t => String(modelsFor(t))) },
       { label: "Asset storage", cells: byTier(t => storage(STORAGE_LIMIT_GB[t])) },
-      { label: "Rendering", cells: { free: "Standard", creator: "Standard", pro: "Priority", studio: "Fastest" } },
+      { label: "Rendering", cells: { free: "Standard", lite: "Standard", creator: "Standard", pro: "Priority", studio: "Fastest" } },
     ],
   };
 

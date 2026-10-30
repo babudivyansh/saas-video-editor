@@ -26,16 +26,25 @@ export const FX_DEFAULTS: FxConfig = { inrPerUsd: 88 };
  * only monthly is anchored, yearly falls through to the FX path below and
  * inherits none of the USD premium — which made the annual discount 49/42/35%
  * in USD against a flat 33% in INR, i.e. US customers buying annual at Indian
- * rates. Each yearly price here is ~33% off 12x its monthly row, so the
- * discount reads the same in both currencies; see lib/currency.test.ts, which
- * fails if a future edit breaks that parity. */
+ * rates. Each yearly price here is 25% off 12x its monthly row (2026-10-30;
+ * it was 33%), so the discount reads the same in both currencies; see
+ * lib/currency.test.ts, which fails if a future edit breaks that parity. */
 export const USD_PRICE_BOOK_DEFAULTS: Record<string, number> = {
+  sub_lite_1mo: 800,
   sub_creator_1mo: 1500,
   sub_pro_1mo: 2900,
   sub_studio_1mo: 5900,
-  sub_creator_12mo: 11999, // vs $180 at 12x monthly -> 33% off
-  sub_pro_12mo: 23299,     // vs $348 -> 33% off
-  sub_studio_12mo: 47399,  // vs $708 -> 33% off
+  sub_lite_12mo: 7200,     // vs $96 at 12x monthly -> 25% off
+  sub_creator_12mo: 13500, // vs $180 -> 25% off
+  sub_pro_12mo: 26100,     // vs $348 -> 25% off
+  sub_studio_12mo: 53100,  // vs $708 -> 25% off
+  // Credit packs, anchored at the FX conversion they already sold at, so a
+  // change to the fx_rates Config row can't silently reprice them (and so the
+  // app's CREDIT_PACKS in @clipiro/shared stays true).
+  pack_mini: 699,
+  pack_starter: 1799,
+  pack_pro: 4499,
+  pack_studio: 10199,
   // Clip Minute packs (2026-09-26). Without an entry these fell through to a
   // plain FX conversion ($8.99 / $22.99 / $67.99), while the subscriptions
   // above are USD-anchored at a premium — so in USD a pack undercut the plan

@@ -89,3 +89,16 @@ export function billableSourceMinutes(durationSec: number): number {
   if (!Number.isFinite(durationSec) || durationSec <= 0) return 1;
   return Math.max(1, Math.ceil(durationSec / 60));
 }
+
+/** Seconds of video one Clip Minute captions in the editor. */
+export const CAPTION_SECONDS_PER_MINUTE = 120;
+
+/**
+ * Clip Minutes the editor's auto-captions bill: 1 per 2 minutes of video,
+ * rounded up, never below 1 (2026-10-30). Captioning is speech-to-text only —
+ * about a third of an AutoClip minute's cost — so it bills at half the rate.
+ */
+export function billableCaptionMinutes(durationSec: number): number {
+  if (!Number.isFinite(durationSec) || durationSec <= 0) return 1;
+  return Math.max(1, Math.ceil(durationSec / CAPTION_SECONDS_PER_MINUTE));
+}

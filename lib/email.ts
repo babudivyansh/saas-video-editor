@@ -186,8 +186,9 @@ export async function sendSubscriptionCancelledEmail(
 
 export async function sendSubscriptionExpiryWarningEmail(
   to: string, name: string, planName: string, daysLeft: number, expiryDate: Date,
+  renewalNeedsApproval = false,
 ): Promise<void> {
-  await sendTemplate("subscription-expiry-warning", to, { name, planName, daysLeft, expiryDate });
+  await sendTemplate("subscription-expiry-warning", to, { name, planName, daysLeft, expiryDate, renewalNeedsApproval });
 }
 
 export async function sendSubscriptionExpiredEmail(
@@ -222,7 +223,7 @@ export async function sendLowCreditsEmail(
 }
 
 export async function sendLowMinutesEmail(
-  to: string, name: string, minutesLeft: number, tier: "free" | "creator" | "pro" | "studio",
+  to: string, name: string, minutesLeft: number, tier: "free" | "lite" | "creator" | "pro" | "studio",
 ): Promise<{ status: string }> {
   return sendTemplate("low-minutes", to, { name, minutesLeft, tier });
 }

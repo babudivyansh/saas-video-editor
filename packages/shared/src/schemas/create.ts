@@ -7,16 +7,17 @@ import { CAPTION_TEMPLATES, DEFAULT_CAPTION_TEMPLATE_ID } from "../captions/temp
 //   lib/autoclip-pricing.ts, lib/models/imageModels.ts, lib/audio-pricing.ts.
 
 // ── Plans ─────────────────────────────────────────────────────────────────
-export const planTierSchema = z.enum(["free", "creator", "pro", "studio"]);
+export const planTierSchema = z.enum(["free", "lite", "creator", "pro", "studio"]);
 export type PlanTier = z.infer<typeof planTierSchema>;
-export const PLAN_ORDER: readonly PlanTier[] = ["free", "creator", "pro", "studio"];
-export const PLAN_LABEL: Record<PlanTier, string> = { free: "Free", creator: "Creator", pro: "Pro", studio: "Studio" };
+export const PLAN_ORDER: readonly PlanTier[] = ["free", "lite", "creator", "pro", "studio"];
+export const PLAN_LABEL: Record<PlanTier, string> = { free: "Free", lite: "Lite", creator: "Creator", pro: "Pro", studio: "Studio" };
 export const planAtLeast = (plan: PlanTier, min: PlanTier) => PLAN_ORDER.indexOf(plan) >= PLAN_ORDER.indexOf(min);
 
 const MB = 1024 * 1024;
 /** AutoClip source limits per plan (tiers.ts MAX_UPLOAD_BYTES_BY_TIER + source length cap). */
 export const AUTOCLIP_LIMITS: Record<PlanTier, { maxBytes: number; maxSourceSec: number }> = {
   free: { maxBytes: 250 * MB, maxSourceSec: 30 * 60 },
+  lite: { maxBytes: 500 * MB, maxSourceSec: 60 * 60 },
   creator: { maxBytes: 1024 * MB, maxSourceSec: 2 * 3600 },
   pro: { maxBytes: 2048 * MB, maxSourceSec: 4 * 3600 },
   studio: { maxBytes: 5120 * MB, maxSourceSec: 6 * 3600 },
@@ -191,10 +192,10 @@ export type ImageModel = z.infer<typeof imageModelSchema>;
 export const IMAGE_MODEL_CATALOG: ImageModel[] = [
   { id: "gemini-flash-2.0", name: "Gemini 2.5 Flash Image", credits: 2, minPlan: "free", ratios: ["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3", "21:9"] },
   { id: "seedream-5.0", name: "Seedream 5.0", credits: 2, minPlan: "creator", ratios: ["1:1", "4:3", "3:4", "16:9", "9:16"] },
-  { id: "gpt-image-2", name: "GPT Image 2", credits: 6, minPlan: "pro", ratios: ["1:1", "4:3", "3:4", "16:9", "9:16"] },
-  { id: "flux-2", name: "Flux 2", credits: 3, minPlan: "creator", ratios: ["1:1", "4:3", "3:4", "16:9", "9:16"] },
+  { id: "gpt-image-2", name: "GPT Image 2", credits: 4, minPlan: "pro", ratios: ["1:1", "4:3", "3:4", "16:9", "9:16"] },
+  { id: "flux-2", name: "Flux 2", credits: 2, minPlan: "creator", ratios: ["1:1", "4:3", "3:4", "16:9", "9:16"] },
   { id: "nano-banana-2", name: "Nano Banana 2", credits: 5, minPlan: "pro", ratios: ["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3", "21:9"] },
-  { id: "ideogram-4", name: "Ideogram 4", credits: 3, minPlan: "creator", ratios: ["1:1", "4:3", "3:4", "16:9", "9:16"] },
+  { id: "ideogram-4", name: "Ideogram 4", credits: 2, minPlan: "creator", ratios: ["1:1", "4:3", "3:4", "16:9", "9:16"] },
   { id: "krea-2", name: "Krea 2", credits: 2, minPlan: "creator", ratios: ["1:1", "4:3", "3:4", "16:9", "9:16"] },
   { id: "nano-banana-pro", name: "Nano Banana Pro", credits: 10, minPlan: "studio", ratios: ["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3", "21:9"] },
   { id: "qwen-image-2.0", name: "Qwen Image 2.0", credits: 2, minPlan: "free", ratios: ["1:1", "4:3", "3:4", "16:9", "9:16"] },

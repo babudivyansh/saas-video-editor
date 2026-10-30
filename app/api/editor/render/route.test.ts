@@ -49,7 +49,7 @@ vi.mock("@/utils/s3-upload", () => ({ getAssetReadUrl: vi.fn(async () => "https:
 vi.mock("@/lib/credits", () => ({ spendCredits, restoreSpend }));
 vi.mock("@/utils/ffmpeg-render", () => ({ ffmpegBin: "/fake/ffmpeg" }));
 vi.mock("@/lib/logger", () => ({ logger: { error: loggerError, info: vi.fn(), warn: vi.fn() } }));
-vi.mock("@/lib/editor/render-job", () => ({ editorRenderJob: vi.fn(), EDITOR_RENDER_CREDIT_COST: 1 }));
+vi.mock("@/lib/editor/render-job", () => ({ editorRenderJob: vi.fn(), EDITOR_RENDER_CREDIT_COST: 1, recordRenderCharge: vi.fn(async () => {}) }));
 vi.mock("@/lib/render-runtime", async () => {
   const actual = await vi.importActual<typeof import("@/lib/render-runtime")>("@/lib/render-runtime");
   return { ...actual, getRenderRuntimeHealth };

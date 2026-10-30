@@ -30,7 +30,7 @@ export const IMAGE_MODELS: readonly ImageModelEntry[] = [
     integration: "direct-gemini",
     costUsd: 0.04, // Google direct API
     creditCost: 2, // ceil(0.04*3/0.0784); default/free model, raised from 1
-    allowedTiers: ["free", "creator", "pro", "studio"],
+    allowedTiers: ["free", "lite", "creator", "pro", "studio"],
     supportedParameters: ["prompt", "aspectRatio"],
     defaultValues: { aspectRatio: "1:1" },
     aspectRatios: ["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3", "21:9"], // generationConfig.imageConfig.aspectRatio
@@ -67,7 +67,7 @@ export const IMAGE_MODELS: readonly ImageModelEntry[] = [
     // fal defaults gpt-image-2 to `high` ($0.211/image); we pin `medium` ($0.053)
     // to keep the 6-credit price comfortably profitable (~11x) instead of ~2.8x.
     costUsd: 0.053, // medium quality (explicitly requested below)
-    creditCost: 6, // kept — premium brand pricing at medium quality
+    creditCost: 4, // 6 -> 4 (2026-10-30): 8.9x -> 5.9x at the floor; the best-known name should not be the priciest
     allowedTiers: ["pro", "studio"],
     supportedParameters: ["prompt", "aspectRatio", "quality"],
     defaultValues: { aspectRatio: "1:1", quality: "medium" },
@@ -86,7 +86,7 @@ export const IMAGE_MODELS: readonly ImageModelEntry[] = [
     integration: "fal",
     falEndpoint: "fal-ai/flux-2-pro",
     costUsd: 0.03,
-    creditCost: 3, // kept current
+    creditCost: 2, // 3 -> 2 (2026-10-30): still >=5x at the floor
     allowedTiers: ["creator", "pro", "studio"],
     supportedParameters: ["prompt", "aspectRatio", "seed"], // flux-2-pro has no guidance/steps inputs
     defaultValues: { aspectRatio: "1:1" },
@@ -128,7 +128,7 @@ export const IMAGE_MODELS: readonly ImageModelEntry[] = [
     // generation fails. Verified 2026-10-24.
     falEndpoint: "fal-ai/ideogram/v4/fast",
     costUsd: 0.015,
-    creditCost: 3, // kept current
+    creditCost: 2, // 3 -> 2 (2026-10-30): still >=5x at the floor
     allowedTiers: ["creator", "pro", "studio"],
     supportedParameters: ["prompt", "aspectRatio", "seed"], // no negative prompt on v4
     defaultValues: { aspectRatio: "1:1" },
@@ -186,7 +186,7 @@ export const IMAGE_MODELS: readonly ImageModelEntry[] = [
     falEndpoint: "fal-ai/qwen-image-2/text-to-image",
     costUsd: 0.035, // fal Qwen Image 2.0 (2026-08 audit): $0.035/image
     creditCost: 2, // raised from 1: at $0.035 real, 1 credit was only 2.8x
-    allowedTiers: ["free", "creator", "pro", "studio"],
+    allowedTiers: ["free", "lite", "creator", "pro", "studio"],
     supportedParameters: ["prompt", "negativePrompt", "aspectRatio", "seed"], // no cfg_scale input
     defaultValues: { aspectRatio: "1:1" },
     aspectRatios: ["1:1", "4:3", "3:4", "16:9", "9:16"],

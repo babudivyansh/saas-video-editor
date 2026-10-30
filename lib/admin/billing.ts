@@ -10,17 +10,32 @@ import { auditAdminAction } from "@/lib/admin/audit";
 import { clawbackCredits as clawbackCreditsHelper, grantCredits } from "@/lib/credits";
 
 export type RefundResult =
-  | { ok: true; creditsClawedBack: number }
+  | { ok: true; creditsClawedBack: number; minutesClawedBack: number; partial: boolean; subscriptionEnded: boolean }
   | { ok: false; error: string; status: number };
 
+/**
+ * Mirror a refund onto entitlements.
+ *
+ * `clawbackCredits` (name kept for the admin API) means "take back what the
+ * payment bought": its credits AND its Clip Minutes, and — for a full refund of
+ * the user's current subscription charge — the plan itself, which ends now and
+ * stops renewing. Before 2026-10-30 only credits came back, so a refunded Pro
+ * customer kept Pro and 400 minutes until period end.
+ *
+ * `refund` is set by the Razorpay webhook. When it covers less than the whole
+ * payment the clawback is proportional and the purchase stays "captured"; the
+ * refund that completes the total marks it "refunded". Admin refunds omit it
+ * and are always full.
+ */
 export async function refundPurchase(params: {
   purchaseId: string;
   actorId: string; // admin userId, or "system:razorpay-webhook"
   reason: string;
   clawbackCredits: boolean;
   ip?: string;
+  refund?: { id: string; amountMinor: number; totalRefundedMinor?: number };
 }): Promise<RefundResult> {
-  const { purchaseId, actorId, reason, clawbackCredits, ip } = params;
+  const { purchaseId, actorId, reason, clawbackCredits, ip, refund } = params;
 
   const result = await prisma.$transaction(async (tx) => {
     const purchase = await tx.purchase.findUnique({ where: { id: purchaseId } });
@@ -29,38 +44,91 @@ export async function refundPurchase(params: {
       return { ok: false as const, error: "Purchase is already refunded", status: 409 };
     }
 
-    await tx.purchase.update({ where: { id: purchaseId }, data: { status: "refunded" } });
+    // One mirror per Razorpay refund id: refund.processed and payment.refunded
+    // both arrive for the same refund, and only a FULL refund is guarded by the
+    // status check above. Claimed inside this transaction, so a failure below
+    // rolls the claim back and Razorpay's retry can still apply it.
+    if (refund) {
+      try {
+        await tx.razorpayEvent.create({ data: { id: `refund:${refund.id}`, event: "refund" } });
+      } catch (e) {
+        if ((e as { code?: string }).code === "P2002") {
+          return { ok: false as const, error: "Refund already applied", status: 409 };
+        }
+        throw e;
+      }
+    }
 
-    // Claw back at most what was granted, floored at the user's current
-    // balance — a refund never drives credits negative. Bucket-aware:
-    // purchased first (that's what purchases grant into), ledger-recorded.
+    // A refund is partial when Razorpay reports less than the whole payment
+    // refunded so far. Without a running total, the single refund's amount is
+    // the best evidence we have.
+    const refundedSoFar = refund ? (refund.totalRefundedMinor ?? refund.amountMinor) : purchase.amountInPaise;
+    const partial = refundedSoFar < purchase.amountInPaise;
+    // Each refund takes back its own share — the one that completes a run of
+    // partial refunds takes only what is left, not the whole grant again.
+    const share = refund && purchase.amountInPaise > 0 ? Math.min(refund.amountMinor / purchase.amountInPaise, 1) : 1;
+
+    if (!partial) await tx.purchase.update({ where: { id: purchaseId }, data: { status: "refunded" } });
+
+    // Claw back at most what was granted (or its refunded share), floored at
+    // the user's current balance — a refund never drives a balance negative.
+    // Bucket-aware and ledger-recorded; a partial refund's rows carry its own
+    // refund id so two partial refunds of one payment stay distinguishable.
+    const refId = refund && share < 1 ? `${purchaseId}:${refund.id}` : purchaseId;
     let clawed = 0;
+    let clawedMinutes = 0;
     if (clawbackCredits && purchase.credits > 0) {
       clawed = await clawbackCreditsHelper({
         userId: purchase.userId,
-        amount: purchase.credits,
+        amount: Math.round(purchase.credits * share),
         reason: "clawback:purchase-refund",
-        refId: purchaseId,
+        refId,
         tx,
       });
     }
-    return { ok: true as const, purchase, clawed };
+    if (clawbackCredits && (purchase.minutes ?? 0) > 0) {
+      const { clawbackMinutes } = await import("@/lib/minutes");
+      clawedMinutes = await clawbackMinutes({
+        userId: purchase.userId,
+        amount: Math.round(purchase.minutes * share),
+        reason: "clawback:purchase-refund",
+        refId,
+        tx,
+      });
+    }
+    return { ok: true as const, purchase, clawed, clawedMinutes, partial };
   });
 
   if (!result.ok) return result;
 
-  // Keep the cached balance honest after the decrement.
-  const fresh = await prisma.user.findUnique({ where: { id: result.purchase.userId }, select: { credits: true } });
-  if (fresh) await redis.set(`credits:${result.purchase.userId}`, String(fresh.credits), "EX", 3600);
+  // A full refund of the charge that pays for the user's current plan ends it.
+  let subscriptionEnded = false;
+  if (clawbackCredits && !result.partial && result.purchase.planId) {
+    const { endSubscriptionAfterRefund } = await import("@/lib/billing/cancel-subscription");
+    subscriptionEnded = await endSubscriptionAfterRefund(result.purchase.userId, result.purchase.planId, purchaseId);
+  }
 
-  await auditAdminAction(params.actorId, "purchase.refunded", params.purchaseId, {
-    before: { status: result.purchase.status, credits: result.purchase.credits, amountInPaise: result.purchase.amountInPaise },
-    after: { status: "refunded", creditsClawedBack: result.clawed },
+  // Keep the cached balances honest after the decrement.
+  const fresh = await prisma.user.findUnique({ where: { id: result.purchase.userId }, select: { credits: true, minutes: true } });
+  if (fresh) {
+    await redis.set(`credits:${result.purchase.userId}`, String(fresh.credits), "EX", 3600);
+    if (typeof fresh.minutes === "number") await redis.set(`minutes:${result.purchase.userId}`, String(fresh.minutes), "EX", 3600).catch(() => {});
+  }
+
+  await auditAdminAction(params.actorId, result.partial ? "purchase.partially_refunded" : "purchase.refunded", params.purchaseId, {
+    before: { status: result.purchase.status, credits: result.purchase.credits, minutes: result.purchase.minutes, amountInPaise: result.purchase.amountInPaise },
+    after: {
+      status: result.partial ? result.purchase.status : "refunded",
+      creditsClawedBack: result.clawed,
+      minutesClawedBack: result.clawedMinutes,
+      subscriptionEnded,
+      ...(refund ? { refundId: refund.id, refundedMinor: refund.amountMinor } : {}),
+    },
     reason,
     ip,
   });
   void actorId;
-  return { ok: true, creditsClawedBack: result.clawed };
+  return { ok: true, creditsClawedBack: result.clawed, minutesClawedBack: result.clawedMinutes, partial: result.partial, subscriptionEnded };
 }
 
 // Manual credit grant/deduct — the audited alternative to silently editing the
