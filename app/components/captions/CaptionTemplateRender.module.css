@@ -36,6 +36,16 @@
 .sc_desi { background: radial-gradient(circle at 25% 25%, #c4631c, transparent 55%), radial-gradient(circle at 80% 75%, #6b1022, transparent 55%), #2a0d0b; }
 .sc_gradient { background: radial-gradient(circle at 20% 25%, #ff7a59, transparent 50%), radial-gradient(circle at 80% 75%, #6a3cff, transparent 55%), #1a0f24; }
 .sc_chroma { background: radial-gradient(circle at 75% 20%, #2fb7ff, transparent 50%), radial-gradient(circle at 20% 80%, #ff4fa0, transparent 50%), #12121c; }
+.sc_sticker { background: linear-gradient(160deg, #b9c5cc 0%, #8ea1b5 40%, #cdbcae 75%, #6c7d69 100%); }
+.sc_kinetic { background: radial-gradient(circle at 50% 30%, #2b3a55, transparent 60%), linear-gradient(180deg, #0f1626, #1c1030); }
+.sc_letters { background: radial-gradient(circle at 30% 70%, #0f6b5a, transparent 55%), radial-gradient(circle at 80% 25%, #3d2a7a, transparent 55%), #0b1014; }
+.sc_neon { background: radial-gradient(circle at 30% 80%, #3a0050, transparent 55%), radial-gradient(circle at 75% 20%, #00384a, transparent 55%), #05040b; }
+.sc_y2k { background: radial-gradient(circle at 25% 25%, #d9a6cf, transparent 50%), radial-gradient(circle at 80% 70%, #7fb4d6, transparent 55%), #6f61b0; }
+.sc_hype { background: radial-gradient(circle at 70% 30%, #1f6b2e, transparent 55%), radial-gradient(circle at 20% 85%, #5a1a1a, transparent 55%), #0c120c; }
+.sc_soft { background: radial-gradient(circle at 70% 25%, #c9ab95, transparent 55%), radial-gradient(circle at 25% 80%, #9aa891, transparent 55%), #7a6e66; }
+.sc_edu { background: linear-gradient(165deg, #24313a, #121a20 65%, #0b1013); }
+.sc_fest { background: radial-gradient(circle at 25% 25%, #e08a12, transparent 50%), radial-gradient(circle at 80% 75%, #a3123a, transparent 55%), #2a0816; }
+.sc_season { background: radial-gradient(circle at 50% 20%, #30508a, transparent 55%), radial-gradient(circle at 80% 85%, #7a2a4a, transparent 55%), #0d1020; }
 
 .safe { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
 .safe::before { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 20%; background: repeating-linear-gradient(135deg, rgba(255, 80, 80, 0.28) 0 4px, transparent 4px 8px); border-top: 1px dashed rgba(255, 120, 120, 0.8); }
@@ -157,6 +167,98 @@
 .fx_tiltswap .w.on { animation: tsw 220ms ease-out both; }
 .fx_tiltswap .w.past { transform: rotate(var(--wr, 0deg)); }
 .pillw .w.on { border-radius: 999px; padding: 0 0.3em; margin: 0 -0.1em; }
+
+/* Templates 61-150: motions (mirrors engine/ass.ts) */
+@keyframes flip { from { transform: perspective(300px) rotateX(90deg); opacity: 0; } 60% { transform: perspective(300px) rotateX(-18deg); opacity: 1; } to { transform: perspective(300px) rotateX(0); } }
+@keyframes spin { from { transform: rotate(-200deg) scale(0.2); opacity: 0; } 70% { transform: rotate(10deg) scale(1.14); opacity: 1; } to { transform: rotate(0) scale(1.06); } }
+@keyframes swing { from { transform: rotate(-28deg); } 40% { transform: rotate(16deg); } 70% { transform: rotate(-7deg); } to { transform: rotate(0); } }
+@keyframes slidel { from { transform: translateX(-80%) skewX(-18deg); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes extr { from { transform: translate(0, 0); } to { transform: translate(-0.06em, -0.06em); } }
+@keyframes tada { 0% { transform: scale(1); } 12%, 22% { transform: scale(0.9) rotate(-5deg); } 32%, 52%, 72% { transform: scale(1.16) rotate(5deg); } 42%, 62% { transform: scale(1.16) rotate(-5deg); } 100% { transform: scale(1.08) rotate(0); } }
+@keyframes swipe { from { clip-path: inset(100% -10% 0 -10%); transform: translateY(35%); } to { clip-path: inset(-20% -10%); transform: none; } }
+@keyframes stretch { from { letter-spacing: 0.7em; opacity: 0; filter: blur(0.08em); } to { letter-spacing: var(--ls, 0); opacity: 1; filter: none; } }
+@keyframes draw { from, 55% { color: transparent; -webkit-text-stroke: 0.035em var(--act); } to { color: var(--act); -webkit-text-stroke: 0 transparent; } }
+@keyframes flash { 0% { background: #fff; color: #fff; box-shadow: 0 0 0.5em #fff; } 100% { background: transparent; color: var(--act); box-shadow: none; } }
+@keyframes roll { from { transform: translateY(80%); clip-path: inset(0 -10% 100% -10%); } 75% { transform: translateY(-6%); } to { transform: none; clip-path: inset(-20% -10%); } }
+@keyframes ink { from { filter: blur(0.3em); transform: scale(0.55); opacity: 0; } to { filter: none; transform: scale(1); opacity: 1; } }
+@keyframes shim { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+@keyframes wv { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-24%); } }
+@keyframes casc { from { transform: translateY(-90%) rotate(-24deg); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes hop { 0% { transform: translateY(0) scale(1); } 45% { transform: translateY(-30%) scale(1.25); } 100% { transform: translateY(0) scale(1.08); } }
+@keyframes sl1 { 0%, 100% { transform: translateX(-0.09em); } 50% { transform: translateX(0.07em); } }
+@keyframes sl2 { 0%, 100% { transform: translateX(0.08em); } 50% { transform: translateX(-0.1em); } }
+
+.fx_flip .w.on { animation: flip 320ms ease-out both; }
+.fx_spin .w.on { animation: spin 340ms cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
+.fx_swing .w.on { transform-origin: 50% 0; animation: swing 420ms ease-out both; }
+.fx_slidel .w.on { animation: slidel 200ms ease-out both; }
+.fx_extrude .w.on { text-shadow: var(--ol, none), 0.03em 0.03em 0 var(--x), 0.06em 0.06em 0 var(--x), 0.09em 0.09em 0 var(--x), 0.12em 0.12em 0 var(--x); animation: extr 220ms ease-out both; }
+.fx_tada .w.on { animation: tada 520ms ease-out both; }
+.fx_swipe .w.on { animation: swipe 240ms ease-out both; }
+.fx_stretch .w.on { animation: stretch 360ms ease-out both; }
+.fx_draw .w.fut { color: transparent; -webkit-text-stroke: 0.035em var(--act); text-shadow: none; }
+.fx_draw .w.on { text-shadow: none; animation: draw 360ms ease-out both; }
+.fx_flash .w.on { border-radius: 0.12em; padding: 0 0.08em; margin: 0 -0.08em; animation: flash 280ms ease-out both; }
+.fx_roll .w.on { animation: roll 240ms ease-out both; }
+.fx_ink .w.on { animation: ink 300ms ease-out both; }
+.fx_shimmer .w.on { background-image: linear-gradient(100deg, var(--act) 30%, #fff 48%, var(--act) 66%); background-size: 250% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: none; filter: drop-shadow(0 0 0.02em var(--olc, #000)) drop-shadow(0 0.02em 0 var(--olc, #000)); animation: shim 900ms linear infinite, pops 160ms ease-out both; }
+.fx_scramble .w.on { animation: pops 160ms ease-out both; }
+.fx_slice .w.on::before, .fx_slice .w.on::after { content: attr(data-w); position: absolute; left: 0; top: 0; text-shadow: none; color: var(--act2); }
+.fx_slice .w.on::before { clip-path: inset(18% 0 58% 0); animation: sl1 180ms steps(2) infinite; }
+.fx_slice .w.on::after { color: #00e5ff; clip-path: inset(62% 0 12% 0); animation: sl2 220ms steps(2) infinite; }
+
+/* Letters */
+.ch { display: inline-block; white-space: pre; }
+.lc .w.on .ch { color: var(--lc); }
+.fx_wave .w.on .ch { animation: wv 560ms ease-in-out calc(var(--i) * 55ms) infinite; }
+.fx_cascade .w.fut { visibility: hidden; }
+.fx_cascade .w.on .ch { animation: casc 260ms ease-out calc(var(--i) * 38ms) both; }
+.fx_rainbow .w.on .ch { animation: hop 320ms ease-out calc(var(--i) * 40ms) both; }
+
+/* Line entries and idle loops. Entries animate transform; loops animate the
+   separate translate/rotate/scale/filter properties so the two compose. */
+@keyframes inUp { from { transform: rotate(var(--tilt, 0deg)) translateY(calc(var(--ty, 0%) + 40%)); opacity: 0; } to { transform: rotate(var(--tilt, 0deg)) translateY(var(--ty, 0)); opacity: 1; } }
+@keyframes inDrop { from { transform: rotate(var(--tilt, 0deg)) translateY(calc(var(--ty, 0%) - 120%)); opacity: 0; } 70% { transform: rotate(var(--tilt, 0deg)) translateY(calc(var(--ty, 0%) + 6%)); opacity: 1; } to { transform: rotate(var(--tilt, 0deg)) translateY(var(--ty, 0)); } }
+@keyframes inSwirl { from { transform: rotate(calc(var(--tilt, 0deg) - 25deg)) translateY(var(--ty, 0)); opacity: 0; } to { transform: rotate(var(--tilt, 0deg)) translateY(var(--ty, 0)); opacity: 1; } }
+@keyframes lpFloat { 0%, 100% { translate: 0 0; } 50% { translate: 0 -4%; } }
+@keyframes lpSway { 0%, 100% { rotate: -1.6deg; } 50% { rotate: 1.6deg; } }
+@keyframes lpPulse { 0%, 100% { scale: 1; } 50% { scale: 1.04; } }
+@keyframes lpHue { from { filter: hue-rotate(0deg); } to { filter: hue-rotate(360deg); } }
+@keyframes lpBreathe { 0%, 100% { filter: drop-shadow(0 0 0.05em var(--gl)); } 50% { filter: drop-shadow(0 0 0.35em var(--gl)); } }
+.in_up { animation: inUp 300ms ease-out both; }
+.in_drop { animation: inDrop 380ms ease-out both; }
+.in_swirl { animation: inSwirl 360ms cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
+.lp_float { animation: lpFloat 2.4s ease-in-out infinite; }
+.lp_sway { animation: lpSway 2.8s ease-in-out infinite; }
+.lp_pulse { animation: lpPulse 1.2s ease-in-out infinite; }
+.lp_hue { animation: lpHue 3s linear infinite; }
+.lp_breathe { animation: lpBreathe 1.8s ease-in-out infinite; }
+
+/* Symbols: glyphs (the export draws them from the bundled symbol font) */
+.sym { position: absolute; font-style: normal; font-weight: 700; text-transform: none; letter-spacing: 0; line-height: 1; pointer-events: none; text-shadow: 0 0.04em 0.1em rgba(0, 0, 0, 0.5); -webkit-text-stroke: 0; font-family: "Inter", "Noto Sans Symbols 2", system-ui, sans-serif; }
+.sym.spk { font-size: 0.42em; animation: twinkle 520ms ease-out both; }
+@keyframes twinkle { 0% { transform: scale(0) rotate(-90deg); opacity: 0; } 50% { transform: scale(1.3) rotate(20deg); opacity: 1; } 100% { transform: scale(0.9) rotate(0); opacity: 0.95; } }
+.sym.orb { left: 50%; top: 50%; font-size: 0.45em; animation: orbit 1100ms linear infinite; }
+@keyframes orbit { from { transform: translate(-50%, -50%) rotate(0) translateX(1.5em) rotate(0); } to { transform: translate(-50%, -50%) rotate(360deg) translateX(1.5em) rotate(-360deg); } }
+.sym.arr { right: 100%; top: 50%; font-size: 0.7em; margin-right: 0.08em; animation: arrIn 220ms ease-out both; }
+@keyframes arrIn { from { transform: translate(-60%, -50%); opacity: 0; } to { transform: translate(0, -50%); opacity: 1; } }
+.sym.conf { left: 50%; top: 45%; font-size: 0.38em; animation: burst 640ms ease-out both; }
+.symf, .symp { display: inline-block; color: var(--sc, #fff); font-family: "Inter", "Noto Sans Symbols 2", system-ui, sans-serif; font-weight: 700; font-style: normal; text-transform: none; text-shadow: 0 0.04em 0.12em rgba(0, 0, 0, 0.55); -webkit-text-stroke: 0; }
+.symf { font-size: 0.7em; margin: 0 0.15em; vertical-align: 0.12em; animation: lpPulse 900ms ease-in-out infinite; }
+.symp { margin-right: 0.22em; animation: emoPop 220ms cubic-bezier(0.2, 1.6, 0.4, 1) both; }
+.badge { position: absolute; left: 7%; top: 8%; z-index: 3; font: 700 6.4cqmin/1 "Inter", "Noto Sans Symbols 2", system-ui, sans-serif; letter-spacing: 0.04em; color: #fff; background: var(--bc, #00a968); padding: 0.32em 0.55em; border-radius: 0.3em; box-shadow: 0 0.2em 0.6em rgba(0, 0, 0, 0.35); white-space: nowrap; animation: badgeIn 300ms cubic-bezier(0.2, 1.6, 0.4, 1) both; }
+@keyframes badgeIn { from { transform: scale(0.3) rotate(-12deg); opacity: 0; } to { transform: scale(1) rotate(-3deg); opacity: 1; } }
+.stars { position: absolute; left: 0; right: 0; top: 100%; margin-top: 0.25em; font: 400 0.8em/1 "Inter", "Noto Sans Symbols 2", system-ui, sans-serif; letter-spacing: 0.08em; color: rgba(255, 255, 255, 0.5); text-transform: none; text-shadow: 0 0.05em 0.12em rgba(0, 0, 0, 0.5); }
+.stars b { color: var(--sc, #ffc83d); font-weight: 400; display: inline-block; animation: emoPop 220ms cubic-bezier(0.2, 1.6, 0.4, 1) both; }
+
+/* Emoji: sticker on a white disc (as the export draws it), either side, orbiting */
+.emostk { position: absolute; right: 9%; top: 13%; z-index: 3; width: 26cqmin; height: 26cqmin; border-radius: 50%; background: #fff; display: grid; place-items: center; box-shadow: 0 0.6cqmin 1.6cqmin rgba(0, 0, 0, 0.35); animation: slap 320ms cubic-bezier(0.2, 1.6, 0.4, 1) both; }
+.emostk .emo { font-size: 18cqmin; }
+@keyframes slap { from { transform: scale(2.2); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.emo.fl { position: absolute; top: 50%; font-size: 0.7em; translate: 0 -50%; animation: emoPop 220ms cubic-bezier(0.2, 1.6, 0.4, 1) both; }
+.emo.fll { right: 100%; margin-right: 0.1em; }
+.emo.flr { left: 100%; margin-left: 0.1em; }
+.emo.eorb { position: absolute; left: 50%; top: 50%; font-size: 0.55em; animation: orbit 1100ms linear infinite; }
 
 /* Containers */
 .box_pill { background: var(--box); border-radius: 999px; padding: 0.28em 0.55em; left: 12%; right: 12%; }

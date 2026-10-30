@@ -460,11 +460,326 @@
   },
   {
     "family": "Lexend",
+    "weight": 300,
+    "italic": false,
+    "file": "Lexend-300.ttf",
+    "fullName": "Lexend Light",
+    "postscriptName": "Lexend-Light",
+    "devanagari": false
+  },
+  {
+    "family": "Lexend",
     "weight": 800,
     "italic": false,
     "file": "Lexend-800.ttf",
     "fullName": "Lexend ExtraBold",
     "postscriptName": "Lexend-ExtraBold",
+    "devanagari": false
+  },
+  {
+    "family": "Titan One",
+    "weight": 400,
+    "italic": false,
+    "file": "TitanOne-400.ttf",
+    "fullName": "Titan One",
+    "postscriptName": "TitanOne",
+    "devanagari": false
+  },
+  {
+    "family": "Abril Fatface",
+    "weight": 400,
+    "italic": false,
+    "file": "AbrilFatface-400.ttf",
+    "fullName": "Abril Fatface",
+    "postscriptName": "AbrilFatface-Regular",
+    "devanagari": false
+  },
+  {
+    "family": "Luckiest Guy",
+    "weight": 400,
+    "italic": false,
+    "file": "LuckiestGuy-400.ttf",
+    "fullName": "Luckiest Guy Regular",
+    "postscriptName": "LuckiestGuy-Regular",
+    "devanagari": false
+  },
+  {
+    "family": "Oswald",
+    "weight": 700,
+    "italic": false,
+    "file": "Oswald-700.ttf",
+    "fullName": "Oswald Bold",
+    "postscriptName": "Oswald-Bold",
+    "devanagari": false
+  },
+  {
+    "family": "Sniglet",
+    "weight": 800,
+    "italic": false,
+    "file": "Sniglet-800.ttf",
+    "fullName": "Sniglet ExtraBold",
+    "postscriptName": "Sniglet-ExtraBold",
+    "devanagari": false
+  },
+  {
+    "family": "Kalam",
+    "weight": 700,
+    "italic": false,
+    "file": "Kalam-700.ttf",
+    "fullName": "Kalam Bold",
+    "postscriptName": "Kalam-Bold",
+    "devanagari": true
+  },
+  {
+    "family": "Rubik Mono One",
+    "weight": 400,
+    "italic": false,
+    "file": "RubikMonoOne-400.ttf",
+    "fullName": "Rubik Mono One Regular",
+    "postscriptName": "RubikMonoOne-Regular",
+    "devanagari": false
+  },
+  {
+    "family": "Major Mono Display",
+    "weight": 400,
+    "italic": false,
+    "file": "MajorMonoDisplay-400.ttf",
+    "fullName": "Major Mono Display Regular",
+    "postscriptName": "MajorMonoDisplay-Regular",
+    "devanagari": false
+  },
+  {
+    "family": "Special Elite",
+    "weight": 400,
+    "italic": false,
+    "file": "SpecialElite-400.ttf",
+    "fullName": "Special Elite Regular",
+    "postscriptName": "SpecialElite-Regular",
+    "devanagari": false
+  },
+  {
+    "family": "Syncopate",
+    "weight": 700,
+    "italic": false,
+    "file": "Syncopate-700.ttf",
+    "fullName": "Syncopate Bold",
+    "postscriptName": "Syncopate-Bold",
+    "devanagari": false
+  },
+  {
+    "family": "Rubik Glitch",
+    "weight": 400,
+    "italic": false,
+    "file": "RubikGlitch-400.ttf",
+    "fullName": "Rubik Glitch Regular",
+    "postscriptName": "RubikGlitch-Regular",
+    "devanagari": false
+  },
+  {
+    "family": "Bungee Shade",
+    "weight": 400,
+    "italic": false,
+    "file": "BungeeShade-400.ttf",
+    "fullName": "Bungee Shade Regular",
+    "postscriptName": "BungeeShade-Regular",
+    "devanagari": false
+  },
+  {
+    "family": "Monoton",
+    "weight": 400,
+    "italic": false,
+    "file": "Monoton-400.ttf",
+    "fullName": "Monoton",
+    "postscriptName": "Monoton-Regular",
+    "devanagari": false
+  },
+  {
+    "family": "Audiowide",
+    "weight": 400,
+    "italic": false,
+    "file": "Audiowide-400.ttf",
+    "fullName": "Audiowide Regular",
+    "postscriptName": "Audiowide-Regular",
+    "devanagari": false
+  },
+  {
+    "family": "Orbitron",
+    "weight": 900,
+    "italic": false,
+    "file": "Orbitron-900.ttf",
+    "fullName": "Orbitron Black",
+    "postscriptName": "Orbitron-Black",
+    "devanagari": false
+  },
+  {
+    "family": "Kanit",
+    "weight": 800,
+    "italic": false,
+    "file": "Kanit-800.ttf",
+    "fullName": "Kanit ExtraBold",
+    "postscriptName": "Kanit-ExtraBold",
+    "devanagari": false
+  },
+  {
+    "family": "Kanit",
+    "weight": 800,
+    "italic": true,
+    "file": "Kanit-800i.ttf",
+    "fullName": "Kanit ExtraBold Italic",
+    "postscriptName": "Kanit-ExtraBoldItalic",
+    "devanagari": false
+  },
+  {
+    "family": "Pacifico",
+    "weight": 400,
+    "italic": false,
+    "file": "Pacifico-400.ttf",
+    "fullName": "Pacifico Regular",
+    "postscriptName": "Pacifico-Regular",
+    "devanagari": false
+  },
+  {
+    "family": "Rampart One",
+    "weight": 400,
+    "italic": false,
+    "file": "RampartOne-400.ttf",
+    "fullName": "Rampart One Regular",
+    "postscriptName": "RampartOne-Regular",
+    "devanagari": false
+  },
+  {
+    "family": "Silkscreen",
+    "weight": 400,
+    "italic": false,
+    "file": "Silkscreen-400.ttf",
+    "fullName": "Silkscreen Regular",
+    "postscriptName": "Silkscreen-Regular",
+    "devanagari": false
+  },
+  {
+    "family": "Rubik Bubbles",
+    "weight": 400,
+    "italic": false,
+    "file": "RubikBubbles-400.ttf",
+    "fullName": "Rubik Bubbles Regular",
+    "postscriptName": "RubikBubbles-Regular",
+    "devanagari": false
+  },
+  {
+    "family": "Shrikhand",
+    "weight": 400,
+    "italic": false,
+    "file": "Shrikhand-400.ttf",
+    "fullName": "Shrikhand Regular",
+    "postscriptName": "Shrikhand-Regular",
+    "devanagari": false
+  },
+  {
+    "family": "Teko",
+    "weight": 600,
+    "italic": false,
+    "file": "Teko-600.ttf",
+    "fullName": "Teko SemiBold",
+    "postscriptName": "Teko-SemiBold",
+    "devanagari": true
+  },
+  {
+    "family": "Russo One",
+    "weight": 400,
+    "italic": false,
+    "file": "RussoOne-400.ttf",
+    "fullName": "Russo One",
+    "postscriptName": "RussoOne-Regular",
+    "devanagari": false
+  },
+  {
+    "family": "Black Ops One",
+    "weight": 400,
+    "italic": false,
+    "file": "BlackOpsOne-400.ttf",
+    "fullName": "Black Ops One Regular",
+    "postscriptName": "BlackOpsOne-Regular",
+    "devanagari": false
+  },
+  {
+    "family": "Fraunces",
+    "weight": 900,
+    "italic": false,
+    "file": "Fraunces-900.ttf",
+    "fullName": "Fraunces Black",
+    "postscriptName": "Fraunces-Black",
+    "devanagari": false
+  },
+  {
+    "family": "Gloria Hallelujah",
+    "weight": 400,
+    "italic": false,
+    "file": "GloriaHallelujah-400.ttf",
+    "fullName": "Gloria Hallelujah",
+    "postscriptName": "GloriaHallelujah",
+    "devanagari": false
+  },
+  {
+    "family": "Bodoni Moda",
+    "weight": 700,
+    "italic": true,
+    "file": "BodoniModa-700i.ttf",
+    "fullName": "Bodoni Moda Bold Italic",
+    "postscriptName": "BodoniModa-BoldItalic",
+    "devanagari": false
+  },
+  {
+    "family": "Yatra One",
+    "weight": 400,
+    "italic": false,
+    "file": "YatraOne-400.ttf",
+    "fullName": "Yatra One Regular",
+    "postscriptName": "YatraOne-Regular",
+    "devanagari": true
+  },
+  {
+    "family": "Tiro Devanagari Hindi",
+    "weight": 400,
+    "italic": false,
+    "file": "TiroDevanagariHindi-400.ttf",
+    "fullName": "Tiro Devanagari Hindi Regular",
+    "postscriptName": "TiroDevaHindi-Regular",
+    "devanagari": true
+  },
+  {
+    "family": "Hind",
+    "weight": 700,
+    "italic": false,
+    "file": "Hind-700.ttf",
+    "fullName": "Hind Bold",
+    "postscriptName": "Hind-Bold",
+    "devanagari": true
+  },
+  {
+    "family": "Creepster",
+    "weight": 400,
+    "italic": false,
+    "file": "Creepster-400.ttf",
+    "fullName": "Creepster",
+    "postscriptName": "Creepster-Regular",
+    "devanagari": false
+  },
+  {
+    "family": "Bricolage Grotesque",
+    "weight": 800,
+    "italic": false,
+    "file": "BricolageGrotesque-800.ttf",
+    "fullName": "Bricolage Grotesque ExtraBold",
+    "postscriptName": "BricolageGrotesque-ExtraBold",
+    "devanagari": false
+  },
+  {
+    "family": "Noto Sans Symbols 2",
+    "weight": 400,
+    "italic": false,
+    "file": "NotoSansSymbols2-400.ttf",
+    "fullName": "Noto Sans Symbols 2 Regular",
+    "postscriptName": "NotoSansSymbols2-Regular",
     "devanagari": false
   }
 ]

@@ -4,14 +4,17 @@
 // Fails when:
 //   - template ids are not unique, or any id is not a lowercase slug
 //   - two templates share font + motion + container + accent colour (each
-//     template must look distinct, which is the point of having 50)
+//     template must look distinct, which is the point of having so many)
 //   - a template's font has no bundled file in lib/captions/engine/font-manifest.json
 //   - an emoji the planner or a preview can show has no PNG in public/emoji
+//   - a symbol glyph is in neither the label font (Inter) nor the bundled
+//     symbol font, so the export would draw an empty box
 //   - a legacy alias points at a template that doesn't exist
 
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import * as fontkit from "fontkit";
 import { CAPTION_TEMPLATES, LEGACY_TEMPLATE_ALIASES, parseCaptionSample } from "../packages/shared/src/captions/templates.ts";
 import { EMOJI_SET, emojiAssetName } from "../packages/shared/src/captions/emoji.ts";
 
@@ -39,6 +42,16 @@ const emoji = new Set(EMOJI_SET);
 for (const t of CAPTION_TEMPLATES) for (const tok of parseCaptionSample(t.sample)) if (tok.emoji) emoji.add(tok.emoji);
 for (const e of emoji) {
   if (!fs.existsSync(path.join(ROOT, "public/emoji", emojiAssetName(e)))) problems.push(`emoji ${e} has no image (run scripts/sync-caption-emoji.mjs)`);
+}
+
+const fontFile = (family, weight) => manifest.find((f) => f.family === family && f.weight === weight && !f.italic)?.file;
+const glyphFonts = [fontFile("Inter", 700), fontFile("Noto Sans Symbols 2", 400)].filter(Boolean).map((f) => fontkit.openSync(path.join(ROOT, "public/fonts", f)));
+for (const t of CAPTION_TEMPLATES) {
+  for (const ch of Array.from(t.symbols?.glyphs ?? "")) {
+    if (!ch.trim()) continue;
+    const cp = ch.codePointAt(0);
+    if (!glyphFonts.some((f) => f.hasGlyphForCodePoint(cp))) problems.push(`${t.id}: symbol "${ch}" (U+${cp.toString(16).toUpperCase()}) is in no bundled font`);
+  }
 }
 
 for (const [from, to] of Object.entries(LEGACY_TEMPLATE_ALIASES)) {

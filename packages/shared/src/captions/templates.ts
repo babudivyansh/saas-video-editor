@@ -27,7 +27,17 @@ export type CaptionFamilyId =
   | "retro"
   | "desi"
   | "gradient"
-  | "chroma";
+  | "chroma"
+  | "sticker"
+  | "kinetic"
+  | "letters"
+  | "neon"
+  | "y2k"
+  | "hype"
+  | "soft"
+  | "edu"
+  | "fest"
+  | "season";
 
 /** How the spoken word (or line) animates. Names match the engine registry. */
 export type CaptionMotionId =
@@ -35,7 +45,10 @@ export type CaptionMotionId =
   | "stack" | "rise" | "fade" | "cut" | "bold" | "emph" | "bubble" | "blocks"
   | "glow" | "marker" | "underline" | "hollow" | "split" | "shake" | "wobble"
   | "blur" | "zoom" | "type" | "typestep" | "flicker" | "step" | "rgb" | "fontswitch"
-  | "heartbeat" | "punch" | "drop" | "elastic" | "jelly" | "stamp" | "tiltswap";
+  | "heartbeat" | "punch" | "drop" | "elastic" | "jelly" | "stamp" | "tiltswap"
+  | "flip" | "spin" | "swing" | "slidel" | "extrude" | "tada" | "swipe" | "stretch"
+  | "draw" | "flash" | "roll" | "ink" | "shimmer"
+  | "wave" | "cascade" | "rainbow" | "scramble" | "slice";
 
 export const CAPTION_MOTIONS: readonly CaptionMotionId[] = [
   "pop", "pops", "slam", "bounce", "color", "dim", "karaoke", "boxword",
@@ -43,12 +56,50 @@ export const CAPTION_MOTIONS: readonly CaptionMotionId[] = [
   "glow", "marker", "underline", "hollow", "split", "shake", "wobble",
   "blur", "zoom", "type", "typestep", "flicker", "step", "rgb", "fontswitch",
   "heartbeat", "punch", "drop", "elastic", "jelly", "stamp", "tiltswap",
+  "flip", "spin", "swing", "slidel", "extrude", "tada", "swipe", "stretch",
+  "draw", "flash", "roll", "ink", "shimmer",
+  "wave", "cascade", "rainbow", "scramble", "slice",
 ];
+
+/** Motions that animate each letter of the spoken word on its own. */
+export const LETTER_MOTIONS: readonly CaptionMotionId[] = ["wave", "cascade", "rainbow"];
 
 /** The shape the line sits on, if any. */
 export type CaptionContainer = "none" | "pill" | "bar" | "line" | "glass" | "sticker" | "dark" | "wordbox";
 
-export type CaptionEmojiMode = "none" | "above" | "end" | "burst" | "rain";
+/**
+ * Where a keyword's emoji goes. sticker: a big emoji on a white disc in the
+ * top-right corner; flank: either side of the keyword; orbit: circles it.
+ */
+export type CaptionEmojiMode = "none" | "above" | "end" | "burst" | "rain" | "sticker" | "flank" | "orbit";
+
+/**
+ * Decorative symbols, drawn as text glyphs (a symbol font the export bundles),
+ * so they cost no image overlays:
+ *   sparkle   three glyphs twinkle round the spoken word
+ *   flank     a glyph either side of the line, pulsing
+ *   badge     a label in a box in the top-left corner, popping in per line
+ *   confetti  glyphs burst out of emphasised and emoji words
+ *   orbit     a glyph circles the spoken word
+ *   prefix    a glyph before each line
+ *   stars     a five-star row under the caption fills up as words are spoken
+ *   arrow     a glyph points at the spoken word
+ */
+export type CaptionSymbolMode = "sparkle" | "flank" | "badge" | "confetti" | "orbit" | "prefix" | "stars" | "arrow";
+
+export interface CaptionSymbols {
+  mode: CaptionSymbolMode;
+  /** The glyphs; for a badge, its label. */
+  glyphs: string;
+  /** Glyph colours, cycled (badge: the box colour). */
+  colors: string[];
+}
+
+/** How each line arrives. */
+export type CaptionEntry = "up" | "drop" | "swirl";
+
+/** A slow loop on the whole line while it is on screen. */
+export type CaptionLoop = "float" | "sway" | "pulse" | "hue" | "breathe";
 
 export type CaptionExtra = "letterbox" | "quote" | "bars" | "square" | "cursor" | "speakers";
 
@@ -73,6 +124,12 @@ export interface CaptionTemplateColors {
   wordColors?: string[];
   /** Box colour rotation behind the spoken word (boxword, marker), one per word. */
   boxCycle?: string[];
+  /** A colour per letter of the spoken word (rainbow), cycled. */
+  letterColors?: string[];
+  /** The depth colour of a 3D extruded word. */
+  extrude?: string;
+  /** Second accent: the offset ghost colour of a glitch slice. */
+  accent2?: string;
   /** Text colour per speaker (Two Mic). Index 0 is used when there is no speaker data. */
   speakers?: string[];
   /** Vertical gradient fill: on the spoken word, or on every word. */
@@ -107,6 +164,9 @@ export interface CaptionTemplateSpec {
   /** Shape of the spoken word's box (boxword): rounded corners (default) or a full pill. */
   wordBox?: "rounded" | "pill";
   emoji: CaptionEmojiMode;
+  symbols?: CaptionSymbols;
+  entry?: CaptionEntry;
+  loop?: CaptionLoop;
   extra?: CaptionExtra;
   /** The script the template is designed for. Devanagari templates need HarfBuzz shaping. */
   script?: "latin" | "devanagari";
@@ -132,6 +192,16 @@ export const CAPTION_FAMILIES: readonly CaptionFamily[] = [
   { id: "desi", name: "Hindi & Hinglish", description: "Designed for Devanagari from the start, for India's biggest creator audience." },
   { id: "gradient", name: "Gradient Pop", description: "Two-stop gradient fills that make the spoken word look lit from inside." },
   { id: "chroma", name: "Colour Switch", description: "A colour per word, changing as you speak. Built for rhythmic clips under 30 seconds." },
+  { id: "sticker", name: "Sticker & Badge", description: "Stickers, badges, price tags and star ratings that make a clip look designed, not captioned." },
+  { id: "kinetic", name: "Kinetic 3D", description: "Flips, spins, drops, swings and squash-and-stretch. Motion you notice from across the room." },
+  { id: "letters", name: "Letter FX", description: "Motion at the letter level: waves, cascades, decoders, rainbow hops and slices." },
+  { id: "neon", name: "Neon Night", description: "Tube-light glows and flickers for nightlife, music, gaming and late-night talk." },
+  { id: "y2k", name: "Y2K & Chrome", description: "Chrome, glitter, butterflies and flip-phone pixels for the nostalgic edit." },
+  { id: "hype", name: "Hype & Sports", description: "Scoreboards, countdowns and impact hits for sport, fitness and competition." },
+  { id: "soft", name: "Soft Aesthetic", description: "Quiet lowercase in warm, muted colours with gentle motion." },
+  { id: "edu", name: "Explainer & Business", description: "Checklists, steps, stats and pro tips. Motion that helps people follow along." },
+  { id: "fest", name: "Desi Festival", description: "Diwali, Holi, cricket and wedding looks, in Devanagari and Hinglish." },
+  { id: "season", name: "Celebrations & Drops", description: "Birthdays, New Year, Halloween and winter, for seasonal posts." },
 ];
 
 const W = "#FFFFFF";
@@ -611,7 +681,7 @@ export const CAPTION_TEMPLATES: readonly CaptionTemplateSpec[] = [
     sample: "हिम्मत रखो सपने बड़े",
   },
 
-  // ── Gradient Pop (drop 1) ─────────────────────────────────────────────────
+  // ── Gradient Pop ───────────────────────────────────────────────────────────
   {
     id: "sunset", name: "Sunset", family: "gradient", tier: "free",
     hint: "The spoken word fills with a warm yellow-to-red gradient and pops; an emoji lands above the keyword.",
@@ -663,7 +733,58 @@ export const CAPTION_TEMPLATES: readonly CaptionTemplateSpec[] = [
     sample: "Summer:🌞 drinks that actually taste good:🍹",
   },
 
-  // ── Colour Switch (drop 1) ────────────────────────────────────────────────
+  {
+    id: "aurora", name: "Aurora", family: "gradient", tier: "creator",
+    hint: "A light band sweeps across the mint spoken word while the whole caption floats; tiny sparkles twinkle round it.",
+    benchmark: "Skincare and wellness creators",
+    type: { font: "Lexend", weight: 800, case: "none", size: 1 }, words: 3, motion: "shimmer",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#5CFFB0", outline: "#04130C", outlineWidth: 2, cycle: ["#5CFFB0", "#B8A6FF"] },
+    container: "none", emoji: "none", symbols: { mode: "sparkle", glyphs: "✦", colors: ["#B8FF3B", "#5CFFB0", "#4CC9FF"] }, loop: "float",
+    sample: "Your skin will thank you for this one",
+  },
+  {
+    id: "candy", name: "Candy", family: "gradient", tier: "creator",
+    hint: "Every word is pink-to-violet candy; the spoken word brightens at the top and pops.",
+    benchmark: "Food and dessert accounts",
+    type: { font: "Titan One", weight: 400, case: "none", size: 1 }, words: 2, motion: "pop",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FF8AD8", outline: "#2A0A3A", outlineWidth: 3, gradient: { from: "#FF8AD8", to: "#8A7CFF", target: "all" } },
+    container: "none", emoji: "end",
+    sample: "Pink pancakes:🥞 for breakfast:🍓 today",
+  },
+  {
+    id: "emeraldedge", name: "Emerald Edge", family: "gradient", tier: "pro",
+    hint: "Our emerald, extruded into a 3D block on the spoken word, with a rising triangle before each line.",
+    benchmark: "Clipiro's own brand look, for growth and finance clips",
+    type: { font: "Barlow Condensed", weight: 700, case: "upper", size: 1.2 }, words: 3, motion: "extrude",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#7CFFCB", outline: K, outlineWidth: 2, extrude: "#00573A", cycle: ["#7CFFCB", "#FFD60A"] },
+    container: "none", emoji: "none", symbols: { mode: "prefix", glyphs: "▲", colors: ["#20D68A"] },
+    sample: "Revenue up forty percent this quarter",
+  },
+  {
+    id: "ultraviolet", name: "Ultraviolet", family: "gradient", tier: "pro",
+    hint: "Wide caps in a violet gradient with a slow breathing glow around the whole line.",
+    benchmark: "Electronic music and DJ clips",
+    type: { font: "Unbounded", weight: 700, case: "upper", size: 0.9 }, words: 2, motion: "pop",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#C77DFF", outline: "#1A0033", outlineWidth: 2, glow: "#C77DFF", gradient: { from: "#E0AAFF", to: "#7B2CBF", target: "active" } },
+    container: "none", emoji: "none", symbols: { mode: "sparkle", glyphs: "✧", colors: ["#E0AAFF", "#FFFFFF"] }, loop: "breathe",
+    sample: "Drop the beat at exactly midnight",
+  },
+  {
+    id: "goldrush", name: "Gold Rush", family: "gradient", tier: "pro",
+    hint: "A fat serif in gold with a light sweep running across it, like a trophy plate.",
+    benchmark: "Wealth, luxury and milestone posts",
+    type: { font: "Abril Fatface", weight: 400, case: "none", size: 1.1 }, words: 2, motion: "shimmer",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FFC83D", outline: "#3A2600", outlineWidth: 2, cycle: ["#FFC83D", "#FFF4C2"] },
+    container: "none", emoji: "above",
+    sample: "First:🥇 million by twenty five:💰",
+  },
+
+  // ── Colour Switch ─────────────────────────────────────────────────────────
   {
     id: "duotone", name: "Duotone", family: "chroma", tier: "creator",
     hint: "Spoken words alternate pink and cyan and tilt left, then right, like two sides arguing.",
@@ -713,6 +834,876 @@ export const CAPTION_TEMPLATES: readonly CaptionTemplateSpec[] = [
     colors: { base: W, accent: "#111111", outline: K, outlineWidth: 2, box: "#FFE14D", boxCycle: ["#FFE14D", "#7CFFCB", "#FF9AD5", "#9AD0FF"] },
     container: "none", emoji: "end",
     sample: "Three study tips:📝 that actually work",
+  },
+  {
+    id: "confettiwords", name: "Confetti Words", family: "chroma", tier: "pro",
+    hint: "Each word keeps its own bright colour; emphasised words fire a burst of coloured confetti.",
+    benchmark: "Party, launch and announcement clips",
+    type: { font: "Luckiest Guy", weight: 400, case: "upper", size: 1 }, words: 3, motion: "pop",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FF4D6D", outline: K, outlineWidth: 3, wordColors: ["#FF4D6D", "#FFD23F", "#3BFF8F", "#4CC9FF", "#B388FF"] },
+    container: "none", emoji: "none", symbols: { mode: "confetti", glyphs: "✦●▲■", colors: ["#FF4D6D", "#FFD23F", "#3BFF8F", "#4CC9FF", "#B388FF"] },
+    sample: "*Party starts *right *now everybody",
+  },
+  {
+    id: "trafficlight", name: "Traffic Light", family: "chroma", tier: "creator",
+    hint: "One huge word at a time, flashing white and settling into red, amber, then green.",
+    benchmark: "One-word-per-beat edits",
+    type: { font: "Archivo Black", weight: 400, case: "upper", size: 1.5 }, words: 1, motion: "flash",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FF3B30", outline: K, outlineWidth: 3, cycle: ["#FF3B30", "#FFCC00", "#34C759"] },
+    container: "none", emoji: "none", symbols: { mode: "flank", glyphs: "●", colors: ["#FF3B30"] },
+    sample: "Stop think then go right now",
+  },
+  {
+    id: "prism", name: "Prism", family: "chroma", tier: "pro",
+    hint: "Every letter of the spoken word takes its own colour and hops in a wave.",
+    benchmark: "Pride, celebration and colour-pop content",
+    type: { font: "Rubik", weight: 900, case: "upper", size: 1 }, words: 2, motion: "rainbow",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: W, outline: K, outlineWidth: 3, letterColors: ["#FF5A5F", "#FFB400", "#3BFF8F", "#00C2FF", "#9B5CFF"] },
+    container: "none", emoji: "end",
+    sample: "Pride:🌈 month starts today everyone",
+  },
+  {
+    id: "splitpersonality", name: "Split Personality", family: "chroma", tier: "pro",
+    hint: "The spoken word is cyan on top, pink below, with crosses either side of the line.",
+    benchmark: "Expectation-versus-reality memes",
+    type: { font: "Oswald", weight: 700, case: "upper", size: 1.25 }, words: 2, motion: "split",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#00E5FF", outline: K, outlineWidth: 2, gradient: { from: "#00E5FF", to: "#FF3D9A", target: "active" } },
+    container: "none", emoji: "none", symbols: { mode: "flank", glyphs: "✕", colors: ["#FF3D9A"] },
+    sample: "Expectation versus reality every time",
+  },
+  {
+    id: "moodring", name: "Mood Ring", family: "chroma", tier: "creator",
+    hint: "Rounded type whose colours slowly drift through the spectrum, like a mood ring.",
+    benchmark: "Cozy vlogs and mood check-ins",
+    type: { font: "Sniglet", weight: 800, case: "none", size: 1 }, words: 3, motion: "pops",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FF8AD8", outline: "#2B0040", outlineWidth: 2.5, cycle: ["#FF8AD8", "#9AD0FF"] },
+    container: "none", emoji: "end", loop: "hue",
+    sample: "Current mood:💜 cozy and unbothered",
+  },
+
+  // ── Sticker & Badge ───────────────────────────────────────────────────
+  {
+    id: "slapsticker", name: "Slap Sticker", family: "sticker", tier: "pro",
+    hint: "Hot-pink sticker caption; the spoken word spins in and a big emoji sticker slaps onto the corner.",
+    benchmark: "Meme and reaction pages",
+    type: { font: "Titan One", weight: 400, case: "none", size: 1 }, words: 2, motion: "spin",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FFE14D", box: "#FF3D9A", cycle: ["#FFE14D", "#7CF8FF"] },
+    container: "sticker", emoji: "sticker",
+    sample: "OMG:😱 you have to see this",
+  },
+  {
+    id: "badgedrop", name: "Badge Drop", family: "sticker", tier: "free",
+    hint: "A clean caption with an emerald NEW badge that pops into the corner on every line.",
+    benchmark: "Feature announcements and launches",
+    type: { font: "Montserrat", weight: 800, case: "none", size: 1 }, words: 3, motion: "color",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#20D68A", outline: K, outlineWidth: 2, cycle: ["#20D68A", "#B8FF3B"] },
+    container: "none", emoji: "none", symbols: { mode: "badge", glyphs: "NEW ✦", colors: ["#00A968"] },
+    sample: "Brand new feature just landed today",
+  },
+  {
+    id: "breaking", name: "Breaking", family: "sticker", tier: "creator",
+    hint: "A red news bar with a LIVE badge; each word slides in from the left like a ticker.",
+    benchmark: "News commentary and live updates",
+    type: { font: "Barlow Condensed", weight: 700, case: "upper", size: 0.95 }, words: 4, motion: "slidel",
+    placement: { y: "low", align: "center" },
+    colors: { base: W, accent: "#FFE14D", box: "#C8102E", cycle: ["#FFE14D", "#FF9F0A"] },
+    container: "bar", emoji: "none", symbols: { mode: "badge", glyphs: "● LIVE", colors: ["#C8102E"] },
+    sample: "Breaking news the launch date is confirmed",
+  },
+  {
+    id: "pricetag", name: "Price Tag", family: "sticker", tier: "creator",
+    hint: "The price word gets stamped on in red, and a tag sticker slaps on the corner.",
+    benchmark: "Shopping hauls and deal finds",
+    type: { font: "Archivo Black", weight: 400, case: "upper", size: 1 }, words: 2, motion: "stamp",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FF2D55", outline: K, outlineWidth: 2, cycle: ["#FF2D55", "#FFD60A"] },
+    container: "none", emoji: "sticker",
+    sample: "Only ninety nine:🏷️ rupees today",
+  },
+  {
+    id: "reviewstars", name: "Review Stars", family: "sticker", tier: "creator",
+    hint: "A five-star row under the caption fills up one star per spoken word.",
+    benchmark: "Product reviews and recommendations",
+    type: { font: "Poppins", weight: 700, case: "none", size: 1 }, words: 3, motion: "pops",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FFC83D", outline: K, outlineWidth: 2, cycle: ["#FFC83D", "#FF8A3D"] },
+    container: "none", emoji: "none", symbols: { mode: "stars", glyphs: "★", colors: ["#FFC83D"] },
+    sample: "Honestly the best headphones I have owned",
+  },
+  {
+    id: "pinit", name: "Pin It", family: "sticker", tier: "creator",
+    hint: "Handwriting on a yellow sticky note; the red spoken word drops onto the page.",
+    benchmark: "Reminders and life-advice posts",
+    type: { font: "Kalam", weight: 700, case: "none", size: 1.05 }, words: 3, motion: "drop",
+    placement: { y: "mid", align: "center" },
+    colors: { base: "#2B2100", accent: "#E5484D", box: "#FFF3B0", cycle: ["#E5484D", "#2E6BFF"] },
+    container: "sticker", emoji: "end",
+    sample: "Note to self:📌 drink more water",
+  },
+  {
+    id: "speechbubble", name: "Speech Bubble", family: "sticker", tier: "free",
+    hint: "A white speech pill; the spoken word turns pink and speech emoji flank the keyword.",
+    benchmark: "Storytime and gossip clips",
+    type: { font: "Fredoka", weight: 700, case: "none", size: 0.9 }, words: 3, motion: "pop",
+    placement: { y: "mid", align: "center" },
+    colors: { base: "#111111", accent: "#FF3D9A", box: "#FFFFFF", cycle: ["#FF3D9A", "#7B5CFF"] },
+    container: "pill", emoji: "flank",
+    sample: "Wait:💬 did she really say that",
+  },
+  {
+    id: "tapelabel", name: "Tape Label", family: "sticker", tier: "creator",
+    hint: "Each word printed on a strip of yellow tape, swiping up into place, the line slightly crooked.",
+    benchmark: "Warnings, DIY and hot takes",
+    type: { font: "Space Grotesk", weight: 700, case: "upper", size: 1 }, words: 2, motion: "swipe",
+    placement: { y: "mid", align: "center", tilt: -3 },
+    colors: { base: "#111111", accent: "#111111", box: "#FFD60A", boxCycle: ["#FFD60A", "#FF8AD8"] },
+    container: "wordbox", emoji: "end",
+    sample: "Warning:⚠️ do not try this at home",
+  },
+  {
+    id: "award", name: "Award", family: "sticker", tier: "pro",
+    hint: "Engraved gold capitals stamped on like a seal, with gold sparkles and a trophy above.",
+    benchmark: "Wins, results and testimonials",
+    type: { font: "Cinzel", weight: 700, case: "upper", size: 0.85, tracking: 0.08 }, words: 2, motion: "stamp",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FFC83D", outline: "#2A1C00", outlineWidth: 2, cycle: ["#FFC83D", "#E5E4E2"] },
+    container: "none", emoji: "above", symbols: { mode: "sparkle", glyphs: "✦", colors: ["#FFC83D", "#FFFFFF"] },
+    sample: "Winner:🏆 of the creator awards",
+  },
+  {
+    id: "hashtag", name: "Hashtag", family: "sticker", tier: "free",
+    hint: "Every line starts with an emerald hashtag, and each word rolls up like a slot.",
+    benchmark: "Trend-jacking and topic intros",
+    type: { font: "Inter Tight", weight: 800, case: "none", size: 1 }, words: 2, motion: "roll",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#20D68A", outline: K, outlineWidth: 2, cycle: ["#20D68A", "#4CC9FF"] },
+    container: "none", emoji: "none", symbols: { mode: "prefix", glyphs: "#", colors: ["#20D68A"] },
+    sample: "Trending now on every feed today",
+  },
+
+  // ── Kinetic 3D ────────────────────────────────────────────────────────
+  {
+    id: "flipboard", name: "Flipboard", family: "kinetic", tier: "pro",
+    hint: "Each word sits on a black tile and flips over in 3D, turning yellow, like a departures board.",
+    benchmark: "Airport split-flap boards",
+    type: { font: "Bebas Neue", weight: 400, case: "upper", size: 1.3 }, words: 2, motion: "flip",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FFD60A", box: "#111111", cycle: ["#FFD60A", "#FF8A00"] },
+    container: "wordbox", emoji: "none", symbols: { mode: "badge", glyphs: "✈ DEPARTURES", colors: ["#C98A00"] }, entry: "drop",
+    sample: "Gate twelve now boarding final call",
+  },
+  {
+    id: "spincycle", name: "Spin Cycle", family: "kinetic", tier: "creator",
+    hint: "The spoken word spins in from a full turn, in cyan, with a spiral emoji.",
+    benchmark: "Mind-blown and plot-twist moments",
+    type: { font: "Rubik", weight: 900, case: "upper", size: 1 }, words: 2, motion: "spin",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#00E5FF", outline: K, outlineWidth: 3, cycle: ["#00E5FF", "#FF3DF5"] },
+    container: "none", emoji: "end",
+    sample: "Mind:🌀 completely blown right now",
+  },
+  {
+    id: "gravity", name: "Gravity", family: "kinetic", tier: "pro",
+    hint: "Words fall from the top, squash on landing and bounce; keywords explode.",
+    benchmark: "Fails, falls and big reveals",
+    type: { font: "Anton", weight: 400, case: "upper", size: 1.15 }, words: 2, motion: "drop",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FF8A00", outline: K, outlineWidth: 3, cycle: ["#FF8A00", "#FFD60A"] },
+    container: "none", emoji: "burst",
+    sample: "Then everything:💥 came crashing down",
+  },
+  {
+    id: "pendulum", name: "Pendulum", family: "kinetic", tier: "creator",
+    hint: "The spoken word hangs from its top edge and swings to rest, in lilac.",
+    benchmark: "Deadlines and countdown content",
+    type: { font: "Montserrat", weight: 900, case: "upper", size: 1 }, words: 2, motion: "swing",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#B388FF", outline: K, outlineWidth: 3, cycle: ["#B388FF", "#7CF8FF"] },
+    container: "none", emoji: "above",
+    sample: "Time:⏰ is running out for this",
+  },
+  {
+    id: "rubberband", name: "Rubber Band", family: "kinetic", tier: "creator",
+    hint: "Words squash flat, stretch tall and snap back, in fresh green.",
+    benchmark: "Fitness and stretching routines",
+    type: { font: "Luckiest Guy", weight: 400, case: "upper", size: 1 }, words: 2, motion: "elastic",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#7CFF6B", outline: K, outlineWidth: 3, cycle: ["#7CFF6B", "#FFE14D"] },
+    container: "none", emoji: "end",
+    sample: "Stretch:🤸 every morning for ten minutes",
+  },
+  {
+    id: "block3d", name: "3D Block", family: "kinetic", tier: "pro",
+    hint: "One word at a time, extruded into a yellow-and-orange 3D block that sways gently.",
+    benchmark: "Motivational single-word edits",
+    type: { font: "Rubik Mono One", weight: 400, case: "upper", size: 1.05 }, words: 1, motion: "extrude",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FFD60A", outline: K, outlineWidth: 2, extrude: "#FF3D00", cycle: ["#FFD60A", "#7CF8FF"] },
+    container: "none", emoji: "above", loop: "sway",
+    sample: "Build:🧱 bigger every single day",
+  },
+  {
+    id: "jellybean", name: "Jelly Bean", family: "kinetic", tier: "creator",
+    hint: "The spoken word wobbles side to side like jelly, in soft cyan.",
+    benchmark: "Dessert and satisfying-video accounts",
+    type: { font: "Baloo 2", weight: 800, case: "none", size: 1 }, words: 2, motion: "jelly",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#5CE1E6", outline: "#06334A", outlineWidth: 3, cycle: ["#5CE1E6", "#FF8AD8"] },
+    container: "none", emoji: "above",
+    sample: "Wiggle:🍮 dessert is finally ready",
+  },
+  {
+    id: "heartbeat", name: "Heartbeat", family: "kinetic", tier: "creator",
+    hint: "Love words beat twice like a heart, in red, with hearts either side.",
+    benchmark: "Couples, pets and wholesome moments",
+    type: { font: "Poppins", weight: 800, case: "none", size: 1 }, words: 2, motion: "heartbeat",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FF2D55", outline: K, outlineWidth: 2, cycle: ["#FF2D55", "#FF8AD8"] },
+    container: "none", emoji: "flank",
+    sample: "I love:❤️ this little moment",
+  },
+  {
+    id: "punchin", name: "Punch In", family: "kinetic", tier: "pro",
+    hint: "Single words punch out of a blur at the camera, in red; each chunk swirls in.",
+    benchmark: "Fast-cut hype edits",
+    type: { font: "Archivo Black", weight: 400, case: "upper", size: 1.5 }, words: 1, motion: "punch",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FF2D55", outline: K, outlineWidth: 3, cycle: ["#FF2D55", "#FFD60A"] },
+    container: "none", emoji: "none", symbols: { mode: "flank", glyphs: "⚡", colors: ["#FFD60A"] }, entry: "swirl",
+    sample: "Hit hard hit fast hit again",
+  },
+  {
+    id: "slotmachine", name: "Slot Machine", family: "kinetic", tier: "pro",
+    hint: "Words roll up like slot reels and dollar signs twinkle round the jackpot word.",
+    benchmark: "Money stories and giveaways",
+    type: { font: "Bungee", weight: 400, case: "upper", size: 1 }, words: 2, motion: "roll",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FFD60A", outline: K, outlineWidth: 3, cycle: ["#FFD60A", "#3BFF8F"] },
+    container: "none", emoji: "end", symbols: { mode: "sparkle", glyphs: "$", colors: ["#3BFF8F", "#FFD60A"] },
+    sample: "Jackpot:🎰 ten thousand in one night",
+  },
+
+  // ── Letter FX ─────────────────────────────────────────────────────────
+  {
+    id: "wave", name: "Wave", family: "letters", tier: "creator",
+    hint: "The letters of the spoken word ripple up and down like a wave.",
+    benchmark: "Beach, surf and summer vlogs",
+    type: { font: "Fredoka", weight: 700, case: "none", size: 1.1 }, words: 2, motion: "wave",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#4CC9FF", outline: "#002B40", outlineWidth: 3, cycle: ["#4CC9FF", "#7CFFCB"] },
+    container: "none", emoji: "end",
+    sample: "Ride:🏄 the wave all summer long",
+  },
+  {
+    id: "cascade", name: "Cascade", family: "letters", tier: "free",
+    hint: "Letters tumble in one after another and land in place, with a yellow sparkle.",
+    benchmark: "Title reveals and intros",
+    type: { font: "Montserrat", weight: 900, case: "upper", size: 1 }, words: 2, motion: "cascade",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FFE14D", outline: K, outlineWidth: 3, cycle: ["#FFE14D", "#FF8A3D"] },
+    container: "none", emoji: "none", symbols: { mode: "sparkle", glyphs: "✦", colors: ["#FFE14D"] },
+    sample: "Every letter falls into place",
+  },
+  {
+    id: "decoder", name: "Decoder", family: "letters", tier: "pro",
+    hint: "Each word scrambles through random characters before it decodes, behind a prompt mark.",
+    benchmark: "Hacker, crypto and reveal content",
+    type: { font: "Major Mono Display", weight: 400, case: "lower", size: 0.9 }, words: 2, motion: "scramble",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#3BFF8F", outline: K, outlineWidth: 2, cycle: ["#3BFF8F", "#00E5FF"] },
+    container: "none", emoji: "end", symbols: { mode: "prefix", glyphs: ">", colors: ["#3BFF8F"] },
+    sample: "access:🔐 granted to the vault",
+  },
+  {
+    id: "rainbowhop", name: "Rainbow Hop", family: "letters", tier: "creator",
+    hint: "Pastel letters hop one by one across the spoken word.",
+    benchmark: "Kids, crafts and baking",
+    type: { font: "Titan One", weight: 400, case: "none", size: 1 }, words: 2, motion: "rainbow",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: W, outline: "#1B1B1B", outlineWidth: 3, letterColors: ["#FF8FAB", "#FFD166", "#8EF6A4", "#7FD1FF", "#C3A6FF"] },
+    container: "none", emoji: "above",
+    sample: "Magic:🦄 unicorn cake reveal",
+  },
+  {
+    id: "typecolor", name: "Typewriter Colour", family: "letters", tier: "pro",
+    hint: "Typed out letter by letter on cream paper, the spoken word in rust ink.",
+    benchmark: "Video essays and letters",
+    type: { font: "Special Elite", weight: 400, case: "none", size: 0.85 }, words: 5, motion: "typestep",
+    placement: { y: "mid", align: "left" },
+    colors: { base: "#2B2117", accent: "#C2410C", box: "#FFF8E7", cycle: ["#C2410C", "#1D4ED8"] },
+    container: "line", emoji: "end",
+    sample: "Dear diary:✍️ today I finally said yes",
+  },
+  {
+    id: "stretch", name: "Stretch", family: "letters", tier: "pro",
+    hint: "One word at a time, its letters drawing together from wide spacing, framed by dashes.",
+    benchmark: "Meditation, breathing and calm luxury",
+    type: { font: "Syncopate", weight: 700, case: "upper", size: 0.85 }, words: 1, motion: "stretch",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#20D68A", outline: K, outlineWidth: 2, cycle: ["#20D68A", "#B8A6FF"] },
+    container: "none", emoji: "none", symbols: { mode: "flank", glyphs: "—", colors: ["#20D68A"] },
+    sample: "Breathe in slowly breathe out",
+  },
+  {
+    id: "outlinedraw", name: "Outline Draw", family: "letters", tier: "creator",
+    hint: "Upcoming words wait as orange outlines; each one fills solid as it's spoken.",
+    benchmark: "Design, art and process videos",
+    type: { font: "Bowlby One", weight: 400, case: "upper", size: 1 }, words: 2, motion: "draw",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FF8A00", outline: K, outlineWidth: 2, cycle: ["#FF8A00", "#4CC9FF"] },
+    container: "none", emoji: "end",
+    sample: "Sketch:✏️ your idea before building",
+  },
+  {
+    id: "glitchslice", name: "Glitch Slice", family: "letters", tier: "pro",
+    hint: "Slices of the spoken word jitter sideways in red and cyan, like a broken signal.",
+    benchmark: "Tech fails and horror-gaming edits",
+    type: { font: "Rubik Glitch", weight: 400, case: "upper", size: 1 }, words: 2, motion: "slice",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: W, outline: K, outlineWidth: 1.5, cycle: ["#FFFFFF", "#7CF8FF"], accent2: "#FF2D55" },
+    container: "none", emoji: "end",
+    sample: "Signal lost:⚡ reconnecting right now",
+  },
+  {
+    id: "inkbloom", name: "Ink Bloom", family: "letters", tier: "creator",
+    hint: "Italic serif words bloom out of a blot of ink into gold.",
+    benchmark: "Poetry, books and storytelling",
+    type: { font: "Playfair Display", weight: 700, italic: true, case: "none", size: 1 }, words: 3, motion: "ink",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#E8C26B", outline: "#00000099", outlineWidth: 1, cycle: ["#E8C26B", "#E8A0B0"] },
+    container: "none", emoji: "none", symbols: { mode: "sparkle", glyphs: "✿", colors: ["#E8C26B"] },
+    sample: "Some stories are written in ink",
+  },
+  {
+    id: "marquee", name: "Marquee", family: "letters", tier: "pro",
+    hint: "Shaded theatre lettering cascades in, pink on the spoken word, with sparkle bursts.",
+    benchmark: "Openings, events and grand reveals",
+    type: { font: "Bungee Shade", weight: 400, case: "upper", size: 0.9 }, words: 2, motion: "cascade",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FF3D9A", cycle: ["#FF3D9A", "#FFD60A"] },
+    container: "none", emoji: "burst",
+    sample: "Grand opening:✨ this Saturday night",
+  },
+
+  // ── Neon Night ────────────────────────────────────────────────────────
+  {
+    id: "nightdrive", name: "Night Drive", family: "neon", tier: "creator",
+    hint: "Inline neon tubes in icy blue; the spoken word flares white and the whole sign breathes.",
+    benchmark: "Night-drive and city edits",
+    type: { font: "Monoton", weight: 400, case: "upper", size: 0.8 }, words: 2, motion: "glow",
+    placement: { y: "mid", align: "center" },
+    colors: { base: "#BFF8FF", accent: W, glow: "#00E5FF", cycle: ["#FFFFFF", "#FF6EC7"] },
+    container: "none", emoji: "sticker", loop: "breathe",
+    sample: "Neon lights downtown:🌃 tonight",
+  },
+  {
+    id: "pinkflicker", name: "Pink Flicker", family: "neon", tier: "creator",
+    hint: "A pink neon sign that flickers on word by word, like a bulb warming up.",
+    benchmark: "Bars, nightlife and late-night chat",
+    type: { font: "Audiowide", weight: 400, case: "upper", size: 1 }, words: 2, motion: "flicker",
+    placement: { y: "mid", align: "center" },
+    colors: { base: "#FFD6FB", accent: "#FF3DF5", outline: "#2A0030", outlineWidth: 1, glow: "#FF3DF5", cycle: ["#FF3DF5", "#00E5FF"] },
+    container: "none", emoji: "end",
+    sample: "Open:💋 all night long baby",
+  },
+  {
+    id: "laser", name: "Laser", family: "neon", tier: "pro",
+    hint: "Sci-fi caps shooting in from the left in laser green, between targeting marks.",
+    benchmark: "FPS and esports clips",
+    type: { font: "Orbitron", weight: 900, case: "upper", size: 0.8 }, words: 2, motion: "slidel",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#39FF14", outline: "#001A00", outlineWidth: 1.5, cycle: ["#39FF14", "#00E5FF"] },
+    container: "none", emoji: "none", symbols: { mode: "flank", glyphs: "◈", colors: ["#39FF14"] },
+    sample: "Level up your aim tonight",
+  },
+  {
+    id: "clubpulse", name: "Club Pulse", family: "neon", tier: "pro",
+    hint: "The line pulses to an imaginary beat while words pop in magenta, cyan and yellow.",
+    benchmark: "Club, festival and dance content",
+    type: { font: "Kanit", weight: 800, case: "upper", size: 1 }, words: 3, motion: "pop",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FF3DF5", outline: "#120018", outlineWidth: 2, glow: "#FF3DF5", cycle: ["#FF3DF5", "#00E5FF", "#FFE14D"] },
+    container: "none", emoji: "burst", loop: "pulse",
+    sample: "Bass:🔊 drops in ten seconds",
+  },
+  {
+    id: "afterglow", name: "Afterglow", family: "neon", tier: "creator",
+    hint: "A warm orange shimmer on the spoken word and a slow float, like heat haze.",
+    benchmark: "Sunset, rooftop and travel reels",
+    type: { font: "Sora", weight: 800, case: "none", size: 1 }, words: 3, motion: "shimmer",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FF9E6D", outline: "#2A0F00", outlineWidth: 2, cycle: ["#FF9E6D", "#FF5C8A"] },
+    container: "none", emoji: "above", loop: "float",
+    sample: "Golden:🌆 hour on the rooftop",
+  },
+  {
+    id: "cybergrid", name: "Cyber Grid", family: "neon", tier: "pro",
+    hint: "Red and cyan channels jitter on the spoken word under a REC badge.",
+    benchmark: "Tech, AI and cyberpunk edits",
+    type: { font: "Orbitron", weight: 900, case: "upper", size: 0.8 }, words: 2, motion: "rgb",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: W, cycle: ["#FFFFFF", "#00E5FF"] },
+    container: "none", emoji: "none", symbols: { mode: "badge", glyphs: "REC ●", colors: ["#FF2D55"] },
+    sample: "System online all units ready",
+  },
+  {
+    id: "tubelight", name: "Tube Light", family: "neon", tier: "creator",
+    hint: "Warm yellow tube lettering whose spoken word glows like it was just switched on.",
+    benchmark: "Ideas, startup and late-night thinking",
+    type: { font: "Bungee", weight: 400, case: "upper", size: 1 }, words: 2, motion: "glow",
+    placement: { y: "mid", align: "center" },
+    colors: { base: "#FFF6C9", accent: "#FFE14D", outline: "#1A1200", outlineWidth: 1, glow: "#FFB000", cycle: ["#FFE14D", "#FF8A3D"] },
+    container: "none", emoji: "end",
+    sample: "Big idea:💡 at three in the morning",
+  },
+  {
+    id: "vaporneon", name: "Vapor Neon", family: "neon", tier: "pro",
+    hint: "Script neon in pink, gently swaying like a sign in the breeze.",
+    benchmark: "Retro Miami and vaporwave edits",
+    type: { font: "Pacifico", weight: 400, case: "none", size: 1 }, words: 2, motion: "glow",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: W, glow: "#FF6EC7", cycle: ["#FFFFFF", "#7CF8FF"] },
+    container: "none", emoji: "above", loop: "sway",
+    sample: "Miami:🌴 nights hit different",
+  },
+
+  // ── Y2K & Chrome ──────────────────────────────────────────────────────
+  {
+    id: "chrome", name: "Chrome", family: "y2k", tier: "pro",
+    hint: "Polished chrome capitals with silver sparkles glinting off the spoken word.",
+    benchmark: "Y2K fashion and music edits",
+    type: { font: "Syncopate", weight: 700, case: "upper", size: 0.8 }, words: 2, motion: "pop",
+    placement: { y: "mid", align: "center" },
+    colors: { base: "#DFE4F2", accent: "#C9D6FF", outline: "#1A1A2E", outlineWidth: 2, gradient: { from: "#FFFFFF", to: "#7D8299", target: "active" } },
+    container: "none", emoji: "none", symbols: { mode: "sparkle", glyphs: "✧", colors: ["#FFFFFF", "#C9D6FF"] },
+    sample: "The future is chrome and so are we",
+  },
+  {
+    id: "butterfly", name: "Butterfly", family: "y2k", tier: "creator",
+    hint: "Bubbly 2000s lettering that bounces, with flowers and a butterfly.",
+    benchmark: "Glow-up and transformation reels",
+    type: { font: "Rampart One", weight: 400, case: "none", size: 1 }, words: 2, motion: "bounce",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FF8AD8", outline: "#6A0F4A", outlineWidth: 2, cycle: ["#FF8AD8", "#9AD0FF"] },
+    container: "none", emoji: "above", symbols: { mode: "sparkle", glyphs: "✿", colors: ["#FF8AD8", "#B8F2FF"] },
+    sample: "Glow up:🦋 summer starts right now",
+  },
+  {
+    id: "flipphone", name: "Flip Phone", family: "y2k", tier: "creator",
+    hint: "Pixel text on a dim phone-screen panel; each word flashes like a backlight.",
+    benchmark: "Nostalgia and texting skits",
+    type: { font: "Silkscreen", weight: 400, case: "upper", size: 0.8 }, words: 3, motion: "flash",
+    placement: { y: "mid", align: "center" },
+    colors: { base: "#E6FBFF", accent: "#8AF0FF", cycle: ["#8AF0FF", "#FF8AD8"] },
+    container: "glass", emoji: "end",
+    sample: "Text me:📱 when you get home",
+  },
+  {
+    id: "iced", name: "Iced", family: "y2k", tier: "pro",
+    hint: "Inflated bubble letters in an icy gradient; keywords burst into diamonds.",
+    benchmark: "Jewellery, sneakers and flex content",
+    type: { font: "Rubik Bubbles", weight: 400, case: "upper", size: 1 }, words: 2, motion: "pop",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#E0F7FF", outline: "#0B1A3A", outlineWidth: 2, gradient: { from: "#E0F7FF", to: "#7AA7FF", target: "all" } },
+    container: "none", emoji: "burst",
+    sample: "Iced out:💎 and feeling brand new",
+  },
+  {
+    id: "maincharacter", name: "Main Character", family: "y2k", tier: "pro",
+    hint: "A fat retro script that ta-das on the spoken word and throws glitter.",
+    benchmark: "POV and main-character edits",
+    type: { font: "Shrikhand", weight: 400, case: "none", size: 1 }, words: 2, motion: "tada",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FF9AD5", outline: "#4A0033", outlineWidth: 2, cycle: ["#FF9AD5", "#B8F2FF"] },
+    container: "none", emoji: "none", symbols: { mode: "confetti", glyphs: "✦✧⋆", colors: ["#FF9AD5", "#FFFFFF", "#B8F2FF"] },
+    sample: "*Main character *energy only today",
+  },
+  {
+    id: "pixelheart", name: "Pixel Heart", family: "y2k", tier: "creator",
+    hint: "Pixel letters drop in like a save screen, each line starting with a heart.",
+    benchmark: "Cozy gaming and sims content",
+    type: { font: "VT323", weight: 400, case: "upper", size: 1.35 }, words: 2, motion: "cascade",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FF5C8A", outline: K, outlineWidth: 2, cycle: ["#FF5C8A", "#7CF8FF"] },
+    container: "none", emoji: "end", symbols: { mode: "prefix", glyphs: "♥", colors: ["#FF5C8A"] },
+    sample: "Saving:💾 my progress before bed",
+  },
+  {
+    id: "holo", name: "Holo Sticker", family: "y2k", tier: "pro",
+    hint: "A holographic violet sticker that sways; words flip over and a UFO sticker slaps on.",
+    benchmark: "Alien, space and weird-core edits",
+    type: { font: "Dela Gothic One", weight: 400, case: "upper", size: 1 }, words: 2, motion: "flip",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#E6FFFA", box: "#9B8CFF", cycle: ["#E6FFFA", "#FFE14D"] },
+    container: "sticker", emoji: "sticker", loop: "sway",
+    sample: "Alien:🛸 vibes all weekend long",
+  },
+  {
+    id: "rollerdisco", name: "Roller Disco", family: "y2k", tier: "creator",
+    hint: "Tall caps that swipe up in lime, like a roller-rink sign.",
+    benchmark: "Skating, dance and weekend plans",
+    type: { font: "Teko", weight: 600, case: "upper", size: 1.2 }, words: 3, motion: "swipe",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#C7F464", outline: K, outlineWidth: 2, cycle: ["#C7F464", "#FF6EC7"] },
+    container: "none", emoji: "end",
+    sample: "Roller:🛼 disco this Friday night",
+  },
+
+  // ── Hype & Sports ─────────────────────────────────────────────────────
+  {
+    id: "scoreboard", name: "Scoreboard", family: "hype", tier: "pro",
+    hint: "A navy stadium bar where words roll up like a score, under a match-clock badge.",
+    benchmark: "Match highlights and sports commentary",
+    type: { font: "Oswald", weight: 700, case: "upper", size: 1 }, words: 3, motion: "roll",
+    placement: { y: "low", align: "center" },
+    colors: { base: W, accent: "#FFD60A", box: "#0B132B", cycle: ["#FFD60A", "#7CF8FF"] },
+    container: "bar", emoji: "none", symbols: { mode: "badge", glyphs: "⏱ 90'", colors: ["#00A968"] },
+    sample: "Final score three two in extra time",
+  },
+  {
+    id: "fastbreak", name: "Fast Break", family: "hype", tier: "creator",
+    hint: "Condensed caps that skid in from the left, with speed chevrons.",
+    benchmark: "Basketball and fast-play highlights",
+    type: { font: "Anton", weight: 400, case: "upper", size: 1.15 }, words: 2, motion: "slidel",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FF8A00", outline: K, outlineWidth: 3, cycle: ["#FF8A00", "#FFE14D"] },
+    container: "none", emoji: "end", symbols: { mode: "flank", glyphs: "»", colors: ["#FF8A00"] },
+    sample: "Fast break:🏀 dunk at the buzzer",
+  },
+  {
+    id: "gymrat", name: "Gym Rat", family: "hype", tier: "free",
+    hint: "Tall condensed caps that punch in hard, in red, with a flexed arm on the effort word.",
+    benchmark: "Gym and fitness creators (red is fitness's accent)",
+    type: { font: "Bebas Neue", weight: 400, case: "upper", size: 1.3 }, words: 2, motion: "punch",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FF2D55", outline: K, outlineWidth: 3, cycle: ["#FF2D55", "#FF8A00"] },
+    container: "none", emoji: "above",
+    sample: "Last rep:💪 is the one that counts",
+  },
+  {
+    id: "stadium", name: "Stadium", family: "hype", tier: "pro",
+    hint: "The winning word does a ta-da shake in pitch green while the keyword bursts.",
+    benchmark: "Goals, wins and crowd moments",
+    type: { font: "Archivo Black", weight: 400, case: "upper", size: 1.1 }, words: 2, motion: "tada",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#3BFF8F", outline: K, outlineWidth: 3, cycle: ["#3BFF8F", "#FFE14D"] },
+    container: "none", emoji: "burst",
+    sample: "GOAL:⚽ what a finish that was",
+  },
+  {
+    id: "countdown", name: "Countdown", family: "hype", tier: "creator",
+    hint: "One huge word at a time, squashing and stretching under a countdown badge.",
+    benchmark: "Launch countdowns and race starts",
+    type: { font: "Russo One", weight: 400, case: "upper", size: 1.6 }, words: 1, motion: "elastic",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FFD60A", outline: K, outlineWidth: 3, cycle: ["#FFD60A", "#FF2D55"] },
+    container: "none", emoji: "none", symbols: { mode: "badge", glyphs: "3·2·1", colors: ["#FF2D55"] },
+    sample: "Three two one go go go",
+  },
+  {
+    id: "turbo", name: "Turbo", family: "hype", tier: "pro",
+    hint: "Italic racing caps with a red offset shadow; each word flashes in cyan.",
+    benchmark: "Cars, bikes and speed content",
+    type: { font: "Kanit", weight: 800, italic: true, case: "upper", size: 1 }, words: 2, motion: "flash",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#00E5FF", outline: K, outlineWidth: 3, hardShadow: "#FF2D55", cycle: ["#00E5FF", "#FFE14D"] },
+    container: "none", emoji: "end",
+    sample: "Zero to hundred:🏎️ in three seconds",
+  },
+  {
+    id: "champion", name: "Champion", family: "hype", tier: "pro",
+    hint: "Stencil caps that swing down like a medal on its ribbon, in gold.",
+    benchmark: "Medals, finals and personal bests",
+    type: { font: "Black Ops One", weight: 400, case: "upper", size: 1 }, words: 2, motion: "swing",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FFC83D", outline: K, outlineWidth: 2, cycle: ["#FFC83D", "#E5E4E2"] },
+    container: "none", emoji: "above",
+    sample: "Gold:🥇 medal on the very first try",
+  },
+  {
+    id: "fightnight", name: "Fight Night", family: "hype", tier: "creator",
+    hint: "Only the hit word shakes, in red, with a hard shadow and a glove burst.",
+    benchmark: "Boxing, MMA and rivalry clips",
+    type: { font: "Russo One", weight: 400, case: "upper", size: 1 }, words: 2, motion: "shake",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FF2D55", outline: K, outlineWidth: 3, hardShadow: K, cycle: ["#FF2D55", "#FFD60A"] },
+    container: "none", emoji: "burst",
+    sample: "Round one:🥊 starts right now",
+  },
+
+  // ── Soft Aesthetic ────────────────────────────────────────────────────
+  {
+    id: "butter", name: "Butter", family: "soft", tier: "free",
+    hint: "Lowercase italic serif in butter yellow, fading in line by line. No pops, no shouting.",
+    benchmark: "The 2026 quiet-lowercase trend, in butter yellow",
+    type: { font: "DM Serif Display", weight: 400, italic: true, case: "lower", size: 1 }, words: 4, motion: "fade",
+    placement: { y: "low", align: "center" },
+    colors: { base: "#F5D76E", accent: "#F5D76E", outline: "#00000073", outlineWidth: 1, cycle: ["#F5D76E", "#FFB7A0"] },
+    container: "none", emoji: "end",
+    sample: "slow sunday:🌼 with nowhere to be",
+  },
+  {
+    id: "cloud", name: "Cloud", family: "soft", tier: "creator",
+    hint: "Soft lowercase on a white cloud pill that floats; words rise gently into place.",
+    benchmark: "Dreamy vlogs and study-with-me",
+    type: { font: "Nunito", weight: 900, case: "lower", size: 0.9 }, words: 3, motion: "rise",
+    placement: { y: "mid", align: "center" },
+    colors: { base: "#3A4566", accent: "#6B84FF", box: "#FFFFFFE8", cycle: ["#6B84FF", "#FF9EC4"] },
+    container: "pill", emoji: "above", loop: "float",
+    sample: "head in the clouds:☁️ all day",
+  },
+  {
+    id: "matcha", name: "Matcha", family: "soft", tier: "creator",
+    hint: "A soft heavy serif; each word blooms in matcha green.",
+    benchmark: "Café, morning-routine and wellness",
+    type: { font: "Fraunces", weight: 900, case: "lower", size: 1 }, words: 3, motion: "ink",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#A7D49B", outline: "#00000080", outlineWidth: 1, cycle: ["#A7D49B", "#F2D7A6"] },
+    container: "none", emoji: "end",
+    sample: "matcha:🍵 before anything else",
+  },
+  {
+    id: "petal", name: "Petal", family: "soft", tier: "pro",
+    hint: "Delicate italic words drifting out of a blur, with petals blooming round them.",
+    benchmark: "Spring, florals and bridal content",
+    type: { font: "Instrument Serif", weight: 400, italic: true, case: "lower", size: 1.25 }, words: 3, motion: "blur",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FFB7C5", outline: "#00000066", outlineWidth: 1, cycle: ["#FFB7C5", "#D9C2FF"] },
+    container: "none", emoji: "none", symbols: { mode: "sparkle", glyphs: "✿", colors: ["#FFB7C5", "#FFFFFF"] },
+    sample: "spring is finally here again",
+  },
+  {
+    id: "journal", name: "Journal", family: "soft", tier: "creator",
+    hint: "Felt-pen handwriting that wobbles on as if it was just written.",
+    benchmark: "Gratitude lists and journaling",
+    type: { font: "Gloria Hallelujah", weight: 400, case: "lower", size: 0.9 }, words: 3, motion: "wobble",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FFD6A5", outline: "#0000008C", outlineWidth: 1.5, cycle: ["#FFD6A5", "#A0E7E5"] },
+    container: "none", emoji: "end",
+    sample: "things that made me smile:📓 today",
+  },
+  {
+    id: "lavender", name: "Lavender", family: "soft", tier: "creator",
+    hint: "Thin lavender lowercase; unspoken words fade back, every line starts with a moon.",
+    benchmark: "Night routines and sleep content",
+    type: { font: "Lexend", weight: 300, case: "lower", size: 0.85 }, words: 5, motion: "dim",
+    placement: { y: "low", align: "center" },
+    colors: { base: "#E4D9FF", accent: "#E4D9FF", outline: "#00000073", outlineWidth: 1, cycle: ["#E4D9FF", "#FFD6E8"] },
+    container: "none", emoji: "none", symbols: { mode: "prefix", glyphs: "⏾", colors: ["#C9B6FF"] },
+    sample: "a quiet night in with tea and a book",
+  },
+  {
+    id: "sunlit", name: "Sunlit", family: "soft", tier: "pro",
+    hint: "A fashion-magazine italic in warm cream; lines rise in and words lift into place.",
+    benchmark: "Coastal travel and slow living",
+    type: { font: "Bodoni Moda", weight: 700, italic: true, case: "lower", size: 1 }, words: 3, motion: "rise",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FFE6A7", outline: "#00000073", outlineWidth: 1, cycle: ["#FFE6A7", "#FFB38A"] },
+    container: "none", emoji: "above", entry: "up",
+    sample: "golden mornings:☀️ by the sea",
+  },
+  {
+    id: "cotton", name: "Cotton", family: "soft", tier: "creator",
+    hint: "Words in soft pastel cotton bubbles that puff up as they're spoken.",
+    benchmark: "Home, nursery and cozy-season posts",
+    type: { font: "Nunito", weight: 900, case: "lower", size: 1 }, words: 2, motion: "bubble",
+    placement: { y: "mid", align: "center" },
+    colors: { base: "#4A3B52", accent: "#4A3B52", palette: ["#FDE2F3", "#E5F4FF", "#FFF4D6", "#E8FFE8"] },
+    container: "none", emoji: "end",
+    sample: "cozy:🧸 blanket season is back",
+  },
+
+  // ── Explainer & Business ──────────────────────────────────────────────
+  {
+    id: "checklist", name: "Checklist", family: "edu", tier: "free",
+    hint: "Every line opens with an emerald tick on a glass panel; words rise in as they're said.",
+    benchmark: "Tutorials and how-to steps",
+    type: { font: "Inter", weight: 700, case: "none", size: 0.85 }, words: 4, motion: "rise",
+    placement: { y: "low", align: "center" },
+    colors: { base: W, accent: "#20D68A", cycle: ["#20D68A", "#4CC9FF"] },
+    container: "glass", emoji: "none", symbols: { mode: "prefix", glyphs: "✓", colors: ["#20D68A"] },
+    sample: "Step one open the settings page",
+  },
+  {
+    id: "stepcounter", name: "Step Counter", family: "edu", tier: "free",
+    hint: "A lower-third with a blue step badge; a blue bar sweeps under each spoken word.",
+    benchmark: "Courses, recipes and process videos",
+    type: { font: "Manrope", weight: 700, case: "none", size: 0.85 }, words: 4, motion: "underline",
+    placement: { y: "low", align: "left" },
+    colors: { base: W, accent: W, box: "#4CC9FF", box2: "#4CC9FF", boxCycle: ["#4CC9FF", "#20D68A"] },
+    container: "dark", emoji: "none", symbols: { mode: "badge", glyphs: "STEP 1", colors: ["#0A84FF"] },
+    sample: "First set your budget then track it weekly",
+  },
+  {
+    id: "statpop", name: "Stat Pop", family: "edu", tier: "creator",
+    hint: "Numbers and keywords roll up like a counter in lime, with a chart emoji.",
+    benchmark: "Data, growth and case-study clips",
+    type: { font: "Sora", weight: 800, case: "none", size: 1 }, words: 3, motion: "roll",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#B8FF3B", outline: K, outlineWidth: 2, cycle: ["#B8FF3B", "#4CC9FF"] },
+    container: "none", emoji: "above",
+    sample: "Sales grew:📈 three hundred percent",
+  },
+  {
+    id: "protip", name: "Pro Tip", family: "edu", tier: "creator",
+    hint: "A gold PRO TIP badge; the spoken word sits in an emerald box.",
+    benchmark: "Productivity and career advice",
+    type: { font: "Plus Jakarta Sans", weight: 700, case: "none", size: 1 }, words: 3, motion: "boxword",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#04130C", outline: "#00000080", outlineWidth: 1, box: "#20D68A", boxCycle: ["#20D68A", "#FFC83D"] },
+    container: "none", emoji: "none", symbols: { mode: "badge", glyphs: "★ PRO TIP", colors: ["#C98A00"] },
+    sample: "Batch your emails twice a day",
+  },
+  {
+    id: "mythbuster", name: "Myth Buster", family: "edu", tier: "creator",
+    hint: "The wrong idea shakes in red between crosses, so viewers know it's being debunked.",
+    benchmark: "Myth-versus-fact explainers",
+    type: { font: "Montserrat", weight: 900, case: "upper", size: 1 }, words: 2, motion: "shake",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FF2D55", outline: K, outlineWidth: 3, cycle: ["#FF2D55", "#FFD60A"] },
+    container: "none", emoji: "end", symbols: { mode: "flank", glyphs: "✕", colors: ["#FF2D55"] },
+    sample: "Myth:❌ you need money to start",
+  },
+  {
+    id: "explainer", name: "Explainer", family: "edu", tier: "free",
+    hint: "Calm sentence case; a blue arrow points at each spoken word as a bar sweeps under it.",
+    benchmark: "Finance and science explainers",
+    type: { font: "DM Sans", weight: 500, case: "none", size: 1 }, words: 4, motion: "underline",
+    placement: { y: "low", align: "center" },
+    colors: { base: W, accent: W, outline: "#0000008C", outlineWidth: 1, box: "#4CC9FF", boxCycle: ["#4CC9FF", "#FFD60A"] },
+    container: "none", emoji: "none", symbols: { mode: "arrow", glyphs: "→", colors: ["#4CC9FF"] },
+    sample: "This is why interest rates matter to you",
+  },
+  {
+    id: "quickmath", name: "Quick Math", family: "edu", tier: "pro",
+    hint: "Numbers scramble like a calculator before they settle, after an equals sign.",
+    benchmark: "Maths, money and quiz content",
+    type: { font: "Space Grotesk", weight: 700, case: "none", size: 1 }, words: 3, motion: "scramble",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FFD60A", outline: K, outlineWidth: 2, cycle: ["#FFD60A", "#4CC9FF"] },
+    container: "none", emoji: "end", symbols: { mode: "prefix", glyphs: "=", colors: ["#FFD60A"] },
+    sample: "Ten percent of fifty:🧮 is five",
+  },
+  {
+    id: "casestudy", name: "Case Study", family: "edu", tier: "pro",
+    hint: "An orange-edged lower-third with a play mark; words swipe up like a presentation.",
+    benchmark: "Business breakdowns and founder stories",
+    type: { font: "Inter Tight", weight: 800, case: "none", size: 0.85 }, words: 4, motion: "swipe",
+    placement: { y: "low", align: "left" },
+    colors: { base: W, accent: "#FFB86B", box2: "#FF8A00", cycle: ["#FFB86B", "#FFE14D"] },
+    container: "dark", emoji: "none", symbols: { mode: "prefix", glyphs: "▶", colors: ["#FF8A00"] },
+    sample: "How a small bakery hit one crore in sales",
+  },
+
+  // ── Desi Festival ─────────────────────────────────────────────────────
+  {
+    id: "diwali", name: "Diwali", family: "fest", tier: "pro",
+    hint: "Devanagari in shimmering diya gold, with sparks and a lamp above the greeting.",
+    benchmark: "Diwali greetings and festive sales",
+    type: { font: "Yatra One", weight: 400, case: "none", size: 1.1 }, words: 2, motion: "shimmer",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FFC83D", outline: "#4A1500", outlineWidth: 3, cycle: ["#FFC83D", "#FF9933"] },
+    container: "none", emoji: "above", symbols: { mode: "sparkle", glyphs: "✦", colors: ["#FFC83D", "#FF9933"] }, script: "devanagari",
+    sample: "शुभ दीपावली:🪔 आप सभी को",
+  },
+  {
+    id: "holi", name: "Holi", family: "fest", tier: "creator",
+    hint: "Every letter splashed a different gulal colour, with a paint burst on the keyword.",
+    benchmark: "Holi reels and colour-play videos",
+    type: { font: "Baloo 2", weight: 800, case: "none", size: 1.1 }, words: 2, motion: "pop",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: W, outline: "#1B1B1B", outlineWidth: 3, cycle: ["#FF3D9A", "#FFD60A", "#3BFF8F", "#00C2FF", "#9B5CFF"] },
+    container: "none", emoji: "burst", script: "devanagari",
+    sample: "होली:🎨 है भाई रंग लगाओ",
+  },
+  {
+    id: "dhamaal", name: "Dhamaal", family: "fest", tier: "creator",
+    hint: "Classic Devanagari that twirls in, in saffron, like a dance spin.",
+    benchmark: "Dance reels and wedding sangeet",
+    type: { font: "Tiro Devanagari Hindi", weight: 400, case: "none", size: 1.15 }, words: 2, motion: "spin",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FF9933", outline: "#3A1200", outlineWidth: 3, cycle: ["#FF9933", "#FF3D9A"] },
+    container: "none", emoji: "end", script: "devanagari",
+    sample: "नाचो:💃 जैसे कोई देख नहीं रहा",
+  },
+  {
+    id: "cricketfever", name: "Cricket Fever", family: "fest", tier: "pro",
+    hint: "Bold Devanagari that punches in, in jersey blue, under a LIVE badge.",
+    benchmark: "Cricket reactions and match moments",
+    type: { font: "Hind", weight: 700, case: "none", size: 1.15 }, words: 2, motion: "punch",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#00B2FF", outline: "#00142A", outlineWidth: 3, cycle: ["#00B2FF", "#FF9933"] },
+    container: "none", emoji: "burst", symbols: { mode: "badge", glyphs: "● LIVE", colors: ["#C8102E"] }, script: "devanagari",
+    sample: "छक्का:🏏 आखिरी गेंद पर",
+  },
+  {
+    id: "desiswag", name: "Desi Swag", family: "fest", tier: "free",
+    hint: "Hinglish in saffron, yellow and green, each word tilting the other way.",
+    benchmark: "Hinglish tips and desi creator talk",
+    type: { font: "Mukta", weight: 800, case: "none", size: 1 }, words: 3, motion: "tiltswap",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FF9933", outline: K, outlineWidth: 3, cycle: ["#FF9933", "#FFD60A", "#20D68A"] },
+    container: "none", emoji: "end",
+    sample: "Bhai ye trick:🔥 kisi ko mat batana",
+  },
+  {
+    id: "mehendi", name: "Mehendi", family: "fest", tier: "creator",
+    hint: "Handwritten Devanagari blooming in henna orange between flower marks.",
+    benchmark: "Wedding functions and bridal content",
+    type: { font: "Kalam", weight: 700, case: "none", size: 1.05 }, words: 3, motion: "ink",
+    placement: { y: "mid", align: "center" },
+    colors: { base: "#FFE8D1", accent: "#FF9A5A", outline: "#3A1200", outlineWidth: 2, cycle: ["#FF9A5A", "#FFD27A"] },
+    container: "none", emoji: "end", symbols: { mode: "flank", glyphs: "❀", colors: ["#FF9A5A"] }, script: "devanagari",
+    sample: "मेहंदी:🌿 की रस्म शुरू हो गई",
+  },
+
+  // ── Celebrations & Drops ──────────────────────────────────────────────
+  {
+    id: "birthday", name: "Birthday Blast", family: "season", tier: "creator",
+    hint: "Party colours bouncing word by word, a cake on the keyword and confetti on the big words.",
+    benchmark: "Birthday wishes and surprise reveals",
+    type: { font: "Luckiest Guy", weight: 400, case: "upper", size: 1 }, words: 2, motion: "bounce",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FF4D6D", outline: K, outlineWidth: 3, cycle: ["#FF4D6D", "#FFD60A", "#4CC9FF"] },
+    container: "none", emoji: "above", symbols: { mode: "confetti", glyphs: "✦●▲", colors: ["#FF4D6D", "#FFD60A", "#4CC9FF"] },
+    sample: "Happy *birthday:🎂 to the *best mom ever",
+  },
+  {
+    id: "newyear", name: "New Year", family: "season", tier: "pro",
+    hint: "Gold serif that flashes like a camera bulb, with gold and silver confetti.",
+    benchmark: "New Year countdowns and recaps",
+    type: { font: "Abril Fatface", weight: 400, case: "none", size: 1.1 }, words: 2, motion: "flash",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FFC83D", outline: "#2A1C00", outlineWidth: 2, cycle: ["#FFC83D", "#E5E4E2"] },
+    container: "none", emoji: "none", symbols: { mode: "confetti", glyphs: "✦✧⋆", colors: ["#FFC83D", "#FFFFFF", "#E5E4E2"] },
+    sample: "Three two one *happy *new *year",
+  },
+  {
+    id: "spooky", name: "Spooky", family: "season", tier: "creator",
+    hint: "Dripping horror letters flickering in pumpkin orange, gently swaying.",
+    benchmark: "Halloween, horror and storytime",
+    type: { font: "Creepster", weight: 400, case: "upper", size: 1.1 }, words: 2, motion: "flicker",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FF7518", outline: K, outlineWidth: 2, cycle: ["#FF7518", "#B388FF"] },
+    container: "none", emoji: "end", loop: "sway",
+    sample: "Something is behind:👻 you right now",
+  },
+  {
+    id: "winterdrop", name: "Winter Drop", family: "season", tier: "pro",
+    hint: "Icy blue words swing in on a hinge while snowflakes fall behind the caption.",
+    benchmark: "Winter collections and first-snow posts",
+    type: { font: "Bricolage Grotesque", weight: 800, case: "none", size: 1 }, words: 3, motion: "swing",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#BFE9FF", outline: "#0A1A33", outlineWidth: 2, cycle: ["#BFE9FF", "#E4D9FF"] },
+    container: "none", emoji: "rain",
+    sample: "First snow:❄️ of the season is here",
   },
 ];
 
@@ -809,6 +1800,30 @@ export function parseCaptionSample(sample: string): CaptionSampleToken[] {
     const k = s.indexOf(":");
     return k > 0 ? { text: s.slice(0, k), emoji: s.slice(k + 1), emphasis } : { text: s, emoji: null, emphasis };
   });
+}
+
+/** The decoder motion's steps: random glyphs settle into the word over this many 45 ms frames. */
+export const SCRAMBLE_STEPS = 6;
+export const SCRAMBLE_STEP_MS = 45;
+const SCRAMBLE_GLYPHS = "!<>-_/[]=+*^?#0123456789";
+
+/**
+ * What a decoding word shows at `step` (0..SCRAMBLE_STEPS-1): the first part
+ * of the word already settled, the rest random glyphs. Deterministic per
+ * (seed, step), so the picker preview and the export show the same glyphs.
+ */
+export function scrambledWord(text: string, seed: number, step: number): string {
+  let a = (seed * 31 + step) >>> 0;
+  const rnd = () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let x = Math.imul(a ^ (a >>> 15), 1 | a);
+    x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
+    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+  };
+  const chars = Array.from(text);
+  return chars
+    .map((ch, k) => (k < ((step + 1) * chars.length) / SCRAMBLE_STEPS || !ch.trim() ? ch : SCRAMBLE_GLYPHS[Math.floor(rnd() * SCRAMBLE_GLYPHS.length)]))
+    .join("");
 }
 
 /** Templates grouped by family, in family order. */
