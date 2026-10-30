@@ -10,9 +10,9 @@
 // The browser preview (app/components/captions/CaptionTemplateRender.tsx)
 // implements the same motions in CSS. Change both together.
 
-import type { CaptionTemplateSpec } from "@clipiro/shared/caption-templates";
+import { LETTER_MOTIONS, SCRAMBLE_STEPS, SCRAMBLE_STEP_MS, scrambledWord, type CaptionTemplateSpec } from "@clipiro/shared/caption-templates";
 import { emojiAssetName } from "@clipiro/shared/caption-emoji";
-import { resolveFace } from "./fonts";
+import { assFontSize, hasGlyphs, measureText, resolveFace, type FontFace } from "./fonts";
 import { layoutCaptions, type CaptionLayout, type EngineWord, type PlacedChunk, type PlacedWord } from "./layout";
 import { assAlpha, assColor, assTime, mixHex, roundedRect, skewRect } from "./draw";
 
@@ -54,6 +54,8 @@ export interface EmojiOverlay {
   /** Optional linear motion in px per second (burst, rain). */
   vx?: number;
   vy?: number;
+  /** Optional circular motion around (cx,cy) in px, one turn per `period` seconds (orbit). */
+  orbit?: { cx: number; cy: number; r: number; period: number };
 }
 
 export interface GlassPlan {
@@ -79,6 +81,26 @@ const BOX_TEXT = "#0A0A0A";
 
 type Segment = { s: number; e: number; pos: string; tags: string };
 
+/** Rotates a #RRGGBB colour's hue by `deg` (the hue-drift loop). */
+function hueRotate(hex: string, deg: number): string {
+  const n = parseInt(hex.slice(1, 7), 16);
+  let r = (n >> 16) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
+  let h = 0;
+  const s = d ? d / (1 - Math.abs(2 * l - 1)) : 0;
+  if (d) h = (mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4) * 60;
+  h = (((h + deg) % 360) + 360) % 360;
+  const c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs(((h / 60) % 2) - 1)), m = l - c / 2;
+  [r, g, b] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+  return "#" + [r, g, b].map((v) => Math.round((v + m) * 255).toString(16).padStart(2, "0")).join("").toUpperCase();
+}
+
+/** Triangle wave: 1 at phase 0, -1 at phase 0.5, back to 1 at phase 1. */
+const tri = (phase: number) => {
+  const p = ((phase % 1) + 1) % 1;
+  return p < 0.5 ? 1 - 4 * p : -3 + 4 * p;
+};
+
 export function buildCaptionTrack(opts: CaptionTrackOptions): CaptionTrack {
   const t = opts.template;
   const c = t.colors;
@@ -98,10 +120,112 @@ export function buildCaptionTrack(opts: CaptionTrackOptions): CaptionTrack {
   const emoji: EmojiOverlay[] = [];
   const accentHex = opts.accent && /^#[0-9a-fA-F]{6}$/.test(opts.accent) ? opts.accent : c.accent;
 
+  /** The line being written, for line entries and loops (which run on every event of the line). */
+  let line: { ch: PlacedChunk; R: number; cx: number; cy: number } | null = null;
+
+  /**
+   * Tags that run a looping track over [s,e]: `at(ms)` gives the tag value
+   * `ms` after the line started, and libass interpolates between keyframes
+   * every `step` ms, so every event of the line moves in sync.
+   */
+  const loopTags = (s: number, e: number, step: number, at: (ms: number) => string): string => {
+    const t0 = line!.ch.start;
+    let out = at(s - t0);
+    let prev = s;
+    for (let b = t0 + (Math.floor((s - t0) / step) + 1) * step; prev < e && b - s < 30000; b += step) {
+      const to = Math.min(b, e);
+      out += `\\t(${Math.round(prev - s)},${Math.round(to - s)},${at(to - t0)})`;
+      prev = to;
+    }
+    return out;
+  };
+
+  /** Applies the template's line entry and idle loop to one event; float may split it. */
+  const decorate = (s: number, e: number, tags: string): [number, number, string][] => {
+    if (!line || (!t.entry && !t.loop)) return [[s, e, tags]];
+    const { ch, R, cx, cy } = line;
+    let out = tags;
+    const pos = /\\pos\(([-\d.]+),([-\d.]+)\)/.exec(out);
+    if (t.entry && s - ch.start < 10) {
+      if (t.entry === "swirl") {
+        out += `\\org(${f1(cx)},${f1(cy)})\\frz${R + 25}\\t(0,360,\\frz${R})\\fad(200,0)`;
+      } else {
+        // Words that already move (rise, drop) keep their own path and just fade in.
+        const dy = t.entry === "up" ? 0.4 * em : -1.2 * em;
+        if (pos) out = out.replace(pos[0], `\\move(${pos[1]},${f1(+pos[2] + dy)},${pos[1]},${pos[2]},0,${t.entry === "up" ? 300 : 380})`);
+        out += `\\fad(${t.entry === "up" ? 300 : 150},0)`;
+      }
+    }
+    const animated = out.includes("\\t(");
+    switch (t.loop) {
+      case "sway":
+        out += `\\org(${f1(cx)},${f1(cy)})` + loopTags(s, e, 1400, (ms) => `\\frz${f1(R + 1.6 * tri(ms / 2800))}`);
+        break;
+      case "pulse":
+        if (!animated) out += loopTags(s, e, 600, (ms) => { const k = Math.round(102 - 2 * tri(ms / 1200)); return `\\fscx${k}\\fscy${k}`; });
+        break;
+      case "hue": {
+        const col = /\\1c&H([0-9A-F]{2})([0-9A-F]{2})([0-9A-F]{2})&/i.exec(out);
+        if (col) {
+          const hex = `#${col[3]}${col[2]}${col[1]}`;
+          out += loopTags(s, e, 500, (ms) => `\\1c${assColor(hueRotate(hex, (360 * ms) / 3000))}`);
+        }
+        break;
+      }
+      case "float": {
+        if (!pos || out.includes("\\move(")) break;
+        const off = (ms: number) => f1(+pos[2] - 0.045 * em * (1 - tri(ms / 2400)) / 2);
+        if (animated || e - s <= 1200) return [[s, e, out.replace(pos[0], `\\move(${pos[1]},${off(s - ch.start)},${pos[1]},${off(e - ch.start)})`)]];
+        const pieces: [number, number, string][] = [];
+        for (let a = s; a < e; ) {
+          const b = Math.min(e, ch.start + (Math.floor((a - ch.start) / 1200) + 1) * 1200);
+          pieces.push([a, b, out.replace(pos[0], `\\move(${pos[1]},${off(a - ch.start)},${pos[1]},${off(b - ch.start)})`)]);
+          a = b;
+        }
+        return pieces;
+      }
+    }
+    return [[s, e, out]];
+  };
+
   const ev = (layer: number, s: number, e: number, tags: string, text: string) => {
     if (e - s < 10) return;
-    events.push(`Dialogue: ${layer},${assTime(s)},${assTime(e)},Default,,0,0,0,,{${tags}}${text}`);
+    for (const [ps, pe, pt] of decorate(s, e, tags)) {
+      if (pe - ps < 10) continue;
+      events.push(`Dialogue: ${layer},${assTime(ps)},${assTime(pe)},Default,,0,0,0,,{${pt}}${text}`);
+    }
   };
+
+  // ── Symbols: glyphs from the bundled symbol font, as plain ASS text ────────
+  const labelFace = resolveFace("Inter", 700, false);
+  const symbolFace = resolveFace("Noto Sans Symbols 2", 400, false);
+  /** ASS text for `text` at an em of `px`, switching to the symbol font for glyphs `primary` lacks. */
+  const glyphRun = (text: string, primary: FontFace, px: number): string => {
+    let out = "";
+    let current: FontFace | null = null;
+    for (const ch of Array.from(text)) {
+      const face = /\s/.test(ch) || hasGlyphs(primary, ch) ? primary : symbolFace;
+      if (face !== current) {
+        out += `{\\fn${face.fullName}\\fs${f1(assFontSize(face, px))}}`;
+        current = face;
+      }
+      out += ch;
+    }
+    return out;
+  };
+  const P = (x: number, y: number) => `\\pos(${f1(x)},${f1(y)})`;
+  /** One symbol glyph; `pos` is a \pos or \move tag. */
+  const symEvent = (layer: number, s: number, e: number, pos: string, glyph: string, color: string, px: number, tags = "") =>
+    ev(layer, s, e, `\\an5${pos}\\b0\\i0\\bord${f1(0.05 * px)}\\3c&H000000&\\3a&H90&\\shad0\\1c${assColor(color)}\\1a${assAlpha(color)}${tags}`, glyphRun(glyph, labelFace, px));
+  /** A gentle 100 → 104% pulse for the whole of [0,dur] ms. */
+  const pulseTags = (dur: number) => {
+    let out = "";
+    for (let k = 0; k * 450 < dur && k < 60; k++) out += `\\t(${k * 450},${(k + 1) * 450},\\fscx${k % 2 ? 100 : 104}\\fscy${k % 2 ? 100 : 104})`;
+    return out;
+  };
+  const sym = t.symbols;
+  const symColor = (k: number) => sym!.colors[k % sym!.colors.length];
+  const symGlyphs = sym ? Array.from(sym.glyphs) : [];
 
   // ── Outline / shadow, shared by every text event ──────────────────────────
   const boxed = ["pill", "line", "sticker", "bar", "glass", "dark", "wordbox"].includes(t.container) || t.motion === "bubble" || t.motion === "blocks";
@@ -115,6 +239,9 @@ export function buildCaptionTrack(opts: CaptionTrackOptions): CaptionTrack {
   } else {
     strokeTags = "\\bord0";
   }
+  /** The outline-only look of a word not yet drawn in (draw motion), and how it fills in. */
+  const outlineW = f1(Math.max(1, (c.outlineWidth ?? 1) * 0.018 * em));
+  const drawPending = (col: string) => `\\1a&HFF&\\3c${assColor(col)}\\3a&H00&\\bord${f1(0.035 * em)}\\shad0`;
   const shadowTags = c.hardShadow
     ? `\\xshad${f1(0.08 * em)}\\yshad${f1(0.1 * em)}\\4c${assColor(c.hardShadow)}\\4a${assAlpha(c.hardShadow)}`
     : "\\shad0";
@@ -188,6 +315,16 @@ export function buildCaptionTrack(opts: CaptionTrackOptions): CaptionTrack {
   const stampTags = (R: number) =>
     `\\alpha&HFF&\\fscx250\\fscy250\\frz${R + 20}\\t(0,150,\\alpha&H00&\\fscx90\\fscy90\\frz${R + 8})\\t(150,300,\\fscx100\\fscy100\\frz${R + 6})`;
   const tiltTags = (w: PlacedWord, R: number) => `\\frz${R}\\fscx75\\fscy75\\t(0,220,\\frz${R - tiltOf(w)}\\fscx112\\fscy112)`;
+  const FLIP = "\\frx90\\alpha&HFF&\\t(0,190,\\frx-18\\alpha&H00&)\\t(190,320,\\frx0)";
+  const spinTags = (R: number) => `\\frz${R + 200}\\fscx20\\fscy20\\alpha&HFF&\\t(0,238,\\frz${R - 10}\\fscx114\\fscy114\\alpha&H00&)\\t(238,340,\\frz${R}\\fscx106\\fscy106)`;
+  // Hangs from the word's top edge (CSS rotate -28 → 16 → -7 → 0, \frz the opposite sign).
+  const swingTags = (w: PlacedWord, R: number) =>
+    `\\org(${f1(w.x)},${f1(w.y - 0.55 * em)})\\frz${R + 28}\\t(0,168,\\frz${R - 16})\\t(168,294,\\frz${R + 7})\\t(294,420,\\frz${R})`;
+  const tadaTags = (R: number) =>
+    `\\t(0,62,\\fscx90\\fscy90\\frz${R + 5})\\t(114,166,\\fscx116\\fscy116\\frz${R - 5})\\t(166,218,\\frz${R + 5})\\t(218,270,\\frz${R - 5})` +
+    `\\t(270,322,\\frz${R + 5})\\t(322,374,\\frz${R - 5})\\t(374,520,\\fscx108\\fscy108\\frz${R})`;
+  const STRETCH = () => `\\fsp${f1(0.7 * em)}\\alpha&HFF&\\blur2\\t(0,360,\\fsp${f1(layout.trackingPx)}\\alpha&H00&\\blur0)`;
+  const INK = "\\blur12\\fscx55\\fscy55\\alpha&HFF&\\t(0,300,\\blur0\\fscx100\\fscy100\\alpha&H00&)";
   const ZOOM = "\\fscx114\\fscy114\\blur4\\alpha&HFF&\\t(0,900,0.6,\\fscx100\\fscy100\\blur0\\alpha&H00&)";
   const FADE = "\\fad(320,0)";
 
@@ -209,6 +346,15 @@ export function buildCaptionTrack(opts: CaptionTrackOptions): CaptionTrack {
       case "jelly": return JELLY;
       case "stamp": return stampTags(R);
       case "tiltswap": return tiltTags(w, R);
+      case "flip": return FLIP;
+      case "spin": return spinTags(R);
+      case "swing": return swingTags(w, R);
+      case "tada": return tadaTags(R);
+      case "stretch": return STRETCH();
+      case "ink": return INK;
+      case "shimmer": case "scramble": return POPS;
+      case "draw": return `${drawPending(activeColor(w))}\\t(198,360,\\1a${assAlpha(c.base)}\\3c${assColor(c.outline ?? "#000000")}\\bord${outlineW})`;
+      case "flash": return `\\1c&HFFFFFF&\\t(0,280,\\1c${assColor(activeColor(w))})`;
       default: return "";
     }
   };
@@ -252,19 +398,75 @@ export function buildCaptionTrack(opts: CaptionTrackOptions): CaptionTrack {
         { s: t3, e, pos: posTag(w), tags: "" },
       ].filter((g) => g.e - g.s >= 10);
     }
+    // A window just around the word, for reveals that slide in under a mask.
+    const mask = `${f1(w.x - w.w / 2 - 0.2 * em)},${f1(y - 0.75 * em)},${f1(w.x + w.w / 2 + 0.2 * em)},${f1(y + 0.7 * em)}`;
+    if (t.motion === "slidel") {
+      return [{ s, e, pos: `\\move(${f1(w.x - 0.8 * w.w)},${f1(y)},${x},${f1(y)},0,200)`, tags: "\\fax0.32\\alpha&HFF&\\t(0,200,\\fax0\\alpha&H00&)" }];
+    }
+    if (t.motion === "extrude") {
+      return [{ s, e, pos: `\\move(${x},${f1(y)},${f1(w.x - 0.06 * em)},${f1(y - 0.06 * em)},0,220)`, tags: "" }];
+    }
+    if (t.motion === "swipe") {
+      const [x0, , x1, y1] = mask.split(",");
+      return [{ s, e, pos: `\\move(${x},${f1(y + 0.35 * em)},${x},${f1(y)},0,240)`, tags: `\\clip(${x0},${y1},${x1},${y1})\\t(0,240,\\clip(${mask}))` }];
+    }
+    if (t.motion === "roll") {
+      const k = Math.min(1, (e - s) / 240);
+      const t1 = s + 180 * k;
+      const t2 = s + 240 * k;
+      return [
+        { s, e: t1, pos: `\\move(${x},${f1(y + 0.8 * em)},${x},${f1(y - 0.06 * em)})`, tags: `\\clip(${mask})` },
+        { s: t1, e: t2, pos: `\\move(${x},${f1(y - 0.06 * em)},${x},${f1(y)})`, tags: `\\clip(${mask})` },
+        { s: t2, e, pos: posTag(w), tags: "" },
+      ].filter((g) => g.e - g.s >= 10);
+    }
     return [{ s, e, pos: posTag(w), tags: activeMotionTags(w, R) }];
   };
 
   const lineLevel = t.motion === "fade" || t.motion === "cut" || t.motion === "zoom" || t.motion === "emph";
-  const reveal = ["stack", "rise", "blur", "type", "typestep"].includes(t.motion);
+  const reveal = ["stack", "rise", "blur", "type", "typestep", "cascade"].includes(t.motion);
+
+  /** One letter of a word, for the letter motions (wave, cascade, rainbow). */
+  const letterEvent = (s: number, e: number, w: PlacedWord, ch: string, pos: string, rot: string, colorHex: string, tags: string) =>
+    ev(2, s, e, `\\an5${pos}${rot}\\fn${w.activeFace.fullName}\\fs${f1(w.activeFs)}\\b0\\i0\\fsp0${strokeTags}${shadowTags}\\1c${assColor(colorHex)}\\1a${assAlpha(c.base)}${tags}`, ch);
+
+  /** Draws a spoken word letter by letter instead of as one text event. */
+  const letterWord = (w: PlacedWord, rot: string, R: number, act: string) => {
+    const s = w.activeStart;
+    const e = w.activeEnd;
+    const y = w.y;
+    w.letters!.forEach(({ ch, dx }, i) => {
+      if (!ch.trim()) return;
+      const x = f1(w.x + dx);
+      const col = c.letterColors?.length ? c.letterColors[i % c.letterColors.length] : act;
+      if (t.motion === "cascade") {
+        const d = i * 38;
+        letterEvent(s, e, w, ch, `\\move(${x},${f1(y - 0.9 * em)},${x},${f1(y)},${d},${d + 260})`, rot, col, `\\frz${R + 24}\\alpha&HFF&\\t(${d},${d + 60},\\alpha&H00&)\\t(${d},${d + 260},\\frz${R})`);
+      } else if (t.motion === "rainbow") {
+        const d = i * 40;
+        const peak = s + d + 144;
+        letterEvent(s, Math.min(e, peak), w, ch, `\\move(${x},${f1(y)},${x},${f1(y - 0.3 * em)},${d},${d + 144})`, rot, col, `\\t(${d},${d + 144},\\fscx125\\fscy125)`);
+        letterEvent(peak, e, w, ch, `\\move(${x},${f1(y - 0.3 * em)},${x},${f1(y)},0,176)`, rot, col, "\\fscx125\\fscy125\\t(0,176,\\fscx108\\fscy108)");
+      } else {
+        // wave: up and down on a 560 ms cycle, each letter 55 ms behind the last
+        const d = i * 55;
+        letterEvent(s, Math.min(e, s + d), w, ch, `\\pos(${x},${f1(y)})`, rot, col, "");
+        for (let a = s + d, up = true; a < e; a += 280, up = !up) {
+          const ya = f1(y - (up ? 0 : 0.24 * em)), yb = f1(y - (up ? 0.24 * em : 0));
+          letterEvent(a, Math.min(e, a + 280), w, ch, `\\move(${x},${ya},${x},${yb})`, rot, col, "");
+        }
+      }
+    });
+  };
 
   for (const ch of layout.chunks) {
     const { tags: rot, frz: R } = rotTags(ch);
     const entry = t.motion === "fade" || t.motion === "emph" ? FADE : t.motion === "zoom" ? ZOOM : "";
     const containerEntry = t.motion === "fade" || t.motion === "emph" || t.motion === "zoom" ? FADE : "";
+    const b = ch.block;
+    line = { ch, R, cx: (b.x0 + b.x1) / 2, cy: (b.y0 + b.y1) / 2 };
 
     // ── Containers ──────────────────────────────────────────────────────────
-    const b = ch.block;
     if (t.container === "pill") {
       const px = 0.55 * em, py = 0.28 * em;
       const w = b.x1 - b.x0 + 2 * px, h = b.y1 - b.y0 + 2 * py;
@@ -314,6 +516,37 @@ export function buildCaptionTrack(opts: CaptionTrackOptions): CaptionTrack {
           }
           shapeEvent(0, ch.start, ch.end, 5, x, first.y, rot, roundedRect(0.1 * em, 0.8 * em, 0.05 * em), c.box2 ?? accentHex, anim);
         }
+      }
+    }
+
+    // ── Symbols that belong to the line ───────────────────────────────────────
+    if (sym) {
+      const firstY = ch.words.find((w) => w.line === 0)?.y ?? line.cy;
+      const lastLine = ch.lineRects.length - 1;
+      const lastY = ch.words.filter((w) => w.line === lastLine).at(-1)?.y ?? firstY;
+      const dur = ch.end - ch.start;
+      if (sym.mode === "prefix") {
+        symEvent(2, ch.start, ch.end, P(ch.lineRects[0].x0 + 0.42 * em, firstY), symGlyphs[0], symColor(0), em, "\\fscx20\\fscy20\\alpha&HFF&\\t(0,220,\\fscx100\\fscy100\\alpha&H00&)");
+      } else if (sym.mode === "flank") {
+        symEvent(2, ch.start, ch.end, P(ch.lineRects[0].x0 + 0.35 * em, firstY), symGlyphs[0], symColor(0), 0.7 * em, pulseTags(dur));
+        symEvent(2, ch.start, ch.end, P(ch.lineRects[lastLine].x1 - 0.35 * em, lastY), symGlyphs[0], symColor(0), 0.7 * em, pulseTags(dur));
+      } else if (sym.mode === "badge") {
+        // A label in a box, top-left of the frame, popping in with each line.
+        const px = 0.064 * Math.min(W, H);
+        const labelW = symGlyphs.reduce((sum, g) => sum + measureText(/\s/.test(g) || hasGlyphs(labelFace, g) ? labelFace : symbolFace, g, px, 0.04), 0);
+        const bw = labelW + 1.1 * px, bh = 1.64 * px;
+        const bx = 0.07 * W + bw / 2, by = 0.08 * H + bh / 2;
+        const pop = `\\org(${f1(bx)},${f1(by)})\\frz12\\fscx30\\fscy30\\alpha&HFF&\\t(0,300,\\frz3\\fscx100\\fscy100\\alpha&H00&)`;
+        shapeEvent(0, ch.start, ch.end, 5, bx, by, "", roundedRect(bw, bh, 0.3 * px), symColor(0), pop);
+        ev(2, ch.start, ch.end, `\\an5${P(bx, by)}\\b0\\i0\\fsp${f1(0.04 * px)}\\bord0\\shad0\\1c&HFFFFFF&${pop}`, glyphRun(sym.glyphs, labelFace, px));
+      } else if (sym.mode === "stars") {
+        // Five stars under the caption; one more fills in with each spoken word.
+        const px = 0.8 * em;
+        ch.words.forEach((w, k) => {
+          const filled = Math.min(5, k + 1 + (ch.index % 2) * 2);
+          const text = `{\\1c${assColor(symColor(0))}\\1a&H00&}${glyphRun("★".repeat(filled), labelFace, px)}{\\1c&HFFFFFF&\\1a&H80&}${glyphRun("★".repeat(5 - filled), labelFace, px)}`;
+          ev(2, k === 0 ? ch.start : w.activeStart, ch.words[k + 1]?.activeStart ?? ch.end, `\\an5${P(line!.cx, b.y1 + 0.65 * em)}\\b0\\i0\\fsp${f1(0.08 * px)}\\bord${f1(0.05 * px)}\\3c&H000000&\\3a&H90&\\shad0`, text);
+        });
       }
     }
 
@@ -382,14 +615,61 @@ export function buildCaptionTrack(opts: CaptionTrackOptions): CaptionTrack {
 
       // future
       if (!reveal) {
-        const dimTags = t.motion === "dim" ? "\\alpha&HA6&" : "";
+        const dimTags = t.motion === "dim" ? "\\alpha&HA6&" : t.motion === "draw" ? drawPending(act) : "";
         wordShape(ch.start, w.activeStart, dimTags);
         textEvent(ch.start, w.activeStart, w, false, posTag(w), dimTags, rot, base);
       }
 
+      // A slow glow that breathes behind every word for the whole line.
+      if (t.loop === "breathe") {
+        const glow = c.glow ?? act;
+        ev(1, ch.start, ch.end, `\\an5${posTag(w)}${rot}\\fn${w.face.fullName}\\fs${f1(w.fs)}\\b0\\i0\\fsp${f1(layout.trackingPx)}\\1a&HFF&\\bord${f1(0.16 * em)}\\3c${assColor(glow)}\\blur${f1(0.3 * em)}\\shad0` +
+          loopTags(ch.start, ch.end, 900, (ms) => `\\3a&H${Math.round(0x30 + 0x80 * (1 + tri(ms / 1800)) / 2).toString(16).toUpperCase().padStart(2, "0")}&`), w.text);
+      }
+
       // active
-      for (const seg of activeSegments(w, R)) {
+      const letters = w.letters && LETTER_MOTIONS.includes(t.motion);
+      if (letters) letterWord(w, rot, R, act);
+      for (const seg of letters ? [] : activeSegments(w, R)) {
         wordShape(seg.s, seg.e, seg.tags, seg.pos);
+        if (t.motion === "flash") {
+          shapeEvent(1, seg.s, seg.e, 5, w.x, w.y + 0.02 * em, rot, roundedRect(w.w + 0.16 * em, 1.1 * em, 0.12 * em), "#FFFFFF", "\\blur3\\t(0,280,\\1a&HFF&)");
+        }
+        if (t.motion === "extrude") {
+          const depth = c.extrude ?? c.outline ?? "#000000";
+          for (let k = 4; k >= 1; k--) {
+            ev(1, seg.s, seg.e, `\\an5${P(w.x - 0.06 * em + k * 0.03 * em, w.y - 0.06 * em + k * 0.03 * em)}${rot}\\fn${w.activeFace.fullName}\\fs${f1(w.activeFs)}\\b0\\i0\\fsp${f1(layout.trackingPx)}\\bord0\\shad0\\1c${assColor(depth)}`, w.text);
+          }
+        }
+        if (t.motion === "shimmer") {
+          // A soft white band sweeps across the word every 900 ms.
+          const bw = 0.36 * w.w, x0 = w.x - w.w / 2, y0 = f1(w.y - 0.7 * em), y1 = f1(w.y + 0.7 * em);
+          for (let a = seg.s; a < seg.e; a += 900) {
+            ev(3, a, Math.min(seg.e, a + 900), `\\an5${seg.pos}${rot}\\fn${w.activeFace.fullName}\\fs${f1(w.activeFs)}\\b0\\i0\\fsp${f1(layout.trackingPx)}\\bord0\\shad0\\1c&HFFFFFF&\\1a&H40&\\clip(${f1(x0 - bw)},${y0},${f1(x0)},${y1})\\t(0,900,\\clip(${f1(x0 + w.w)},${y0},${f1(x0 + w.w + bw)},${y1}))`, w.text);
+          }
+        }
+        if (t.motion === "slice") {
+          // Two bands of the word jitter sideways in the second accent and cyan.
+          const h = 1.12 * em, top = w.y - 0.56 * em;
+          let flip = false;
+          for (let s = seg.s; s < seg.e; s += 90) {
+            const e = Math.min(seg.e, s + 90);
+            const off = (flip ? -0.09 : 0.07) * em;
+            flip = !flip;
+            for (const [col, dx, b0, b1] of [[c.accent2 ?? "#FF2D55", off, 0.18, 0.42], ["#00E5FF", -off, 0.62, 0.88]] as const) {
+              ev(3, s, e, `\\an5${P(w.x + dx, w.y)}${rot}\\fn${w.activeFace.fullName}\\fs${f1(w.activeFs)}\\b0\\i0\\fsp${f1(layout.trackingPx)}\\bord0\\shad0\\1c${assColor(col)}\\clip(0,${f1(top + b0 * h)},${W},${f1(top + b1 * h)})`, w.text);
+            }
+          }
+        }
+        if (t.motion === "scramble") {
+          // Random characters settle into the word (same glyphs as the preview).
+          for (let step = 0; step < SCRAMBLE_STEPS && seg.s + step * SCRAMBLE_STEP_MS < seg.e; step++) {
+            const a = seg.s + step * SCRAMBLE_STEP_MS;
+            textEvent(a, Math.min(seg.e, a + SCRAMBLE_STEP_MS), { ...w, text: scrambledWord(w.text, w.index, step) }, true, seg.pos, "", rot, act);
+          }
+          textEvent(Math.min(seg.e, seg.s + SCRAMBLE_STEPS * SCRAMBLE_STEP_MS), seg.e, w, true, seg.pos, seg.tags, rot, act);
+          continue;
+        }
         if (t.motion === "boxword") {
           const fill = boxColor(w, "#FF2D2D");
           const pill = t.wordBox === "pill";
@@ -431,6 +711,36 @@ export function buildCaptionTrack(opts: CaptionTrackOptions): CaptionTrack {
       wordShape(w.activeEnd, ch.end, pastTags);
       textEvent(w.activeEnd, ch.end, w, false, posTag(w), pastTags, rot, base);
 
+      // Symbols that follow the spoken word.
+      if (sym) {
+        const s = w.activeStart, e = w.activeEnd;
+        const left = w.x - w.w / 2, top = w.y - 0.56 * em;
+        if (sym.mode === "sparkle") {
+          [[-0.18, -0.3], [0.96, -0.38], [1.04, 0.62]].forEach(([px, py], k) => {
+            const d = k * 70;
+            symEvent(3, s, e, P(left + px * w.w, top + py * 1.12 * em), symGlyphs[k % symGlyphs.length], symColor(k), 0.42 * em,
+              `\\fscx0\\fscy0\\frz90\\t(${d},${d + 260},\\fscx130\\fscy130\\frz-20)\\t(${d + 260},${d + 520},\\fscx90\\fscy90\\frz0)`);
+          });
+        } else if (sym.mode === "orbit") {
+          // Clockwise from 3 o'clock, one turn per 1.1 s, as eight straight hops.
+          const r = 0.68 * em, step = 1100 / 8;
+          const at = (ms: number) => { const a = (2 * Math.PI * ms) / 1100; return [w.x + r * Math.cos(a), w.y + r * Math.sin(a)]; };
+          for (let a = s; a < e; a += step) {
+            const [x0, y0] = at(a - s), [x1, y1] = at(Math.min(e, a + step) - s);
+            symEvent(3, a, Math.min(e, a + step), `\\move(${f1(x0)},${f1(y0)},${f1(x1)},${f1(y1)})`, symGlyphs[0], symColor(0), 0.45 * em);
+          }
+        } else if (sym.mode === "arrow") {
+          const xa = left - 0.36 * em;
+          symEvent(3, s, e, `\\move(${f1(xa - 0.25 * em)},${f1(w.y)},${f1(xa)},${f1(w.y)},0,220)`, symGlyphs[0], symColor(0), 0.7 * em, "\\alpha&HFF&\\t(0,220,\\alpha&H00&)");
+        } else if (sym.mode === "confetti" && (w.emphasis || w.emoji)) {
+          for (let k = 0; k < 9; k++) {
+            const ang = (k / 9) * 2 * Math.PI - Math.PI / 2, r = (1.6 + (k % 3) * 0.35) * 0.38 * em;
+            symEvent(3, s, s + 640, `\\move(${f1(w.x)},${f1(w.y)},${f1(w.x + Math.cos(ang) * r)},${f1(w.y + Math.sin(ang) * r * 0.8)},0,640)`, symGlyphs[k % symGlyphs.length], symColor(k), 0.38 * em,
+              "\\fscx30\\fscy30\\t(0,190,\\fscx100\\fscy100)\\t(190,640,\\fscx110\\fscy110\\alpha&HFF&)");
+          }
+        }
+      }
+
       // Emoji overlays.
       if (w.emoji) {
         const file = emojiAssetName(w.emoji);
@@ -446,6 +756,25 @@ export function buildCaptionTrack(opts: CaptionTrackOptions): CaptionTrack {
           for (const [dx, dy] of [[-1.4, -1.75], [1.5, -1.5], [0, -2.4], [-1.75, 0.25], [1.75, 0.4]]) {
             emoji.push({ file, size, x: Math.round(w.x - size / 2), y: Math.round(w.y - size / 2), start: s, end: s + 0.52, vx: (dx * em) / 0.52, vy: (dy * em) / 0.52 });
           }
+        } else if (w.emojiMode === "sticker") {
+          // A big emoji on a white disc in the top-right corner, until the next one.
+          const size = Math.round(0.22 * Math.min(W, H));
+          const x = Math.round(W - 0.09 * W - size), y = Math.round(0.13 * H);
+          const later = ch.words.find((o) => o.activeStart > w.activeStart && o.emoji);
+          const endMs = later ? later.activeStart : ch.end;
+          const d = size * 1.18;
+          const slap = "\\fscx220\\fscy220\\alpha&HFF&\\t(0,320,\\fscx100\\fscy100\\alpha&H00&)";
+          shapeEvent(0, w.activeStart, endMs, 5, x + size / 2, y + size / 2 + 0.05 * d, "", roundedRect(d, d, d / 2), "#00000059", `\\blur${f1(0.06 * d)}${slap}`);
+          shapeEvent(0, w.activeStart, endMs, 5, x + size / 2, y + size / 2, "", roundedRect(d, d, d / 2), "#FFFFFF", slap);
+          emoji.push({ file, size, x, y, start: s, end: endMs / 1000 });
+        } else if (w.emojiMode === "flank") {
+          const size = Math.round(0.7 * em);
+          const y = Math.round(w.y - size / 2);
+          emoji.push({ file, size, x: Math.round(w.x - w.w / 2 - 0.1 * em - size), y, start: s, end: w.activeEnd / 1000 });
+          emoji.push({ file, size, x: Math.round(w.x + w.w / 2 + 0.1 * em), y, start: s, end: w.activeEnd / 1000 });
+        } else if (w.emojiMode === "orbit") {
+          const size = Math.round(0.55 * em);
+          emoji.push({ file, size, x: Math.round(w.x), y: Math.round(w.y), start: s, end: w.activeEnd / 1000, orbit: { cx: w.x, cy: w.y, r: 0.83 * em, period: 1.1 } });
         } else if (w.emojiMode === "rain") {
           const size = Math.round(0.09 * W);
           for (let k = 0; k < 5; k++) {
@@ -456,6 +785,8 @@ export function buildCaptionTrack(opts: CaptionTrackOptions): CaptionTrack {
       }
     }
   }
+
+  line = null;
 
   // Full-length extras.
   const lastEnd = layout.chunks.length ? layout.chunks[layout.chunks.length - 1].end : 0;

@@ -27,9 +27,9 @@ function sample(t: CaptionTemplateSpec) {
 }
 
 describe("the catalogue", () => {
-  it("has 60 templates in 11 families, every family used", () => {
-    expect(CAPTION_TEMPLATES).toHaveLength(60);
-    expect(CAPTION_FAMILIES).toHaveLength(11);
+  it("has 150 templates in 21 families, every family used", () => {
+    expect(CAPTION_TEMPLATES).toHaveLength(150);
+    expect(CAPTION_FAMILIES).toHaveLength(21);
     for (const f of CAPTION_FAMILIES) expect(CAPTION_TEMPLATES.some((t) => t.family === f.id), f.id).toBe(true);
   });
 
@@ -180,6 +180,83 @@ describe("drop 1 (templates 51-60)", () => {
 
   it.each([["limesoda", "\\fscx124"], ["molten", "\\fscx30"], ["peachfizz", "\\fscx155"], ["tuttifrutti", "\\fax-0.29"]])("%s animates its spoken word", (id, tag) => {
     expect(lines(id).join("\n")).toContain(tag);
+  });
+});
+
+describe("templates 61-150", () => {
+  const find = (id: string) => CAPTION_TEMPLATES.find((x) => x.id === id)!;
+  const words = ["build", "bigger", "every", "single", "day", "now"].map((w, i) => ({ word: w, start: 200 + i * 400, end: 560 + i * 400 }));
+  const track = (id: string, extra: Partial<Parameters<typeof buildCaptionTrack>[0]> = {}) => buildCaptionTrack({ words, template: find(id), W, H, ...extra });
+  const dialogue = (id: string, extra = {}) => track(id, extra).ass.split("\n").filter((l) => l.startsWith("Dialogue:"));
+  const textOf = (l: string) => l.replace(/\{[^}]*\}/g, "").split(",").slice(9).join(",");
+
+  it("makes every new template multi-colour", () => {
+    const drop = CAPTION_TEMPLATES.slice(50);
+    for (const t of drop) {
+      const c = t.colors;
+      expect(!!(c.gradient || c.cycle || c.wordColors || c.boxCycle || c.letterColors || c.palette), t.id).toBe(true);
+    }
+  });
+
+  it.each([["wave"], ["cascade"], ["prism"]])("%s draws the spoken word letter by letter", (id) => {
+    const lines = dialogue(id);
+    expect(lines.some((l) => textOf(l).length === 1 && /[A-Za-z]/.test(textOf(l)))).toBe(true);
+  });
+
+  it("colours each letter of Prism from its palette", () => {
+    const ass = dialogue("prism").join("\n");
+    expect(ass).toContain("\\1c&H5F5AFF&"); // #FF5A5F
+    expect(ass).toContain("\\1c&H00B4FF&"); // #FFB400
+  });
+
+  it("sets symbols in the bundled symbol font", () => {
+    for (const id of ["badgedrop", "splitpersonality", "aurora"]) {
+      expect(dialogue(id).join("\n"), id).toContain("\\fnNoto Sans Symbols 2");
+    }
+  });
+
+  it("pops a badge into the top-left corner of every line", () => {
+    const badge = dialogue("breaking").filter((l) => textOf(l).includes("LIVE"));
+    expect(badge.length).toBeGreaterThan(0);
+  });
+
+  it("fills the review stars one word at a time", () => {
+    const rows = dialogue("reviewstars").filter((l) => textOf(l).includes("★"));
+    expect(rows.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("slaps a sticker emoji on a white disc and orbits another", () => {
+    const sticker = track("slapsticker", { emoji: { 0: "😱" } });
+    expect(sticker.emoji.some((e) => e.size >= 0.2 * W)).toBe(true);
+    const orbit = buildCaptionTrack({ words, template: { ...find("wave"), emoji: "orbit" }, W, H, emoji: { 1: "🏄" } });
+    expect(orbit.emoji[0]?.orbit).toBeDefined();
+    const chain = buildCaptionFilterChain({ track: orbit, assPath: "/tmp/x.ass", inLabel: "in", outLabel: "out" });
+    expect(chain).toContain("cos(");
+    expect(chain).toContain("sin(");
+  });
+
+  it("brings lines in with their entry", () => {
+    expect(dialogue("sunlit").join("\n")).toContain("\\fad(300,0)");
+    expect(dialogue("punchin").join("\n")).toMatch(/\\frz25\\t\(0,360,\\frz0\)/);
+  });
+
+  it.each([
+    ["block3d", /\\org\([\d.]+,[\d.]+\)\\frz1\.6/],      // sway
+    ["moodring", /\\t\(\d+,\d+,\\1c&H[0-9A-F]{6}&\)/],   // hue drift
+    ["clubpulse", /\\fscx10[0-4]\\fscy10[0-4]/],          // pulse
+    ["ultraviolet", /\\3a&H[0-9A-F]{2}&/],                // breathing glow
+    ["aurora", /\\move\(/],                                // float
+  ])("%s runs its idle loop", (id, re) => {
+    expect(dialogue(id).join("\n")).toMatch(re);
+  });
+
+  it("decodes the same random glyphs on every render", () => {
+    expect(track("decoder").ass).toBe(track("decoder").ass);
+    expect(dialogue("decoder").some((l) => /[!<>=+*^?#]/.test(textOf(l)))).toBe(true);
+  });
+
+  it("sweeps a shimmer band above the word", () => {
+    expect(dialogue("goldrush").some((l) => l.startsWith("Dialogue: 3,") && l.includes("\\clip("))).toBe(true);
   });
 });
 

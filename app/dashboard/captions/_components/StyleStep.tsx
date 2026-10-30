@@ -31,7 +31,15 @@ function otherShapes(aspect: Aspect): Aspect[] {
   return (["9:16", "1:1", "16:9"] as Aspect[]).filter((a) => a !== aspect).slice(0, 2);
 }
 
-const MOTION_LABEL = (m: string) => m.charAt(0).toUpperCase() + m.slice(1);
+/** Motion ids that don't read as words; the rest are capitalised as they are. */
+const MOTION_NAMES: Record<string, string> = {
+  pops: "Soft pop", color: "Colour swap", dim: "Dim others", boxword: "Word box", stack: "Build up", emph: "Emphasis",
+  typestep: "Typewriter", type: "Write on", rgb: "RGB split", fontswitch: "Font switch", split: "Split tone",
+  tiltswap: "Tilt swap", slidel: "Slide in", extrude: "3D extrude", tada: "Ta-da", swipe: "Swipe up",
+  stretch: "Stretch in", draw: "Outline to fill", roll: "Slot roll", ink: "Ink bloom", wave: "Letter wave",
+  cascade: "Letter cascade", rainbow: "Rainbow letters", scramble: "Decoder", slice: "Glitch slice",
+};
+const MOTION_LABEL = (m: string) => MOTION_NAMES[m] ?? m.charAt(0).toUpperCase() + m.slice(1);
 
 /** The caption outline a width turns on when the template has none (caption data, not page colour). */
 const DEFAULT_OUTLINE = "#000000";

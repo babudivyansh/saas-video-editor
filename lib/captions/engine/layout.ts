@@ -7,7 +7,7 @@
 // the frame's short side times the template's size, so a template looks the
 // same in the picker and in the export.
 
-import type { CaptionEmojiMode, CaptionTemplateSpec } from "@clipiro/shared/caption-templates";
+import { LETTER_MOTIONS, type CaptionEmojiMode, type CaptionTemplateSpec } from "@clipiro/shared/caption-templates";
 import { BIGGER_SCALE, type CaptionWordStyle } from "@clipiro/shared/caption-style";
 import {
   DEVANAGARI_FALLBACK,
@@ -58,6 +58,8 @@ export interface PlacedWord {
   /** Text width (px), excluding any reserved emoji space. */
   w: number;
   line: number;
+  /** Letter motions only: each character and its centre's offset from x (px). */
+  letters: { ch: string; dx: number }[] | null;
 }
 
 export interface PlacedChunk {
@@ -107,7 +109,15 @@ const SCALE_RESERVE: Partial<Record<CaptionTemplateSpec["motion"], number>> = {
   pop: 0.14, stack: 0.14, split: 0.14, bubble: 0.1, step: 0.12, shake: 0.1, slam: 0.06, blocks: 0.06,
   pops: 0.07, boxword: 0.07, dim: 0.07, hollow: 0.07, fontswitch: 0.07, wobble: 0.06, bounce: 0.06,
   punch: 0.14, tiltswap: 0.14, stamp: 0.14, heartbeat: 0.08, elastic: 0.06, jelly: 0.06, drop: 0.02,
+  spin: 0.08, tada: 0.16, flash: 0.16, extrude: 0.12, shimmer: 0.07, rainbow: 0.1, scramble: 0.07,
 };
+
+/** Space before the first line (and, for flank, after the last) for an extra or a symbol. */
+function leadEm(t: CaptionTemplateSpec): number {
+  if (t.extra === "square" || t.extra === "bars" || t.symbols?.mode === "flank") return 0.7;
+  if (t.symbols?.mode === "prefix") return 0.9;
+  return 0;
+}
 
 function applyCase(text: string, c: CaptionTemplateSpec["type"]["case"]): string {
   if (c === "upper") return text.toLocaleUpperCase();
@@ -154,7 +164,9 @@ export function layoutCaptions(opts: LayoutOptions): CaptionLayout {
   const maxLineW = W - marginL - marginR;
   const gap = t.motion === "bubble" ? 0.16 * emPx : 0.28 * emPx;
   const wordPad = t.motion === "bubble" ? 0.68 * emPx : t.motion === "blocks" ? 0.44 * emPx : t.container === "wordbox" ? 0.28 * emPx : 0;
-  const lead = t.extra === "square" || t.extra === "bars" ? 0.7 * emPx : 0;
+  const lead = leadEm(t) * emPx;
+  const trail = t.symbols?.mode === "flank" ? lead : 0;
+  const letterMotion = LETTER_MOTIONS.includes(t.motion);
 
   const groups = chunkWords(words, perChunk);
   const chunks: PlacedChunk[] = [];
@@ -201,11 +213,24 @@ export function layoutCaptions(opts: LayoutOptions): CaptionLayout {
         if (!speakerOrder.has(src.speaker)) speakerOrder.set(src.speaker, speakerOrder.size);
         speaker = speakerOrder.get(src.speaker)!;
       }
+      // Letter motions place each character itself (Latin only: splitting
+      // Devanagari would break its shaping).
+      let letters: { ch: string; dx: number }[] | null = null;
+      if (letterMotion && !DEVANAGARI_RE.test(text)) {
+        const tr = t.type.tracking ?? 0;
+        const full = measureText(face, text, wordEm, tr);
+        const chars = Array.from(text);
+        letters = chars.map((ch, ci) => {
+          const left = measureText(face, chars.slice(0, ci).join(""), wordEm, tr);
+          const right = measureText(face, chars.slice(0, ci + 1).join(""), wordEm, tr);
+          return { ch, dx: (left + right) / 2 - full / 2 };
+        });
+      }
       const nextInChunk = idxs[k + 1] !== undefined ? words[idxs[k + 1]].start : end;
       const activeStart = Math.max(start, src.start);
       const activeEnd = Math.max(activeStart + 40, Math.min(end, nextInChunk));
       return {
-        index: wi, text, emphasis, face, activeFace, activeEm, emoji, speaker, style, wordEm, wordEmojiMode,
+        index: wi, text, emphasis, face, activeFace, activeEm, emoji, speaker, style, wordEm, wordEmojiMode, letters,
         activeStart, activeEnd,
         boxW: w * (1 + (SCALE_RESERVE[t.motion] ?? 0) + (style?.emphasis === "shake" ? 0.1 : 0)) + wordPad + boxPad, textW: w, reserve,
       };
@@ -241,7 +266,7 @@ export function layoutCaptions(opts: LayoutOptions): CaptionLayout {
     let bx0 = Infinity;
     let bx1 = -Infinity;
     lines.forEach((line, li) => {
-      const lineW = (li === 0 ? lead : 0) + line.reduce((s, it, k) => s + (k ? gap : 0) + it.boxW + it.reserve, 0);
+      const lineW = (li === 0 ? lead : 0) + (li === lines.length - 1 ? trail : 0) + line.reduce((s, it, k) => s + (k ? gap : 0) + it.boxW + it.reserve, 0);
       let x = align === "left" ? marginL : (W - lineW) / 2;
       const lx0 = x;
       if (li === 0) x += lead;
@@ -266,6 +291,7 @@ export function layoutCaptions(opts: LayoutOptions): CaptionLayout {
           y,
           w: it.textW,
           line: li,
+          letters: it.letters,
         });
         x += it.boxW + it.reserve + gap;
       }

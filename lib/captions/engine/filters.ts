@@ -78,8 +78,14 @@ export function buildCaptionFilterChain(opts: CaptionFilterOptions): string {
     }
     track.emoji.forEach((e, i) => {
       const next = i === track.emoji.length - 1 ? opts.outLabel : `${p}o${i}`;
-      const x = e.vx ? `${e.x}+${n2(e.vx)}*(t-${n2(e.start)})` : `${e.x}`;
-      const y = e.vy ? `${e.y}+${n2(e.vy)}*(t-${n2(e.start)})` : `${e.y}`;
+      let x = e.vx ? `${e.x}+${n2(e.vx)}*(t-${n2(e.start)})` : `${e.x}`;
+      let y = e.vy ? `${e.y}+${n2(e.vy)}*(t-${n2(e.start)})` : `${e.y}`;
+      if (e.orbit) {
+        // Circles (cx,cy) clockwise from 3 o'clock; x/y are the image's top-left.
+        const a = `2*PI*(t-${n2(e.start)})/${n2(e.orbit.period)}`;
+        x = `${n2(e.orbit.cx - e.size / 2)}+${n2(e.orbit.r)}*cos(${a})`;
+        y = `${n2(e.orbit.cy - e.size / 2)}+${n2(e.orbit.r)}*sin(${a})`;
+      }
       parts.push(`[${cur}][${label.get(i)}]overlay=x='${x}':y='${y}':enable='between(t,${n2(e.start)},${n2(e.end)})'[${next}]`);
       cur = next;
     });

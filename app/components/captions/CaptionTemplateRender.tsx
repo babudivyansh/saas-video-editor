@@ -9,7 +9,7 @@
 // word becomes the spoken one.
 
 import type { CSSProperties } from "react";
-import type { CaptionTemplateSpec } from "@clipiro/shared/caption-templates";
+import { LETTER_MOTIONS, SCRAMBLE_STEPS, SCRAMBLE_STEP_MS, scrambledWord, type CaptionTemplateSpec } from "@clipiro/shared/caption-templates";
 import { BIGGER_SCALE, type CaptionWordStyle } from "@clipiro/shared/caption-style";
 import s from "./CaptionTemplateRender.module.css";
 
@@ -48,6 +48,8 @@ export interface CaptionTemplateRenderProps {
 }
 
 const STICKER_TILTS = [-4, 3, -2, 4];
+/** Sparkle glyph positions, as fractions of the word's box (same as engine/ass.ts). */
+const SPARKLES = [[-0.18, -0.3], [0.96, -0.38], [1.04, 0.62]];
 
 /** CSS text-shadow approximating an outline of `width` (0-4 scale). */
 function outlineShadow(color: string | undefined, width: number | undefined, hard?: string): string {
@@ -128,6 +130,9 @@ export default function CaptionTemplateRender({
     "--tilt": `${t.placement.tilt ?? 0}deg`,
     "--rot": `${STICKER_TILTS[(chunk?.index ?? 0) % STICKER_TILTS.length]}deg`,
     "--olc": c.outline ?? "#000",
+    "--x": c.extrude ?? c.outline ?? "#000",
+    "--act2": c.accent2 ?? "#FF2D55",
+    "--sc": t.symbols?.colors[0] ?? "#fff",
     ...(grad ? { "--g1": grad.from, "--g2": grad.to } : {}),
     ...(positionY != null ? { "--py": `${positionY}%` } : {}),
   } as CSSProperties;
@@ -140,8 +145,20 @@ export default function CaptionTemplateRender({
     t.placement.align === "left" ? s.al_left : "",
     grad ? (grad.target === "all" ? s.gradall : s.grad) : "",
     t.wordBox === "pill" ? s.pillw : "",
+    c.letterColors?.length ? s.lc : "",
+    t.entry ? s[`in_${t.entry}`] : "",
+    t.loop ? s[`lp_${t.loop}`] : "",
     s.enter,
   ].filter(Boolean).join(" ");
+
+  const sym = t.symbols;
+  const glyphs = sym ? Array.from(sym.glyphs) : [];
+  const symColor = (k: number) => sym!.colors[k % sym!.colors.length];
+  const letterWords = LETTER_MOTIONS.includes(t.motion) && t.script !== "devanagari";
+  // The sticker emoji shows from its word until the next emoji word in the line.
+  const stickerWord = t.emoji === "sticker" && chunk
+    ? [...chunk.words.slice(0, activeIdx + 1)].reverse().find((w) => w.style?.emoji ?? w.emoji) ?? null
+    : null;
 
   const speakerColor = (sp: number | undefined) => (c.speakers?.length ? c.speakers[(sp ?? 0) % c.speakers.length] : undefined);
 
@@ -177,10 +194,28 @@ export default function CaptionTemplateRender({
     const emoji = ws?.emoji ?? (t.emoji !== "none" && w.emoji ? w.emoji : null);
     const emojiMode = ws?.emoji && t.emoji === "none" ? "end" : t.emoji;
     const sinceActive = timeMs - w.start;
+    const on = k === activeIdx;
+    const decoding = on && t.motion === "scramble" && sinceActive < SCRAMBLE_STEPS * SCRAMBLE_STEP_MS;
+    const text = decoding ? scrambledWord(w.text, w.i, Math.max(0, Math.floor(sinceActive / SCRAMBLE_STEP_MS))) : w.text;
     return (
       <span key={`${chunk.index}-${k}`} className="contents">
         <span className={`${s.w} ${state} ${w.emphasis && t.motion === "emph" ? s.em : ""} ${wordClass}`} data-w={w.text} style={style}>
-          {w.text}
+          {letterWords
+            ? Array.from(w.text).map((ch, i) => (
+                <span key={i} className={s.ch} style={{ "--i": i, ...(c.letterColors?.length ? { "--lc": c.letterColors[i % c.letterColors.length] } : {}) } as CSSProperties}>{ch}</span>
+              ))
+            : text}
+          {on && sym?.mode === "sparkle" && SPARKLES.map(([x, y], j) => (
+            <i key={j} className={`${s.sym} ${s.spk}`} style={{ left: `${x * 100}%`, top: `${y * 100}%`, color: symColor(j), animationDelay: `${j * 70}ms` }}>{glyphs[j % glyphs.length]}</i>
+          ))}
+          {on && sym?.mode === "orbit" && <i className={`${s.sym} ${s.orb}`} style={{ color: symColor(0) }}>{glyphs[0]}</i>}
+          {on && sym?.mode === "arrow" && <i className={`${s.sym} ${s.arr}`} style={{ color: symColor(0) }}>{glyphs[0]}</i>}
+          {on && sym?.mode === "confetti" && (w.emphasis || emoji) && sinceActive < 640 && Array.from({ length: 9 }, (_, j) => {
+            const ang = (j / 9) * 2 * Math.PI - Math.PI / 2, r = 1.6 + (j % 3) * 0.35;
+            return <i key={j} className={`${s.sym} ${s.conf}`} style={{ color: symColor(j), "--dx": `${(Math.cos(ang) * r).toFixed(2)}em`, "--dy": `${(Math.sin(ang) * r * 0.8).toFixed(2)}em` } as CSSProperties}>{glyphs[j % glyphs.length]}</i>;
+          })}
+          {emoji && on && emojiMode === "flank" && <><i className={`${s.emo} ${s.fl} ${s.fll}`}>{emoji}</i><i className={`${s.emo} ${s.fl} ${s.flr}`}>{emoji}</i></>}
+          {emoji && on && emojiMode === "orbit" && <i className={`${s.emo} ${s.eorb}`}>{emoji}</i>}
           {emoji && k === activeIdx && emojiMode === "above" && <i className={`${s.emo} ${s.up}`}>{emoji}</i>}
           {emoji && k === activeIdx && emojiMode === "burst" && sinceActive < 520 &&
             [[-1.4, -1.75], [1.5, -1.5], [0, -2.4], [-1.75, 0.25], [1.75, 0.4]].map(([dx, dy], j) => (
@@ -224,9 +259,19 @@ export default function CaptionTemplateRender({
         <div key={chunk.index} className={capClass} style={capStyle}>
           {t.extra === "bars" && <span className={s.barsx}><i /><i /><i /><i /></span>}
           {t.extra === "square" && <span className={s.sq} />}
+          {(sym?.mode === "prefix" || sym?.mode === "flank") && <span className={sym.mode === "prefix" ? s.symp : s.symf}>{glyphs[0]}</span>}
           {t.container === "line" ? <span className={s.lnw}>{wordEls}</span> : wordEls}
+          {sym?.mode === "flank" && <span className={s.symf}>{glyphs[0]}</span>}
+          {sym?.mode === "stars" && (() => {
+            const filled = Math.min(5, Math.max(0, activeIdx + 1 + (chunk.index % 2) * 2));
+            return <span className={s.stars}><b key={filled}>{"★".repeat(filled)}</b>{"★".repeat(5 - filled)}</span>;
+          })()}
           {t.extra === "cursor" && <span className={s.cur} />}
         </div>
+      )}
+      {chunk && sym?.mode === "badge" && <div key={`b${chunk.index}`} className={s.badge} style={{ "--bc": symColor(0) } as CSSProperties}>{sym.glyphs}</div>}
+      {stickerWord && (
+        <div key={`s${stickerWord.i}`} className={s.emostk}><i className={s.emo}>{stickerWord.style?.emoji ?? stickerWord.emoji}</i></div>
       )}
       {chunk && t.extra === "quote" && <div className={s.qmark}>{"“"}</div>}
       {rain}

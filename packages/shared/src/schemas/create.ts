@@ -140,7 +140,7 @@ export const overflowCreditsFor = (minutesShort: number) => (minutesShort > 0 ? 
 export const captionTemplateSchema = z.object({
   id: z.string(),
   name: z.string(),
-  family: z.enum(["viral", "karaoke", "box", "creator", "podcast", "minimal", "cinema", "retro", "desi", "gradient", "chroma"]),
+  family: z.enum(["viral", "karaoke", "box", "creator", "podcast", "minimal", "cinema", "retro", "desi", "gradient", "chroma", "sticker", "kinetic", "letters", "neon", "y2k", "hype", "soft", "edu", "fest", "season"]),
   /** The plan the template needs; the server refuses runs and saves below it. */
   tier: z.enum(["free", "creator", "pro"]),
   /** What the app's static swatch draws. Colours are #rrggbb; highlight is null when the spoken word keeps the base colour. */
