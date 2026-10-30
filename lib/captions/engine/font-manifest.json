@@ -412,5 +412,59 @@
     "fullName": "Rozha One Regular",
     "postscriptName": "RozhaOne-Regular",
     "devanagari": true
+  },
+  {
+    "family": "Dela Gothic One",
+    "weight": 400,
+    "italic": false,
+    "file": "DelaGothicOne-400.ttf",
+    "fullName": "Dela Gothic One Regular",
+    "postscriptName": "DelaGothicOne-Regular",
+    "devanagari": false
+  },
+  {
+    "family": "Bungee",
+    "weight": 400,
+    "italic": false,
+    "file": "Bungee-400.ttf",
+    "fullName": "Bungee Regular",
+    "postscriptName": "Bungee-Regular",
+    "devanagari": false
+  },
+  {
+    "family": "Sora",
+    "weight": 800,
+    "italic": false,
+    "file": "Sora-800.ttf",
+    "fullName": "Sora ExtraBold",
+    "postscriptName": "Sora-ExtraBold",
+    "devanagari": false
+  },
+  {
+    "family": "Chewy",
+    "weight": 400,
+    "italic": false,
+    "file": "Chewy-400.ttf",
+    "fullName": "Chewy Regular",
+    "postscriptName": "Chewy-Regular",
+    "devanagari": false
+  },
+  {
+    "family": "Bowlby One",
+    "weight": 400,
+    "italic": false,
+    "file": "BowlbyOne-400.ttf",
+    "fullName": "Bowlby One Regular",
+    "postscriptName": "BowlbyOne-Regular",
+    "devanagari": false
+  },
+  {
+    "family": "Lexend",
+    "weight": 800,
+    "italic": false,
+    "file": "Lexend-800.ttf",
+    "fullName": "Lexend ExtraBold",
+    "postscriptName": "Lexend-ExtraBold",
+    "devanagari": false
   }
 ]

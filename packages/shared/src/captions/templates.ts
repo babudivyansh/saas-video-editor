@@ -1,11 +1,12 @@
-// The Clipiro caption template library: 50 templates Clipiro owns and renders
+// The Clipiro caption template library: the templates Clipiro owns and renders
 // itself (lib/captions/engine on the server, CaptionTemplateRender in the
 // browser, a static swatch on mobile).
 //
 // Pure data on purpose. The web app, the render workers, the editor and the
 // Android app all read these exact records, so a template can never look one
 // way in the picker and another way in the export. Design reference: the
-// "Clipiro Caption Library" plan (2026-10-24).
+// "Clipiro Caption Library" plan (2026-10-24; templates 51-150 designed
+// 2026-10-30 and shipped in weekly drops of ten).
 //
 // Every template is one value on each of nine settings: type, words on screen,
 // placement, active-word motion, colours, container, emoji, extras, and the
@@ -24,20 +25,24 @@ export type CaptionFamilyId =
   | "minimal"
   | "cinema"
   | "retro"
-  | "desi";
+  | "desi"
+  | "gradient"
+  | "chroma";
 
 /** How the spoken word (or line) animates. Names match the engine registry. */
 export type CaptionMotionId =
   | "pop" | "pops" | "slam" | "bounce" | "color" | "dim" | "karaoke" | "boxword"
   | "stack" | "rise" | "fade" | "cut" | "bold" | "emph" | "bubble" | "blocks"
   | "glow" | "marker" | "underline" | "hollow" | "split" | "shake" | "wobble"
-  | "blur" | "zoom" | "type" | "typestep" | "flicker" | "step" | "rgb" | "fontswitch";
+  | "blur" | "zoom" | "type" | "typestep" | "flicker" | "step" | "rgb" | "fontswitch"
+  | "heartbeat" | "punch" | "drop" | "elastic" | "jelly" | "stamp" | "tiltswap";
 
 export const CAPTION_MOTIONS: readonly CaptionMotionId[] = [
   "pop", "pops", "slam", "bounce", "color", "dim", "karaoke", "boxword",
   "stack", "rise", "fade", "cut", "bold", "emph", "bubble", "blocks",
   "glow", "marker", "underline", "hollow", "split", "shake", "wobble",
   "blur", "zoom", "type", "typestep", "flicker", "step", "rgb", "fontswitch",
+  "heartbeat", "punch", "drop", "elastic", "jelly", "stamp", "tiltswap",
 ];
 
 /** The shape the line sits on, if any. */
@@ -64,6 +69,10 @@ export interface CaptionTemplateColors {
   palette?: string[];
   /** Accent colour rotation, one per spoken word. */
   cycle?: string[];
+  /** A fixed colour per word (unspoken and spoken alike), cycled through the clip. */
+  wordColors?: string[];
+  /** Box colour rotation behind the spoken word (boxword, marker), one per word. */
+  boxCycle?: string[];
   /** Text colour per speaker (Two Mic). Index 0 is used when there is no speaker data. */
   speakers?: string[];
   /** Vertical gradient fill: on the spoken word, or on every word. */
@@ -95,6 +104,8 @@ export interface CaptionTemplateSpec {
   placement: { y: CaptionPlacement; align: "center" | "left"; tilt?: number };
   colors: CaptionTemplateColors;
   container: CaptionContainer;
+  /** Shape of the spoken word's box (boxword): rounded corners (default) or a full pill. */
+  wordBox?: "rounded" | "pill";
   emoji: CaptionEmojiMode;
   extra?: CaptionExtra;
   /** The script the template is designed for. Devanagari templates need HarfBuzz shaping. */
@@ -119,6 +130,8 @@ export const CAPTION_FAMILIES: readonly CaptionFamily[] = [
   { id: "cinema", name: "Cinematic & Editorial", description: "Serifs, tracking and slow fades for storytelling, documentary and luxury." },
   { id: "retro", name: "Gaming & Retro", description: "Pixel, glitch and neon for gaming, tech and music." },
   { id: "desi", name: "Hindi & Hinglish", description: "Designed for Devanagari from the start, for India's biggest creator audience." },
+  { id: "gradient", name: "Gradient Pop", description: "Two-stop gradient fills that make the spoken word look lit from inside." },
+  { id: "chroma", name: "Colour Switch", description: "A colour per word, changing as you speak. Built for rhythmic clips under 30 seconds." },
 ];
 
 const W = "#FFFFFF";
@@ -596,6 +609,110 @@ export const CAPTION_TEMPLATES: readonly CaptionTemplateSpec[] = [
     colors: { base: "#FFD27A", accent: W, outline: "#5A1A00", outlineWidth: 3, gradient: { from: "#FFE7A3", to: "#D99A2B", target: "all" } },
     container: "none", emoji: "none", script: "devanagari",
     sample: "हिम्मत रखो सपने बड़े",
+  },
+
+  // ── Gradient Pop (drop 1) ─────────────────────────────────────────────────
+  {
+    id: "sunset", name: "Sunset", family: "gradient", tier: "free",
+    hint: "The spoken word fills with a warm yellow-to-red gradient and pops; an emoji lands above the keyword.",
+    benchmark: "Gradient-text hooks on Reels",
+    type: { font: "Montserrat", weight: 900, case: "upper", size: 1 }, words: 3, motion: "pop",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FF8A3D", outline: K, outlineWidth: 3, gradient: { from: "#FFD23F", to: "#FF4E50", target: "active" } },
+    container: "none", emoji: "above",
+    sample: "Watch this:👀 before you quit your job:💼",
+  },
+  {
+    id: "limesoda", name: "Lime Soda", family: "gradient", tier: "free",
+    hint: "Lime-to-emerald fill that beats twice on every spoken word. Fizzy, bright and on brand.",
+    benchmark: "Life-hack and productivity shorts",
+    type: { font: "Dela Gothic One", weight: 400, case: "upper", size: 1 }, words: 2, motion: "heartbeat",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#B8FF3B", outline: K, outlineWidth: 3, gradient: { from: "#E6FF5C", to: "#20D68A", target: "active" } },
+    container: "none", emoji: "end",
+    sample: "This hack:🍋 saves you two hours",
+  },
+  {
+    id: "molten", name: "Molten", family: "gradient", tier: "pro",
+    hint: "Lava-coloured block caps; each word punches in out of a blur and keywords throw a fire burst.",
+    benchmark: "Sale and deal announcements",
+    type: { font: "Bungee", weight: 400, case: "upper", size: 1 }, words: 2, motion: "punch",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FFE259", outline: "#2A0A00", outlineWidth: 3, gradient: { from: "#FFE259", to: "#FF5F1F", target: "all" } },
+    container: "none", emoji: "burst",
+    sample: "Hottest:🔥 deal of the whole year",
+  },
+  {
+    id: "oceandrop", name: "Ocean Drop", family: "gradient", tier: "creator",
+    hint: "The spoken word drops in and squashes on landing, filled aqua-to-deep-blue like water.",
+    benchmark: "Travel and swim content",
+    type: { font: "Sora", weight: 800, case: "none", size: 1 }, words: 3, motion: "drop",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#7CF8FF", outline: "#001833", outlineWidth: 2, gradient: { from: "#7CF8FF", to: "#1F7BFF", target: "active" } },
+    container: "none", emoji: "end",
+    sample: "Swim:🌊 before sunrise every single day",
+  },
+  {
+    id: "peachfizz", name: "Peach Fizz", family: "gradient", tier: "pro",
+    hint: "Peach-to-coral fill that squashes flat, stretches tall and snaps back like a squeezed fruit.",
+    benchmark: "Summer drinks and recipe reels",
+    type: { font: "Baloo 2", weight: 800, case: "none", size: 1 }, words: 2, motion: "elastic",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FFB199", outline: "#5A1426", outlineWidth: 3, gradient: { from: "#FFD1A9", to: "#FF7A90", target: "active" } },
+    container: "none", emoji: "above",
+    sample: "Summer:🌞 drinks that actually taste good:🍹",
+  },
+
+  // ── Colour Switch (drop 1) ────────────────────────────────────────────────
+  {
+    id: "duotone", name: "Duotone", family: "chroma", tier: "creator",
+    hint: "Spoken words alternate pink and cyan and tilt left, then right, like two sides arguing.",
+    benchmark: "This-or-that and debate clips",
+    type: { font: "Anton", weight: 400, case: "upper", size: 1.15 }, words: 2, motion: "tiltswap",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FF3D9A", outline: K, outlineWidth: 3, cycle: ["#FF3D9A", "#00E5FF"] },
+    container: "none", emoji: "above",
+    sample: "Left:👈 or right:👉 choose right now",
+  },
+  {
+    id: "tuttifrutti", name: "Tutti Frutti", family: "chroma", tier: "free",
+    hint: "Fruit colours, one per word, and the spoken word wobbles like jelly.",
+    benchmark: "Kids, food and family accounts",
+    type: { font: "Chewy", weight: 400, case: "none", size: 1.1 }, words: 2, motion: "jelly",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FF6B6B", outline: "#1B1B1B", outlineWidth: 3, wordColors: ["#FF6B6B", "#FFD93D", "#6BCB77", "#4D96FF"] },
+    container: "none", emoji: "above",
+    sample: "Fruit:🍉 salad in thirty seconds flat",
+  },
+  {
+    id: "popart", name: "Pop Art", family: "chroma", tier: "pro",
+    hint: "Primary red, yellow and blue stamped on one word after another, with a hard shadow and a hit burst.",
+    benchmark: "Comic-style product drops",
+    type: { font: "Bowlby One", weight: 400, case: "upper", size: 1 }, words: 2, motion: "stamp",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#FF2D55", outline: K, outlineWidth: 2, hardShadow: K, cycle: ["#FF2D55", "#FFD60A", "#0A84FF"] },
+    container: "none", emoji: "burst",
+    sample: "BAM:💥 the price just dropped",
+  },
+  {
+    id: "pillparade", name: "Pill Parade", family: "chroma", tier: "free",
+    hint: "The spoken word sits in a rounded chip, and the chip changes colour on every word.",
+    benchmark: "The coloured chip captions CapCut made the default",
+    type: { font: "Lexend", weight: 800, case: "none", size: 1 }, words: 3, motion: "boxword",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: W, outline: K, outlineWidth: 2, box: "#FF3B30", boxCycle: ["#FF3B30", "#0A84FF", "#34C759", "#FF9F0A", "#BF5AF2"] },
+    container: "none", wordBox: "pill", emoji: "end",
+    sample: "New update:🚀 dropped here is everything",
+  },
+  {
+    id: "highlighterpack", name: "Highlighter Pack", family: "chroma", tier: "creator",
+    hint: "A highlighter swipes behind each spoken word, and the pen changes colour every word: yellow, mint, pink, blue.",
+    benchmark: "Study and note-taking accounts",
+    type: { font: "Plus Jakarta Sans", weight: 700, case: "none", size: 1 }, words: 3, motion: "marker",
+    placement: { y: "mid", align: "center" },
+    colors: { base: W, accent: "#111111", outline: K, outlineWidth: 2, box: "#FFE14D", boxCycle: ["#FFE14D", "#7CFFCB", "#FF9AD5", "#9AD0FF"] },
+    container: "none", emoji: "end",
+    sample: "Three study tips:📝 that actually work",
   },
 ];
 

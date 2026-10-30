@@ -9,7 +9,7 @@
 // the Google Fonts CSS API with an old user agent returns one static TrueType
 // file per weight/style, which is what libass (render) and fontkit (layout) need.
 //
-// Every font here is SIL Open Font License except Permanent Marker (Apache 2.0);
+// Every font here is SIL Open Font License except Permanent Marker and Chewy (Apache 2.0);
 // see public/fonts/LICENSES.md. Re-run after adding a font to a template:
 //   node scripts/sync-caption-fonts.mjs
 
@@ -61,6 +61,13 @@ const FONTS = [
   ["VT323", [400], []],
   ["Mukta", [800], []],
   ["Rozha One", [400], []],
+  // Drop 1 of templates 51-150
+  ["Dela Gothic One", [400], []],
+  ["Bungee", [400], []],
+  ["Sora", [800], []],
+  ["Chewy", [400], []],
+  ["Bowlby One", [400], []],
+  ["Lexend", [800], []],
 ];
 
 function fileNameFor(family, weight, italic) {

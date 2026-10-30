@@ -1,6 +1,6 @@
 "use client";
 
-// Caption templates in the editor: the same 50 templates as AutoClip, drawn by
+// Caption templates in the editor: the same templates as AutoClip, drawn by
 // the same preview and burned by the same engine on export. Applies to the
 // selected cue if one is selected, otherwise to every cue on the track (the
 // CapCut-style default). "Plain captions" goes back to per-cue styling.

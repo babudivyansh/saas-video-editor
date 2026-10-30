@@ -34,6 +34,8 @@
 .sc_cinema { background: radial-gradient(circle at 70% 30%, #b0712c, transparent 50%), linear-gradient(180deg, #0e1a2b, #08101c); }
 .sc_retro { background: radial-gradient(circle at 50% 75%, #ff3d8b55, transparent 45%), linear-gradient(180deg, #14062b, #2a0b45 60%, #0b0216); }
 .sc_desi { background: radial-gradient(circle at 25% 25%, #c4631c, transparent 55%), radial-gradient(circle at 80% 75%, #6b1022, transparent 55%), #2a0d0b; }
+.sc_gradient { background: radial-gradient(circle at 20% 25%, #ff7a59, transparent 50%), radial-gradient(circle at 80% 75%, #6a3cff, transparent 55%), #1a0f24; }
+.sc_chroma { background: radial-gradient(circle at 75% 20%, #2fb7ff, transparent 50%), radial-gradient(circle at 20% 80%, #ff4fa0, transparent 50%), #12121c; }
 
 .safe { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
 .safe::before { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 20%; background: repeating-linear-gradient(135deg, rgba(255, 80, 80, 0.28) 0 4px, transparent 4px 8px); border-top: 1px dashed rgba(255, 120, 120, 0.8); }
@@ -97,6 +99,13 @@
 @keyframes jitR { 0%, 100% { transform: translate(0.07em, -0.02em); } 50% { transform: translate(0.1em, 0.04em); } }
 @keyframes blink { 50% { opacity: 0; } }
 @keyframes bars { 0%, 100% { transform: scaleY(0.3); } 50% { transform: scaleY(1); } }
+@keyframes heart { 0% { transform: scale(1); } 20% { transform: scale(1.24); } 40% { transform: scale(1); } 60% { transform: scale(1.17); } 100% { transform: scale(1.06); } }
+@keyframes punch { from { transform: scale(0.3); filter: blur(0.15em); opacity: 0; } 60% { transform: scale(1.3); filter: blur(0); opacity: 1; } to { transform: scale(1.12); } }
+@keyframes drop { from { transform: translateY(-150%); opacity: 0; } 30% { opacity: 1; } 55% { transform: translateY(6%) scale(1.16, 0.8); } 78% { transform: translateY(-5%) scale(0.95, 1.06); } to { transform: translateY(0) scale(1); } }
+@keyframes elastic { from { transform: scale(1.55, 0.45); } 35% { transform: scale(0.8, 1.28); } 60% { transform: scale(1.13, 0.9); } 80% { transform: scale(0.97, 1.04); } to { transform: scale(1.05); } }
+@keyframes jelly { 0% { transform: skewX(0); } 30% { transform: skewX(-16deg) scale(1.12); } 50% { transform: skewX(11deg); } 70% { transform: skewX(-5deg); } 100% { transform: skewX(0) scale(1.05); } }
+@keyframes stamp { from { transform: scale(2.5) rotate(-20deg); opacity: 0; } 50% { transform: scale(0.9) rotate(-8deg); opacity: 1; } to { transform: scale(1) rotate(-6deg); } }
+@keyframes tsw { from { transform: rotate(0) scale(0.75); } to { transform: rotate(var(--wr, -6deg)) scale(1.12); } }
 
 .fx_pop .w.on, .fx_stack .w.on, .fx_split .w.on { animation: pop 180ms ease-out both; }
 .fx_pops .w.on { animation: pops 160ms ease-out both; }
@@ -138,6 +147,16 @@
 .fx_bubble .w.on { color: var(--base); animation: pop 180ms ease-out both; }
 .fx_blocks .w { background: var(--bg); text-shadow: none; padding: 0.02em 0.22em; border-radius: 0.06em; }
 .fx_blocks .w.on { color: var(--base); animation: slam 260ms ease-out both; }
+.fx_heartbeat .w.on { animation: heart 420ms ease-out both; }
+.fx_punch .w.on { animation: punch 240ms ease-out both; }
+.fx_drop .w.on { animation: drop 360ms ease-out both; }
+.fx_elastic .w.on { animation: elastic 420ms ease-out both; }
+.fx_jelly .w.on { animation: jelly 420ms ease-out both; }
+.fx_stamp .w.on { animation: stamp 300ms ease-out both; }
+.fx_stamp .w.on::before { content: ""; position: absolute; inset: -0.02em -0.12em; border: 0.07em solid var(--act); border-radius: 0.14em; }
+.fx_tiltswap .w.on { animation: tsw 220ms ease-out both; }
+.fx_tiltswap .w.past { transform: rotate(var(--wr, 0deg)); }
+.pillw .w.on { border-radius: 999px; padding: 0 0.3em; margin: 0 -0.1em; }
 
 /* Containers */
 .box_pill { background: var(--box); border-radius: 999px; padding: 0.28em 0.55em; left: 12%; right: 12%; }

@@ -106,6 +106,7 @@ const STICKER_TILTS = [-4, 3, -2, 4];
 const SCALE_RESERVE: Partial<Record<CaptionTemplateSpec["motion"], number>> = {
   pop: 0.14, stack: 0.14, split: 0.14, bubble: 0.1, step: 0.12, shake: 0.1, slam: 0.06, blocks: 0.06,
   pops: 0.07, boxword: 0.07, dim: 0.07, hollow: 0.07, fontswitch: 0.07, wobble: 0.06, bounce: 0.06,
+  punch: 0.14, tiltswap: 0.14, stamp: 0.14, heartbeat: 0.08, elastic: 0.06, jelly: 0.06, drop: 0.02,
 };
 
 function applyCase(text: string, c: CaptionTemplateSpec["type"]["case"]): string {

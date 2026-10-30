@@ -122,8 +122,13 @@ export function buildCaptionTrack(opts: CaptionTrackOptions): CaptionTrack {
   // A user's word colour holds in every state; a boxed word is dark text on
   // the box (captions/style.ts, mirrored by CaptionTemplateRender).
   const wordOwnColor = (w: PlacedWord) => (w.style?.emphasis === "box" ? BOX_TEXT : w.style?.color);
-  const baseColor = (w: PlacedWord) => wordOwnColor(w) ?? (c.speakers?.length ? c.speakers[w.speaker % c.speakers.length] : c.base);
-  const activeColor = (w: PlacedWord) => wordOwnColor(w) ?? (c.cycle?.length ? c.cycle[w.index % c.cycle.length] : accentHex);
+  const fixedColor = (w: PlacedWord) => (c.wordColors?.length ? c.wordColors[w.index % c.wordColors.length] : undefined);
+  const baseColor = (w: PlacedWord) => wordOwnColor(w) ?? fixedColor(w) ?? (c.speakers?.length ? c.speakers[w.speaker % c.speakers.length] : c.base);
+  const activeColor = (w: PlacedWord) => wordOwnColor(w) ?? fixedColor(w) ?? (c.cycle?.length ? c.cycle[w.index % c.cycle.length] : accentHex);
+  /** The box behind the spoken word (boxword, marker): rotates with boxCycle when set. */
+  const boxColor = (w: PlacedWord, fallback: string) => (c.boxCycle?.length ? c.boxCycle[w.index % c.boxCycle.length] : c.box ?? fallback);
+  /** Tilt swap: even words lean left, odd words right (CSS degrees; \frz is the opposite sign). */
+  const tiltOf = (w: PlacedWord) => (w.index % 2 ? 6 : -6);
 
   const rotTags = (ch: PlacedChunk) => {
     if (!ch.rotation) return { tags: "", frz: 0 };
@@ -175,6 +180,14 @@ export function buildCaptionTrack(opts: CaptionTrackOptions): CaptionTrack {
   const STEP = "\\fscx60\\fscy60\\t(80,81,\\fscx125\\fscy125)\\t(160,161,\\fscx110\\fscy110)";
   const FLICKER = "\\alpha&HFF&\\t(56,57,\\alpha&H00&)\\t(98,99,\\alpha&HBF&)\\t(154,155,\\alpha&H00&)\\t(196,197,\\alpha&H66&)\\t(280,281,\\alpha&H00&)";
   const BLURIN = "\\blur12\\alpha&HFF&\\t(0,260,\\blur0\\alpha&H00&)";
+  const HEARTBEAT = "\\t(0,84,\\fscx124\\fscy124)\\t(84,168,\\fscx100\\fscy100)\\t(168,252,\\fscx117\\fscy117)\\t(252,420,\\fscx106\\fscy106)";
+  const PUNCH = "\\fscx30\\fscy30\\blur6\\alpha&HFF&\\t(0,144,\\fscx130\\fscy130\\blur0\\alpha&H00&)\\t(144,240,\\fscx112\\fscy112)";
+  const ELASTIC = "\\fscx155\\fscy45\\t(0,147,\\fscx80\\fscy128)\\t(147,252,\\fscx113\\fscy90)\\t(252,336,\\fscx97\\fscy104)\\t(336,420,\\fscx105\\fscy105)";
+  const JELLY = "\\t(0,126,\\fax-0.29\\fscx112\\fscy112)\\t(126,210,\\fax0.19)\\t(210,294,\\fax-0.09)\\t(294,420,\\fax0\\fscx105\\fscy105)";
+  // Stamp lands rotated 6° anticlockwise (CSS -6deg), so \frz goes +20 → +8 → +6.
+  const stampTags = (R: number) =>
+    `\\alpha&HFF&\\fscx250\\fscy250\\frz${R + 20}\\t(0,150,\\alpha&H00&\\fscx90\\fscy90\\frz${R + 8})\\t(150,300,\\fscx100\\fscy100\\frz${R + 6})`;
+  const tiltTags = (w: PlacedWord, R: number) => `\\frz${R}\\fscx75\\fscy75\\t(0,220,\\frz${R - tiltOf(w)}\\fscx112\\fscy112)`;
   const ZOOM = "\\fscx114\\fscy114\\blur4\\alpha&HFF&\\t(0,900,0.6,\\fscx100\\fscy100\\blur0\\alpha&H00&)";
   const FADE = "\\fad(320,0)";
 
@@ -190,6 +203,12 @@ export function buildCaptionTrack(opts: CaptionTrackOptions): CaptionTrack {
       case "flicker": return FLICKER;
       case "blur": return BLURIN;
       case "stack": return popTags(w);
+      case "heartbeat": return HEARTBEAT;
+      case "punch": return PUNCH;
+      case "elastic": return ELASTIC;
+      case "jelly": return JELLY;
+      case "stamp": return stampTags(R);
+      case "tiltswap": return tiltTags(w, R);
       default: return "";
     }
   };
@@ -215,6 +234,21 @@ export function buildCaptionTrack(opts: CaptionTrackOptions): CaptionTrack {
         { s, e: t1, pos: `\\move(${x},${yy(-0.38)},${x},${yy(0.09)})`, tags: "\\fscx105\\fscy105" },
         { s: t1, e: t2, pos: `\\move(${x},${yy(0.09)},${x},${yy(-0.04)})`, tags: "" },
         { s: t2, e: t3, pos: `\\move(${x},${yy(-0.04)},${x},${yy(0)})`, tags: "" },
+        { s: t3, e, pos: posTag(w), tags: "" },
+      ].filter((g) => g.e - g.s >= 10);
+    }
+    if (t.motion === "drop") {
+      // Falls from 1.5em above, squashes on landing, overshoots and settles.
+      const k = Math.min(1, (e - s) / 360);
+      const t1 = s + 200 * k;
+      const t2 = t1 + 80 * k;
+      const t3 = t2 + 80 * k;
+      const yy = (f: number) => f1(y + f * em);
+      const ms = (a: number, b: number) => Math.max(1, Math.round(b - a));
+      return [
+        { s, e: t1, pos: `\\move(${x},${yy(-1.5)},${x},${yy(0.06)})`, tags: `\\alpha&HFF&\\t(0,${ms(s, t1) >> 1},\\alpha&H00&)` },
+        { s: t1, e: t2, pos: `\\move(${x},${yy(0.06)},${x},${yy(-0.05)})`, tags: `\\fscx116\\fscy80\\t(0,${ms(t1, t2)},\\fscx95\\fscy106)` },
+        { s: t2, e: t3, pos: `\\move(${x},${yy(-0.05)},${x},${yy(0)})`, tags: `\\fscx95\\fscy106\\t(0,${ms(t2, t3)},\\fscx100\\fscy100)` },
         { s: t3, e, pos: posTag(w), tags: "" },
       ].filter((g) => g.e - g.s >= 10);
     }
@@ -357,10 +391,17 @@ export function buildCaptionTrack(opts: CaptionTrackOptions): CaptionTrack {
       for (const seg of activeSegments(w, R)) {
         wordShape(seg.s, seg.e, seg.tags, seg.pos);
         if (t.motion === "boxword") {
-          ev(1, seg.s, seg.e, `\\an5\\pos(${f1(w.x)},${f1(w.y + 0.02 * em)})${rot}\\bord0\\shad0\\1c${assColor(c.box ?? "#FF2D2D")}\\1a${assAlpha(c.box ?? "#FF2D2D")}${seg.tags}\\p1`, `${roundedRect(w.w + 0.24 * em, 1.12 * em, 0.16 * em)}{\\p0}`);
+          const fill = boxColor(w, "#FF2D2D");
+          const pill = t.wordBox === "pill";
+          const bw = w.w + (pill ? 0.6 : 0.24) * em, bh = 1.12 * em;
+          ev(1, seg.s, seg.e, `\\an5\\pos(${f1(w.x)},${f1(w.y + 0.02 * em)})${rot}\\bord0\\shad0\\1c${assColor(fill)}\\1a${assAlpha(fill)}${seg.tags}\\p1`, `${roundedRect(bw, bh, pill ? bh / 2 : 0.16 * em)}{\\p0}`);
         }
         if (t.motion === "marker") {
-          shapeEvent(1, seg.s, seg.e, 4, w.x - w.w / 2 - 0.14 * em, w.y + 0.05 * em, rot, skewRect(w.w + 0.28 * em, 0.78 * em, 0.12 * em), c.box ?? "#FFE14D", "\\fscx0\\t(0,180,\\fscx100)");
+          shapeEvent(1, seg.s, seg.e, 4, w.x - w.w / 2 - 0.14 * em, w.y + 0.05 * em, rot, skewRect(w.w + 0.28 * em, 0.78 * em, 0.12 * em), boxColor(w, "#FFE14D"), "\\fscx0\\t(0,180,\\fscx100)");
+        }
+        if (t.motion === "stamp") {
+          // The stamp's frame: an outlined (unfilled) box in the word's colour, moving with it.
+          ev(1, seg.s, seg.e, `\\an5${seg.pos}${rot}\\bord${f1(0.07 * em)}\\3c${assColor(act)}\\3a${assAlpha(act)}\\1a&HFF&\\shad0${seg.tags}\\p1`, `${roundedRect(w.w + 0.24 * em, 1.08 * em, 0.14 * em)}{\\p0}`);
         }
         if (t.motion === "underline") {
           shapeEvent(1, seg.s, seg.e, 4, w.x - w.w / 2, w.y + 0.5 * em, rot, roundedRect(w.w, 0.12 * em, 0.06 * em), c.box ?? "#20D68A", "\\fscx0\\t(0,200,\\fscx100)");
@@ -385,8 +426,8 @@ export function buildCaptionTrack(opts: CaptionTrackOptions): CaptionTrack {
         textEvent(seg.s, seg.e, w, true, seg.pos, (noStroke ? "\\bord0" : "") + seg.tags + wordShake, rot, t.motion === "bubble" || t.motion === "blocks" ? base : act);
       }
 
-      // past
-      const pastTags = t.motion === "dim" ? "\\alpha&HA6&" : "";
+      // past (a tilt-swapped word keeps its lean)
+      const pastTags = t.motion === "dim" ? "\\alpha&HA6&" : t.motion === "tiltswap" ? `\\frz${R - tiltOf(w)}` : "";
       wordShape(w.activeEnd, ch.end, pastTags);
       textEvent(w.activeEnd, ch.end, w, false, posTag(w), pastTags, rot, base);
 

@@ -8,6 +8,11 @@
 // Every slug in ALL_TOOLS must have an entry here — see the coverage test in
 // app/tools/content.test.ts.
 
+import { CAPTION_TEMPLATES } from "@clipiro/shared/caption-templates";
+
+/** Counted, not typed: the caption library grows in weekly drops. */
+const CAPTION_TEMPLATE_COUNT = CAPTION_TEMPLATES.length;
+
 export interface ToolStep {
   title: string;
   body: string;
@@ -141,7 +146,7 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
     h1: "Caption any video, then make every word yours",
     metaTitle: "Caption Studio — Templates, Edited Word by Word",
     metaDescription:
-      "Upload a video in any shape, pick one of 50 caption templates, then edit, recolour and time every word. Export vertical, square and wide versions in one go.",
+      `Upload a video in any shape, pick one of ${CAPTION_TEMPLATE_COUNT} caption templates, then edit, recolour and time every word. Export vertical, square and wide versions in one go.`,
     lede: "Auto-captions get you most of the way. Caption Studio is for the rest: pick a template, fix any word, make the ones that matter stand out, and export every shape you post in.",
     steps: [
       { title: "Bring your video", body: "Upload it or pick it from your asset library — vertical, horizontal, square or an odd crop. Choose the shape to work in, or keep its own." },
@@ -155,7 +160,7 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
     ],
     faqs: [
       { question: "What does it cost?", answer: "Transcribing uses Clip Minutes — one per minute of video. Exporting costs one credit for the whole set of shapes you pick, and is refunded if nothing renders. Caption files (SRT and VTT) are free." },
-      { question: "Which templates can I use?", answer: "All 50 Clipiro caption templates, including Hindi-ready ones. Some templates need the Creator or Pro plan; the rest are free on every plan." },
+      { question: "Which templates can I use?", answer: `All ${CAPTION_TEMPLATE_COUNT} Clipiro caption templates, including Hindi-ready ones. Some templates need the Creator or Pro plan; the rest are free on every plan.` },
       { question: "Can I get the captions without burning them in?", answer: "Yes — download them as an SRT or VTT file and upload that to YouTube, LinkedIn or anywhere else that takes caption files." },
       { question: "How many looks can I save?", answer: "One on the free plan, three on Creator, five on Pro and ten on Studio." },
       CREDITS_FAQ,

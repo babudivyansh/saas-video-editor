@@ -64,6 +64,8 @@ const FAMILY_INDEX: Record<CaptionFamilyId, number> = {
   cinema: 2,
   retro: 6,
   desi: 7,
+  gradient: 7,
+  chroma: 0,
 };
 
 /** Canonical (lowest) index for templates that ARE an inverse of INDEX_TO_TEMPLATE. */

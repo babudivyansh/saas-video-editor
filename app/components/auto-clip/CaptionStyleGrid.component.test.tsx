@@ -36,7 +36,7 @@ afterEach(() => vi.unstubAllGlobals());
 const card = (name: string) => screen.getByRole("button", { name: new RegExp(`^${name}(,|$)`) });
 
 describe("CaptionTemplateGallery", () => {
-  it("shows all 50 templates by name", async () => {
+  it("shows every template by name", async () => {
     render(<CaptionStyleGrid value={null} onChange={() => {}} />);
     expect(await screen.findByRole("button", { name: /^Boardroom/ })).toBeInTheDocument();
     for (const t of CAPTION_TEMPLATES) expect(card(t.name)).toBeInTheDocument();

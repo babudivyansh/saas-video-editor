@@ -4,7 +4,7 @@
 //   Generate  transcribe the timeline into cues (language, cost, button);
 //             jumps to Edit when the cues land.
 //   Edit      the transcript, every cue, and one-click clean-ups.
-//   Style     the 50 caption templates (same set AutoClip burns in).
+//   Style     the caption templates (same set AutoClip burns in).
 // This is NOT the Text panel — captions are a dedicated timeline-based
 // CaptionClip track, not Lexical rich text. Per-cue styling/highlight/
 // animation/position live in the properties panel on the right once a cue is
