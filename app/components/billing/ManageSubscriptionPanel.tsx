@@ -239,8 +239,8 @@ export function ManageSubscriptionPanel({
 
         {recurring && (
           <p className="text-[11px] text-ink-soft leading-relaxed">
-            Changing plan starts a fresh term from that day rather than pro-rating the current one. Credits already in
-            your account carry over.
+            Changing plan starts a fresh term from that day. Credits and minutes already in your account carry over, and
+            any paid months left on a yearly plan are added as Clip Minutes that never expire.
           </p>
         )}
     </div>

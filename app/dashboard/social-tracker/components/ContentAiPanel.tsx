@@ -214,7 +214,7 @@ export function ContentAiPanel({
       <ConfirmDialog
         open={confirming === "recommendations"}
         title="Generate recommendations?"
-        message={`This spends ${recommendationsCost} credits and reads this account's recent posts.`}
+        message={`This spends ${recommendationsCost} credit${recommendationsCost === 1 ? "" : "s"} and reads this account's recent posts.`}
         confirmLabel={`Spend ${recommendationsCost} credits`}
         onConfirm={generateRecommendations}
         onClose={() => setConfirming(null)}

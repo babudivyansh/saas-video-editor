@@ -12,7 +12,7 @@ describe("account schemas", () => {
   it("prices a yearly plan per month", () => {
     const studio = PLANS.find((p) => p.tier === "studio")!;
     expect(perMonthCents(studio, "monthly")).toBe(5900);
-    expect(perMonthCents(studio, "yearly")).toBe(3950);
+    expect(perMonthCents(studio, "yearly")).toBe(4425);
   });
 
   it("files notifications under their tab", () => {

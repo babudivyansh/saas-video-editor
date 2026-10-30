@@ -5,7 +5,8 @@ import path from "path";
 import fs from "fs";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { spendMinutes, restoreMinutes, billableSourceMinutes } from "@/lib/minutes";
+import { spendMinutes, restoreMinutes } from "@/lib/minutes";
+import { billableCaptionMinutes } from "@/lib/autoclip-pricing";
 import { extractAudio, probeMediaDuration } from "@/utils/ffmpeg-render";
 import { transcribe } from "@/lib/transcription";
 import { downloadFile } from "@/utils/download";
@@ -81,7 +82,7 @@ async function handlePOST(req: NextRequest) {
     await downloadFile(await getAssetReadUrl(asset.s3Key, 600), mediaPath);
     // The asset row's stored length when there is one, else probe the file.
     const durationSec = asset.duration ?? (await probeMediaDuration(mediaPath)).durationSec ?? 0;
-    const minutesNeeded = billableSourceMinutes(durationSec);
+    const minutesNeeded = billableCaptionMinutes(durationSec);
     const spend = await spendMinutes({
       userId: auth.userId,
       amount: minutesNeeded,

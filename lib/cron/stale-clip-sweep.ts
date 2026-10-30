@@ -252,7 +252,7 @@ async function failStrandedEditorRenders(): Promise<number> {
   const stuck = await prisma.project.findMany({ where, select: { id: true, userId: true } });
   if (stuck.length === 0) return 0;
 
-  const [{ restoreSpend }, { EDITOR_RENDER_CREDIT_COST }] = await Promise.all([
+  const [{ restoreSpend }, { renderChargeFor }] = await Promise.all([
     import("@/lib/credits"),
     import("@/lib/editor/render-job"),
   ]);
@@ -267,12 +267,16 @@ async function failStrandedEditorRenders(): Promise<number> {
         data: { status: "failed", failureReason: STRANDED_EDITOR_RENDER_REASON },
       });
       if (moved.count === 0) continue;
-      await restoreSpend({
-        userId,
-        refId: `editor-render:${projectId}`,
-        amount: EDITOR_RENDER_CREDIT_COST,
-        reason: "refund:editor-render-stranded",
-      });
+      // What this export was charged (0 for a free render on a paid plan).
+      const amount = await renderChargeFor(projectId);
+      if (amount > 0) {
+        await restoreSpend({
+          userId,
+          refId: `editor-render:${projectId}`,
+          amount,
+          reason: "refund:editor-render-stranded",
+        });
+      }
       failed++;
     } catch (e) {
       logger.error("cron/stale-clip-sweep", `failed to reconcile stranded editor render ${projectId}`, e);

@@ -56,7 +56,7 @@ describe("resolveUploadPolicy — effective = min(plan, feature, provider)", () 
   });
 
   it("never lets a feature cap raise the effective limit above the plan cap", async () => {
-    for (const t of ["free", "creator", "pro", "studio"] as const) {
+    for (const t of ["free", "lite", "creator", "pro", "studio"] as const) {
       tier = t;
       const policy = await resolveUploadPolicy("u1", "face-swap");
       expect(policy.effectiveMaxBytes).toBeLessThanOrEqual(MAX_UPLOAD_BYTES_BY_TIER[t]);

@@ -23,7 +23,7 @@ import { isAllowedSourceUrl as webIsAllowedSourceUrl } from "./url-import";
 // The phone app copies these rules into @clipiro/shared so it can check input and show prices offline. If the web
 // changes one, this fails until the copy is updated.
 
-const TIERS: PlanTier[] = ["free", "creator", "pro", "studio"];
+const TIERS: PlanTier[] = ["free", "lite", "creator", "pro", "studio"];
 
 describe("mobile Create rules match the web", () => {
   it("accepts and rejects the same source links", () => {

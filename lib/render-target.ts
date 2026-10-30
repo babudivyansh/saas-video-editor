@@ -60,7 +60,7 @@ export const GPU_ROUTING_DEFAULTS: GpuRouting = {
   // Free is included (2026-09 pricing audit): excluding it sent every free run
   // down the Rekognition path, the most expensive option we have, on the one
   // tier that pays nothing.
-  asdTiers: ["free", "creator", "pro", "studio"],
+  asdTiers: ["free", "lite", "creator", "pro", "studio"],
   rekognitionFallback: false,
 };
 
@@ -135,7 +135,7 @@ export async function shouldUseRekognitionFallback(): Promise<boolean> {
 }
 
 function lowestOf(tiers: TierId[]): TierId {
-  const order: TierId[] = ["free", "creator", "pro", "studio"];
+  const order: TierId[] = ["free", "lite", "creator", "pro", "studio"];
   for (const t of order) if (tiers.includes(t)) return t;
   return "studio";
 }

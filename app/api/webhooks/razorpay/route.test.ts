@@ -55,6 +55,7 @@ let purchaseCount = 0;
 const cancelled: Array<{ subId: string; reason: string }> = [];
 
 vi.mock("@/lib/billing/subscription-switch", () => ({
+  switchCreditFor: vi.fn(async () => null),
   cancelExistingSubscriptionForSwitch: vi.fn(async (_userId: string, subId: string, reason = "plan_switch") => {
     cancelled.push({ subId, reason });
     return { ok: true };

@@ -36,7 +36,7 @@ export const unavailableReason = (p: Provider, m: InsightMetric) => (METRIC_SUPP
 export const MAX_COMPETITORS = 3;
 export const COMPETITOR_PROVIDERS: readonly Provider[] = ["instagram", "youtube"];
 /** The weekly AI summary's price in AI credits (social-exec-report). */
-export const WEEKLY_SUMMARY_CREDITS = 5;
+export const WEEKLY_SUMMARY_CREDITS = 2;
 export const REPORT_FORMATS = ["pdf", "csv", "xlsx"] as const;
 
 // ── Shapes ────────────────────────────────────────────────────────────────

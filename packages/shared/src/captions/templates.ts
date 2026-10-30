@@ -1772,7 +1772,7 @@ export function isKnownTemplateId(id: string | null | undefined): boolean {
   return !!id && (BY_ID.has(id) || id in LEGACY_TEMPLATE_ALIASES);
 }
 
-const TIER_RANK: Record<string, number> = { free: 0, creator: 1, pro: 2, studio: 3 };
+const TIER_RANK: Record<string, number> = { free: 0, lite: 0, creator: 1, pro: 2, studio: 3 };
 
 /**
  * Whether a user on `userTier` may pick a template of `templateTier`.

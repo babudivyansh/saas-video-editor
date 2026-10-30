@@ -8,13 +8,14 @@
 import Link from "next/link";
 import type { Currency } from "@/lib/currency-shared";
 import {
-  FREE_TIER_MONTHLY_BONUS_CREDITS, FREE_TIER_MONTHLY_BONUS_MINUTES, STORAGE_LIMIT_GB,
+  FREE_TIER_MONTHLY_BONUS_CREDITS, FREE_TIER_MONTHLY_BONUS_MINUTES, FREE_TIER_SIGNUP_MINUTES, STORAGE_LIMIT_GB,
 } from "@/lib/plans/tiers";
 import { TIER_TAGLINE } from "@/lib/plans/display";
 import { CheckIcon } from "@/app/components/billing/PlanCard";
 
 export function FreeCard({ currency }: { currency: Currency }) {
   const perks = [
+    `${FREE_TIER_SIGNUP_MINUTES} Clip Minutes to start`,
     "All free tools: compressor, MP3, downloaders",
     "Auto Clips from your minutes (watermarked)",
     `${STORAGE_LIMIT_GB.free * 1000} MB storage`,

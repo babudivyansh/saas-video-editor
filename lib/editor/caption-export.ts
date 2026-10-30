@@ -14,15 +14,15 @@ import { logger } from "@/lib/logger";
 import { notify } from "@/lib/notify";
 import { markQuestComplete } from "@/lib/quests";
 import { normalizeDoc, validateDoc, type Aspect, type TimelineDoc } from "./types";
-import { renderTimeline, EDITOR_RENDER_CREDIT_COST } from "./render-job";
+import { renderTimeline } from "./render-job";
 import { classifyRenderFailure } from "./render-failure";
 import { isExportQuality, type ExportQuality } from "./export-quality";
 
 export { CAPTION_EXPORT_ASPECTS, type CaptionExportAspect } from "./caption-export-shapes";
 
-/** One batch is charged this many AI credits, however many ratios it has. */
-export const CAPTION_EXPORT_CREDIT_COST = EDITOR_RENDER_CREDIT_COST;
-
+// A batch is charged once, however many ratios it has: 0, 1 or 3 credits by
+// plan and quality (lib/render-pricing.ts). Its refId is unique to the batch,
+// so the failure refund below gives back whatever that batch spent.
 export const captionExportRefId = (batchId: string) => `caption-export:${batchId}`;
 
 const ACTIVE = ["queued", "rendering"];
@@ -73,7 +73,6 @@ export async function settleBatchIfDone(batchId: string): Promise<"settled" | "p
     await restoreSpend({
       userId,
       refId: captionExportRefId(batchId),
-      amount: CAPTION_EXPORT_CREDIT_COST,
       reason: "refund:caption-export-failed",
     }).catch((e) => logger.error("caption-export", `refund failed for batch ${batchId}`, e));
   } else {

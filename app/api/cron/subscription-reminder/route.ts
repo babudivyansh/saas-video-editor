@@ -11,6 +11,7 @@ import { getPlanPriceMinor } from "@/lib/currency";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
 import { cronSecretMatches } from "@/lib/cron-auth";
+import { renewalNeedsApproval } from "@/lib/plans/tiers";
 import { greetingName } from "@/lib/display-name";
 import { withCronTracking } from "@/lib/cron-tracking";
 
@@ -50,7 +51,7 @@ async function handleGET(req: NextRequest) {
         subscriptionEndsAt: { gte: windowStart, lte: windowEnd },
         NOT: { expiryReminderSentAt: { equals: new Date("2000-01-07") } }, // placeholder, use string tracking below
       },
-      select: { id: true, email: true, name: true, subscriptionEndsAt: true, planId: true, expiryReminderSentAt: true },
+      select: { id: true, email: true, name: true, subscriptionEndsAt: true, planId: true, expiryReminderSentAt: true, subscriptionCurrency: true },
     });
 
     for (const u of users) {
@@ -61,13 +62,14 @@ async function handleGET(req: NextRequest) {
 
       try {
         if (await shouldSendCategory(u.id, "creditAlerts")) {
-          const plan = u.planId ? await prisma.plan.findUnique({ where: { id: u.planId }, select: { name: true } }) : null;
+          const plan = u.planId ? await prisma.plan.findUnique({ where: { id: u.planId }, select: { name: true, priceInPaise: true } }) : null;
           await sendSubscriptionExpiryWarningEmail(
             u.email,
             greetingName(u.name),
             plan?.name ?? "Pro",
             7,
             u.subscriptionEndsAt!,
+            !!plan && renewalNeedsApproval({ priceInPaise: plan.priceInPaise, currency: u.subscriptionCurrency }),
           );
         }
         await prisma.user.update({ where: { id: u.id }, data: { expiryReminderSentAt: windowStart } });
@@ -89,7 +91,7 @@ async function handleGET(req: NextRequest) {
 
     const users = await prisma.user.findMany({
       where: { subscriptionEndsAt: { gte: windowStart, lte: windowEnd } },
-      select: { id: true, email: true, name: true, subscriptionEndsAt: true, planId: true, expiryReminderSentAt: true },
+      select: { id: true, email: true, name: true, subscriptionEndsAt: true, planId: true, expiryReminderSentAt: true, subscriptionCurrency: true },
     });
 
     for (const u of users) {
@@ -99,13 +101,14 @@ async function handleGET(req: NextRequest) {
 
       try {
         if (await shouldSendCategory(u.id, "creditAlerts")) {
-          const plan = u.planId ? await prisma.plan.findUnique({ where: { id: u.planId }, select: { name: true } }) : null;
+          const plan = u.planId ? await prisma.plan.findUnique({ where: { id: u.planId }, select: { name: true, priceInPaise: true } }) : null;
           await sendSubscriptionExpiryWarningEmail(
             u.email,
             greetingName(u.name),
             plan?.name ?? "Pro",
             3,
             u.subscriptionEndsAt!,
+            !!plan && renewalNeedsApproval({ priceInPaise: plan.priceInPaise, currency: u.subscriptionCurrency }),
           );
         }
         await prisma.user.update({ where: { id: u.id }, data: { expiryReminderSentAt: windowStart } });
@@ -127,7 +130,7 @@ async function handleGET(req: NextRequest) {
 
     const users = await prisma.user.findMany({
       where: { subscriptionEndsAt: { gte: windowStart, lte: windowEnd } },
-      select: { id: true, email: true, name: true, subscriptionEndsAt: true, planId: true, expiryReminderSentAt: true },
+      select: { id: true, email: true, name: true, subscriptionEndsAt: true, planId: true, expiryReminderSentAt: true, subscriptionCurrency: true },
     });
 
     for (const u of users) {
@@ -137,13 +140,14 @@ async function handleGET(req: NextRequest) {
 
       try {
         if (await shouldSendCategory(u.id, "creditAlerts")) {
-          const plan = u.planId ? await prisma.plan.findUnique({ where: { id: u.planId }, select: { name: true } }) : null;
+          const plan = u.planId ? await prisma.plan.findUnique({ where: { id: u.planId }, select: { name: true, priceInPaise: true } }) : null;
           await sendSubscriptionExpiryWarningEmail(
             u.email,
             greetingName(u.name),
             plan?.name ?? "Pro",
             1,
             u.subscriptionEndsAt!,
+            !!plan && renewalNeedsApproval({ priceInPaise: plan.priceInPaise, currency: u.subscriptionCurrency }),
           );
         }
         await prisma.user.update({ where: { id: u.id }, data: { expiryReminderSentAt: windowStart } });

@@ -82,3 +82,53 @@ export async function cancelSubscriptionForUser(
 
   return { ok: true, subscriptionCancelledAt: updated.subscriptionCancelledAt, subscriptionEndsAt: updated.subscriptionEndsAt };
 }
+
+/**
+ * Ends a plan NOW because the charge that paid for it was refunded in full.
+ * Unlike cancelSubscriptionForUser (stop renewing, keep access to period end),
+ * a refunded customer has been given their money back, so the access goes too.
+ *
+ * Only acts when `planId` is still the user's current plan and the refunded
+ * purchase is their latest charge for it — refunding an old month's charge of a
+ * plan they have since renewed or switched away from leaves today's plan alone.
+ * Returns whether a plan was ended. Never throws: the refund is already
+ * recorded, so a Razorpay failure is logged for an admin to finish by hand.
+ */
+export async function endSubscriptionAfterRefund(userId: string, planId: string, purchaseId: string): Promise<boolean> {
+  try {
+    const [user, latest] = await Promise.all([
+      prisma.user.findUnique({ where: { id: userId }, select: { planId: true, razorpaySubscriptionId: true, subscriptionEndsAt: true } }),
+      prisma.purchase.findFirst({ where: { userId, planId }, orderBy: { createdAt: "desc" }, select: { id: true } }),
+    ]);
+    if (!user || user.planId !== planId || latest?.id !== purchaseId) return false;
+    if (!user.subscriptionEndsAt || user.subscriptionEndsAt <= new Date()) return false;
+
+    if (user.razorpaySubscriptionId) {
+      try {
+        // false = cancel immediately, not at cycle end: no further charge.
+        await razorpay.subscriptions.cancel(user.razorpaySubscriptionId, false);
+      } catch (e) {
+        logger.error("billing/refund", `Razorpay cancel after refund failed for sub ${user.razorpaySubscriptionId} — cancel it in the dashboard`, e);
+      }
+    }
+
+    // Ending the term now drops the tier to free at once (effectivePlan) and,
+    // with nextRefillAt cleared, stops the monthly refill. The Razorpay link
+    // stays, so the refill cron's lapse step still cancels the mandate if the
+    // call above failed.
+    const now = new Date();
+    await prisma.user.update({
+      where: { id: userId },
+      data: { subscriptionEndsAt: now, subscriptionCancelledAt: now, nextRefillAt: null },
+    });
+    if (user.razorpaySubscriptionId) {
+      await prisma.subscriptionEvent.create({
+        data: { userId, subscriptionId: user.razorpaySubscriptionId, type: "cancelled", reason: "refunded" },
+      }).catch(() => {});
+    }
+    return true;
+  } catch (e) {
+    logger.error("billing/refund", `could not end the plan after refunding ${purchaseId}`, e);
+    return false;
+  }
+}

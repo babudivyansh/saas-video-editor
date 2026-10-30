@@ -97,7 +97,7 @@ const planFields = {
   // one-time minute_pack grants.
   monthlyMinutes: z.number().int().min(0).max(1_000_000).nullable(),
   minutes: z.number().int().min(0).max(1_000_000),
-  tier: z.enum(["creator", "pro", "studio"]).nullable(),
+  tier: z.enum(["lite", "creator", "pro", "studio"]).nullable(),
 };
 export const planCreateSchema = z
   .object({

@@ -16,11 +16,15 @@ export type NotificationType =
   | "admin_review_new"
   | "admin_review_reported"
   | "admin_review_spam_detected"
+  // A chargeback was opened on a payment (Razorpay payment.dispute.created).
+  | "admin_billing_dispute"
   | "review_prompt"
   // Billing (2026-07 audit). The bell was review-only, so nothing about money
   // ever reached the user in-app — a declined card had no surface at all.
   | "billing_payment_failed"
   | "billing_subscription_halted"
+  // Unused paid months credited as Clip Minutes on a plan switch (2026-10-30).
+  | "billing_switch_credit"
   // Auto Clip render outcome. Renders take minutes and the user previously had
   // to sit on the page polling — nothing told them when clips were ready (or
   // that a render had failed).

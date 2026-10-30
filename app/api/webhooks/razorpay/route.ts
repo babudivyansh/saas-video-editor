@@ -3,17 +3,18 @@ import crypto from "crypto";
 import { Prisma } from "@prisma/client";
 import { fulfillPayment, fulfillSubscriptionCharge, type FulfillNotes } from "@/lib/fulfillment";
 import { recordSubscriptionFailure, recordSubscriptionLifecycle } from "@/lib/dunning";
-import { cancelExistingSubscriptionForSwitch } from "@/lib/billing/subscription-switch";
+import { cancelExistingSubscriptionForSwitch, switchCreditFor } from "@/lib/billing/subscription-switch";
 import { startTrialOnAuthentication } from "@/lib/billing/trial";
 import type { PaymentLike } from "@/lib/billing/trial-instrument";
 import { parseCurrency } from "@/lib/currency-shared";
 import { prisma } from "@/lib/prisma";
 import { grantCredits } from "@/lib/credits";
+import { grantMinutes } from "@/lib/minutes";
 import { TRIAL_CREDITS } from "@/lib/plans/tiers";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
 import { evaluatePromptTrigger, recordPrompt } from "@/lib/reviews/prompt-triggers";
-import { notify } from "@/lib/notify";
+import { notify, notifyAdmins } from "@/lib/notify";
 import { shouldSendCategory } from "@/lib/notifications";
 import { sendReviewPromptEmail } from "@/lib/email";
 import { greetingName } from "@/lib/display-name";
@@ -67,6 +68,7 @@ export async function POST(req: NextRequest) {
       payment?: {
         entity: {
           id: string; order_id: string; amount: number; notes: FulfillNotes;
+          amount_refunded?: number;
           currency?: string;
           invoice_id?: string | null;
           error_description?: string | null;
@@ -74,6 +76,7 @@ export async function POST(req: NextRequest) {
         };
       };
       refund?: { entity: { id: string; payment_id: string; amount: number } };
+      dispute?: { entity: { id: string; payment_id: string; amount?: number; reason_code?: string } };
       subscription?: { entity: { id: string; start_at?: number | null; notes?: { userId?: string; planId?: string; trial?: string; currency?: string } } };
     };
   };
@@ -141,6 +144,18 @@ export async function POST(req: NextRequest) {
         // withholding their new plan would be the worse outcome. The orphan is
         // recoverable (the id is in the SubscriptionEvent trail and Razorpay's
         // own dashboard); a dropped activation is not.
+        // Paid months the old plan still owed become Clip Minutes (2026-10-30;
+        // lib/billing/subscription-switch.ts). Valued BEFORE the update below
+        // replaces the plan, granted inside the claimed transaction so a
+        // redelivered activation can't grant twice.
+        const isSwitch = user.razorpaySubscriptionId !== sub.id && !!user.subscriptionEndsAt && user.subscriptionEndsAt > new Date();
+        const switchCredit = isSwitch
+          ? await switchCreditFor(userId).catch((e) => {
+              logger.error("webhook", `could not value the switch credit for ${userId}`, e);
+              return null;
+            })
+          : null;
+
         if (user.razorpaySubscriptionId && user.razorpaySubscriptionId !== sub.id) {
           const switched = await cancelExistingSubscriptionForSwitch(userId, user.razorpaySubscriptionId);
           if (!switched.ok) {
@@ -201,7 +216,23 @@ export async function POST(req: NextRequest) {
                 reason: "grant:trial", refId: sub.id, tx,
               });
             }
+
+            if (switchCredit) {
+              await grantMinutes({
+                userId, bucket: "purchased", amount: switchCredit.minutes,
+                reason: "grant:plan-switch-credit", refId: switchCredit.refId, tx,
+              });
+            }
           });
+          if (switchCredit) {
+            await notify({
+              userId,
+              type: "billing_switch_credit",
+              title: `${switchCredit.minutes} Clip Minutes added`,
+              body: `You had ${switchCredit.monthsLeft} paid month${switchCredit.monthsLeft === 1 ? "" : "s"} left on your old plan, so we turned them into Clip Minutes that never expire.`,
+              href: "/dashboard?billing=1",
+            }).catch(() => {});
+          }
         } catch (e) {
           // Signal failure so Razorpay retries. Previously this was swallowed
           // and the route still returned 200, so a lost activation was lost for
@@ -308,12 +339,23 @@ export async function POST(req: NextRequest) {
   }
 
   // Refund issued in the Razorpay dashboard → mirror it here (mark purchase
-  // refunded + claw back granted credits). Purchase.id IS the payment id, and
+  // refunded + take back what it bought). Purchase.id IS the payment id, and
   // refundPurchase is idempotent (already-refunded → no-op), so admin-panel
   // refunds and dashboard refunds can't double-apply.
+  //
+  // Partial refunds (2026-10-30): the clawback is proportional to the refunded
+  // amount. Razorpay sends refund.processed AND payment.refunded for one
+  // refund, so refundPurchase claims each refund id once (a RazorpayEvent row,
+  // in its transaction). A payment.refunded without a refund entity is only
+  // acted on once the payment is refunded in full.
   if (event.event === "refund.processed" || event.event === "payment.refunded") {
-    const paymentId = event.payload?.refund?.entity?.payment_id ?? event.payload?.payment?.entity?.id;
-    if (paymentId) {
+    const refundEntity = event.payload?.refund?.entity;
+    const paymentEntity = event.payload?.payment?.entity;
+    const paymentId = refundEntity?.payment_id ?? paymentEntity?.id;
+    const totalRefunded = paymentEntity?.amount_refunded;
+    const fullWithoutEntity = !refundEntity && paymentEntity && typeof totalRefunded === "number" && totalRefunded >= paymentEntity.amount;
+    const actionable = !!paymentId && (!!refundEntity || fullWithoutEntity || !paymentEntity?.amount);
+    if (paymentId && actionable) {
       const { refundPurchase } = await import("@/lib/admin/billing");
       // An unknown payment id (a refund of a payment we never fulfilled)
       // comes back as { ok: false }, not a throw — that's a normal 200. A throw
@@ -325,10 +367,50 @@ export async function POST(req: NextRequest) {
           actorId: "system:razorpay-webhook",
           reason: `Razorpay ${event.event}`,
           clawbackCredits: true,
+          ...(refundEntity?.id
+            ? { refund: { id: refundEntity.id, amountMinor: refundEntity.amount, ...(typeof totalRefunded === "number" ? { totalRefundedMinor: totalRefunded } : {}) } }
+            : {}),
         });
       } catch (e) {
         logger.error("webhook", `refund mirror failed for ${paymentId}`, e);
         return NextResponse.json({ error: "refund mirror failed" }, { status: 500 });
+      }
+    }
+  }
+
+  // Chargebacks (2026-10-30). Opening one alerts the admins: the money is on
+  // hold and the evidence window is short. Losing one is a forced refund, so
+  // it takes back what the payment bought, exactly like a full refund.
+  // `won`/`closed` need nothing — the payment stands.
+  if (event.event === "payment.dispute.created" || event.event === "payment.dispute.lost") {
+    const dispute = event.payload?.dispute?.entity;
+    const paymentId = dispute?.payment_id ?? event.payload?.payment?.entity?.id;
+    if (paymentId) {
+      try {
+        if (event.event === "payment.dispute.created") {
+          const { auditAdminAction } = await import("@/lib/admin/audit");
+          await auditAdminAction("system:razorpay-webhook", "purchase.disputed", paymentId, {
+            after: { disputeId: dispute?.id ?? null, amount: dispute?.amount ?? null, reason: dispute?.reason_code ?? null },
+            reason: "Razorpay payment.dispute.created",
+          });
+          await notifyAdmins(
+            "admin_billing_dispute",
+            "Chargeback opened",
+            `Payment ${paymentId} was disputed${dispute?.reason_code ? ` (${dispute.reason_code})` : ""}. Submit evidence in the Razorpay dashboard before the deadline.`,
+            "/admin/purchases",
+          );
+        } else {
+          const { refundPurchase } = await import("@/lib/admin/billing");
+          await refundPurchase({
+            purchaseId: paymentId,
+            actorId: "system:razorpay-webhook",
+            reason: "Razorpay payment.dispute.lost (chargeback)",
+            clawbackCredits: true,
+          });
+        }
+      } catch (e) {
+        logger.error("webhook", `${event.event} handling failed for ${paymentId}`, e);
+        return NextResponse.json({ error: "dispute handling failed" }, { status: 500 });
       }
     }
   }

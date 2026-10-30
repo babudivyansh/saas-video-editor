@@ -50,7 +50,7 @@ vi.mock("@/lib/autoclip-pipeline", () => ({
 }));
 vi.mock("@/lib/autoclip-rerender", () => ({ refundFailedRerender: (id: string) => refundFailedRerender(id) }));
 vi.mock("@/lib/credits", () => ({ restoreSpend: (a: unknown) => restoreSpend(a) }));
-vi.mock("@/lib/editor/render-job", () => ({ EDITOR_RENDER_CREDIT_COST: 1 }));
+vi.mock("@/lib/editor/render-job", () => ({ EDITOR_RENDER_CREDIT_COST: 1, renderChargeFor: vi.fn(async () => 1) }));
 vi.mock("@/lib/autoclip-pricing", () => ({ analysisRefId: (id: string) => `auto-clip-analysis:${id}` }));
 
 const {

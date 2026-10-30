@@ -28,14 +28,16 @@ interface SeedPlan {
   minutes?: number;
   /** Defaults to true. Minute packs ship inactive until the UI shows minutes. */
   active?: boolean;
-  tier?: "creator" | "pro" | "studio"; // subscription rows only; see lib/plans/tiers.ts
+  tier?: "lite" | "creator" | "pro" | "studio"; // subscription rows only; see lib/plans/tiers.ts
 }
 
 // ── Subscriptions ───────────────────────────────────────────────────────────
 // Two terms only: Monthly + Yearly. Yearly = monthly × 12 × 0.67 (33% off —
 // "4 months free"; 2026-07 pricing audit moved this from 20% to match the
-// category's 33-50% annual-incentive norm).
-const YEARLY_DISCOUNT = 0.33;
+// category's 33-50% annual-incentive norm). 2026-10-30 restructure: 33% -> 25%
+// ("3 months free") on every plan — at 33%, Studio yearly kept only 27% gross
+// margin at full use; at 25% the worst yearly plan keeps ~42%.
+const YEARLY_DISCOUNT = 0.25;
 const yearly = (monthlyPaise: number) => Math.round((monthlyPaise * 12 * (1 - YEARLY_DISCOUNT)) / 100) * 100;
 
 // 2026-07 repricing: entry tier was $6.7-8.4/mo equivalent vs $13-35/mo for
@@ -61,16 +63,24 @@ const yearly = (monthlyPaise: number) => Math.round((monthlyPaise * 12 * (1 - YE
 // for: renewals read the plan row (fulfillment.ts), but the refill cron reads
 // User.monthlyCredits, which only changes on their next purchase or renewal —
 // an annual subscriber keeps 60 or 160 a month until their year is up.
+// 2026-10-30 restructure: Lite (₹499) added below Creator; Creator's minutes
+// 150 -> 200 at the same price; Studio's credits 400 -> 300 (agency usage is
+// minutes-heavy, and the credits were most of Studio yearly's cost exposure).
+// Same grandfathering as switch day: only new purchases and renewals read these.
 const SUBSCRIPTIONS: SeedPlan[] = [
-  // Creator — 150 Clip Minutes + 50 AI credits /mo (₹999/mo).
-  { slug: "sub_creator_1mo",  name: "Creator (Monthly)", priceInPaise: 99900,            intervalMonths: 1,  monthlyCredits: 50,  monthlyMinutes: 150, sortOrder: 10, tier: "creator" as const, features: ["All AI tools", "1080p exports"] },
-  { slug: "sub_creator_12mo", name: "Creator (Yearly)",  priceInPaise: yearly(99900),    intervalMonths: 12, monthlyCredits: 50,  monthlyMinutes: 150, sortOrder: 13, tier: "creator" as const, features: ["All AI tools", "1080p exports"] },
+  // Lite — 60 Clip Minutes + 20 AI credits /mo (₹499/mo). No watermark, 1080p,
+  // 1-hour uploads; creator-gated tools stay locked.
+  { slug: "sub_lite_1mo",  name: "Lite (Monthly)", priceInPaise: 49900,            intervalMonths: 1,  monthlyCredits: 20,  monthlyMinutes: 60, sortOrder: 5, tier: "lite" as const, features: ["No watermark", "1080p exports"] },
+  { slug: "sub_lite_12mo", name: "Lite (Yearly)",  priceInPaise: yearly(49900),    intervalMonths: 12, monthlyCredits: 20,  monthlyMinutes: 60, sortOrder: 8, tier: "lite" as const, features: ["No watermark", "1080p exports"] },
+  // Creator — 200 Clip Minutes + 50 AI credits /mo (₹999/mo).
+  { slug: "sub_creator_1mo",  name: "Creator (Monthly)", priceInPaise: 99900,            intervalMonths: 1,  monthlyCredits: 50,  monthlyMinutes: 200, sortOrder: 10, tier: "creator" as const, features: ["All AI tools", "1080p exports"] },
+  { slug: "sub_creator_12mo", name: "Creator (Yearly)",  priceInPaise: yearly(99900),    intervalMonths: 12, monthlyCredits: 50,  monthlyMinutes: 200, sortOrder: 13, tier: "creator" as const, features: ["All AI tools", "1080p exports"] },
   // Pro — 400 Clip Minutes + 150 AI credits /mo (₹2,199/mo).
   { slug: "sub_pro_1mo",  name: "Pro (Monthly)", priceInPaise: 219900,           intervalMonths: 1,  monthlyCredits: 150, monthlyMinutes: 400, sortOrder: 20, tier: "pro" as const, features: ["All AI tools", "Priority rendering"] },
   { slug: "sub_pro_12mo", name: "Pro (Yearly)",  priceInPaise: yearly(219900),   intervalMonths: 12, monthlyCredits: 150, monthlyMinutes: 400, sortOrder: 23, tier: "pro" as const, features: ["All AI tools", "Priority rendering"] },
-  // Studio — 1,000 Clip Minutes + 400 AI credits /mo (₹4,999/mo).
-  { slug: "sub_studio_1mo",  name: "Studio (Monthly)", priceInPaise: 499900,          intervalMonths: 1,  monthlyCredits: 400, monthlyMinutes: 1000, sortOrder: 30, tier: "studio" as const, features: ["Priority rendering", "Dedicated support"] },
-  { slug: "sub_studio_12mo", name: "Studio (Yearly)",  priceInPaise: yearly(499900),  intervalMonths: 12, monthlyCredits: 400, monthlyMinutes: 1000, sortOrder: 33, tier: "studio" as const, features: ["Priority rendering", "Dedicated support"] },
+  // Studio — 1,000 Clip Minutes + 300 AI credits /mo (₹4,999/mo).
+  { slug: "sub_studio_1mo",  name: "Studio (Monthly)", priceInPaise: 499900,          intervalMonths: 1,  monthlyCredits: 300, monthlyMinutes: 1000, sortOrder: 30, tier: "studio" as const, features: ["Priority rendering", "Dedicated support"] },
+  { slug: "sub_studio_12mo", name: "Studio (Yearly)",  priceInPaise: yearly(499900),  intervalMonths: 12, monthlyCredits: 300, monthlyMinutes: 1000, sortOrder: 33, tier: "studio" as const, features: ["Priority rendering", "Dedicated support"] },
 ].map(p => ({ ...p, kind: "subscription" as const, credits: p.monthlyCredits * p.intervalMonths }));
 
 // Old 3-month / 6-month terms are retired. Deactivate them (keep rows for
@@ -135,9 +145,17 @@ const COUPONS: SeedCoupon[] = [
 async function main() {
   // ── Plans ────────────────────────────────────────────────────────────────
   for (const p of PLANS) {
+    // Razorpay Plans are immutable (lib/billing/razorpay-plans.ts). When the
+    // seed changes a subscription's price, drop the stored Razorpay Plan ids so
+    // the next checkout mints new ones at the new price — otherwise new
+    // subscribers keep being charged the old amount. Subscribers already on the
+    // old Razorpay Plan keep the price they bought at.
+    const existing = await prisma.plan.findUnique({ where: { slug: p.slug }, select: { priceInPaise: true } });
+    const repriced = p.kind === "subscription" && existing !== null && existing.priceInPaise !== p.priceInPaise;
     const plan = await prisma.plan.upsert({
       where: { slug: p.slug },
       update: {
+        ...(repriced ? { razorpayPlanIdInr: null, razorpayPlanIdUsd: null } : {}),
         name: p.name,
         priceInPaise: p.priceInPaise,
         credits: p.credits,

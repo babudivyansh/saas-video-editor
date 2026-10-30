@@ -31,7 +31,7 @@ export function fireLowMinutesEmail(userId: string, newBalance: number): void {
       if (!user?.email) return;
 
       const active = user.plan?.kind === "subscription" && !!user.subscriptionEndsAt && user.subscriptionEndsAt > new Date();
-      const tier = (active ? (user.plan?.tier ?? "free") : "free") as "free" | "creator" | "pro" | "studio";
+      const tier = (active ? (user.plan?.tier ?? "free") : "free") as "free" | "lite" | "creator" | "pro" | "studio";
       const monthly = active ? user.monthlyMinutes : FREE_TIER_MONTHLY_BONUS_MINUTES;
       if (!isLowMinutes(newBalance, monthly)) return;
 

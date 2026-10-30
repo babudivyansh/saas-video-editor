@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { claimUnverifiedAccount } from "@/lib/account-claim";
 import { cleanName, NAME_MAX } from "@/lib/auth-validation";
 import { logger } from "@/lib/logger";
-import { grantFreeTierMinutes } from "@/lib/minutes";
+import { grantFreeTierMinutes, signupGrantAllowedForIp } from "@/lib/minutes";
 import { attributeReferral } from "@/lib/affiliate";
 import { getClientIp } from "@/lib/rate-limit";
 import { notifyAdminsOfSignup } from "@/lib/admin/signup-alerts";
@@ -92,7 +92,7 @@ export async function signInWithGoogleProfile(req: NextRequest, profile: GoogleP
     // write here would leave refunds nothing to restore against). Best-effort:
     // a failed grant must not fail the signup — the monthly drip retries it.
     const newUserId = user.id;
-    if (!repeatInbox) {
+    if (!repeatInbox && (await signupGrantAllowedForIp(getClientIp(req)))) {
       await grantFreeTierMinutes(newUserId, "grant:signup").catch((e) =>
         logger.error("auth", `signup minutes grant failed for ${newUserId}`, e));
     }

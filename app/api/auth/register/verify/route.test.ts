@@ -5,7 +5,7 @@ import { NextRequest } from "next/server";
 // account created — verified — with its grants, referral and session.
 
 const grantFreeTierMinutes = vi.hoisted(() => vi.fn(async () => ({ bonus: 30, subscription: 0, purchased: 0, total: 30 })));
-vi.mock("@/lib/minutes", () => ({ grantFreeTierMinutes }));
+vi.mock("@/lib/minutes", () => ({ grantFreeTierMinutes, signupGrantAllowedForIp: vi.fn(async () => true) }));
 
 let rateLimitAllowed = true;
 vi.mock("@/lib/rate-limit", () => ({

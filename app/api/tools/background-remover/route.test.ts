@@ -52,7 +52,7 @@ beforeEach(() => {
 
 describe("POST /api/tools/background-remover — effective upload policy", () => {
   it("rejects an image over the 10MB feature cap, before charging credits, on every tier", async () => {
-    for (const t of ["free", "creator", "pro", "studio"] as const) {
+    for (const t of ["free", "lite", "creator", "pro", "studio"] as const) {
       tier = t;
       const res = await POST(imageRequest(10 * 1024 * 1024 + 1));
       expect(res.status).toBe(413);

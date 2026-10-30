@@ -31,16 +31,16 @@ describe("Analytics overview", () => {
     expect(await screen.findByRole("button", { name: "Instagram, 5.6k followers, needs reconnecting" })).toBeOnTheScreen();
     expect(screen.getByRole("button", { name: "YouTube, 12.4k followers, healthy" })).toBeOnTheScreen();
     // The summary is per account: the healthiest one (YouTube) first.
-    fireEvent.press(await screen.findByRole("button", { name: "Generate · 5 cr" }));
+    fireEvent.press(await screen.findByRole("button", { name: "Generate · 2 cr" }));
     expect(await screen.findByText(/Views rose 18%/)).toBeOnTheScreen();
     expect(screen.getByText("• Post on Monday evenings: Your audience is most active then")).toBeOnTheScreen();
   });
 
   it("says no credits were charged when the summary fails", async () => {
     open("/social/insights/account-analytics");
-    await screen.findByRole("button", { name: "Generate · 5 cr" });
+    await screen.findByRole("button", { name: "Generate · 2 cr" });
     setMockScenario("summary", "error");
-    press("Generate · 5 cr");
+    press("Generate · 2 cr");
     expect(await screen.findByText(/No credits were charged/)).toBeOnTheScreen();
   });
 

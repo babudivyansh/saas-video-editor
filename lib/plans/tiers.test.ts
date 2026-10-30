@@ -65,3 +65,27 @@ describe("REVENUE_FLOOR_USD_PER_CREDIT — net of GST and gateway", async () => 
     expect(tiers.REVENUE_FLOOR_USD_PER_CREDIT).toBeLessThan(tiers.REVENUE_FLOOR_GROSS_USD_PER_CREDIT);
   });
 });
+
+describe("2026-10-30 restructure", async () => {
+  const tiers = await import("./tiers");
+  const { billableCaptionMinutes } = await import("@/lib/autoclip-pricing");
+
+  it("puts Lite between Free and Creator", () => {
+    expect(tiers.TIER_ORDER).toEqual(["free", "lite", "creator", "pro", "studio"]);
+    expect(tiers.tierAtLeast("lite", "creator")).toBe(false);
+    expect(tiers.tierAtLeast("lite", "free")).toBe(true);
+  });
+
+  it("flags only INR renewals above RBI's ₹15,000 no-OTP limit", () => {
+    expect(tiers.renewalNeedsApproval({ priceInPaise: 1_979_100 })).toBe(true); // Pro yearly
+    expect(tiers.renewalNeedsApproval({ priceInPaise: 899_100 })).toBe(false); // Creator yearly
+    expect(tiers.renewalNeedsApproval({ priceInPaise: 1_979_100, currency: "USD" })).toBe(false);
+  });
+
+  it("bills editor captions 1 Clip Minute per 2 minutes, at least 1", () => {
+    expect(billableCaptionMinutes(30)).toBe(1);
+    expect(billableCaptionMinutes(120)).toBe(1);
+    expect(billableCaptionMinutes(121)).toBe(2);
+    expect(billableCaptionMinutes(600)).toBe(5);
+  });
+});

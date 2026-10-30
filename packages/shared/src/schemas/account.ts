@@ -37,15 +37,16 @@ export const RANKS = [
 // ── Plans and packs ────────────────────────────────────────────────────────
 // Prices are USD cents (lib/currency.ts price book; credit packs are the web's
 // FX conversion of the INR rows). Limits from lib/plans/tiers.ts + prisma/seed.ts.
-export const YEARLY_DISCOUNT_PCT = 33;
+export const YEARLY_DISCOUNT_PCT = 25;
 export const ROLLOVER_MULTIPLIER = 2;
 export const MONEY_BACK_DAYS = 3;
 
 export const PLANS = [
-  { tier: "free", name: "Free", tagline: "Try every tool, no card", monthlyCents: 0, yearlyCents: 0, minutes: 30, credits: 10, storageGb: 0.5, uploadHours: 0.5, perks: ["Watermarked Auto Clips"] },
-  { tier: "creator", name: "Creator", tagline: "For a steady posting habit", monthlyCents: 1500, yearlyCents: 11999, minutes: 150, credits: 50, storageGb: 2, uploadHours: 2, perks: ["No watermark, animated captions", "Social Tracker"] },
-  { tier: "pro", name: "Pro", tagline: "Premium models, more output", monthlyCents: 2900, yearlyCents: 23299, minutes: 400, credits: 150, storageGb: 5, uploadHours: 4, perks: ["Clip Dubbing, Face Swap", "Priority rendering"] },
-  { tier: "studio", name: "Studio", tagline: "High volume, fastest queue", monthlyCents: 5900, yearlyCents: 47399, minutes: 1000, credits: 400, storageGb: 15, uploadHours: 6, perks: ["Nano Banana Pro", "Fastest rendering"] },
+  { tier: "free", name: "Free", tagline: "Try every tool, no card", monthlyCents: 0, yearlyCents: 0, minutes: 15, credits: 10, storageGb: 0.5, uploadHours: 0.5, perks: ["Watermarked Auto Clips"] },
+  { tier: "lite", name: "Lite", tagline: "Clean clips on a budget", monthlyCents: 800, yearlyCents: 7200, minutes: 60, credits: 20, storageGb: 1, uploadHours: 1, perks: ["No watermark", "Full-resolution exports"] },
+  { tier: "creator", name: "Creator", tagline: "For a steady posting habit", monthlyCents: 1500, yearlyCents: 13500, minutes: 200, credits: 50, storageGb: 2, uploadHours: 2, perks: ["No watermark, animated captions", "Social Tracker"] },
+  { tier: "pro", name: "Pro", tagline: "Premium models, more output", monthlyCents: 2900, yearlyCents: 26100, minutes: 400, credits: 150, storageGb: 5, uploadHours: 4, perks: ["Clip Dubbing, Face Swap", "Priority rendering"] },
+  { tier: "studio", name: "Studio", tagline: "High volume, fastest queue", monthlyCents: 5900, yearlyCents: 53100, minutes: 1000, credits: 300, storageGb: 15, uploadHours: 6, perks: ["Nano Banana Pro", "Fastest rendering"] },
 ] as const;
 export const POPULAR_TIER: (typeof PLANS)[number]["tier"] = "pro";
 

@@ -15,7 +15,7 @@ vi.mock("@/lib/logger", () => ({ logger: { error: vi.fn(), warn: vi.fn(), info: 
 vi.mock("@/lib/dunning", () => ({ recordSubscriptionFailure, recordSubscriptionLifecycle }));
 vi.mock("@/lib/admin/billing", () => ({ refundPurchase }));
 vi.mock("@/lib/fulfillment", () => ({ fulfillPayment: vi.fn(), fulfillSubscriptionCharge: vi.fn() }));
-vi.mock("@/lib/billing/subscription-switch", () => ({ cancelExistingSubscriptionForSwitch: vi.fn() }));
+vi.mock("@/lib/billing/subscription-switch", () => ({ cancelExistingSubscriptionForSwitch: vi.fn(), switchCreditFor: vi.fn(async () => null) }));
 vi.mock("@/lib/billing/trial", () => ({ startTrialOnAuthentication: vi.fn() }));
 vi.mock("@/lib/prisma", () => ({ prisma: {} }));
 vi.mock("@/lib/credits", () => ({ grantCredits: vi.fn() }));

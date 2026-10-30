@@ -214,7 +214,7 @@ export function lowMinutes(p: {
   name: string;
   minutesLeft: number;
   /** "free" gets the upgrade CTA; paid plans get the top-up one. */
-  tier: "free" | "creator" | "pro" | "studio";
+  tier: "free" | "lite" | "creator" | "pro" | "studio";
 }): EmailDocument {
   const paid = p.tier !== "free";
   return {

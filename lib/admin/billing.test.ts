@@ -29,6 +29,7 @@ const tx = {
     }),
   },
   creditTransaction: { create: vi.fn(async () => ({})) },
+  razorpayEvent: { create: vi.fn(async () => ({})) },
   // lockUserRow's SELECT ... FOR UPDATE, taken by every balance mutation that
   // reads then writes (clawbackCredits here) — and the audit writer's
   // advisory lock, which runs in its own transaction.
@@ -65,7 +66,7 @@ beforeEach(() => {
 describe("refundPurchase", () => {
   it("marks refunded and claws back at most the current balance (never negative)", async () => {
     const r = await refundPurchase({ purchaseId: "pay_1", actorId: "admin-1", reason: "requested", clawbackCredits: true });
-    expect(r).toEqual({ ok: true, creditsClawedBack: 300 });
+    expect(r).toEqual({ ok: true, creditsClawedBack: 300, minutesClawedBack: 0, partial: false, subscriptionEnded: false });
     expect(purchase.status).toBe("refunded");
     expect(userCredits).toBe(0);
     expect(auditActions).toContain("purchase.refunded");
@@ -80,8 +81,30 @@ describe("refundPurchase", () => {
 
   it("can skip clawback when requested", async () => {
     const r = await refundPurchase({ purchaseId: "pay_1", actorId: "admin-1", reason: "goodwill", clawbackCredits: false });
-    expect(r).toEqual({ ok: true, creditsClawedBack: 0 });
+    expect(r).toEqual({ ok: true, creditsClawedBack: 0, minutesClawedBack: 0, partial: false, subscriptionEnded: false });
     expect(userCredits).toBe(300);
+  });
+
+  it("claws back a proportional share on a partial refund and keeps the purchase captured", async () => {
+    userCredits = 500;
+    const r = await refundPurchase({
+      purchaseId: "pay_1", actorId: "system:razorpay-webhook", reason: "webhook", clawbackCredits: true,
+      refund: { id: "rfnd_1", amountMinor: 24_975, totalRefundedMinor: 24_975 }, // a quarter of ₹999
+    });
+    expect(r).toMatchObject({ ok: true, creditsClawedBack: 125, partial: true });
+    expect(purchase.status).toBe("captured");
+    expect(userCredits).toBe(375);
+    expect(auditActions).toContain("purchase.partially_refunded");
+  });
+
+  it("treats the refund that completes the total as full", async () => {
+    const r = await refundPurchase({
+      purchaseId: "pay_1", actorId: "system:razorpay-webhook", reason: "webhook", clawbackCredits: true,
+      refund: { id: "rfnd_2", amountMinor: 74_925, totalRefundedMinor: 99_900 },
+    });
+    // Only this refund's three-quarter share (375 of the 500), floored at the 300 balance.
+    expect(r).toMatchObject({ ok: true, partial: false, creditsClawedBack: 300 });
+    expect(purchase.status).toBe("refunded");
   });
 });
 

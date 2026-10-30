@@ -34,12 +34,17 @@ export const TOOL_COSTS: Record<string, ToolCost> = {
   // Prices are relative effort, not cost recovery: the exec report fans out over
   // a whole period and several accounts, kpi-explain is a tooltip and is free
   // (and cached 24h on rounded values, so an idle dashboard never re-bills).
-  "social-exec-report":   { creditCost: 5, costUsd: null, costBasis: "Google Gemini text over a computed multi-account period factsheet, near-zero real cost", generationType: "utility" },
-  "social-content-recs":  { creditCost: 3, costUsd: null, costBasis: "Google Gemini text over computed post scores, near-zero real cost", generationType: "utility" },
+  // 5 -> 2 and 3 -> 1 on 2026-10-30: at ~$0.001 a call they were 390x and
+  // 235x cost, and read as petty next to the free Gemini tools.
+  "social-exec-report":   { creditCost: 2, costUsd: null, costBasis: "Google Gemini text over a computed multi-account period factsheet, near-zero real cost", generationType: "utility" },
+  "social-content-recs":  { creditCost: 1, costUsd: null, costBasis: "Google Gemini text over computed post scores, near-zero real cost", generationType: "utility" },
   "social-caption":       { creditCost: 0, costUsd: 0.0005, costBasis: "Google Gemini text, near-zero real cost", generationType: "utility" },
   "social-post-narration": { creditCost: 0, costUsd: 0.0005, costBasis: "Google Gemini text, batched 10 posts per call, near-zero real cost", generationType: "utility" },
   "social-kpi-explain":   { creditCost: 0, costUsd: null, costBasis: "Google Gemini text, cached 24h on rounded metric values, near-zero real cost", generationType: "utility" },
-  "cut-and-crop":     { creditCost: 1, costUsd: 0, costBasis: "FFmpeg (local compute only)", generationType: "utility" },
+  // Local renders (cut-and-crop, editor-render) are free on a paid plan up to
+  // 30 a day and 1 credit otherwise — lib/render-pricing.ts decides per call;
+  // creditCost is the free-plan price the cost table shows.
+  "cut-and-crop":     { creditCost: 1, costUsd: 0, costBasis: "FFmpeg (local compute only) — free on paid plans up to 30 renders a day", generationType: "utility" },
   // Duration-scaled (2-20 credits — see creditCostForDuration in the route)
   // since Phase 2 replaced the old fixed-band blur with real per-frame OCR
   // detection (fal-ai/florence-2-large/ocr-with-region) — no longer FFmpeg-only.
@@ -59,8 +64,10 @@ export const TOOL_COSTS: Record<string, ToolCost> = {
   // duration-scaled.
   "voice-changer":    { creditCost: 8, costUsd: 0.20, costBasis: "Per minute: ~$0.20/min (ElevenLabs speech-to-speech), 90s cap", generationType: "audio" },
   "enhance-speech":   { creditCost: 8, costUsd: 0.20, costBasis: "Per minute: ~$0.20/min (ElevenLabs voice isolation), 90s cap", generationType: "audio" },
-  "youtube-downloader":   { creditCost: 1, costUsd: 0, costBasis: "yt-dlp, bandwidth only", generationType: "utility" },
-  "instagram-downloader": { creditCost: 1, costUsd: 0, costBasis: "yt-dlp, bandwidth only", generationType: "utility" },
+  // Free since 2026-10-30 (the pricing page always called them free), capped
+  // at 25 a day by lib/free-tool-caps.ts.
+  "youtube-downloader":   { creditCost: 0, costUsd: 0, costBasis: "yt-dlp, bandwidth only — free, 25 a day", generationType: "utility" },
+  "instagram-downloader": { creditCost: 0, costUsd: 0, costBasis: "yt-dlp, bandwidth only — free, 25 a day", generationType: "utility" },
   "background-remover":   { creditCost: 1, costUsd: 0.018, costBasis: "$0.018/run (fal-ai/imageutils/rembg)", generationType: "image" },
   // Gated pro+ until a real per-run figure is confirmed (same rationale as
   // subtitle-remover above).
@@ -116,10 +123,10 @@ export const TOOL_COSTS: Record<string, ToolCost> = {
   "voice-preview":      { creditCost: 0, costUsd: 0.002, costBasis: "One ~35-char TTS sample. Free to the user; authenticated and capped at 20/hr so the cost is bounded by accounts, not IPs", generationType: "audio" },
   "music-generate":     { creditCost: 4, costUsd: 0.075, costBasis: "ElevenLabs Music $0.15/min, 30s default bed (verify-before-ship: the Music API is paid-plan only and 402s on the current free account, so this rate is published pricing, not a measured call). Gated creator+", generationType: "audio" },
   "compile":            { creditCost: 1, costUsd: 0, costBasis: "FFmpeg render only — TTS is charged when the voice is generated", generationType: "video" },
-  "editor-render":      { creditCost: 1, costUsd: 0, costBasis: "FFmpeg timeline render (local compute only)", generationType: "video" },
+  "editor-render":      { creditCost: 1, costUsd: 0, costBasis: "FFmpeg timeline render (local compute only) — free on paid plans up to 30 a day; 4K exports 3 credits", generationType: "video" },
   // Billed in Clip Minutes since 2026-09-26 (1 per minute of each asset, see
   // app/api/editor/captions/route.ts); creditCost 0 because it spends no credits.
-  "editor-captions":    { creditCost: 0, costUsd: 0.0037, costBasis: "Scribe STT at $0.22/hour of the whole asset — billed 1 Clip Minute per minute", generationType: "utility" },
+  "editor-captions":    { creditCost: 0, costUsd: 0.0037, costBasis: "Scribe STT at $0.22/hour of the whole asset — billed 1 Clip Minute per 2 minutes (2026-10-30)", generationType: "utility" },
   "editor-ai-text":     { creditCost: 0, costUsd: 0.0005, costBasis: "Google Gemini text — free under a daily fair-use cap", generationType: "utility" },
   "auto-clip-rerender": { creditCost: 1, costUsd: 0, costBasis: "FFmpeg re-render of one clip (local compute only)", generationType: "video" },
 

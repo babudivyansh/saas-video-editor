@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { redis } from "@/lib/redis";
 import { prisma } from "@/lib/prisma";
 import {
-  SUBSCRIPTION_ROLLOVER_CAP_MULTIPLIER, FREE_TIER_MONTHLY_BONUS_MINUTES, BONUS_MINUTES_EXPIRY_DAYS,
+  SUBSCRIPTION_ROLLOVER_CAP_MULTIPLIER, FREE_TIER_MONTHLY_BONUS_MINUTES, FREE_TIER_SIGNUP_MINUTES, BONUS_MINUTES_EXPIRY_DAYS,
 } from "@/lib/plans/tiers";
 
 // Clip Minutes — the second meter (2026-09-26 pricing plan). AutoClip bills
@@ -143,13 +143,28 @@ export async function grantMonthlyMinutes(params: {
 /**
  * The free tier's monthly Clip Minutes: bonus minutes that expire, granted at
  * signup and by the refill cron's free drip. One helper so the amount and the
- * expiry can't drift between those call sites.
+ * expiry can't drift between those call sites. Signup ("grant:signup") gets
+ * the larger starting grant; every later drip gets the monthly amount.
  */
+/** New accounts per IP per day that get the signup Clip Minutes (2026-10-30).
+ *  Disposable inboxes are already refused at registration; this bounds the
+ *  rest of the farming — one machine minting account after account for its
+ *  free minutes. Accounts past the cap still work, they just start at 0 and
+ *  join the monthly drip. Generous enough for a shared office or campus IP. */
+export const SIGNUP_GRANTS_PER_IP_PER_DAY = 3;
+
+export async function signupGrantAllowedForIp(ip: string): Promise<boolean> {
+  if (!ip || ip === "unknown") return true;
+  const { rateLimit } = await import("@/lib/rate-limit");
+  const { allowed } = await rateLimit(`signup-grant:ip:${ip}`, SIGNUP_GRANTS_PER_IP_PER_DAY, 24 * 60 * 60);
+  return allowed;
+}
+
 export async function grantFreeTierMinutes(userId: string, reason: string, tx?: Tx): Promise<MinuteBalances> {
   return grantMinutes({
     userId,
     bucket: "bonus",
-    amount: FREE_TIER_MONTHLY_BONUS_MINUTES,
+    amount: reason === "grant:signup" ? FREE_TIER_SIGNUP_MINUTES : FREE_TIER_MONTHLY_BONUS_MINUTES,
     reason,
     bonusExpiresAt: new Date(Date.now() + BONUS_MINUTES_EXPIRY_DAYS * 24 * 60 * 60 * 1000),
     tx,

@@ -3,7 +3,8 @@ import { logger } from "@/lib/logger";
 import { NextRequest, NextResponse } from "next/server";
 import { runFFmpegArgs, runFFmpegWithProgress, getMediaDimensions } from "@/utils/ffmpeg-render";
 import { cropScaleFilter } from "@/lib/crop";
-import { getAuthUser } from "@/lib/auth";
+import { getAuthUser, getUserTier } from "@/lib/auth";
+import { localRenderCredits } from "@/lib/render-pricing";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress } from "@/lib/credits";
 import { saveMediaUpload } from "@/lib/media-upload";
@@ -17,7 +18,6 @@ import { randomUUID } from "crypto";
 
 export const maxDuration = 300;
 
-const CREDIT_COST = 1;
 // One export takes this many clips at most. The file loop below used to be
 // unbounded: one 1-credit request could carry any number of plan-sized files,
 // all held in memory and then re-encoded one after another.
@@ -182,9 +182,11 @@ async function handlePOST(req: NextRequest) {
   }
 
   const idempotencyKey = (formData.get("idempotencyKey") as string | null) ?? undefined;
+  // Free on a paid plan up to the daily render allowance (lib/render-pricing.ts).
+  const creditCost = await localRenderCredits(auth.userId, await getUserTier(auth.userId));
   const charge = await chargeCredits({
     userId: auth.userId,
-    amount: CREDIT_COST,
+    amount: creditCost,
     toolSlug: "cut-and-crop",
     idempotencyKey,
     log: { generationType: "video" },
@@ -214,7 +216,7 @@ async function handlePOST(req: NextRequest) {
     createdAt: Date.now(),
     userId: auth.userId,
     refunded: false,
-    creditCost: CREDIT_COST,
+    creditCost,
     generationId: charge.generationId,
   };
   jobs.set(jobId, job);
