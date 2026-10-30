@@ -29,6 +29,8 @@ export interface CaptionTrackOptions {
   sizeScale?: number;
   /** Block centre as a percentage of frame height. */
   positionY?: number | null;
+  /** Block centre as a percentage of frame width. */
+  positionX?: number | null;
   /** Per-word speech energy 0..1, aligned to `words`. */
   energy?: number[];
   /** Indices of emphasised words. */
@@ -111,6 +113,7 @@ export function buildCaptionTrack(opts: CaptionTrackOptions): CaptionTrack {
     H: opts.H,
     sizeScale: opts.sizeScale,
     positionY: opts.positionY,
+    positionX: opts.positionX,
     emphasis: opts.emphasis,
     emoji: opts.emoji,
     wordsPerSec: opts.wordsPerSec,

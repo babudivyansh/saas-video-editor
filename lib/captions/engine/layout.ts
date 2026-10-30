@@ -93,6 +93,8 @@ export interface LayoutOptions {
   sizeScale?: number;
   /** Block centre as a percentage of frame height; overrides the template placement. */
   positionY?: number | null;
+  /** Block centre as a percentage of frame width; the block is kept inside the margins. */
+  positionX?: number | null;
   emphasis?: number[];
   emoji?: Record<number, string>;
   wordsPerSec?: number;
@@ -170,6 +172,9 @@ export function layoutCaptions(opts: LayoutOptions): CaptionLayout {
 
   const groups = chunkWords(words, perChunk);
   const chunks: PlacedChunk[] = [];
+  const customX = opts.positionX != null && Number.isFinite(opts.positionX);
+  /** A dragged block's centre: on the point, pushed back inside the margins (the preview clamps the same way). */
+  const clampCx = (blockW: number) => Math.min(Math.max((opts.positionX! / 100) * W, marginL + blockW / 2), W - marginR - blockW / 2);
 
   groups.forEach((idxs, ci) => {
     const first = words[idxs[0]];
@@ -265,9 +270,16 @@ export function layoutCaptions(opts: LayoutOptions): CaptionLayout {
     const lineRects: PlacedChunk["lineRects"] = [];
     let bx0 = Infinity;
     let bx1 = -Infinity;
+    const lineWidth = (line: typeof items, li: number) =>
+      (li === 0 ? lead : 0) + (li === lines.length - 1 ? trail : 0) + line.reduce((s, it, k) => s + (k ? gap : 0) + it.boxW + it.reserve, 0);
+    // A dragged block moves as one: centred on its widest line.
+    const blockW = customX ? Math.max(...lines.map(lineWidth)) : 0;
+    const bcx = customX ? clampCx(blockW) : 0;
     lines.forEach((line, li) => {
-      const lineW = (li === 0 ? lead : 0) + (li === lines.length - 1 ? trail : 0) + line.reduce((s, it, k) => s + (k ? gap : 0) + it.boxW + it.reserve, 0);
-      let x = align === "left" ? marginL : (W - lineW) / 2;
+      const lineW = lineWidth(line, li);
+      let x = customX
+        ? (align === "left" ? bcx - blockW / 2 : bcx - lineW / 2)
+        : align === "left" ? marginL : (W - lineW) / 2;
       const lx0 = x;
       if (li === 0) x += lead;
       const y = cy - blockH / 2 + lineHeight * (li + 0.5);
@@ -326,14 +338,19 @@ export function layoutCaptions(opts: LayoutOptions): CaptionLayout {
     else if (t.placement.y === "high") cyPanel = 0.2 * H + maxH / 2;
     else cyPanel = 0.5 * H;
     cyPanel = Math.min(Math.max(cyPanel, 0.08 * H + maxH / 2), 0.8 * H - maxH / 2);
+    const cxPanel = customX ? clampCx(maxW) : W / 2;
     for (const c of chunks) {
       const dy = cyPanel - (c.block.y0 + c.block.y1) / 2;
-      c.block = { ...c.block, y0: c.block.y0 + dy, y1: c.block.y1 + dy };
-      c.lineRects = c.lineRects.map((r) => ({ ...r, y0: r.y0 + dy, y1: r.y1 + dy }));
-      for (const w of c.words) w.y += dy;
+      const dx = customX ? cxPanel - (c.block.x0 + c.block.x1) / 2 : 0;
+      c.block = { x0: c.block.x0 + dx, x1: c.block.x1 + dx, y0: c.block.y0 + dy, y1: c.block.y1 + dy };
+      c.lineRects = c.lineRects.map((r) => ({ x0: r.x0 + dx, x1: r.x1 + dx, y0: r.y0 + dy, y1: r.y1 + dy }));
+      for (const w of c.words) {
+        w.y += dy;
+        w.x += dx;
+      }
     }
     panel = {
-      x: Math.round((W - maxW) / 2 - padX),
+      x: Math.round(cxPanel - maxW / 2 - padX),
       y: Math.round(cyPanel - maxH / 2 - padY),
       w: Math.round(maxW + 2 * padX),
       h: Math.round(maxH + 2 * padY),

@@ -160,7 +160,7 @@ export async function renderTimeline({ doc, userId, assetUrls, tag, outPath, tem
   const { w: capW, h: capH } = exportFrame(docDimensions(doc), quality);
   const captionTemplateTracks: { track: CaptionTrack; assPath: string }[] = [];
   templateCaptionGroups(doc.tracks.caption).forEach((group, i) => {
-    const { template, positionY } = effectiveCaptionTemplate(group.templateId, doc.captionStyle, { w: capW, h: capH });
+    const { template, positionY, positionX } = effectiveCaptionTemplate(group.templateId, doc.captionStyle, { w: capW, h: capH });
     const words = group.words
       .map((w) => ({ ...w, word: sanitizeCaptionWord(w.word).trim() }))
       .filter((w) => w.word);
@@ -172,6 +172,7 @@ export async function renderTimeline({ doc, userId, assetUrls, tag, outPath, tem
       H: capH,
       accent: group.accent,
       positionY,
+      positionX,
       emoji: planEmoji(words, template.emoji !== "none"),
     });
     const assPath = path.join(tmp, `${tag}-template-${i}.ass`);

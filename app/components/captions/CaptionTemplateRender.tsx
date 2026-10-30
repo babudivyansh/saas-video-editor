@@ -8,7 +8,7 @@
 // CSS (CaptionTemplateRender.module.css), started by the class change when a
 // word becomes the spoken one.
 
-import type { CSSProperties } from "react";
+import { useLayoutEffect, useRef, type CSSProperties } from "react";
 import { LETTER_MOTIONS, SCRAMBLE_STEPS, SCRAMBLE_STEP_MS, scrambledWord, type CaptionTemplateSpec } from "@clipiro/shared/caption-templates";
 import { BIGGER_SCALE, type CaptionWordStyle } from "@clipiro/shared/caption-style";
 import s from "./CaptionTemplateRender.module.css";
@@ -44,8 +44,13 @@ export interface CaptionTemplateRenderProps {
   sizeScale?: number;
   /** Block centre, % of frame height. */
   positionY?: number | null;
+  /** Block centre, % of frame width; the block is kept inside the frame's margins. */
+  positionX?: number | null;
   className?: string;
 }
+
+/** Side margins a block stays inside, as a fraction of the frame (engine/layout.ts marginL/marginR). */
+const SIDE_MARGIN = 0.06;
 
 const STICKER_TILTS = [-4, 3, -2, 4];
 /** Sparkle glyph positions, as fractions of the word's box (same as engine/ass.ts). */
@@ -99,8 +104,21 @@ export default function CaptionTemplateRender({
   accent,
   sizeScale = 1,
   positionY,
+  positionX,
   className,
 }: CaptionTemplateRenderProps) {
+  const capRef = useRef<HTMLDivElement>(null);
+  // A dragged block is centred on positionX, then pushed back inside the
+  // margins once its width is known — the same clamp the export applies.
+  useLayoutEffect(() => {
+    const el = capRef.current;
+    const frame = el?.parentElement;
+    if (!el || !frame || positionX == null) return;
+    const fw = frame.clientWidth;
+    const half = el.offsetWidth / 2;
+    const cx = Math.min(Math.max((positionX / 100) * fw, SIDE_MARGIN * fw + half), (1 - SIDE_MARGIN) * fw - half);
+    el.style.setProperty("--px", `${cx}px`);
+  });
   const chunks = chunkPreviewWords(words, t.words);
   const chunk = chunks.find((c) => timeMs >= c.start && timeMs < c.end) ?? null;
   const c = t.colors;
@@ -135,6 +153,7 @@ export default function CaptionTemplateRender({
     "--sc": t.symbols?.colors[0] ?? "#fff",
     ...(grad ? { "--g1": grad.from, "--g2": grad.to } : {}),
     ...(positionY != null ? { "--py": `${positionY}%` } : {}),
+    ...(positionX != null ? { "--px": `${positionX}%` } : {}),
   } as CSSProperties;
 
   const capClass = [
@@ -143,6 +162,7 @@ export default function CaptionTemplateRender({
     positionY != null ? s.pos_custom : s[`pos_${t.placement.y}`],
     t.container !== "none" ? s[`box_${t.container}`] : "",
     t.placement.align === "left" ? s.al_left : "",
+    positionX != null ? s.pos_x : "",
     grad ? (grad.target === "all" ? s.gradall : s.grad) : "",
     t.wordBox === "pill" ? s.pillw : "",
     c.letterColors?.length ? s.lc : "",
@@ -256,7 +276,7 @@ export default function CaptionTemplateRender({
   return (
     <div className={frameClass} style={{ "--act": act } as CSSProperties} aria-hidden="true">
       {chunk && (
-        <div key={chunk.index} className={capClass} style={capStyle}>
+        <div key={chunk.index} ref={capRef} className={capClass} style={capStyle} data-caption-block="">
           {t.extra === "bars" && <span className={s.barsx}><i /><i /><i /><i /></span>}
           {t.extra === "square" && <span className={s.sq} />}
           {(sym?.mode === "prefix" || sym?.mode === "flank") && <span className={sym.mode === "prefix" ? s.symp : s.symf}>{glyphs[0]}</span>}

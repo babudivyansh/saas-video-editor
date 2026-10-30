@@ -16,6 +16,7 @@ import { templateCaptionGroups } from "@clipiro/shared/captions";
 import { validateDoc, type CaptionClip, type TimelineDoc } from "@/lib/editor/types";
 import { buildCaptionTrack } from "@/lib/captions/engine";
 import type { EngineWord } from "@/lib/captions/engine";
+import { layoutCaptions } from "@/lib/captions/engine/layout";
 
 const W = 1080;
 const H = 1920;
@@ -64,6 +65,8 @@ describe("caption style override", () => {
     expect(validateCaptionStyle({ size: 3 })).toBe("invalid caption style size");
     expect(validateCaptionStyle({ words: 2.5 })).toBe("invalid caption style words");
     expect(validateCaptionStyle({ positionY: 100 })).toBe("invalid caption style positionY");
+    expect(validateCaptionStyle({ positionX: 30 })).toBeNull();
+    expect(validateCaptionStyle({ positionX: 2 })).toBe("invalid caption style positionX");
     expect(validateCaptionStyle({ motion: "teleport" })).toBe("invalid caption style motion");
     expect(validateCaptionStyle({ motion: "spin" })).toBeNull();
     expect(validateCaptionStyle({ colour: "#FFFFFF" })).toBe("unknown caption style field colour");
@@ -95,10 +98,33 @@ describe("caption style override", () => {
   });
 
   it("lets the user's word count and position win over the frame fit", () => {
-    const { template, positionY } = effectiveCaptionTemplate(POP.id, { words: 2, positionY: 30 }, { w: 1920, h: 1080 });
+    const { template, positionY, positionX } = effectiveCaptionTemplate(POP.id, { words: 2, positionY: 30, positionX: 25 }, { w: 1920, h: 1080 });
     expect(template.words).toBe(2);
     expect(positionY).toBe(30);
+    expect(positionX).toBe(25);
+    expect(effectiveCaptionTemplate(POP.id, null, { w: W, h: H }).positionX).toBeNull();
     expect(effectiveCaptionTemplate("not-a-template", null, { w: W, h: H }).template.id).toBe(resolveCaptionTemplate(null).id);
+  });
+});
+
+describe("a caption dragged sideways", () => {
+  const block = (positionX: number | null, ws: EngineWord[] = words()) => layoutCaptions({ words: ws, template: POP, W, H, positionY: 50, positionX }).chunks[0]!.block;
+
+  it("centres the block on the point when it fits there", () => {
+    const b = block(40, [{ word: "quit", start: 200, end: 600 }]);
+    expect((b.x0 + b.x1) / 2).toBeCloseTo(0.4 * W, 0);
+  });
+
+  it("keeps the block inside the side margins at the edges", () => {
+    const left = block(5);
+    const right = block(95);
+    expect(left.x0).toBeGreaterThanOrEqual(0.06 * W - 0.5);
+    expect(right.x1).toBeLessThanOrEqual(0.94 * W + 0.5);
+  });
+
+  it("stays centred on the frame when not dragged", () => {
+    const b = block(null);
+    expect((b.x0 + b.x1) / 2).toBeCloseTo(W / 2, 0);
   });
 });
 

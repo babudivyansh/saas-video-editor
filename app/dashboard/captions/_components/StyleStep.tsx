@@ -1,6 +1,6 @@
 "use client";
 
-// Caption Studio, step 4: one look for every caption — font, size, case,
+// Caption Studio, step 3: one look for every caption — font, size, case,
 // colours, outline, words on screen, position, motion — previewed in this
 // frame and two others at once, so a change is judged in every shape it will
 // export in. The look can be saved as "My template" and reused.
@@ -19,7 +19,17 @@ import { docDimensions, type Aspect, type TimelineDoc } from "@/lib/editor/types
 import { currentTemplateId, SAFE_ZONES, withTemplate } from "@/lib/captions/studio";
 import type { SavedCaptionTemplate } from "@/lib/captions/user-templates";
 import { StudioPreview } from "./StudioPreview";
+import { CaptionDragLayer } from "./CaptionDragLayer";
 import type { StudioProject } from "./useStudioProject";
+
+/** The sizes a tap on the caption switches between (CaptionStyleOverride.size). */
+const SIZE_SMALL = 0.75;
+const SIZE_LARGE = 1.4;
+const SIZE_CHOICES = [
+  { label: "Minimize", size: SIZE_SMALL },
+  { label: "Normal", size: undefined },
+  { label: "Maximize", size: SIZE_LARGE },
+] as const;
 
 const authHeaders = (): Record<string, string> => {
   const token = clientAuthToken();
@@ -60,6 +70,7 @@ export function StyleStep({ project, save }: StyleStepProps) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [deleting, setDeleting] = useState<SavedCaptionTemplate | null>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
 
   // The look applies at once in the previews and is saved after a pause, so
   // dragging a slider isn't a save per pixel.
@@ -129,7 +140,7 @@ export function StyleStep({ project, save }: StyleStepProps) {
       <section aria-labelledby="cs-style" className="flex flex-col gap-5 overflow-y-auto border-line bg-surface-1 p-5 lg:border-r">
         <div className="flex items-center justify-between">
           <h1 id="cs-style" className="text-lg font-extrabold">Style</h1>
-          <button type="button" onClick={() => update({ font: undefined, weight: undefined, case: undefined, size: undefined, base: undefined, accent: undefined, outline: undefined, outlineWidth: undefined, words: undefined, positionY: undefined, motion: undefined })} disabled={!Object.keys(style).length} className="text-xs font-semibold text-fg-muted hover:text-fg disabled:opacity-40">Reset to template</button>
+          <button type="button" onClick={() => update({ font: undefined, weight: undefined, case: undefined, size: undefined, base: undefined, accent: undefined, outline: undefined, outlineWidth: undefined, words: undefined, positionY: undefined, positionX: undefined, motion: undefined })} disabled={!Object.keys(style).length} className="text-xs font-semibold text-fg-muted hover:text-fg disabled:opacity-40">Reset to template</button>
         </div>
 
         <div className="grid grid-cols-[1fr_110px] gap-2.5">
@@ -205,8 +216,9 @@ export function StyleStep({ project, save }: StyleStepProps) {
         <label className={label}>
           <span className="flex justify-between">Position <span className="font-mono text-fg">{style.positionY != null ? `${Math.round(style.positionY)}% down` : "Template"}</span></span>
           <input type="range" min={5} max={95} step={1} value={style.positionY ?? 70} onChange={(e) => update({ positionY: Number(e.target.value) })} className="accent-[var(--emerald-bright)]" />
-          {style.positionY != null && <button type="button" onClick={() => update({ positionY: undefined })} className="self-start text-xs font-semibold text-fg-muted hover:text-fg">Use the template&apos;s position</button>}
+          {(style.positionY != null || style.positionX != null) && <button type="button" onClick={() => update({ positionY: undefined, positionX: undefined })} className="self-start text-xs font-semibold text-fg-muted hover:text-fg">Use the template&apos;s position</button>}
         </label>
+        <p className="-mt-2 text-xs text-fg-subtle">Or drag the caption anywhere on the preview.</p>
       </section>
 
       {/* Previews */}
@@ -224,7 +236,7 @@ export function StyleStep({ project, save }: StyleStepProps) {
         </div>
         <div className="flex flex-1 flex-wrap items-center justify-center gap-7">
           <figure className="flex flex-col items-center gap-2.5">
-            <StudioPreview doc={previewDoc} media={project.media} maxWidth={300} maxHeight={480}>
+            <StudioPreview doc={previewDoc} media={project.media} maxWidth={300} maxHeight={480} frameRef={frameRef}>
               {tall && (
                 <div aria-hidden="true" className="pointer-events-none absolute inset-0">
                   <div className="absolute inset-x-0 top-0 border-b border-dashed border-error/60 bg-error/15" style={{ height: `${z.top * 100}%` }} />
@@ -232,8 +244,26 @@ export function StyleStep({ project, save }: StyleStepProps) {
                   <div className="absolute right-0 border-l border-dashed border-error/60 bg-error/15" style={{ width: `${z.right * 100}%`, top: `${z.rightFrom * 100}%`, height: `${(z.rightTo - z.rightFrom) * 100}%` }} />
                 </div>
               )}
+              <CaptionDragLayer
+                frameRef={frameRef}
+                onMove={({ x, y }) => update({ positionX: x, positionY: y })}
+                onToggleSize={() => update({ size: (style.size ?? 1) > 1 ? SIZE_SMALL : SIZE_LARGE })}
+              />
             </StudioPreview>
-            <figcaption className="font-mono text-xs text-fg-muted">{doc.aspect === "original" ? "Original" : doc.aspect} · this project</figcaption>
+            <div role="group" aria-label="Caption size" className="flex gap-0.5 rounded-[10px] border border-line-strong bg-surface-2 p-0.5 text-xs font-semibold">
+              {SIZE_CHOICES.map((c) => {
+                const on = (style.size ?? undefined) === c.size;
+                return (
+                  <button key={c.label} type="button" aria-pressed={on} onClick={() => update({ size: c.size })} className={`rounded-lg px-2.5 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-primary/70 ${on ? "bg-primary text-on-primary" : "text-fg-muted hover:text-fg"}`}>
+                    {c.label}
+                  </button>
+                );
+              })}
+            </div>
+            <figcaption className="flex flex-col items-center gap-0.5 text-center font-mono text-xs text-fg-muted">
+              <span>{doc.aspect === "original" ? "Original" : doc.aspect} · this project</span>
+              <span className="text-fg-subtle">Hold &amp; drag the caption anywhere · tap it to resize</span>
+            </figcaption>
           </figure>
           <div className="flex flex-col gap-5">
             {otherShapes(doc.aspect).map((a) => (

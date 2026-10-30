@@ -1,7 +1,7 @@
 "use client";
 
 // Caption Studio's own top bar (the Studio is full screen, like the editor):
-// back to the dashboard, the project name, the five steps, and a slot on the
+// back to the dashboard, the project name, the four steps, and a slot on the
 // right for the step's own action.
 
 import Link from "next/link";
@@ -12,8 +12,7 @@ type StepId = "upload" | StudioStep;
 
 const STEPS: { id: StepId; label: string }[] = [
   { id: "upload", label: "Upload" },
-  { id: "template", label: "Template" },
-  { id: "edit", label: "Edit" },
+  { id: "edit", label: "Template & edit" },
   { id: "style", label: "Style" },
   { id: "export", label: "Export" },
 ];

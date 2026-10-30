@@ -64,10 +64,14 @@ describe("captions from the transcript", () => {
 });
 
 describe("parseStudioStep", () => {
-  it("reads known steps and defaults to the template step", () => {
+  it("reads known steps and defaults to the template + edit step", () => {
     expect(parseStudioStep("edit")).toBe("edit");
     expect(parseStudioStep("export")).toBe("export");
-    expect(parseStudioStep("nope")).toBe("template");
-    expect(parseStudioStep(null)).toBe("template");
+    expect(parseStudioStep("nope")).toBe("edit");
+    expect(parseStudioStep(null)).toBe("edit");
+  });
+
+  it("sends the old template step to the merged one", () => {
+    expect(parseStudioStep("template")).toBe("edit");
   });
 });

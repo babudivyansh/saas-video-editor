@@ -115,14 +115,14 @@ export default function PreviewStage() {
   const templateLayers = useMemo(
     () =>
       templateCaptionGroups(doc.tracks.caption).map((g) => {
-        const { template, positionY } = effectiveCaptionTemplate(g.templateId, doc.captionStyle, dims);
+        const { template, positionY, positionX } = effectiveCaptionTemplate(g.templateId, doc.captionStyle, dims);
         const emoji = planEmoji(g.words, template.emoji !== "none");
         const speakers = new Map<string, number>();
         const words: PreviewWord[] = g.words.map((w, i) => {
           if (w.speaker && !speakers.has(w.speaker)) speakers.set(w.speaker, speakers.size);
           return { text: w.word, start: w.start, end: w.end, emoji: emoji[i] ?? null, speaker: w.speaker ? speakers.get(w.speaker) : 0, style: w.style };
         });
-        return { key: `${g.templateId}|${g.accent ?? ""}`, template, positionY, accent: g.accent ?? null, words };
+        return { key: `${g.templateId}|${g.accent ?? ""}`, template, positionY, positionX, accent: g.accent ?? null, words };
       }),
     [doc.tracks.caption, doc.captionStyle, dims],
   );
@@ -297,7 +297,7 @@ export default function PreviewStage() {
               pickers, on the playhead clock, matching the exported burn-in. */}
           {templateLayers.map((l) => (
             <div key={l.key} className="pointer-events-none absolute inset-0">
-              <CaptionTemplateRender template={l.template} words={l.words} timeMs={currentTime * 1000} accent={l.accent} positionY={l.positionY} scene={false} fill />
+              <CaptionTemplateRender template={l.template} words={l.words} timeMs={currentTime * 1000} accent={l.accent} positionY={l.positionY} positionX={l.positionX} scene={false} fill />
             </div>
           ))}
 

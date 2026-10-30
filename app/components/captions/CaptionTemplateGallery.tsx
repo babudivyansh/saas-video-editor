@@ -72,8 +72,8 @@ export interface CaptionTemplateGalleryProps {
   /** Called instead of onChange when a locked template is picked. */
   onLocked?: (template: PickerTemplate) => void;
   disabled?: boolean;
-  /** Grid columns at the widest size; the grid always starts at 3. */
-  columns?: 3 | 4 | 5;
+  /** Grid columns at the widest size; the grid starts at 3, or stays at 2 in a narrow rail. */
+  columns?: 2 | 3 | 4 | 5;
   /** Cap the grid height and scroll inside it. */
   maxHeightClass?: string;
 }
@@ -93,11 +93,15 @@ export default function CaptionTemplateGallery({
   const tabs = useMemo(() => families.filter((f) => templates.some((t) => t.family === f.id)), [families, templates]);
   const visible = useMemo(() => (family === "all" ? templates : templates.filter((t) => t.family === family)), [templates, family]);
   const described = templates.find((t) => t.id === (focus ?? value)) ?? null;
-  const cols = columns === 5 ? "sm:grid-cols-5" : columns === 3 ? "" : "sm:grid-cols-4";
+  const cols = columns === 2 ? "grid-cols-2" : `grid-cols-3 ${columns === 5 ? "sm:grid-cols-5" : columns === 3 ? "" : "sm:grid-cols-4"}`;
 
   return (
     <div className="space-y-2.5">
-      <div className="flex flex-wrap gap-1" role="tablist" aria-label="Caption template families">
+      <div
+        className={`flex gap-1 ${columns === 2 ? "-mx-1 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]" : "flex-wrap"}`}
+        role="tablist"
+        aria-label="Caption template families"
+      >
         {[{ id: "all" as const, name: "All" }, ...tabs].map((f) => (
           <button
             key={f.id}
@@ -106,7 +110,7 @@ export default function CaptionTemplateGallery({
             aria-selected={family === f.id}
             disabled={disabled}
             onClick={() => setFamily(f.id)}
-            className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors disabled:opacity-40 ${
+            className={`flex-shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors disabled:opacity-40 ${
               family === f.id
                 ? "bg-tint-emerald text-ink border border-tint-emerald-border"
                 : "text-ink-soft border border-card-border hover:text-ink"
@@ -118,7 +122,7 @@ export default function CaptionTemplateGallery({
       </div>
 
       <div className={`${maxHeightClass} overflow-y-auto overscroll-contain pr-1`}>
-        <div className={`grid grid-cols-3 ${cols} gap-2.5`}>
+        <div className={`grid ${cols} gap-2.5`}>
           {visible.map((t) => {
             const selected = value === t.id;
             return (

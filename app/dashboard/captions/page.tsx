@@ -1,8 +1,8 @@
 "use client";
 
 // Caption Studio, step 1: bring a video (upload here, or pick from Assets),
-// pick the frame it exports in, and say how to transcribe it. "Choose a
-// template" creates the project and opens step 2, where transcription runs.
+// pick the frame it exports in, and say how to transcribe it. "Pick a template
+// & edit" creates the project and opens step 2, where transcription runs.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -128,7 +128,7 @@ export default function CaptionStudioUploadPage() {
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error ?? "Couldn't start from this video.");
-      router.push(`/dashboard/captions/${body.projectId}?step=template`);
+      router.push(`/dashboard/captions/${body.projectId}?step=edit`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't start from this video.");
       setStarting(false);
@@ -266,7 +266,7 @@ export default function CaptionStudioUploadPage() {
               disabled={!view || view.state !== "ready" || !view.assetId || starting || (aspect === "original" && !videoSize)}
               className="flex h-12 items-center justify-center gap-2 rounded-xl bg-primary text-[15px] font-bold text-on-primary outline-none hover:bg-primary-hover focus-visible:ring-2 focus-visible:ring-primary/70 disabled:opacity-40"
             >
-              {starting ? "Starting…" : "Choose a template"}
+              {starting ? "Starting…" : "Pick a template & edit"}
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" className="h-4 w-4" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
             </button>
             <p className="text-center text-xs text-fg-subtle">
