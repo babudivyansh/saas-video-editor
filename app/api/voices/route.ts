@@ -4,8 +4,8 @@ import { getActiveVoices } from "@/lib/voices/registry";
 import { elevenLabsKeyProblem } from "@/utils/elevenlabs";
 
 // The voice picker's data source — one route for every surface that chooses a
-// voice (reddit-video, text-video, voiceover, voice-changer, AI creator, the
-// legacy editor). Each of those used to compile in its own list.
+// voice (voiceover, voice changer, the mobile app): the account's own voices
+// plus the curated Voice Library ones (lib/voices/library.ts).
 //
 // PUBLIC, like the /api/tools/voices route it replaces. The create pages render
 // for logged-out visitors, and this response carries nothing sensitive: names,
@@ -35,7 +35,9 @@ async function handleGET() {
         gender: v.gender,
         age: v.age,
         accent: v.accent ?? null,
+        locale: v.locale ?? null,
         languages: v.languages,
+        useCase: v.useCase ?? null,
         category: v.category,
         // Whether the provider lets free-plan accounts use it, and whether it
         // bills at a multiple of the usual per-character rate. The UI needs

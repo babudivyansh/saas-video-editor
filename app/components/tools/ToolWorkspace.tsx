@@ -254,9 +254,15 @@ interface ToolWorkspaceProps {
   stage: React.ReactNode;
   /** Shown under the stage. */
   below?: React.ReactNode;
+  /**
+   * When the two panels stack (narrow screens), put the stage on top. For a
+   * tool whose main input IS the stage (the voiceover script) — otherwise the
+   * Generate button sat above the box you type into.
+   */
+  stageFirstOnMobile?: boolean;
 }
 
-export function ToolWorkspace({ title, icon, badges, description, controls, footer, stageTitle = "Result", stageActions, stage, below }: ToolWorkspaceProps) {
+export function ToolWorkspace({ title, icon, badges, description, controls, footer, stageTitle = "Result", stageActions, stage, below, stageFirstOnMobile }: ToolWorkspaceProps) {
   return (
     <div className="mx-auto w-full max-w-[1440px] px-4 pb-10 sm:px-8">
       <div className="flex flex-wrap items-stretch gap-5" style={{ minHeight: "calc(100vh - 132px)" }}>
@@ -274,7 +280,7 @@ export function ToolWorkspace({ title, icon, badges, description, controls, foot
           <div className="flex flex-col gap-5">{controls}</div>
           {footer != null && <div className="mt-auto flex flex-col gap-3 pt-1">{footer}</div>}
         </aside>
-        <section aria-label={stageTitle} className="flex min-w-0 flex-[999_1_560px] flex-col gap-4 rounded-2xl border border-line bg-panel p-5">
+        <section aria-label={stageTitle} className={`flex min-w-0 flex-[999_1_560px] flex-col gap-4 rounded-2xl border border-line bg-panel p-5 ${stageFirstOnMobile ? "max-[960px]:order-first" : ""}`}>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-[15px] font-semibold text-fg">{stageTitle}</h2>
             {stageActions}
