@@ -11,7 +11,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { AssetPicker } from "@/app/components/assets/AssetPicker";
 import { DEFAULT_TEMPLATE_ID, indexForTemplateId } from "@/lib/captions/legacyStyleIndex";
 import { ACCEPTED_VIDEO_TYPES } from "@/lib/autoclip-source";
@@ -108,6 +108,33 @@ function SourceBar({ view, onRemove, onRetry }: { view: LaunchSourceView; onRemo
   );
 }
 
+/**
+ * "Turn long videos into ___", the last words cycling through where clips end
+ * up. English only: the other locales put the object mid-sentence, so they
+ * keep their translated title as one static line. Screen readers get the plain
+ * title either way.
+ */
+function HeroTitle() {
+  const t = useTranslations("Dashboard");
+  const locale = useLocale();
+  const cls = "home-rise text-center text-[26px] sm:text-[34px] font-bold tracking-tight text-fg leading-tight";
+  if (locale !== "en") return <h1 className={cls}>{t("heroTitle")}</h1>;
+  const words = t.raw("heroWords") as string[];
+  return (
+    <h1 className={cls}>
+      <span className="sr-only">{t("heroTitle")}</span>
+      <span aria-hidden>
+        {t("heroLead")}{" "}
+        <span className="inline-block h-[1.25em] overflow-hidden align-bottom text-left text-primary">
+          <span className="home-words flex flex-col">
+            {[...words, words[0]].map((w, i) => <span key={i}>{w}</span>)}
+          </span>
+        </span>
+      </span>
+    </h1>
+  );
+}
+
 export function AutoClipLaunchBox() {
   const t = useTranslations("Dashboard");
   const router = useRouter();
@@ -161,11 +188,18 @@ export function AutoClipLaunchBox() {
 
   return (
     <section className="mx-auto w-full max-w-[800px]">
-      <h1 className="text-center text-[26px] sm:text-[34px] font-bold tracking-tight text-fg leading-tight">{t("heroTitle")}</h1>
+      <HeroTitle />
+      <p className="home-rise mx-auto mt-3 max-w-[560px] text-center text-sm sm:text-[15px] text-fg-muted" style={{ "--d": "0.08s" } as React.CSSProperties}>
+        {t("heroSubtitle")}
+      </p>
 
       <form onSubmit={submit} className="mt-6" noValidate>
+        {/* A light circles the box (home-ring-spin); the 1.5px padding is the
+            ring, the inner box keeps its own focus border. */}
+        <div className="home-rise relative overflow-hidden rounded-[23.5px] p-[1.5px]" style={{ "--d": "0.16s" } as React.CSSProperties}>
+        <span className="home-ring-spin" aria-hidden />
         <div
-          className={`relative flex flex-col sm:flex-row sm:items-center gap-2 rounded-[22px] border border-fg/15 bg-surface-3 p-1.5 sm:pl-5 focus-within:border-primary/50 transition-colors ${uploading ? "launch-sweep" : ""}`}
+          className={`relative flex flex-col sm:flex-row sm:items-center gap-2 rounded-[22px] border border-transparent bg-surface-3 p-1.5 sm:pl-5 focus-within:border-primary/50 transition-colors ${uploading ? "launch-sweep" : ""}`}
         >
           {view ? (
             <SourceBar view={view} onRemove={launch.clear} onRetry={launch.retryUpload} />
@@ -188,10 +222,12 @@ export function AutoClipLaunchBox() {
           <button
             type="submit"
             disabled={!!view && (!launch.ready || launch.starting)}
-            className="h-12 sm:h-[52px] flex-shrink-0 rounded-2xl bg-fg px-7 text-base font-semibold text-bg hover:bg-fg/90 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/70 disabled:cursor-not-allowed disabled:bg-fg/30 disabled:text-bg/70 disabled:hover:bg-fg/30"
+            className="relative overflow-hidden h-12 sm:h-[52px] flex-shrink-0 rounded-2xl bg-fg px-7 text-base font-semibold text-bg hover:bg-fg/90 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/70 disabled:cursor-not-allowed disabled:bg-fg/30 disabled:text-bg/70 disabled:hover:bg-fg/30"
           >
-            {launch.starting ? t("home.starting") : t("home.getClips")}
+            {!view && <span className="home-shine" aria-hidden />}
+            <span className="relative">{launch.starting ? t("home.starting") : t("home.getClips")}</span>
           </button>
+        </div>
         </div>
         {message && <p id="launch-error" role="alert" className="mt-2 pl-4 text-xs text-error">{message}</p>}
         {block && (
@@ -214,7 +250,7 @@ export function AutoClipLaunchBox() {
           </div>
         )}
 
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 px-2 sm:pl-[18px]">
+        <div className="home-rise mt-4 flex flex-wrap items-center justify-between gap-3 px-2 sm:pl-[18px]" style={{ "--d": "0.24s" } as React.CSSProperties}>
           <div className="flex items-center gap-5">
             <input
               ref={fileRef}

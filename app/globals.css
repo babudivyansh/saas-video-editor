@@ -709,6 +709,72 @@ body {
   .launch-sweep::before, .launch-sweep::after { animation: none; background-position: 50% 0; }
 }
 
+/* ── Home hero + What's new motion (AutoClipLaunchBox, HomeSections) ───────
+   Rotating headline word, a light circling the launch box, a shine across the
+   CTA, a staggered rise for the hero's rows and tool chips, and small looping
+   illustrations on the What's new cards. A stagger delay comes in through
+   `--d` on the element. Everything is static under prefers-reduced-motion. */
+@keyframes home-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.home-rise { animation: home-rise 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both; animation-delay: var(--d, 0s); }
+
+/* Four words, then the first again so the loop seams invisibly. */
+@keyframes home-words {
+  0%, 20% { transform: translateY(0); }
+  25%, 45% { transform: translateY(-1.25em); }
+  50%, 70% { transform: translateY(-2.5em); }
+  75%, 95% { transform: translateY(-3.75em); }
+  100% { transform: translateY(-5em); }
+}
+.home-words { animation: home-words 8s cubic-bezier(0.7, 0, 0.2, 1) infinite; }
+
+@keyframes home-spin { to { transform: rotate(360deg); } }
+.home-ring-spin {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 1100px;
+  height: 1100px;
+  margin: -550px 0 0 -550px;
+  pointer-events: none;
+  background: conic-gradient(from 0deg, transparent 0 70%, var(--primary) 85%, var(--emerald-bright) 92%, transparent 100%);
+  animation: home-spin 4s linear infinite;
+}
+
+@keyframes home-shine { 0% { transform: translateX(-140%) skewX(-20deg); } 60%, 100% { transform: translateX(260%) skewX(-20deg); } }
+.home-shine {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 40%;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--primary) 70%, transparent), transparent);
+  animation: home-shine 3.2s ease-in-out infinite;
+}
+
+@keyframes home-underline { 0% { transform: scaleX(0); } 30%, 80% { transform: scaleX(1); opacity: 1; } 100% { transform: scaleX(1); opacity: 0; } }
+.home-underline { transform-origin: left; animation: home-underline 2s ease-in-out infinite; }
+
+.home-orbit { animation: home-spin 9s linear infinite; }
+.home-orbit-rev { animation: home-spin 6s linear infinite reverse; }
+@keyframes home-swap {
+  0%, 28% { transform: translateY(0); }
+  33%, 61% { transform: translateY(-1.4em); }
+  66%, 94% { transform: translateY(-2.8em); }
+  100% { transform: translateY(-4.2em); }
+}
+.home-swap { animation: home-swap 6s cubic-bezier(0.7, 0, 0.2, 1) infinite; }
+@keyframes home-draw { 0% { stroke-dashoffset: 400; } 60%, 100% { stroke-dashoffset: 0; } }
+.home-draw { stroke-dasharray: 400; animation: home-draw 4s ease-out infinite; }
+@keyframes home-dot { 0%, 55% { opacity: 0; transform: scale(0); } 65%, 100% { opacity: 1; transform: scale(1); } }
+.home-dot { transform-box: fill-box; transform-origin: center; animation: home-dot 4s ease-out infinite; }
+@keyframes home-lift { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+.home-lift { animation: home-lift 5s ease-in-out infinite; animation-delay: var(--d, 0s); }
+
+@media (prefers-reduced-motion: reduce) {
+  .home-rise, .home-words, .home-ring-spin, .home-shine, .home-underline,
+  .home-orbit, .home-orbit-rev, .home-swap, .home-draw, .home-dot, .home-lift { animation: none; }
+  .home-ring-spin, .home-shine, .home-underline { display: none; }
+}
+
 /* ── AutoClip redesign motion system ───────────────────────────────────────
    Purposeful, 120–340ms, cubic-bezier(0.16,1,0.3,1). Card rise, workspace
    shared-element expand, contextual panel/tab swaps, honest loading shimmer,

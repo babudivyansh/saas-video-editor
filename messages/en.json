@@ -78,6 +78,8 @@
     "welcomeBack": "Welcome back, {name} · AI Clip Studio",
     "aiClipStudio": "AI Clip Studio",
     "heroTitle": "Turn long videos into viral clips",
+    "heroLead": "Turn long videos into",
+    "heroWords": ["viral clips", "YouTube Shorts", "Instagram Reels", "TikToks"],
     "heroSubtitle": "Drop in a stream, podcast, or interview — AutoClip finds the moments, captions them, and cuts them for every platform.",
     "continueWhereYouLeftOff": "Continue where you left off",
     "viewAllClips": "View All Clips",
