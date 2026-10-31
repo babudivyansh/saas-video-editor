@@ -9,7 +9,6 @@ import Breadcrumbs from "@/app/components/ui/Breadcrumbs";
 import { Skeleton } from "@/app/components/ui/Skeleton";
 import { useToast } from "@/app/components/ui/Toast";
 import { EmptyState } from "@/app/components/ui/EmptyState";
-import PipelineNotice from "@/app/components/auto-clip/PipelineNotice";
 import { ScorePerformanceBanner } from "@/app/components/auto-clip/ScorePerformanceBanner";
 import { ApiError } from "@/app/dashboard/create/auto-clip/_components/shared";
 import { ClipWorkspace, type WorkspaceTab } from "@/app/dashboard/create/auto-clip/_components/ClipWorkspace";
@@ -231,7 +230,6 @@ export function ClipsView({ source }: { source: ClipsSource }) {
         </div>
       </div>
 
-      {project && <PipelineNotice warnings={project.warnings} />}
       {project?.status === "completed" && <ScorePerformanceBanner />}
       {project && project.status !== "completed" && project.status !== "failed" && (
         <div className="flex flex-col gap-2">
