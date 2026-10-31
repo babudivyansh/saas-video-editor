@@ -229,7 +229,7 @@ export const POST = withMobileAuth(async (req: NextRequest, auth) => {
         result = { ok: false, res: mobileError(404, "That voice isn’t yours to use.", { code: "voice_not_found" }) };
         break;
       }
-      result = toolJob(await callWeb(webVoiceover, req, { text: b.text, voiceId: voice, title: b.title, idempotencyKey: b.idempotencyKey }));
+      result = toolJob(await callWeb(webVoiceover, req, { text: b.text, voiceId: voice, title: b.title, language: b.language, quality: b.quality, idempotencyKey: b.idempotencyKey }));
       break;
     }
     case "enhance-speech":

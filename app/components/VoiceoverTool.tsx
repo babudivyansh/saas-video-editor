@@ -6,11 +6,12 @@ import { useJobPolling } from "./useJobPolling";
 import { Tooltip } from "@/app/components/ui/Tooltip";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 import { VOICES, voiceBySlug, type Voice } from "@/app/components/voice-catalog";
-import { voiceoverCredits, VOICEOVER_CHARS_PER_CREDIT } from "@/lib/audio-pricing";
+import { voiceoverCredits, VOICEOVER_CHARS_PER_CREDIT, VOICEOVER_STUDIO_CHARS_PER_CREDIT, type VoiceoverQuality } from "@/lib/audio-pricing";
+import { AUTO_LANGUAGE, TTS_LANGUAGES, VOICEOVER_MAX_CHARS, estimateSpokenSeconds } from "@/lib/voices/models";
 import { DEFAULT_VOICE_SLUG } from "@/lib/voices/catalog";
 import { Modal } from "@/app/components/ui/Modal";
 import { Button } from "@/app/components/ui/Button";
-import { ToolWorkspace, ToolBadge, ToolField, CostRow } from "@/app/components/tools/ToolWorkspace";
+import { ToolWorkspace, ToolBadge, ToolField, CostRow, OptionCards } from "@/app/components/tools/ToolWorkspace";
 
 function IcInfo() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" className="w-3.5 h-3.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>;
@@ -27,16 +28,12 @@ interface HistoryItem {
   createdAt: number;
 }
 
-// Must match the server route's MAX_CHARS (app/api/tools/voiceover/route.ts) —
-// letting the client accept more than the server will only means a wasted
-// round trip and a confusing late failure instead of an immediate inline one.
-const MAX_CHARS = 2000;
+// The same constant the route enforces (lib/voices/models.ts) — letting the
+// client accept more than the server will only means a wasted round trip and
+// a confusing late failure instead of an immediate inline one.
+const MAX_CHARS = VOICEOVER_MAX_CHARS;
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
-function estimateSeconds(text: string): number {
-  const words = text.trim() ? text.trim().split(/\s+/).length : 0;
-  return Math.round((words / 150) * 60);
-}
 function fmtTime(totalSec: number): string {
   const s = Math.max(0, Math.round(totalSec));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
@@ -381,7 +378,8 @@ export default function VoiceoverTool() {
   const [voiceSlug, setVoiceSlug] = useState(DEFAULT_VOICE_SLUG);
   const [title, setTitle] = useState("");
   const [script, setScript] = useState("");
-  const [exaggeration, setExaggeration] = useState(0.5);
+  const [language, setLanguage] = useState(AUTO_LANGUAGE);
+  const [quality, setQuality] = useState<VoiceoverQuality>("standard");
   const [stability, setStability] = useState(0.5);
   const [similarity, setSimilarity] = useState(0.75);
 
@@ -401,7 +399,8 @@ export default function VoiceoverTool() {
 
   const voice = voiceBySlug(voiceSlug);
   const chars = script.length;
-  const estSec = useMemo(() => estimateSeconds(script), [script]);
+  const estSec = useMemo(() => estimateSpokenSeconds(script, language), [script, language]);
+  const cost = voiceoverCredits(chars, quality);
 
   // Storage keys
   const historyKey = user ? `voiceover_history:${user.id}` : "voiceover_history:guest";
@@ -461,7 +460,7 @@ export default function VoiceoverTool() {
         const res = await fetch("/api/tools/voiceover", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ text, voiceId: voiceSlug, title: title.trim(), stability, similarityBoost: similarity, exaggeration, idempotencyKey }),
+          body: JSON.stringify({ text, voiceId: voiceSlug, title: title.trim(), stability, similarityBoost: similarity, language, quality, idempotencyKey }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Voice generation failed.");
@@ -547,14 +546,37 @@ export default function VoiceoverTool() {
               </button>
             </ToolField>
 
+            <ToolField label="Language" hint="Auto-detect reads the script's own language. Pick one to fix the accent and pronunciation.">
+              <select
+                value={language}
+                onChange={(e) => setLanguage(e.target.value)}
+                aria-label="Language"
+                className="w-full rounded-xl border border-line bg-surface-1 px-3.5 py-2.5 text-[14px] text-fg outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/25"
+              >
+                <option value={AUTO_LANGUAGE}>Auto-detect</option>
+                {TTS_LANGUAGES.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
+              </select>
+            </ToolField>
+
+            <ToolField label="Quality">
+              <OptionCards
+                name="voiceover-quality"
+                value={quality}
+                onChange={setQuality}
+                options={[
+                  ["standard", "Standard", `Fast · 1 credit / ${VOICEOVER_CHARS_PER_CREDIT} chars`],
+                  ["studio", "Studio", `Most natural · 1 credit / ${VOICEOVER_STUDIO_CHARS_PER_CREDIT} chars`],
+                ] as const}
+              />
+            </ToolField>
+
             <details className="group rounded-xl border border-line bg-surface-1 px-3.5 py-3">
               <summary className="flex cursor-pointer list-none items-center justify-between text-[13px] font-semibold text-fg">
                 Voice settings
-                <span className="text-[12px] font-normal text-fg-subtle group-open:hidden">Exaggeration {pct(exaggeration)} · Stability {pct(stability)}</span>
+                <span className="text-[12px] font-normal text-fg-subtle group-open:hidden">Stability {pct(stability)} · Similarity {pct(similarity)}</span>
               </summary>
               <div className="mt-3 flex flex-col gap-4">
                 {([
-                  ["Exaggeration", exaggeration, setExaggeration, undefined],
                   ["Stability", stability, setStability, "Lower values create more varied speech"],
                   ["Similarity", similarity, setSimilarity, "Higher values sound more like the original voice"],
                 ] as const).map(([label, value, set, hint]) => (
@@ -575,8 +597,8 @@ export default function VoiceoverTool() {
             {job.status === "cancelled" && <p className="text-[12.5px] text-fg-subtle">Cancelled — your credit was refunded.</p>}
             <CostRow right={user ? `You have ${user.credits.toLocaleString()}` : undefined}>
               {chars > 0 && chars <= MAX_CHARS
-                ? <>{chars.toLocaleString()} characters · <span className="font-semibold text-fg">{voiceoverCredits(chars)} credit{voiceoverCredits(chars) === 1 ? "" : "s"}</span></>
-                : <>1 credit per {VOICEOVER_CHARS_PER_CREDIT} characters · up to {MAX_CHARS.toLocaleString()}</>}
+                ? <>{chars.toLocaleString()} characters · <span className="font-semibold text-fg">{cost} credit{cost === 1 ? "" : "s"}</span></>
+                : <>1 credit per {quality === "studio" ? VOICEOVER_STUDIO_CHARS_PER_CREDIT : VOICEOVER_CHARS_PER_CREDIT} characters · up to {MAX_CHARS.toLocaleString()}</>}
             </CostRow>
             <Button type="button" className="w-full" onClick={() => void generate()} disabled={!canGenerate} loading={busy}>
               {busy ? "Generating…" : <>Generate voiceover <kbd className="ml-1 hidden rounded bg-black/15 px-1.5 py-0.5 text-[11px] font-semibold sm:inline-block">{modKey}+Enter</kbd></>}

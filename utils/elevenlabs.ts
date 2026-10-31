@@ -1,11 +1,14 @@
 import { withRetry } from "@/lib/with-retry";
 import { env } from "@/lib/env";
+import { TTS_MODEL } from "@/lib/voices/models";
 
-// TTS model used for all synthesis (voiceover + video renders).
-// eleven_flash_v2_5 is multilingual, supports /with-timestamps, and costs
-// ~5-6x less than eleven_multilingual_v2 (the single biggest margin win).
-// Flip back to "eleven_multilingual_v2" here if higher expressiveness is needed.
-const TTS_MODEL_ID = "eleven_flash_v2_5";
+// Default TTS model: eleven_v4_turbo — 94 languages at Flash's price (0.5
+// credits per char), /with-timestamps in the same shape. It replaced
+// eleven_flash_v2_5 (32 languages) on 2026-11-01. Callers pick the full-quality
+// eleven_v4 per request (lib/voices/models.ts).
+const TTS_MODEL_ID = TTS_MODEL.standard;
+/** Only these honour voice_settings.style; the API lists can_use_style per model. */
+const STYLE_MODELS = new Set(["eleven_multilingual_v2"]);
 
 /**
  * Whether the key we have can actually authenticate.
@@ -54,8 +57,9 @@ export interface VoiceResult {
 export interface VoiceSettings {
   stability?: number;       // 0..1
   similarityBoost?: number; // 0..1
-  style?: number;           // 0..1 — exaggeration / expressiveness
-  languageCode?: string;    // e.g. "en", "es", "fr" — passed to multilingual model
+  style?: number;           // 0..1 — exaggeration; only multilingual_v2 uses it
+  languageCode?: string;    // e.g. "en", "es", "fr"; omitted or "auto" = detect
+  modelId?: string;         // defaults to TTS_MODEL_ID
 }
 
 // Thrown by fetchElevenLabs for any response it doesn't treat as success —
@@ -119,6 +123,7 @@ export async function synthesizeVoice(
   const stability = settings?.stability != null ? clamp(settings.stability) : 0.5;
   const similarity_boost = settings?.similarityBoost != null ? clamp(settings.similarityBoost) : 0.75;
   const style = settings?.style != null ? clamp(settings.style) : 0.5;
+  const modelId = settings?.modelId ?? TTS_MODEL_ID;
 
   // Request with word-level timestamps
   const res = await fetchElevenLabs(
@@ -131,13 +136,14 @@ export async function synthesizeVoice(
       },
       body: JSON.stringify({
         text,
-        model_id: TTS_MODEL_ID,
-        voice_settings: { stability, similarity_boost, style, use_speaker_boost: true },
+        model_id: modelId,
+        voice_settings: { stability, similarity_boost, ...(STYLE_MODELS.has(modelId) ? { style } : {}), use_speaker_boost: true },
         output_format: "mp3_44100_128",
         ...(settings?.languageCode && settings.languageCode !== "auto" ? { language_code: settings.languageCode } : {}),
       }),
     },
-    { timeoutMs: 30_000, errorContext: "ElevenLabs error" },
+    // 30 s was sized for 2,000-char scripts; a 10,000-char v4 read takes longer.
+    { timeoutMs: 30_000 + text.length * 12, errorContext: "ElevenLabs error" },
   );
 
   const json = (await res.json()) as {

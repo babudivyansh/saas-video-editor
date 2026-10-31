@@ -226,12 +226,16 @@ export const generatedMediaSchema = z.object({
 });
 export type GeneratedMedia = z.infer<typeof generatedMediaSchema>;
 
-export const VOICEOVER_MAX_CHARS = 2000;
+/** lib/voices/models.ts VOICEOVER_MAX_CHARS: the v4 models' per-request limit. */
+export const VOICEOVER_MAX_CHARS = 10_000;
 export const voiceSchema = z.object({ id: z.string(), name: z.string(), description: z.string() });
 export type Voice = z.infer<typeof voiceSchema>;
 export const voiceoverRequest = z.object({
   text: z.string().trim().min(1, "Write the script").max(VOICEOVER_MAX_CHARS),
   voiceId: z.string(),
+  /** "auto" or a language code the web route accepts (lib/voices/models.ts). */
+  language: z.string().max(8).optional(),
+  quality: z.enum(["standard", "studio"]).optional(),
 });
 export type VoiceoverRequest = z.infer<typeof voiceoverRequest>;
 
