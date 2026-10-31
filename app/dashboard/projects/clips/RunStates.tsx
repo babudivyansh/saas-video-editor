@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import PipelineNotice from "@/app/components/auto-clip/PipelineNotice";
 import type { ProjectClipsResponse } from "./model";
 import rs from "./runstate.module.css";
 
@@ -106,9 +105,7 @@ export function ProjectRunState({ projectId, data }: { projectId: string; data: 
             finish, it will be stopped automatically and you&rsquo;ll get every credit back.
           </div>
         )}
-        <p className="text-[13px] text-fg-subtle">You can leave this page. Your clips will be here when you come back.</p>
-        <div className="mt-6"><PipelineNotice warnings={project.warnings} /></div>
-      </div>
+        <p className="text-[13px] text-fg-subtle">You can leave this page. Your clips will be here when you come back.</p>      </div>
       </div>
     );
   }
