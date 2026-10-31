@@ -95,10 +95,17 @@ describe("stock", () => {
 
 describe("voices", () => {
   it("lists the catalogue with the id a voiceover job takes", async () => {
-    web.voices.mockResolvedValue(NextResponse.json({ configured: true, voices: [{ slug: "brian", label: "Brian", description: "Deep", gender: "male", accent: "American", previewUrl: "p.mp3", creditMultiplier: 1, languages: ["en"] }] }));
+    web.voices.mockResolvedValue(NextResponse.json({ configured: true, voices: [
+      { slug: "brian", label: "Brian", description: "Deep", gender: "male", accent: "American", previewUrl: "p.mp3", creditMultiplier: 1, category: "starter", languages: ["en"] },
+      { slug: "hi-zara", label: "Zara", description: null, gender: "female", accent: "Standard", previewUrl: "z.mp3", creditMultiplier: 1, category: "library", languages: ["hi"] },
+    ] }));
     expect(await (await voices(req("/voices", "GET"))).json()).toEqual({
       configured: true,
-      voices: [{ id: "brian", name: "Brian", description: "Deep", gender: "male", accent: "American", previewUrl: "p.mp3", creditMultiplier: 1 }],
+      voices: [
+        // An account voice is multilingual: no language of its own.
+        { id: "brian", name: "Brian", description: "Deep", gender: "male", accent: "American", previewUrl: "p.mp3", creditMultiplier: 1, language: null, languageLabel: null },
+        { id: "hi-zara", name: "Zara", description: null, gender: "female", accent: "Standard", previewUrl: "z.mp3", creditMultiplier: 1, language: "hi", languageLabel: "Hindi" },
+      ],
     });
   });
 });

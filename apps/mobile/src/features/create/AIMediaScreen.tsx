@@ -23,6 +23,7 @@ import { apiErrorMessage } from "@/lib/errors";
 import { colors, radius, text, type } from "@/theme";
 import { usePlayer } from "../assets/AudioRow";
 import { useCreateContext, useImageModels, useVoices } from "./queries";
+import { VoiceLanguageChips, voiceLanguages, voicesFor } from "./voiceLanguages";
 import { ActionBar, FileCard, newKey, Results, useFileInput, useToolJob, Working } from "./toolKit";
 
 type Tab = "image" | "voiceover" | "enhance" | "vocal";
@@ -237,17 +238,19 @@ function VoiceoverTab({ initialVoice }: { initialVoice?: string }) {
   const [script, setScript] = useState("");
   const [voiceId, setVoiceId] = useState(initialVoice ?? null);
   const [picking, setPicking] = useState(false);
-  const list = voices.data?.voices ?? [];
+  const [language, setLanguage] = useState<string | null>(null);
+  const all = voices.data?.voices ?? [];
+  const list = voicesFor(all, language);
   const voice = list.find((v) => v.id === voiceId) ?? list.find((v) => !v.id.startsWith("clone:")) ?? list[0]; // a catalogue voice, unless one was chosen
   // 1 credit per 300 characters, times the voice's rate (what the server charges).
-  const cost = voiceoverCredits(Math.max(1, script.trim().length));
+  const cost = voiceoverCredits(Math.max(1, script.trim().length), "standard", voice?.creditMultiplier ?? 1);
   const job = useToolJob(cost);
-  const unavailable = voices.isError || (voices.data && (!voices.data.configured || list.length === 0));
+  const unavailable = voices.isError || (voices.data && (!voices.data.configured || all.length === 0));
 
   const generate = async () => {
     const parsed = voiceoverRequest.safeParse({ text: script, voiceId: voice?.id ?? "" });
     if (!parsed.success || !voice) return toast(parsed.success ? "Choose a voice" : (parsed.error.issues[0]?.message ?? "Check the script"), "info");
-    const done = await job.run(() => jobs.start({ type: "voiceover", text: parsed.data.text, voiceId: voice.id, title: `Voiceover · ${voice.name}`, idempotencyKey: newKey() }));
+    const done = await job.run(() => jobs.start({ type: "voiceover", text: parsed.data.text, voiceId: voice.id, title: `Voiceover · ${voice.name}`, language: language ?? voice.language ?? undefined, idempotencyKey: newKey() }));
     if (done) {
       toast("Voiceover ready. Saved to Assets.", "success");
       setScript("");
@@ -296,11 +299,12 @@ function VoiceoverTab({ initialVoice }: { initialVoice?: string }) {
       </ScrollView>
       <ActionBar cost={`${cost} credit${cost === 1 ? "" : "s"}`} label="Generate voiceover" onPress={() => void generate()} loading={job.busy} disabled={!!unavailable || !voice} />
       <BottomSheet visible={picking} onClose={() => setPicking(false)} title="Voice">
+        <VoiceLanguageChips languages={voiceLanguages(all)} value={language} onChange={setLanguage} />
         <ScrollView style={{ maxHeight: 420 }}>
           <OptionList
             accessibilityLabel="Voice"
             value={voice?.id ?? null}
-            options={list.map((v) => ({ value: v.id, label: v.name, detail: [v.description, v.accent].filter(Boolean).join(" · ") || undefined }))}
+            options={list.map((v) => ({ value: v.id, label: v.name, detail: [v.languageLabel ?? "Multilingual", v.description, v.accent].filter(Boolean).join(" · ") || undefined }))}
             onChange={(v) => {
               setVoiceId(v);
               setPicking(false);

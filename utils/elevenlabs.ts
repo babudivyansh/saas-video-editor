@@ -208,7 +208,9 @@ export async function transcribeAudio(
 
   const form = new FormData();
   form.append("file", new Blob([new Uint8Array(audioBuffer)], { type: mimeType }), "audio.mp3");
-  form.append("model_id", "scribe_v1");
+  // scribe_v2 since 2026-11-01: same words/spacing/speaker_id shape as v1
+  // (compared live on the same clip), newer model.
+  form.append("model_id", "scribe_v2");
   form.append("diarize", "true");
   if (languageCode && languageCode !== "auto") form.append("language_code", languageCode);
 

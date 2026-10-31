@@ -7,30 +7,33 @@ import { assets, editorTools, jobs } from "@/lib/api";
 import { apiErrorMessage } from "@/lib/errors";
 import { pollMs } from "@/lib/poll";
 import { colors, radius, text, type } from "@/theme";
+import { VoiceLanguageChips, voiceLanguages, voicesFor } from "../create/voiceLanguages";
 import { insertMedia } from "./docOps";
 import { clock, useEditor } from "./store";
 
 // Voiceover: pick a voice, write the script, and the server reads it (POST
 // /jobs { type: "voiceover" }, the web's own tool and price: 1 credit per 300
-// characters, the same for every voice). The result is saved in Assets
+// characters, times the voice's rate). The result is saved in Assets
 // (Phase 5.5) and laid on the audio track at the playhead.
 
 export function VoiceoverSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const toast = useToast();
   const voices = useQuery({ queryKey: ["voices"], queryFn: editorTools.voices, enabled: visible, staleTime: 60 * 60 * 1000 });
   const [voiceId, setVoiceId] = useState<string | null>(null);
+  const [language, setLanguage] = useState<string | null>(null);
   const [script, setScript] = useState("");
   const [progress, setProgress] = useState<number | null>(null);
 
-  const list = voices.data?.voices ?? [];
+  const all = voices.data?.voices ?? [];
+  const list = voicesFor(all, language);
   const voice = list.find((v) => v.id === voiceId) ?? list.find((v) => !v.id.startsWith("clone:")) ?? list[0] ?? null;
-  const credits = voiceoverCredits(script.trim().length);
+  const credits = voiceoverCredits(script.trim().length, "standard", voice?.creditMultiplier ?? 1);
 
   const make = async () => {
     if (!voice) return;
     setProgress(0);
     try {
-      const { jobId } = await jobs.start({ type: "voiceover", text: script.trim(), voiceId: voice.id, title: `Voiceover · ${voice.name}` });
+      const { jobId } = await jobs.start({ type: "voiceover", text: script.trim(), voiceId: voice.id, title: `Voiceover · ${voice.name}`, language: language ?? voice.language ?? undefined });
       const job = await jobs.waitFor(jobId, { intervalMs: pollMs.tool, onProgress: (j) => setProgress(j.progress) });
       if (job.status === "failed" || !job.result?.assetId) throw new Error(job.error ?? "The voiceover didn’t finish. Your credits were refunded.");
       const asset = await assets.get(job.result.assetId);
@@ -73,11 +76,12 @@ export function VoiceoverSheet({ visible, onClose }: { visible: boolean; onClose
           ) : voices.isError || !voices.data?.configured || list.length === 0 ? (
             <Text style={text.caption}>Voiceover isn’t available right now. Try again later.</Text>
           ) : (
-            <View style={{ maxHeight: 220 }}>
+            <View style={{ maxHeight: 260, gap: 8 }}>
+              <VoiceLanguageChips languages={voiceLanguages(all)} value={language} onChange={setLanguage} />
               <OptionList
                 accessibilityLabel="Voice"
                 value={voice?.id ?? null}
-                options={list.map((v) => ({ value: v.id, label: v.name, detail: [v.description, v.accent].filter(Boolean).join(" · ") || undefined }))}
+                options={list.map((v) => ({ value: v.id, label: v.name, detail: [v.languageLabel ?? "Multilingual", v.description, v.accent].filter(Boolean).join(" · ") || undefined }))}
                 onChange={setVoiceId}
               />
             </View>
