@@ -392,6 +392,16 @@ export const creditAdjustSchema = z
   })
   .strict();
 
+export const voiceOverrideSchema = z
+  .object({
+    slug: z.string().min(1).max(80),
+    active: z.boolean().optional(),
+    sortOrder: z.number().int().min(0).max(100_000).optional(),
+    clear: z.boolean().optional(), // drop this voice's override entirely
+  })
+  .strict()
+  .refine((v) => v.clear || v.active !== undefined || v.sortOrder !== undefined, { message: "Nothing to update" });
+
 export const modelOverrideSchema = z
   .object({
     modelId: z.string().min(1).max(64),

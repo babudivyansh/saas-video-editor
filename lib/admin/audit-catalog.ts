@@ -23,7 +23,7 @@ export type AuditSeverity = "critical" | "destructive" | "money" | "security" | 
 export type AuditTargetType =
   | "user" | "coupon" | "plan" | "review" | "affiliate" | "announcement" | "project"
   | "asset" | "purchase" | "commission" | "social_account" | "cron" | "queue_job"
-  | "flag" | "tool" | "model" | "none";
+  | "flag" | "tool" | "model" | "voice" | "none";
 
 export interface AuditActionInfo {
   /** Past-tense phrase that reads before the target: "Deleted account". */
@@ -164,6 +164,7 @@ const EXACT: Record<string, Row> = {
   // ── Configuration ──
   "feature_flag.updated": ["Changed feature flag", "config", "change", "flag", "A feature flag was switched, added or deleted."],
   "tool.updated": ["Changed tool settings for", "config", "change", "tool", "Tool availability or cost changed."],
+  "voice.override_updated": ["Changed voiceover voice", "config", "change", "voice", "A voice was shown, hidden or re-ordered in the voice picker."],
   "model.override_updated": ["Changed AI model settings for", "config", "money", "model", "Model availability or credit cost changed."],
   "autoclip_calibration.toggled": ["Toggled AutoClip calibration", "config", "change", "none", "Automatic virality-weight calibration was switched."],
   "signup_alerts.updated": ["Changed new-signup email alerts", "config", "change", "none", "The new-signup staff email was switched or its recipients changed."],
@@ -278,6 +279,7 @@ export const TARGET_TYPE_LABEL: Record<Exclude<AuditTargetType, "none">, string>
   flag: "Feature flags",
   tool: "Tools",
   model: "AI models",
+  voice: "Voices",
 };
 
 export function actionsExpectingReason(): string[] {

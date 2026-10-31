@@ -401,6 +401,7 @@ const CRON_STALE_AFTER_SEC: Record<CronRunId, number> = {
   // A missed day is a permanent hole in the MRR series — nothing can fill it
   // in afterwards — so this is flagged stale sooner than the other dailies.
   "mrr-snapshot": 30 * 3600,
+  "voice-library-sync": 36 * 3600, // nightly — hides withdrawn Voice Library voices
 };
 
 // Judged on the last SUCCESS, not the last run: a cron that runs on time and

@@ -45,6 +45,7 @@ export const CRON_SCHEDULE: readonly CronScheduleEntry[] = [
   { schedule: "*/15 * * * *", path: "/api/cron/stale-clip-sweep", secret: "CRON_SECRET" },
   { schedule: "*/2 * * * *", path: "/api/cron/dub-sweep", secret: "CRON_SECRET" },
   { schedule: "*/10 * * * *", path: "/api/cron/clip-publish", secret: "CRON_SECRET" },
+  { schedule: "30 4 * * *", path: "/api/cron/voice-library-sync", secret: "CRON_SECRET" },
 ];
 
 const RANGES: [number, number][] = [[0, 59], [0, 23], [1, 31], [1, 12], [0, 7]];

@@ -139,6 +139,11 @@ export const CRON_CATALOG: Record<string, CronJobInfo> = {
     description: "Publishes clips whose scheduled time has arrived.",
     tier: "safe",
   },
+  "/api/cron/voice-library-sync": {
+    label: "Voice Library sync",
+    description: "Hides voiceover voices their owners withdrew from the ElevenLabs Voice Library.",
+    tier: "safe",
+  },
 };
 
 /** The tracking id a path records under: "mrr-snapshot", "social-refresh:scores". */

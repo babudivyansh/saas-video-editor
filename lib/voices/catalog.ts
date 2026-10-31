@@ -40,7 +40,7 @@ export const MULTILINGUAL = [
 
 export type VoiceGender = "male" | "female" | "neutral";
 export type VoiceAge = "young" | "middle" | "mature";
-/** starter = shipped with the product; library = added from the Voice Library; cloned = the user's own. */
+/** starter = the account's own voices; library = ElevenLabs Voice Library (lib/voices/library.ts); cloned = the user's own. */
 export type VoiceCategory = "starter" | "library" | "cloned";
 
 export interface VoiceEntry {
@@ -57,7 +57,16 @@ export interface VoiceEntry {
   gender: VoiceGender;
   age: VoiceAge;
   accent?: string;
-  /** BCP-47 codes this voice can speak. Drives the language filter. */
+  /** Voice Library locale, e.g. "es-MX" — finer than `accent`. */
+  locale?: string;
+  /** Voice Library use case: narrative_story, social_media, conversational… */
+  useCase?: string;
+  /**
+   * BCP-47 codes this voice can speak. Drives the language filter. For a
+   * library voice it is the one language it was recorded in; starter voices
+   * list ElevenLabs' verified languages but, on the v4 models, can read any
+   * of lib/voices/models.ts TTS_LANGUAGES.
+   */
   languages: string[];
   category: VoiceCategory;
   /** From the provider's `free_users_allowed`. False = costs more than a credit assumes. */

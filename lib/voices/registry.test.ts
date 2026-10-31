@@ -21,6 +21,8 @@ vi.mock("@/utils/elevenlabs", () => ({
 const { getVoiceLibrary, getActiveVoices, resolveVoiceRef } = await import("./registry");
 const { PROVIDER_VOICE_IDS } = await import("./providerIds");
 const { VOICE_SEED } = await import("./catalog");
+const { LIBRARY_VOICES } = await import("./library");
+const { LIBRARY_PROVIDER_IDS } = await import("./libraryProviderIds");
 
 /** Every seed voice exists in the account. */
 const allKnown = () =>
@@ -37,7 +39,7 @@ beforeEach(() => {
 describe("getVoiceLibrary", () => {
   it("returns the seed when there are no overrides", async () => {
     const all = await getVoiceLibrary();
-    expect(all).toHaveLength(VOICE_SEED.length);
+    expect(all).toHaveLength(VOICE_SEED.length + LIBRARY_VOICES.length);
   });
 
   it("lets an admin override a voice without a deploy", async () => {
@@ -83,7 +85,7 @@ describe("getVoiceLibrary", () => {
   it("treats an unusable key the same way — no catalogue, not an empty one", async () => {
     configured.mockReturnValue(false);
     const all = await getVoiceLibrary();
-    expect(all).toHaveLength(VOICE_SEED.length);
+    expect(all).toHaveLength(VOICE_SEED.length + LIBRARY_VOICES.length);
     expect(listVoices).not.toHaveBeenCalled();
   });
 
@@ -108,6 +110,39 @@ describe("getVoiceLibrary", () => {
     // Free to play, unlike synthesizing a sample on every picker open.
     expect(all.find((v) => v.slug === "newbie")?.previewUrl).toContain("cdn.invalid");
     expect(all.find((v) => v.slug === "brian")?.previewUrl).toContain("elevenlabs.io");
+  });
+});
+
+describe("Voice Library voices", () => {
+  const lib = () => LIBRARY_VOICES[0];
+
+  it("are offered although the account list doesn't include them", async () => {
+    // A library voice joins the account on first use, so the account check
+    // would have hidden every one of them.
+    const all = await getVoiceLibrary();
+    expect(all.find((v) => v.slug === lib().slug)?.active).not.toBe(false);
+  });
+
+  it("are hidden once the nightly sync finds them withdrawn", async () => {
+    configFindUnique.mockImplementation(async ({ where }: { where: { key: string } }) =>
+      where.key === "voice_library_missing" ? { value: JSON.stringify([lib().slug]) } : null);
+    const all = await getVoiceLibrary();
+    expect(all.find((v) => v.slug === lib().slug)?.active).toBe(false);
+  });
+
+  it("resolve to their provider id", async () => {
+    const r = await resolveVoiceRef(lib().slug);
+    expect(r).toMatchObject({ source: "catalog", providerVoiceId: LIBRARY_PROVIDER_IDS[lib().slug], creditMultiplier: 1 });
+  });
+
+  it("all bill at 1x, have a preview and a provider id", () => {
+    expect(LIBRARY_VOICES.length).toBeGreaterThan(100);
+    for (const v of LIBRARY_VOICES) {
+      expect(v.creditMultiplier, v.slug).toBe(1);
+      expect(v.previewUrl, v.slug).toBeTruthy();
+      expect(LIBRARY_PROVIDER_IDS[v.slug], v.slug).toMatch(/^[A-Za-z0-9]{20}$/);
+    }
+    expect(new Set(LIBRARY_VOICES.map((v) => v.slug)).size).toBe(LIBRARY_VOICES.length);
   });
 });
 
