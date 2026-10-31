@@ -5,6 +5,7 @@
 // list renders nothing until it has something to show — an empty dashboard is
 // one empty state on the page, not four.
 
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { useFormatter, useTranslations } from "next-intl";
 import { HOME_TOOLS, type AppToolGroup } from "@/app/components/featureLinks";
@@ -56,12 +57,13 @@ export function ToolChips() {
   const t = useTranslations("Dashboard");
   return (
     <nav aria-label={t("home.aiTools")} className="mx-auto flex max-w-[820px] flex-wrap justify-center gap-2.5">
-      {HOME_TOOLS.map((tool) => (
+      {HOME_TOOLS.map((tool, i) => (
         <Link
           key={tool.slug}
           href={tool.href}
           onClick={() => recordRecentTool(tool.slug)}
-          className="inline-flex h-[38px] items-center gap-2 rounded-xl border border-fg/12 px-3.5 text-sm font-medium text-fg hover:border-primary/40 hover:bg-surface-2 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+          style={{ "--d": `${0.32 + i * 0.06}s` } as React.CSSProperties}
+          className="home-rise inline-flex h-[38px] items-center gap-2 rounded-xl border border-fg/12 px-3.5 text-sm font-medium text-fg hover:border-primary/40 hover:bg-surface-2 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
         >
           <span className={GROUP_TINT[tool.appGroup ?? "free"]}><ToolIcon name={tool.icon} className="w-4 h-4" /></span>
           {tool.title}
@@ -69,9 +71,11 @@ export function ToolChips() {
       ))}
       <Link
         href="/dashboard/tools"
-        className="inline-flex h-[38px] items-center gap-1.5 rounded-xl px-3.5 text-sm font-semibold text-primary hover:text-primary-hover outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+        style={{ "--d": `${0.32 + HOME_TOOLS.length * 0.06}s` } as React.CSSProperties}
+        className="home-rise relative inline-flex h-[38px] items-center gap-1.5 rounded-xl px-3.5 text-sm font-semibold text-primary hover:text-primary-hover outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
       >
         {t("home.allTools")} <IcArrow />
+        <span className="home-underline absolute inset-x-3.5 bottom-1.5 h-[1.5px] bg-primary" aria-hidden />
       </Link>
     </nav>
   );
@@ -120,6 +124,43 @@ export function RecentProjects({ projects }: { projects: ProjectRow[] }) {
 
 // ── Top clips ────────────────────────────────────────────────────────────────
 
+/**
+ * The clip itself, muted and looping, so the row reads as a reel rather than
+ * a wall of stills. It only plays while on screen (a row of ten videos all
+ * decoding at once would cost every visit), and stays on its poster frame
+ * under prefers-reduced-motion or if the browser refuses autoplay.
+ */
+function ClipLoop({ src, poster }: { src: string; poster: string | null }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    const video = ref.current;
+    if (!video || typeof IntersectionObserver === "undefined") return;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) void video.play().catch(() => { /* autoplay refused: the poster stays */ });
+        else video.pause();
+      },
+      { threshold: 0.25 },
+    );
+    io.observe(video);
+    return () => io.disconnect();
+  }, [src]);
+  return (
+    <video
+      ref={ref}
+      src={src}
+      poster={poster ?? undefined}
+      muted
+      loop
+      playsInline
+      preload="metadata"
+      aria-hidden
+      className="h-full w-full object-cover"
+    />
+  );
+}
+
 export function TopClips({ clips }: { clips: ClipRow[] }) {
   const t = useTranslations("Dashboard");
   if (clips.length === 0) return null;
@@ -137,10 +178,12 @@ export function TopClips({ clips }: { clips: ClipRow[] }) {
                 href={clipHref(c.projectId, c.id)}
                 className="block aspect-[9/16] overflow-hidden rounded-2xl border border-line bg-surface-3 hover:border-primary/40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
               >
-                {c.thumbnailUrl && (
+                {c.videoUrl ? (
+                  <ClipLoop src={c.videoUrl} poster={c.thumbnailUrl} />
+                ) : c.thumbnailUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={c.thumbnailUrl} alt="" className="h-full w-full object-cover" />
-                )}
+                ) : null}
                 <span className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 rounded-b-2xl bg-gradient-to-t from-bg/90 to-transparent" />
                 {typeof c.score === "number" && (
                   <span className={`absolute left-2.5 top-2.5 rounded-[10px] bg-bg/80 px-2 py-0.5 text-[13px] font-bold tabular-nums ${scoreTone(c.score)}`}>
@@ -173,12 +216,66 @@ export function TopClips({ clips }: { clips: ClipRow[] }) {
 // ── What's new ───────────────────────────────────────────────────────────────
 
 // Real, shipped features only — this is an announcement shelf, not a roadmap.
-// The badge is optional; the tone keys the card's tint.
-const WHATS_NEW: { key: "aiTools" | "dubbing" | "socialTracker"; href: string; badge?: "new"; tone: string }[] = [
-  { key: "aiTools", href: "/dashboard/tools", badge: "new", tone: "bg-primary/[0.07]" },
-  { key: "dubbing", href: "/dashboard/projects", tone: "bg-info/[0.08]" },
-  { key: "socialTracker", href: "/dashboard/social-tracker", tone: "bg-warning/[0.07]" },
+// The badge is optional; each card gets a small looping picture of what the
+// feature does.
+type NewsKey = "aiTools" | "dubbing" | "socialTracker";
+const WHATS_NEW: { key: NewsKey; href: string; badge?: "new" }[] = [
+  { key: "aiTools", href: "/dashboard/tools", badge: "new" },
+  { key: "dubbing", href: "/dashboard/projects" },
+  { key: "socialTracker", href: "/dashboard/social-tracker" },
 ];
+
+/** Every tool around one hub: dots orbiting a tile. */
+function ToolsArt() {
+  return (
+    <span className="relative flex h-full items-center justify-center">
+      <span className="absolute h-11 w-11 rounded-xl bg-primary" />
+      <span className="home-orbit absolute h-[110px] w-[110px] rounded-full border border-dashed border-fg/12">
+        <span className="absolute -top-[5px] left-1/2 h-2.5 w-2.5 rounded-full bg-success" />
+        <span className="absolute -bottom-[5px] left-1/2 h-2.5 w-2.5 rounded-full bg-info" />
+      </span>
+      <span className="home-orbit-rev absolute h-[76px] w-[76px] rounded-full border border-dashed border-fg/10">
+        <span className="absolute -left-1 top-1/2 h-2 w-2 rounded-full bg-warning" />
+      </span>
+    </span>
+  );
+}
+
+/** One line, many languages. The greetings are the picture, not copy. */
+function DubArt() {
+  return (
+    <span className="flex h-full items-center justify-center gap-3">
+      <span className="flex h-11 items-center rounded-[14px_14px_14px_4px] border border-line bg-surface-3 px-4 text-lg font-bold text-fg">Hello</span>
+      <IcArrow />
+      <span className="flex h-11 items-center overflow-hidden rounded-[14px_14px_4px_14px] border border-primary/40 bg-primary/10 px-4 text-lg font-bold text-primary">
+        <span className="block h-[1.4em] overflow-hidden">
+          <span className="home-swap flex flex-col leading-[1.4em]">
+            <span>Hola</span><span>नमस्ते</span><span>Bonjour</span><span>Hola</span>
+          </span>
+        </span>
+      </span>
+    </span>
+  );
+}
+
+/** A post's numbers climbing. */
+function TrackerArt() {
+  return (
+    <span className="flex h-full items-center justify-center">
+      <svg viewBox="0 0 280 100" className="h-[100px] w-full max-w-[280px] text-primary">
+        <path d="M0 90H280M0 60H280M0 30H280" className="stroke-fg/5" />
+        <path className="home-draw" d="M4 84 L48 76 L92 80 L136 58 L180 62 L216 38 L252 22" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+        <circle className="home-dot" cx={252} cy={22} r={6} fill="currentColor" />
+      </svg>
+    </span>
+  );
+}
+
+const NEWS_ART: Record<NewsKey, () => React.ReactElement> = {
+  aiTools: ToolsArt,
+  dubbing: DubArt,
+  socialTracker: TrackerArt,
+};
 
 export function WhatsNew() {
   const t = useTranslations("Dashboard");
@@ -186,19 +283,26 @@ export function WhatsNew() {
     <section>
       <RowHeader title={t("home.whatsNew")} />
       <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-3 sm:gap-4">
-        {WHATS_NEW.map((item) => (
-          <Link
-            key={item.key}
-            href={item.href}
-            className={`relative flex aspect-[16/7] sm:aspect-[16/8.4] flex-col justify-end overflow-hidden rounded-2xl border border-line ${item.tone} p-4 sm:p-[18px] hover:border-primary/40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/70`}
-          >
-            {item.badge && (
-              <span className="absolute right-3 top-3 rounded-lg bg-bg/75 px-2.5 py-0.5 text-xs font-semibold text-fg">{t("home.newBadge")}</span>
-            )}
-            <span className="text-[17px] font-bold text-fg">{t(`home.news.${item.key}.title`)}</span>
-            <span className="mt-1 text-[13px] text-fg-muted">{t(`home.news.${item.key}.desc`)}</span>
-          </Link>
-        ))}
+        {WHATS_NEW.map((item, i) => {
+          const Art = NEWS_ART[item.key];
+          return (
+            <Link
+              key={item.key}
+              href={item.href}
+              style={{ "--d": `${-i * 1.6}s` } as React.CSSProperties}
+              className="home-lift relative flex flex-col overflow-hidden rounded-[20px] border border-line bg-surface-2 p-4 sm:p-5 hover:border-primary/40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+            >
+              <span className="h-[120px]" aria-hidden><Art /></span>
+              <span className="mt-4 flex items-center gap-2">
+                <span className="text-[17px] font-bold text-fg">{t(`home.news.${item.key}.title`)}</span>
+                {item.badge && (
+                  <span className="rounded-md bg-primary px-1.5 py-0.5 text-[11px] font-bold text-bg">{t("home.newBadge")}</span>
+                )}
+              </span>
+              <span className="mt-1 text-[13px] text-fg-muted">{t(`home.news.${item.key}.desc`)}</span>
+            </Link>
+          );
+        })}
       </div>
     </section>
   );
