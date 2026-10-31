@@ -57,7 +57,7 @@ export const TOOL_COSTS: Record<string, ToolCost> = {
   // Audio tools are priced by LENGTH since 2026-09-26 (lib/audio-pricing.ts);
   // creditCost/costUsd here are per UNIT — the "from" price the tools page and
   // cost table show — and the route charges units x rate.
-  "voiceover":        { creditCost: 1, costUsd: 0.025, costBasis: "Per 500 characters: $0.05/1,000 chars (ElevenLabs Flash TTS), 2,000-char cap", generationType: "audio" },
+  "voiceover":        { creditCost: 1, costUsd: 0.03, costBasis: "Per 300 characters: ~$0.10/1,000 chars (ElevenLabs v4 Turbo/Flash, 0.5 credits per char at ~$0.20 per 1,000 credits); Studio quality (eleven_v4) 1 credit per 150 chars; x the voice's rate", generationType: "audio" },
   "vocal-remover":    { creditCost: 1, costUsd: 0.021, costBasis: "Per 30 seconds: $0.0007/s (fal.ai Demucs), 5-min cap", generationType: "audio" },
   // Fixed in Phase 1: was 2cr flat (≈$0.20 revenue) against real cost that could
   // run $1-2/generation uncapped — a confirmed loss-making price. Now
@@ -119,7 +119,7 @@ export const TOOL_COSTS: Record<string, ToolCost> = {
   // keyed off THIS map, so none of them reached cost reporting at all. The
   // numbers below are the constants those routes already use: this makes them
   // visible, it does not change anyone's price.
-  "generate-voice":     { creditCost: 1, costUsd: 0.025, costBasis: "Per 500 characters: $0.05/1,000 chars (ElevenLabs Flash TTS) — same rate as the voiceover tool", generationType: "audio" },
+  "generate-voice":     { creditCost: 1, costUsd: 0.03, costBasis: "Per 300 characters: ~$0.10/1,000 chars (ElevenLabs v4 Turbo/Flash) — same rate as the voiceover tool", generationType: "audio" },
   "voice-preview":      { creditCost: 0, costUsd: 0.002, costBasis: "One ~35-char TTS sample. Free to the user; authenticated and capped at 20/hr so the cost is bounded by accounts, not IPs", generationType: "audio" },
   "music-generate":     { creditCost: 4, costUsd: 0.075, costBasis: "ElevenLabs Music $0.15/min, 30s default bed (verify-before-ship: the Music API is paid-plan only and 402s on the current free account, so this rate is published pricing, not a measured call). Gated creator+", generationType: "audio" },
   "compile":            { creditCost: 1, costUsd: 0, costBasis: "FFmpeg render only — TTS is charged when the voice is generated", generationType: "video" },

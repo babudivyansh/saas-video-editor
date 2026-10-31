@@ -15,10 +15,8 @@ import { saveToolResult } from "@/lib/tool-results";
 
 export const maxDuration = 120;
 
-// ElevenLabs Flash TTS bills $0.05/1,000 chars. Priced by length since
-// 2026-09-26 — 1 credit per 500 characters, lib/audio-pricing.ts — instead of a
-// flat 2 credits that ran at ~1.6x cost at the cap after GST. The cap bounds
-// one request, not the margin.
+// Priced by length (lib/audio-pricing.ts): 1 credit per 300 characters, times
+// the voice's own provider rate. The cap bounds one request, not the margin.
 const MAX_CHARS = 2000;
 
 const unit = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : undefined);
@@ -89,15 +87,17 @@ async function handlePOST(req: NextRequest) {
     return NextResponse.json({ error: "Voice generation is not configured" }, { status: 503 });
   }
 
-  // Length-scaled price, same function the tool page quotes with.
-  const creditCost = voiceoverCredits(text.length);
+  // Length-scaled price, same function the tool page quotes with. The voice's
+  // multiplier was never applied here, so a 2x Voice Library voice would have
+  // billed the account twice and the user once.
+  const creditCost = voiceoverCredits(text.length, "standard", voice.creditMultiplier);
 
   const charge = await chargeCredits({
     userId: auth.userId,
     amount: creditCost,
     toolSlug: "voiceover",
     idempotencyKey: body.idempotencyKey,
-    log: { generationType: "audio", prompt: text, estimatedCostUsd: (text.length / 1000) * 0.05 },
+    log: { generationType: "audio", prompt: text, estimatedCostUsd: (text.length / 1000) * 0.1 * voice.creditMultiplier },
   });
   const replayed = idempotencyResponse(charge, jobs);
   if (replayed) return replayed;

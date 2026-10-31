@@ -40,7 +40,7 @@ const FAQ: { topic: Topic; q: string; a: string }[] = [
   {
     topic: "credits",
     q: "What is a credit?",
-    a: "Credits pay for AI tools. Each tool shows its price before you run it, like 2–10 credits for an image or 1 credit per 500 characters of voiceover.",
+    a: "Credits pay for AI tools. Each tool shows its price before you run it, like 2–10 credits for an image or 1 credit per 300 characters of voiceover.",
   },
   {
     topic: "credits",

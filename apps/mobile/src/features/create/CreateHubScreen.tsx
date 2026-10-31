@@ -21,7 +21,7 @@ const START: { key: "upload" | "link" | "assets"; label: string; icon: IconName 
 // Real prices (lib/tool-costs.ts); Pro-only tools say so.
 const AI_TOOLS: { id: string; label: string; detail: string; icon: IconName }[] = [
   { id: "image-generator", label: "Image generator", detail: "From 2 credits", icon: "image" },
-  { id: "voiceover", label: "Voiceover", detail: "1 cr / 500 chars", icon: "volume" },
+  { id: "voiceover", label: "Voiceover", detail: "1 cr / 300 chars", icon: "volume" },
   { id: "enhance-speech", label: "Enhance speech", detail: "8 credits / min", icon: "waveform" },
   { id: "vocal-remover", label: "Vocal remover", detail: "1 credit / 30 s", icon: "music" },
   { id: "face-swap", label: "Face swap", detail: "Pro", icon: "person" },

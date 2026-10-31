@@ -43,7 +43,7 @@ export const toolCostSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("credits"),
     amount: z.number().int().positive(),
-    /** "min" = per minute, "500 chars", "30 s"… null = per run. */
+    /** "min" = per minute, "300 chars", "30 s"… null = per run. */
     per: z.string().nullable(),
     /** True when this is the cheapest option ("from 2 credits"). */
     from: z.boolean().default(false),
@@ -151,7 +151,7 @@ export const TOOL_CATALOG: readonly (Omit<Tool, "cost" | "requiredTier"> & { per
   { id: "vocal-remover", name: "AI Vocal Remover", shortName: "Vocal Remover", description: "Split vocals from music", category: "audio", recommended: false, per: "30 s" },
   { id: "background-remover", name: "Background Remover", shortName: "Background Remover", description: "Cut out the subject of a photo", category: "image", recommended: false },
   { id: "image-generator", name: "AI Image Generator", shortName: "Image Generator", description: "Generate images in seconds", category: "image", recommended: true, from: true },
-  { id: "voiceover", name: "AI Voiceover", shortName: "Voiceover", description: "Natural narration from your script", category: "audio", recommended: true, per: "500 chars" },
+  { id: "voiceover", name: "AI Voiceover", shortName: "Voiceover", description: "Natural narration from your script", category: "audio", recommended: true, per: "300 chars" },
   { id: "brainstormer", name: "AI Brainstormer", shortName: "Brainstormer", description: "Viral ideas for your niche", category: "video", recommended: true },
   { id: "youtube-downloader", name: "YouTube Downloader", shortName: "YouTube Downloader", description: "Save a YouTube video", category: "video", recommended: false },
   { id: "instagram-downloader", name: "Instagram Downloader", shortName: "Instagram Downloader", description: "Save an Instagram Reel", category: "video", recommended: false },

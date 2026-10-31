@@ -239,7 +239,7 @@ function VoiceoverTab({ initialVoice }: { initialVoice?: string }) {
   const [picking, setPicking] = useState(false);
   const list = voices.data?.voices ?? [];
   const voice = list.find((v) => v.id === voiceId) ?? list.find((v) => !v.id.startsWith("clone:")) ?? list[0]; // a catalogue voice, unless one was chosen
-  // 1 credit per 500 characters, the same for every voice (what the server charges).
+  // 1 credit per 300 characters, times the voice's rate (what the server charges).
   const cost = voiceoverCredits(Math.max(1, script.trim().length));
   const job = useToolJob(cost);
   const unavailable = voices.isError || (voices.data && (!voices.data.configured || list.length === 0));

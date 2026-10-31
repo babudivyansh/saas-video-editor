@@ -6,7 +6,7 @@ import { useJobPolling } from "./useJobPolling";
 import { Tooltip } from "@/app/components/ui/Tooltip";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 import { VOICES, voiceBySlug, type Voice } from "@/app/components/voice-catalog";
-import { voiceoverCredits } from "@/lib/audio-pricing";
+import { voiceoverCredits, VOICEOVER_CHARS_PER_CREDIT } from "@/lib/audio-pricing";
 import { DEFAULT_VOICE_SLUG } from "@/lib/voices/catalog";
 import { Modal } from "@/app/components/ui/Modal";
 import { Button } from "@/app/components/ui/Button";
@@ -528,7 +528,7 @@ export default function VoiceoverTool() {
       <ToolWorkspace
         title="AI Voiceover"
         icon="mic"
-        badges={<ToolBadge>1 credit / 500 chars</ToolBadge>}
+        badges={<ToolBadge>1 credit / {VOICEOVER_CHARS_PER_CREDIT} chars</ToolBadge>}
         description="Turn a script into a natural voiceover."
         controls={
           <>
@@ -576,7 +576,7 @@ export default function VoiceoverTool() {
             <CostRow right={user ? `You have ${user.credits.toLocaleString()}` : undefined}>
               {chars > 0 && chars <= MAX_CHARS
                 ? <>{chars.toLocaleString()} characters · <span className="font-semibold text-fg">{voiceoverCredits(chars)} credit{voiceoverCredits(chars) === 1 ? "" : "s"}</span></>
-                : <>1 credit per 500 characters · up to {MAX_CHARS.toLocaleString()}</>}
+                : <>1 credit per {VOICEOVER_CHARS_PER_CREDIT} characters · up to {MAX_CHARS.toLocaleString()}</>}
             </CostRow>
             <Button type="button" className="w-full" onClick={() => void generate()} disabled={!canGenerate} loading={busy}>
               {busy ? "Generating…" : <>Generate voiceover <kbd className="ml-1 hidden rounded bg-black/15 px-1.5 py-0.5 text-[11px] font-semibold sm:inline-block">{modKey}+Enter</kbd></>}

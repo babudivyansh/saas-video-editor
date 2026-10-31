@@ -326,25 +326,60 @@ export async function listVoices(): Promise<{ voice_id: string; name: string; pr
   return json.voices;
 }
 
-// The ElevenLabs account backing this app is shared across every Clipiro
-// user — its voice-slot limit is a property of the account, not of any one
-// user. Default is deliberately conservative; the real ceiling depends on
-// the ElevenLabs plan and should be set via ELEVENLABS_MAX_VOICE_SLOTS.
-const DEFAULT_MAX_VOICE_SLOTS = 100;
-
-function maxVoiceSlots(): number {
-  const n = Number(env.ELEVENLABS_MAX_VOICE_SLOTS ?? DEFAULT_MAX_VOICE_SLOTS);
-  return Number.isFinite(n) && n > 0 ? n : DEFAULT_MAX_VOICE_SLOTS;
+export interface ElevenLabsSubscription {
+  tier: string;
+  /** ElevenLabs credits used / allowed this period (named "character" by the API). */
+  characterCount: number;
+  characterLimit: number;
+  /** Whether usage past the limit is billed (true) or refused (false). */
+  canExtendCharacterLimit: boolean;
+  voiceSlotsUsed: number;
+  voiceLimit: number;
 }
 
-// How many more voices (of any kind — stock + cloned) the shared account can
-// hold before hitting ElevenLabs' own limit. Callers should check this
+export async function getSubscription(): Promise<ElevenLabsSubscription> {
+  const apiKey = env.ELEVENLABS_API_KEY!;
+  const res = await fetchElevenLabs(
+    "https://api.elevenlabs.io/v1/user/subscription",
+    { headers: { "xi-api-key": apiKey } },
+    { timeoutMs: 10_000, errorContext: "ElevenLabs subscription error" },
+  );
+  const j = (await res.json()) as {
+    tier: string; character_count: number; character_limit: number; can_extend_character_limit: boolean;
+    voice_slots_used: number; voice_limit: number;
+  };
+  return {
+    tier: j.tier,
+    characterCount: j.character_count,
+    characterLimit: j.character_limit,
+    canExtendCharacterLimit: j.can_extend_character_limit,
+    voiceSlotsUsed: j.voice_slots_used,
+    voiceLimit: j.voice_limit,
+  };
+}
+
+// The ElevenLabs account backing this app is shared across every Clipiro
+// user — its voice-slot limit is a property of the account, not of any one
+// user. ELEVENLABS_MAX_VOICE_SLOTS can only LOWER the plan's own limit (to
+// keep slots back for something else); it can never raise it.
+function slotCap(planLimit: number): number {
+  const n = Number(env.ELEVENLABS_MAX_VOICE_SLOTS);
+  return Number.isFinite(n) && n > 0 ? Math.min(n, planLimit) : planLimit;
+}
+
+// How many more cloned voices the shared account can hold. Callers check this
 // *before* cloneVoice() — a breached shared limit is a hard outage for every
-// user's cloning attempt, not a per-user problem, so it must never be
-// discovered only when the vendor call itself fails.
-export async function elevenLabsVoiceSlotsRemaining(): Promise<number> {
-  const voices = await listVoices();
-  return Math.max(0, maxVoiceSlots() - voices.length);
+// user's cloning attempt, so it must never be discovered only when the vendor
+// call fails.
+//
+// Read from the subscription, not from counting GET /v1/voices: premade and
+// Voice Library voices don't take a slot, so counting every voice (23 on the
+// account in 2026-10) against an assumed limit of 100 said 77 slots were free
+// on a plan that has 10.
+export async function elevenLabsVoiceSlotsRemaining(): Promise<{ remaining: number; limit: number }> {
+  const sub = await getSubscription();
+  const limit = slotCap(sub.voiceLimit);
+  return { remaining: Math.max(0, limit - sub.voiceSlotsUsed), limit };
 }
 
 export interface ClonedVoiceResult {
