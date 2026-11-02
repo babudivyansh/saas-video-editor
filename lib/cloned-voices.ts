@@ -12,8 +12,10 @@ export const MAX_CLONED_VOICES_PER_USER = 3;
 
 // Below this many free shared slots, stop accepting new clones even if the
 // requesting user is under their own cap — the shared ElevenLabs ceiling is
-// an account-wide constraint no per-user check can substitute for.
-const SHARED_SLOT_SAFETY_MARGIN = 5;
+// an account-wide constraint no per-user check can substitute for. A tenth of
+// the plan's slots, at most 5: a flat 5 would have kept half of a 10-slot plan
+// permanently empty.
+const safetyMargin = (limit: number) => Math.min(5, Math.ceil(limit / 10));
 
 export async function listClonedVoices(userId: string) {
   return prisma.clonedVoice.findMany({
@@ -41,13 +43,14 @@ export async function addClonedVoice(
   // a breached shared limit blocks every user, so this has to be a
   // pre-flight check, not error handling.
   let remaining: number;
+  let limit: number;
   try {
-    remaining = await elevenLabsVoiceSlotsRemaining();
+    ({ remaining, limit } = await elevenLabsVoiceSlotsRemaining());
   } catch (e) {
     logger.error("cloned-voices", "failed to check ElevenLabs voice slot count", e);
     return { ok: false, error: "Couldn't reach the voice provider — please try again.", status: 502 };
   }
-  if (remaining <= SHARED_SLOT_SAFETY_MARGIN) {
+  if (remaining <= safetyMargin(limit)) {
     logger.warn("cloned-voices", `voice cloning paused — only ${remaining} shared slots left`);
     return { ok: false, error: "Voice cloning is temporarily unavailable — please try again later.", status: 503 };
   }

@@ -77,6 +77,7 @@ export async function resolveTargets(refs: TargetRef[]): Promise<Map<string, Res
       case "flag": out.set(k, { label: r.targetId, href: "/admin/ops?tab=flags", deleted: false }); break;
       case "tool": out.set(k, { label: r.targetId, href: "/admin/tools", deleted: false }); break;
       case "model": out.set(k, { label: r.targetId, href: "/admin/models", deleted: false }); break;
+      case "voice": out.set(k, { label: r.targetId, href: "/admin/voices", deleted: false }); break;
       case "none": out.set(k, { label: r.targetId, href: null, deleted: false }); break;
       default: {
         // A database entity that's gone — name it from the row's own snapshot.

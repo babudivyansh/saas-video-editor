@@ -123,7 +123,7 @@ describe("Tool catalogue", () => {
     expect(costLabel({ kind: "credits", amount: 1, per: null, from: false })).toBe("1 credit");
     expect(costLabel({ kind: "credits", amount: 8, per: "min", from: false })).toBe("8 credits / min");
     expect(costLabel({ kind: "credits", amount: 2, per: null, from: true })).toBe("From 2 credits");
-    expect(costLabel({ kind: "credits", amount: 1, per: "500 chars", from: false })).toBe("1 cr / 500 chars");
+    expect(costLabel({ kind: "credits", amount: 1, per: "300 chars", from: false })).toBe("1 cr / 300 chars");
   });
 
   it("search matches names and descriptions, case-insensitively", async () => {

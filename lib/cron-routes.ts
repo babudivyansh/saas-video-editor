@@ -30,4 +30,5 @@ export const CRON_ROUTES: Record<CronName, () => Promise<{ GET: CronRouteHandler
   "social-refresh": () => import("@/app/api/cron/social-refresh/route"),
   "feature-announcements": () => import("@/app/api/cron/feature-announcements/route"),
   "mrr-snapshot": () => import("@/app/api/cron/mrr-snapshot/route"),
+  "voice-library-sync": () => import("@/app/api/cron/voice-library-sync/route"),
 };

@@ -20,6 +20,8 @@
 // `william`, which was the DEFAULT for every render. The ids below are the 22
 // this account actually has.
 
+import { LIBRARY_PROVIDER_IDS } from "./libraryProviderIds";
+
 export const PROVIDER_VOICE_IDS: Record<string, string> = {
   // ── The 22 voices this account actually has (verified live) ──────────────
   adam: process.env.ELEVENLABS_VOICE_ADAM || "pNInz6obpgDQGcFmaJgB",
@@ -73,7 +75,7 @@ export const PROVIDER_VOICE_IDS: Record<string, string> = {
   william: process.env.ELEVENLABS_VOICE_WILLIAM || "nPczCjzI2devNBz1zQrb", // -> brian
 };
 
-/** The id to synthesize with, or undefined when the slug is not a seed voice. */
+/** The id to synthesize with, or undefined when the slug is not a catalogue voice. */
 export function providerVoiceIdFor(slug: string): string | undefined {
-  return PROVIDER_VOICE_IDS[slug];
+  return PROVIDER_VOICE_IDS[slug] ?? LIBRARY_PROVIDER_IDS[slug];
 }

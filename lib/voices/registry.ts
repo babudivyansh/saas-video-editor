@@ -2,9 +2,10 @@
 // provider validation. Mirrors lib/captions/templateRegistry.ts exactly.
 //
 // Three layers, cheapest first:
-//   1. VOICE_SEED            — compiled in, always available
+//   1. VOICE_SEED + LIBRARY_VOICES — compiled in, always available
 //   2. Config key voice_catalog — admin edits, no deploy (Redis-cached 60s)
-//   3. getKnownAccountVoices()  — deactivates entries the account cannot speak
+//   3. getKnownAccountVoices()  — deactivates entries the account cannot speak;
+//      getMissingLibraryVoices() does the same for Voice Library voices
 //
 // Layer 2 is what this catalogue has never had: the voice list was a
 // compile-time constant plus 32 env vars, so adding one voice needed a deploy
@@ -14,6 +15,8 @@ import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { logger } from "@/lib/logger";
 import { VOICE_SEED, DEFAULT_VOICE_SLUG, type VoiceEntry } from "./catalog";
+import { LIBRARY_VOICES } from "./library";
+import { getMissingLibraryVoices } from "./library-sync";
 import { providerVoiceIdFor } from "./providerIds";
 import { getKnownAccountVoices } from "./sync";
 
@@ -50,6 +53,24 @@ export async function invalidateVoiceCache(): Promise<void> {
   try { await redis.del(CACHE_KEY); } catch { /* non-fatal */ }
 }
 
+export const getVoiceOverrides = readOverrides;
+
+/**
+ * Patches one voice's override (null drops it) and returns the whole map.
+ * Read from the DB, not the cache, so two admin edits a few seconds apart
+ * don't overwrite each other.
+ */
+export async function setVoiceOverride(slug: string, patch: Partial<VoiceEntry> | null): Promise<VoiceOverrides> {
+  const row = await prisma.config.findUnique({ where: { key: CONFIG_KEY } });
+  const map = row ? (JSON.parse(row.value) as VoiceOverrides) : {};
+  if (patch) map[slug] = { ...map[slug], ...patch };
+  else delete map[slug];
+  const value = JSON.stringify(map);
+  await prisma.config.upsert({ where: { key: CONFIG_KEY }, create: { key: CONFIG_KEY, value }, update: { value } });
+  await invalidateVoiceCache();
+  return map;
+}
+
 function isCompleteVoice(p: Partial<VoiceEntry>): p is VoiceEntry {
   return Boolean(p.label && p.gender && p.age && p.languages && p.category);
 }
@@ -63,7 +84,7 @@ export async function getVoiceLibrary(): Promise<VoiceEntry[]> {
   const overrides = await readOverrides();
 
   const bySlug = new Map<string, VoiceEntry>();
-  for (const v of VOICE_SEED) bySlug.set(v.slug, v);
+  for (const v of [...VOICE_SEED, ...LIBRARY_VOICES]) bySlug.set(v.slug, v);
   for (const [slug, patch] of Object.entries(overrides)) {
     const base = bySlug.get(slug);
     if (base) bySlug.set(slug, { ...base, ...patch, slug });
@@ -71,11 +92,14 @@ export async function getVoiceLibrary(): Promise<VoiceEntry[]> {
   }
 
   const all = [...bySlug.values()];
-  const known = await getKnownAccountVoices();
-  // null = could not check. Leave everything enabled; see sync.ts.
-  if (!known) return all;
+  const [known, missing] = await Promise.all([getKnownAccountVoices(), getMissingLibraryVoices()]);
 
   return all.map((v) => {
+    // A library voice isn't on the account until its first use, so the
+    // account list can't vouch for it; the nightly library sync can.
+    if (v.category === "library" && !v.providerVoiceIdOverride) return missing.has(v.slug) ? { ...v, active: false } : v;
+    // null = could not check. Leave everything enabled; see sync.ts.
+    if (!known) return v;
     const providerId = providerVoiceIdFor(v.slug) ?? v.providerVoiceIdOverride;
     // No id at all means an override added a slug without one — it can never
     // synthesize, so it must not be offered.

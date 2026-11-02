@@ -4,9 +4,9 @@ import { useAuth } from "./AuthContext";
 import { useJobPolling } from "./useJobPolling";
 import { AUDIO_RATE_LABEL } from "@/lib/audio-pricing";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
-import { VOICES, voiceBySlug, type Voice } from "@/app/components/voice-catalog";
+import { useVoiceCatalog } from "@/app/components/voices/useVoiceCatalog";
+import VoiceLibraryPicker, { VoiceAvatar, voiceLanguageLabel } from "@/app/components/voices/VoiceLibraryPicker";
 import { useUploadEntitlement } from "@/app/hooks/useUploadEntitlement";
-import { Modal } from "@/app/components/ui/Modal";
 import { Button } from "@/app/components/ui/Button";
 import { ToolWorkspace, ToolBadge, ToolField, CostRow, FileDrop, StageEmpty, StageProgress, RecentResults } from "@/app/components/tools/ToolWorkspace";
 
@@ -14,211 +14,11 @@ import { ToolWorkspace, ToolBadge, ToolField, CostRow, FileDrop, StageEmpty, Sta
 const VOICE_CHANGER_RATE = AUDIO_RATE_LABEL["voice-changer"];
 
 // ── Icons ────────────────────────────────────────────────────────────────────
-function IcX() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-      <path d="M18 6L6 18M6 6l12 12" />
-    </svg>
-  );
-}
-function IcSearch() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-      <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
-    </svg>
-  );
-}
-function IcPlay() {
-  return <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M8 5v14l11-7z" /></svg>;
-}
-function IcStop() {
-  return <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><rect x="6" y="6" width="12" height="12" /></svg>;
-}
 function IcDownload() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
       <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
     </svg>
-  );
-}
-
-// ── Voice avatar ─────────────────────────────────────────────────────────────
-function VoiceAvatar({ voice, size = 36 }: { voice: Voice; size?: number }) {
-  return (
-    <span
-      className="rounded-full flex items-center justify-center font-bold text-white flex-shrink-0 select-none"
-      style={{ width: size, height: size, background: voice.color, fontSize: size * 0.4 }}
-    >
-      {voice.name[0]}
-    </span>
-  );
-}
-
-// ── Tag pill ─────────────────────────────────────────────────────────────────
-function Tag({ label }: { label: string }) {
-  return (
-    <span className="inline-flex items-center rounded-full border border-line px-2.5 py-0.5 text-[11px] text-fg-muted font-medium bg-panel">
-      {label}
-    </span>
-  );
-}
-
-// ── Voice Picker Modal ────────────────────────────────────────────────────────
-function VoicePickerModal({
-  current,
-  onSelect,
-  onClose,
-}: {
-  current: string;
-  onSelect: (slug: string) => void;
-  onClose: () => void;
-}) {
-  const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState(current);
-  const [playingSlug, setPlayingSlug] = useState<string | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  // Close on Escape
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") { onSelect(selected); onClose(); }
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [selected, onSelect, onClose]);
-
-  const filtered = VOICES.filter(v => {
-    if (!query) return true;
-    const q = query.toLowerCase();
-    return (
-      v.name.toLowerCase().includes(q) ||
-      v.gender.toLowerCase().includes(q) ||
-      v.age.toLowerCase().includes(q) ||
-      v.language.toLowerCase().includes(q)
-    );
-  });
-
-  function playPreview(slug: string) {
-    if (playingSlug === slug) {
-      audioRef.current?.pause();
-      setPlayingSlug(null);
-      return;
-    }
-    audioRef.current?.pause();
-    const audio = new Audio();
-    audioRef.current = audio;
-    setPlayingSlug(slug);
-    fetch("/api/tools/voice-preview", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ slug }),
-    })
-      .then(r => r.blob())
-      .then(blob => {
-        audio.src = URL.createObjectURL(blob);
-        audio.onended = () => setPlayingSlug(null);
-        audio.play().catch(() => setPlayingSlug(null));
-      })
-      .catch(() => setPlayingSlug(null));
-  }
-
-  function handleDone() {
-    audioRef.current?.pause();
-    onSelect(selected);
-    onClose();
-  }
-
-  return (
-    <Modal open onClose={handleDone} bare ariaLabel="Select AI voice" maxWidth="max-w-3xl" panelClassName="!overflow-hidden">
-      <div className="flex flex-col" style={{ maxHeight: "85vh" }}>
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 sm:px-7 pt-6 pb-4">
-          <h2 className="text-2xl font-bold text-fg">Select AI Voice</h2>
-          <button type="button" onClick={handleDone} aria-label="Close" className="p-1.5 rounded-lg text-fg-subtle hover:text-fg hover:bg-surface-3 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/70">
-            <IcX />
-          </button>
-        </div>
-
-        {/* Search */}
-        <div className="px-4 sm:px-7 pb-4">
-          <div className="flex items-center gap-3 rounded-xl border border-line bg-panel px-4 py-3">
-            <span className="text-fg-subtle"><IcSearch /></span>
-            <input
-              autoFocus
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              placeholder="Search name, tag, etc."
-              className="flex-1 bg-transparent text-sm text-fg outline-none placeholder:text-fg-subtle"
-            />
-          </div>
-        </div>
-
-        {/* Grid */}
-        <div className="overflow-y-auto flex-1 px-4 sm:px-7 pb-4">
-          <div role="radiogroup" aria-label="Voices" className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-            {filtered.map(voice => {
-              const isSelected = selected === voice.slug;
-              const isPlaying = playingSlug === voice.slug;
-              return (
-                <div
-                  key={voice.slug}
-                  role="radio"
-                  aria-checked={isSelected}
-                  aria-label={voice.name}
-                  tabIndex={0}
-                  onClick={() => setSelected(voice.slug)}
-                  onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelected(voice.slug); } }}
-                  className={`relative rounded-xl border-2 p-4 cursor-pointer transition-all outline-none focus-visible:ring-2 focus-visible:ring-primary/70 ${
-                    isSelected
-                      ? "border-primary bg-panel"
-                      : "border-line bg-panel hover:border-line-strong hover:shadow-sm"
-                  }`}
-                >
-                  {/* Top row: avatar + name + play btn */}
-                  <div className="flex items-start gap-3 mb-2">
-                    <VoiceAvatar voice={voice} size={40} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-bold text-fg leading-tight">{voice.name}</p>
-                      <p className="text-[11px] text-fg-muted mt-1 leading-snug line-clamp-2">{voice.desc}</p>
-                    </div>
-                    <button
-                      onClick={e => { e.stopPropagation(); playPreview(voice.slug); }}
-                      className="flex-shrink-0 w-8 h-8 rounded-full border border-line bg-panel flex items-center justify-center text-fg-muted hover:bg-surface-2 transition-colors mt-0.5"
-                      title="Preview voice"
-                    >
-                      {isPlaying ? <IcStop /> : <IcPlay />}
-                    </button>
-                  </div>
-
-                  {/* Tag pills */}
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    <Tag label={voice.gender} />
-                    <Tag label={voice.age} />
-                    <Tag label={voice.language} />
-                  </div>
-                </div>
-              );
-            })}
-            {filtered.length === 0 && (
-              <div className="col-span-3 py-12 text-center text-sm text-fg-subtle">
-                No voices match &ldquo;{query}&rdquo;
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="px-4 sm:px-7 py-4 border-t border-slate-100 flex justify-end">
-          <button
-            onClick={handleDone}
-            className="inline-flex items-center gap-3 px-8 py-3 rounded-xl bg-brand hover:opacity-90 text-on-primary text-sm font-semibold transition-opacity"
-          >
-            Done
-            <span className="text-xs text-white/60 font-normal">Esc</span>
-          </button>
-        </div>
-      </div>
-    </Modal>
   );
 }
 
@@ -228,7 +28,11 @@ export default function VoiceChangerTool() {
   const job = useJobPolling({ toolSlug: "voice-changer", token });
   const fireReviewPrompt = useReviewPromptTrigger();
 
+  // The same live catalogue and picker as the voiceover tool — it had its own
+  // modal over a compiled-in list of 22.
+  const catalog = useVoiceCatalog();
   const [voiceSlug, setVoiceSlug] = useState("adam");
+  const [liked, setLiked] = useState<Set<string>>(new Set());
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [originalPreviewUrl, setOriginalPreviewUrl] = useState<string | null>(null);
   const [removeNoise, setRemoveNoise] = useState(false);
@@ -248,7 +52,19 @@ export default function VoiceChangerTool() {
   // and fire two charged requests.
   const submittingRef = useRef(false);
 
-  const selectedVoice = voiceBySlug(voiceSlug);
+  const selectedVoice = catalog.voices.find((v) => v.slug === voiceSlug) ?? catalog.voices[0];
+  const likedKey = user ? `voiceover_liked:${user.id}` : "voiceover_liked:guest";
+  useEffect(() => {
+    try { setLiked(new Set(JSON.parse(localStorage.getItem(likedKey) ?? "[]"))); } catch { setLiked(new Set()); }
+  }, [likedKey]);
+  const toggleLike = useCallback((slug: string) => {
+    setLiked((prev) => {
+      const next = new Set(prev);
+      if (next.has(slug)) next.delete(slug); else next.add(slug);
+      try { localStorage.setItem(likedKey, JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  }, [likedKey]);
 
   const ACCEPTED = ".mp3,.wav,.m4a,.ogg,.aac,.mp4,.mov,.avi,.webm";
   const { maxBytes: uploadMaxBytes, formattedMaxSize: uploadMaxSizeLabel } = useUploadEntitlement("voice-changer");
@@ -353,13 +169,15 @@ export default function VoiceChangerTool() {
 
   return (
     <>
-      {showPicker && (
-        <VoicePickerModal
-          current={voiceSlug}
-          onSelect={setVoiceSlug}
-          onClose={() => setShowPicker(false)}
-        />
-      )}
+      <VoiceLibraryPicker
+        open={showPicker}
+        onClose={() => setShowPicker(false)}
+        voices={catalog.voices}
+        value={voiceSlug}
+        onSelect={(v) => { setVoiceSlug(v.slug); setShowPicker(false); }}
+        favourites={liked}
+        onToggleFavourite={toggleLike}
+      />
 
       <ToolWorkspace
         title="AI Voice Changer"
@@ -386,10 +204,14 @@ export default function VoiceChangerTool() {
               <button
                 type="button"
                 onClick={() => setShowPicker(true)}
+                aria-haspopup="dialog"
                 className="flex w-full items-center gap-3 rounded-xl border border-line bg-surface-1 px-3.5 py-3 text-left transition-colors hover:border-line-strong"
               >
-                <VoiceAvatar voice={selectedVoice} size={32} />
-                <span className="flex-1 text-sm font-medium text-fg">{selectedVoice.name}</span>
+                {selectedVoice && <VoiceAvatar voice={selectedVoice} size={32} />}
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium text-fg">{selectedVoice?.label ?? "Choose a voice"}</span>
+                  {selectedVoice && <span className="block truncate text-[12px] text-fg-subtle">{voiceLanguageLabel(selectedVoice)}</span>}
+                </span>
                 <span className="text-[12px] font-semibold text-fg-muted">Change</span>
               </button>
             </ToolField>
@@ -444,7 +266,7 @@ export default function VoiceChangerTool() {
                 <audio src={originalPreviewUrl} controls className="w-full" />
               </div>
               <div className={`flex flex-col gap-2 rounded-xl border p-4 ${done ? "border-primary/50 bg-primary/5" : "border-dashed border-line-strong bg-surface-1"}`}>
-                <p className="text-[12px] font-semibold text-fg-muted">Changed · {selectedVoice.name}</p>
+                <p className="text-[12px] font-semibold text-fg-muted">Changed · {selectedVoice?.label}</p>
                 {done ? <audio src={downloadUrl!} controls className="w-full" /> : <p className="text-[13px] text-fg-subtle">Press “Change voice” to hear it here.</p>}
               </div>
               {done && <p className="text-[12px] text-fg-subtle">Downloaded and saved to your Assets</p>}

@@ -67,6 +67,6 @@ describe("create schemas", () => {
   it("validates generation requests", () => {
     expect(imageGenerateRequest.safeParse({ prompt: "  ", modelId: "x", ratio: "1:1" }).success).toBe(false);
     expect(imageGenerateRequest.safeParse({ prompt: "a cat", modelId: "x", ratio: "4:5" }).success).toBe(false);
-    expect(voiceoverRequest.safeParse({ text: "x".repeat(2001), voiceId: "brian" }).success).toBe(false);
+    expect(voiceoverRequest.safeParse({ text: "x".repeat(10_001), voiceId: "brian" }).success).toBe(false);
   });
 });

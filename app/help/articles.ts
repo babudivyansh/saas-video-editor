@@ -40,7 +40,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     paragraphs: [
       { text: "Your account has two balances. Clip Minutes pay for Auto Clips: 1 minute per minute of video you upload, however many clips it makes. AI credits pay for everything else — the AI tools and dubbing. Both are shown in the top bar." },
       { lead: "Clip Minutes.", text: "A 45-minute podcast uses 45 Clip Minutes whether you ask for 3 clips or 20. Re-running the same video within 7 days is free, and a run that fails is refunded in full. If you run out, you can top up, or tick the option to pay the rest in AI credits (3 minutes = 1 credit)." },
-      { lead: "AI credits.", text: "Each tool shows its cost before you run it. Tools that work on audio or text are priced by length — for example, voiceover costs 1 credit per 500 characters — so short jobs cost less." },
+      { lead: "AI credits.", text: "Each tool shows its cost before you run it. Tools that work on audio or text are priced by length — for example, voiceover costs 1 credit per 300 characters — so short jobs cost less." },
       { lead: "Buckets.", text: "Each balance can hold bonus (signup, promos and rewards — used first, they expire after 30 days), subscription (refilled monthly with your plan) and purchased top-ups (never expire while your account is active). Spending drains them in that order, so nothing expiring is wasted." },
       { lead: "Rollover.", text: "Unused subscription minutes and credits roll over month to month, up to twice your monthly allowance." },
       { lead: "Refunds on failure.", text: "If a job fails partway, the unused portion of what you were charged is automatically refunded. Every movement appears in your billing history." },

@@ -11,7 +11,7 @@ import { logger } from "@/lib/logger";
 import { saveToolResult } from "@/lib/tool-results";
 import { env } from "@/lib/env";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress } from "@/lib/credits";
-import { voiceFxCredits } from "@/lib/audio-pricing";
+import { voiceFxCredits, withVoiceMultiplier } from "@/lib/audio-pricing";
 import { resolveUploadPolicy, readUploadForm, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
 import { createJobStatusHandler, createJobCancelHandler, idempotencyResponse, type CancellableJob } from "@/lib/job-routes";
 import os from "os";
@@ -119,7 +119,7 @@ async function handlePOST(req: NextRequest) {
   }
 
   // Length-scaled price, same function the tool page quotes with.
-  const creditCost = voiceFxCredits(durationSec);
+  const creditCost = withVoiceMultiplier(voiceFxCredits(durationSec), voice.creditMultiplier);
 
   const charge = await chargeCredits({
     userId: auth.userId,

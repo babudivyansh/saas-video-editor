@@ -1,11 +1,14 @@
 import { withRetry } from "@/lib/with-retry";
 import { env } from "@/lib/env";
+import { TTS_MODEL } from "@/lib/voices/models";
 
-// TTS model used for all synthesis (voiceover + video renders).
-// eleven_flash_v2_5 is multilingual, supports /with-timestamps, and costs
-// ~5-6x less than eleven_multilingual_v2 (the single biggest margin win).
-// Flip back to "eleven_multilingual_v2" here if higher expressiveness is needed.
-const TTS_MODEL_ID = "eleven_flash_v2_5";
+// Default TTS model: eleven_v4_turbo — 94 languages at Flash's price (0.5
+// credits per char), /with-timestamps in the same shape. It replaced
+// eleven_flash_v2_5 (32 languages) on 2026-11-01. Callers pick the full-quality
+// eleven_v4 per request (lib/voices/models.ts).
+const TTS_MODEL_ID = TTS_MODEL.standard;
+/** Only these honour voice_settings.style; the API lists can_use_style per model. */
+const STYLE_MODELS = new Set(["eleven_multilingual_v2"]);
 
 /**
  * Whether the key we have can actually authenticate.
@@ -54,8 +57,9 @@ export interface VoiceResult {
 export interface VoiceSettings {
   stability?: number;       // 0..1
   similarityBoost?: number; // 0..1
-  style?: number;           // 0..1 — exaggeration / expressiveness
-  languageCode?: string;    // e.g. "en", "es", "fr" — passed to multilingual model
+  style?: number;           // 0..1 — exaggeration; only multilingual_v2 uses it
+  languageCode?: string;    // e.g. "en", "es", "fr"; omitted or "auto" = detect
+  modelId?: string;         // defaults to TTS_MODEL_ID
 }
 
 // Thrown by fetchElevenLabs for any response it doesn't treat as success —
@@ -119,6 +123,7 @@ export async function synthesizeVoice(
   const stability = settings?.stability != null ? clamp(settings.stability) : 0.5;
   const similarity_boost = settings?.similarityBoost != null ? clamp(settings.similarityBoost) : 0.75;
   const style = settings?.style != null ? clamp(settings.style) : 0.5;
+  const modelId = settings?.modelId ?? TTS_MODEL_ID;
 
   // Request with word-level timestamps
   const res = await fetchElevenLabs(
@@ -131,13 +136,14 @@ export async function synthesizeVoice(
       },
       body: JSON.stringify({
         text,
-        model_id: TTS_MODEL_ID,
-        voice_settings: { stability, similarity_boost, style, use_speaker_boost: true },
+        model_id: modelId,
+        voice_settings: { stability, similarity_boost, ...(STYLE_MODELS.has(modelId) ? { style } : {}), use_speaker_boost: true },
         output_format: "mp3_44100_128",
         ...(settings?.languageCode && settings.languageCode !== "auto" ? { language_code: settings.languageCode } : {}),
       }),
     },
-    { timeoutMs: 30_000, errorContext: "ElevenLabs error" },
+    // 30 s was sized for 2,000-char scripts; a 10,000-char v4 read takes longer.
+    { timeoutMs: 30_000 + text.length * 12, errorContext: "ElevenLabs error" },
   );
 
   const json = (await res.json()) as {
@@ -202,7 +208,9 @@ export async function transcribeAudio(
 
   const form = new FormData();
   form.append("file", new Blob([new Uint8Array(audioBuffer)], { type: mimeType }), "audio.mp3");
-  form.append("model_id", "scribe_v1");
+  // scribe_v2 since 2026-11-01: same words/spacing/speaker_id shape as v1
+  // (compared live on the same clip), newer model.
+  form.append("model_id", "scribe_v2");
   form.append("diarize", "true");
   if (languageCode && languageCode !== "auto") form.append("language_code", languageCode);
 
@@ -326,25 +334,60 @@ export async function listVoices(): Promise<{ voice_id: string; name: string; pr
   return json.voices;
 }
 
-// The ElevenLabs account backing this app is shared across every Clipiro
-// user — its voice-slot limit is a property of the account, not of any one
-// user. Default is deliberately conservative; the real ceiling depends on
-// the ElevenLabs plan and should be set via ELEVENLABS_MAX_VOICE_SLOTS.
-const DEFAULT_MAX_VOICE_SLOTS = 100;
-
-function maxVoiceSlots(): number {
-  const n = Number(env.ELEVENLABS_MAX_VOICE_SLOTS ?? DEFAULT_MAX_VOICE_SLOTS);
-  return Number.isFinite(n) && n > 0 ? n : DEFAULT_MAX_VOICE_SLOTS;
+export interface ElevenLabsSubscription {
+  tier: string;
+  /** ElevenLabs credits used / allowed this period (named "character" by the API). */
+  characterCount: number;
+  characterLimit: number;
+  /** Whether usage past the limit is billed (true) or refused (false). */
+  canExtendCharacterLimit: boolean;
+  voiceSlotsUsed: number;
+  voiceLimit: number;
 }
 
-// How many more voices (of any kind — stock + cloned) the shared account can
-// hold before hitting ElevenLabs' own limit. Callers should check this
+export async function getSubscription(): Promise<ElevenLabsSubscription> {
+  const apiKey = env.ELEVENLABS_API_KEY!;
+  const res = await fetchElevenLabs(
+    "https://api.elevenlabs.io/v1/user/subscription",
+    { headers: { "xi-api-key": apiKey } },
+    { timeoutMs: 10_000, errorContext: "ElevenLabs subscription error" },
+  );
+  const j = (await res.json()) as {
+    tier: string; character_count: number; character_limit: number; can_extend_character_limit: boolean;
+    voice_slots_used: number; voice_limit: number;
+  };
+  return {
+    tier: j.tier,
+    characterCount: j.character_count,
+    characterLimit: j.character_limit,
+    canExtendCharacterLimit: j.can_extend_character_limit,
+    voiceSlotsUsed: j.voice_slots_used,
+    voiceLimit: j.voice_limit,
+  };
+}
+
+// The ElevenLabs account backing this app is shared across every Clipiro
+// user — its voice-slot limit is a property of the account, not of any one
+// user. ELEVENLABS_MAX_VOICE_SLOTS can only LOWER the plan's own limit (to
+// keep slots back for something else); it can never raise it.
+function slotCap(planLimit: number): number {
+  const n = Number(env.ELEVENLABS_MAX_VOICE_SLOTS);
+  return Number.isFinite(n) && n > 0 ? Math.min(n, planLimit) : planLimit;
+}
+
+// How many more cloned voices the shared account can hold. Callers check this
 // *before* cloneVoice() — a breached shared limit is a hard outage for every
-// user's cloning attempt, not a per-user problem, so it must never be
-// discovered only when the vendor call itself fails.
-export async function elevenLabsVoiceSlotsRemaining(): Promise<number> {
-  const voices = await listVoices();
-  return Math.max(0, maxVoiceSlots() - voices.length);
+// user's cloning attempt, so it must never be discovered only when the vendor
+// call fails.
+//
+// Read from the subscription, not from counting GET /v1/voices: premade and
+// Voice Library voices don't take a slot, so counting every voice (23 on the
+// account in 2026-10) against an assumed limit of 100 said 77 slots were free
+// on a plan that has 10.
+export async function elevenLabsVoiceSlotsRemaining(): Promise<{ remaining: number; limit: number }> {
+  const sub = await getSubscription();
+  const limit = slotCap(sub.voiceLimit);
+  return { remaining: Math.max(0, limit - sub.voiceSlotsUsed), limit };
 }
 
 export interface ClonedVoiceResult {

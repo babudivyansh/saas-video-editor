@@ -244,6 +244,10 @@ export const editorVoiceSchema = z.object({
   previewUrl: z.string().nullable(),
   /** Bills at this multiple of the usual per-character rate. */
   creditMultiplier: z.number(),
+  /** A Voice Library voice's own language ("hi"), null for a multilingual one. */
+  language: z.string().nullable().optional(),
+  /** "Hindi", for the language filter. */
+  languageLabel: z.string().nullable().optional(),
 });
 export type EditorVoice = z.infer<typeof editorVoiceSchema>;
 export const voicesResponse = z.object({ configured: z.boolean(), voices: z.array(editorVoiceSchema) });

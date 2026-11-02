@@ -6,16 +6,11 @@ import { clientAuthToken } from "@/lib/client-session";
 
 // Live voice catalogue for surfaces that render their own picker UI.
 //
-// The pickers on the create pages and in the two audio tools are genuinely
-// different from each other — a modal with search and favourites, a two-column
-// card list, a wizard step — and consolidating their MARKUP was never the goal.
-// Consolidating the LIST was: six copies had drifted in membership, wording and
-// even in which voices existed.
-//
-// So this returns the data and leaves the rendering alone. It fetches
-// /api/voices (admin overrides, provider validation, and the provider's own
-// preview URLs) and falls back to the compiled-in seed, which is the same
-// contract CaptionStyleGrid uses.
+// Feeds VoiceLibraryPicker. It fetches
+// /api/voices (the account's voices + the Voice Library ones, admin overrides,
+// provider validation, preview URLs) and falls back to the compiled-in seed —
+// the account voices only; the 200 library voices are not worth shipping in
+// every bundle for the case where the API is down.
 
 export interface CatalogVoice {
   slug: string;
@@ -24,7 +19,13 @@ export interface CatalogVoice {
   gender: string;
   age: string;
   accent: string | null;
+  /** Voice Library locale ("es-MX"), null for the account's own voices. */
+  locale: string | null;
   languages: string[];
+  /** "starter" = the account's own (multilingual) voices; "library" = Voice Library. */
+  category: string;
+  /** narrative_story, social_media, conversational… */
+  useCase: string | null;
   free: boolean;
   creditMultiplier: number;
   /** Provider-hosted mp3. Free to play — prefer it over synthesizing a sample. */
@@ -43,10 +44,13 @@ export const SEED_VOICES: CatalogVoice[] = VOICE_SEED
     gender: v.gender,
     age: v.age,
     accent: v.accent ?? null,
+    locale: v.locale ?? null,
     languages: v.languages,
+    category: v.category,
+    useCase: v.useCase ?? null,
     free: v.free,
     creditMultiplier: v.creditMultiplier,
-    previewUrl: null,
+    previewUrl: v.previewUrl ?? null,
   }));
 
 function authHeaders(): Record<string, string> {

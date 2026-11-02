@@ -57,7 +57,10 @@ describe("mobile Create rules match the web", () => {
 
   it("prices AutoClip and the audio tools the same", () => {
     for (const sec of [1, 59, 60, 61, 3599, 3600, 3540, 21600]) expect(autoClipMinutes(sec)).toBe(billableSourceMinutes(sec));
-    for (const chars of [1, 499, 500, 501, 2000]) expect(voiceoverCredits(chars)).toBe(webVoiceoverCredits(chars));
+    for (const chars of [1, 299, 300, 301, 2000, 10000]) {
+      expect(voiceoverCredits(chars)).toBe(webVoiceoverCredits(chars));
+      expect(voiceoverCredits(chars, "studio", 2)).toBe(webVoiceoverCredits(chars, "studio", 2));
+    }
     for (const sec of [1, 29, 30, 31, 89, 90, 300]) {
       expect(audioToolCredits("enhance", sec)).toBe(voiceFxCredits(sec));
       expect(audioToolCredits("vocal", sec)).toBe(vocalRemoverCredits(sec));

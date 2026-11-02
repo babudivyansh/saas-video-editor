@@ -159,7 +159,7 @@ describe("plans and tools", () => {
     const { tools } = toolsResponseSchema.parse({ tools: await buildTools() });
     const by = Object.fromEntries(tools.map((t) => [t.id, t]));
     expect(by.autoclip!.cost).toEqual({ kind: "clipMinutes" });
-    expect(by.voiceover!.cost).toEqual({ kind: "credits", amount: 2, per: "500 chars", from: false });
+    expect(by.voiceover!.cost).toEqual({ kind: "credits", amount: 2, per: "300 chars", from: false });
     expect(by["image-generator"]!.cost).toMatchObject({ kind: "credits", from: true });
     expect(by["mp3-converter"]!.cost).toEqual({ kind: "free" });
     expect(by["subtitle-remover"]!.requiredTier).toBe("pro");

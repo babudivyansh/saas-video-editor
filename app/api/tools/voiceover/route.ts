@@ -6,7 +6,8 @@ import { resolveToolVoice } from "@/lib/voices/registry";
 import { uploadBufferToS3 } from "@/utils/s3-upload";
 import { markQuestComplete } from "@/lib/quests";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress } from "@/lib/credits";
-import { voiceoverCredits } from "@/lib/audio-pricing";
+import { voiceoverCredits, type VoiceoverQuality } from "@/lib/audio-pricing";
+import { TTS_MODEL, VOICEOVER_MAX_CHARS, normalizeTtsLanguage } from "@/lib/voices/models";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
@@ -15,11 +16,11 @@ import { saveToolResult } from "@/lib/tool-results";
 
 export const maxDuration = 120;
 
-// ElevenLabs Flash TTS bills $0.05/1,000 chars. Priced by length since
-// 2026-09-26 — 1 credit per 500 characters, lib/audio-pricing.ts — instead of a
-// flat 2 credits that ran at ~1.6x cost at the cap after GST. The cap bounds
-// one request, not the margin.
-const MAX_CHARS = 2000;
+// Priced by length (lib/audio-pricing.ts): 1 credit per 300 characters, times
+// the voice's own provider rate. The cap is the v4 models' own per-request
+// limit (it was 2,000 while the account was on the free tier); it bounds one
+// request, not the margin.
+const MAX_CHARS = VOICEOVER_MAX_CHARS;
 
 const unit = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : undefined);
 
@@ -30,7 +31,7 @@ interface Job extends CancellableJob {
   status: "processing" | "done" | "error" | "cancelled";
   userId: string;
   createdAt: number;
-  meta?: { audioUrl: string; durationMs: number; characters: number; voiceId: string; title: string };
+  meta?: { audioUrl: string; durationMs: number; characters: number; voiceId: string; title: string; language: string; quality: VoiceoverQuality };
 }
 
 const g = globalThis as unknown as { __voiceoverJobs?: Map<string, Job> };
@@ -58,7 +59,12 @@ async function handlePOST(req: NextRequest) {
     title?: string;
     stability?: number;
     similarityBoost?: number;
+    /** Ignored since 2026-11-01: the v4 models have no style setting. */
     exaggeration?: number;
+    /** "auto" (default) or a code from lib/voices/models.ts TTS_LANGUAGES. */
+    language?: string;
+    /** "standard" (eleven_v4_turbo, default) or "studio" (eleven_v4). */
+    quality?: string;
     idempotencyKey?: string;
   };
   try {
@@ -78,6 +84,10 @@ async function handlePOST(req: NextRequest) {
       { status: 400 },
     );
   }
+  const language = normalizeTtsLanguage(body.language);
+  if (!language) return NextResponse.json({ error: "That language isn't supported." }, { status: 400 });
+  const quality: VoiceoverQuality = body.quality === "studio" ? "studio" : "standard";
+
   // Catalogue voices or the caller's own clones. resolveVoiceId passed any string through as
   // a raw ElevenLabs id, so a request could use any voice on our account
   // (including cloned ones) and put arbitrary text into the provider URL.
@@ -89,15 +99,17 @@ async function handlePOST(req: NextRequest) {
     return NextResponse.json({ error: "Voice generation is not configured" }, { status: 503 });
   }
 
-  // Length-scaled price, same function the tool page quotes with.
-  const creditCost = voiceoverCredits(text.length);
+  // Length-scaled price, same function the tool page quotes with. The voice's
+  // multiplier was never applied here, so a 2x Voice Library voice would have
+  // billed the account twice and the user once.
+  const creditCost = voiceoverCredits(text.length, quality, voice.creditMultiplier);
 
   const charge = await chargeCredits({
     userId: auth.userId,
     amount: creditCost,
     toolSlug: "voiceover",
     idempotencyKey: body.idempotencyKey,
-    log: { generationType: "audio", prompt: text, estimatedCostUsd: (text.length / 1000) * 0.05 },
+    log: { generationType: "audio", prompt: text, estimatedCostUsd: (text.length / 1000) * (quality === "studio" ? 0.2 : 0.1) * voice.creditMultiplier },
   });
   const replayed = idempotencyResponse(charge, jobs);
   if (replayed) return replayed;
@@ -129,10 +141,11 @@ async function handlePOST(req: NextRequest) {
       if (job.generationId) void updateGenerationProgress(job.generationId, job.progress);
 
       const { audioBuffer, wordTimings } = await synthesizeVoice(text, voiceId, {
-        // ElevenLabs takes 0-1 for all three; anything else just fails the call.
+        // ElevenLabs takes 0-1 for both; anything else just fails the call.
         stability: unit(body.stability),
         similarityBoost: unit(body.similarityBoost),
-        style: unit(body.exaggeration),
+        languageCode: language,
+        modelId: TTS_MODEL[quality],
       });
 
       if ((job.status as string) === "cancelled") return;
@@ -155,7 +168,7 @@ async function handlePOST(req: NextRequest) {
         mimeType: "audio/mpeg",
         name: downloadName,
         durationMs,
-        meta: { characters: text.length, voiceId: voiceSlug },
+        meta: { characters: text.length, voiceId: voiceSlug, language, quality },
       });
 
       job.progress = 100;
@@ -166,6 +179,8 @@ async function handlePOST(req: NextRequest) {
         characters: text.length,
         voiceId: voiceSlug,
         title: (body.title ?? "").trim() || "Untitled voiceover",
+        language,
+        quality,
       };
       void markQuestComplete(auth.userId, "hear-yourself-out");
       if (job.generationId) {

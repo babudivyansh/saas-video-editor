@@ -70,11 +70,11 @@ export function openTool(id: string): boolean {
 
 export const COMING_SOON = "Coming to the app soon. Use it on clipiro.com for now.";
 
-/** "8 credits / min", "1 cr / 500 chars", "From 2 credits", "Free", "Clip minutes". */
+/** "8 credits / min", "1 cr / 300 chars", "From 2 credits", "Free", "Clip minutes". */
 export function costLabel(cost: ToolCost): string {
   if (cost.kind === "free") return "Free";
   if (cost.kind === "clipMinutes") return "Clip minutes";
-  if (cost.per === "500 chars") return `${cost.amount} cr / 500 chars`;
+  if (cost.per === "300 chars") return `${cost.amount} cr / 300 chars`;
   const unit = cost.amount === 1 ? "credit" : "credits";
   const base = cost.from ? `From ${cost.amount} ${unit}` : `${cost.amount} ${unit}`;
   return cost.per ? `${base} / ${cost.per}` : base;

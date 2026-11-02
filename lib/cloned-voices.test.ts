@@ -28,13 +28,14 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 let slotsRemaining = 50;
+let slotLimit = 100;
 const cloneVoiceMock = vi.fn(async (name: string) => ({ voiceId: `voice_${name}` }));
 const deleteClonedVoiceMock = vi.fn(async () => {});
 
 vi.mock("@/utils/elevenlabs", () => ({
   cloneVoice: (...args: [string, Buffer, string]) => cloneVoiceMock(...args),
   deleteClonedVoice: (...args: [string]) => deleteClonedVoiceMock(...args),
-  elevenLabsVoiceSlotsRemaining: async () => slotsRemaining,
+  elevenLabsVoiceSlotsRemaining: async () => ({ remaining: slotsRemaining, limit: slotLimit }),
 }));
 
 const { addClonedVoice, removeClonedVoice, listClonedVoices, MAX_CLONED_VOICES_PER_USER } = await import("./cloned-voices");
@@ -43,6 +44,7 @@ beforeEach(() => {
   rows = [];
   idCounter = 0;
   slotsRemaining = 50;
+  slotLimit = 100;
   cloneVoiceMock.mockClear();
   deleteClonedVoiceMock.mockClear();
 });
@@ -93,6 +95,14 @@ describe("addClonedVoice", () => {
       status: 503,
     });
     expect(cloneVoiceMock).not.toHaveBeenCalled();
+  });
+
+  it("scales the safety margin to the plan, so a 10-slot plan can fill 9", async () => {
+    slotLimit = 10;
+    slotsRemaining = 2;
+    expect((await addClonedVoice("u1", "My Voice", Buffer.from("audio"), "s.mp3")).ok).toBe(true);
+    slotsRemaining = 1;
+    expect((await addClonedVoice("u1", "Second", Buffer.from("audio"), "s.mp3")).ok).toBe(false);
   });
 
   it("surfaces a clear error and does not persist anything when the ElevenLabs call fails", async () => {
