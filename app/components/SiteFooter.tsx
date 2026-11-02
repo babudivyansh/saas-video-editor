@@ -31,9 +31,9 @@ const COLUMNS: { title: string; links: LinkItem[] }[] = [
       { label: "About", href: "/about" },
       { label: "Blog", href: "/blog" },
       // The only permanent link into /reviews. The hero rating badge is the
-      // other one, and it's hidden below MINIMUM_REVIEWS_FOR_SCHEMA — so
+      // other one, and it's hidden below MINIMUM_REVIEWS_FOR_RATING — so
       // without this row the review flow is unreachable by clicking until
-      // three reviews already exist.
+      // ten reviews already exist.
       { label: "Reviews", href: "/reviews" },
       { label: "Contact", href: "/contact" },
       { label: "Affiliate Program", href: "/affiliate-program" },

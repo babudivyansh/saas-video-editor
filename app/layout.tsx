@@ -57,7 +57,9 @@ export const metadata: Metadata = {
     title: "Clipiro — Create Viral Shorts From Long Videos in Seconds",
     description:
       "Transform long videos into engaging short-form content with AI clipping, captions, and social media optimization.",
-    url: "https://clipiro.com",
+    // No url here: every page that doesn't set its own openGraph inherits this
+    // object, and a root url made /pricing, /help/* and the legal pages all
+    // claim og:url https://clipiro.com. The homepage sets its own (app/page.tsx).
   },
   twitter: {
     card: "summary_large_image",

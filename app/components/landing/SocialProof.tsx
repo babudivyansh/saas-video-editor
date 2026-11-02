@@ -2,11 +2,11 @@
 
 import React from "react";
 import Reveal from "@/app/components/Reveal";
+import { VOICE_COUNT_LABEL } from "./stats";
 
 const STATS = [
   { value: "9:16", label: "Vertical auto-reframe" },
-  // 22 active voices in lib/voices/catalog.ts; keep in step with /about and /tools.
-  { value: "20+", label: "AI narrator voices" },
+  { value: VOICE_COUNT_LABEL, label: "AI voices" },
   { value: "3", label: "Platforms supported" },
   { value: "Free", label: "Plan, no card needed" },
 ];

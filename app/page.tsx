@@ -13,9 +13,15 @@ import TestimonialWall from "@/app/components/landing/TestimonialWall";
 import { getReviewSummary, listPublishedReviews } from "@/lib/reviews/queries";
 import { buildAggregateRatingSchema, MINIMUM_REVIEWS_FOR_SCHEMA } from "@/app/reviews/schema";
 import type { Metadata } from "next";
+import { socialMetadata } from "@/lib/seo/social";
 
 export const metadata: Metadata = {
   alternates: { canonical: "/" },
+  ...socialMetadata({
+    title: "Clipiro — Create Viral Shorts From Long Videos in Seconds",
+    description: "Transform long videos into engaging short-form content with AI clipping, captions, and social media optimization.",
+    path: "/",
+  }),
 };
 
 // Ratings are read at request time (ISR-cached) so the homepage's

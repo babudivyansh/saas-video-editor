@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { prisma } from "@/lib/prisma";
+import { MINIMUM_REVIEWS_FOR_RATING } from "@/app/reviews/schema";
 
 // The homepage's rating badge + testimonial wall are server-rendered from
 // real published reviews (see app/page.tsx), not client-fetched — so this
@@ -81,11 +82,16 @@ test.describe.serial("homepage rating & testimonials", () => {
       await prisma.user.deleteMany({ where: { id: { in: userIds } } });
     });
 
-    test("shows the hero rating badge and a testimonial wall filtered to positive, substantive reviews", async ({ page }) => {
+    test("shows a testimonial wall filtered to positive, substantive reviews, and the hero badge only past the rating threshold", async ({ page }) => {
       await page.goto("/");
 
+      // The star badge has its own, higher gate (MINIMUM_REVIEWS_FOR_RATING,
+      // shared with the AggregateRating JSON-LD) than the wall's 3 reviews:
+      // CI's empty DB plus these three seeds stays below it.
       const badgePattern = new RegExp(`${expectedAverage.replace(".", "\\.")}.*${expectedCount} reviews`, "i");
-      await expect(page.getByRole("link", { name: badgePattern })).toBeVisible();
+      const badge = page.getByRole("link", { name: badgePattern });
+      if (expectedCount >= MINIMUM_REVIEWS_FOR_RATING) await expect(badge).toBeVisible();
+      else await expect(badge).toHaveCount(0);
 
       await expect(page.getByText(new RegExp(`${expectedCount} reviews from real creators`, "i"))).toBeVisible();
       // Only the two rating>=4 reviews with a substantive body qualify — the

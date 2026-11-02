@@ -8,7 +8,7 @@ export const podcastToViralClips: BlogPost = {
   metaDescription:
     "Learn how to turn a 1-hour podcast into 8-12 viral short clips: find clip-worthy moments fast, cut better hooks, and use Clipiro's AutoClip to skip the scrubbing.",
   publishedAt: "2025-09-08",
-  updatedAt: "2026-07-26",
+  updatedAt: "2026-11-02",
   author: AUTHORS.editorial,
   intro:
     "A one-hour podcast episode has maybe 90 seconds of clip-worthy material — the trick isn't finding more moments, it's finding the right ones fast enough that clipping doesn't become a second full-time job.",
@@ -34,8 +34,8 @@ export const podcastToViralClips: BlogPost = {
       text: "This is where clipping either becomes sustainable or turns into the reason your podcast stops getting repurposed at all. Clipiro's AutoClip scans the full transcript and audio for hook strength, pacing, and payoff automatically, then proposes a shortlist of candidate clips with a virality score attached to each one — your job shifts from scrubbing a 60-minute timeline moment by moment to reviewing 10-15 candidates and deciding which to keep, trim, or drop.",
     },
     {
-      lead: "Credits only spend on what you keep.",
-      text: "AutoClip's shortlist is free to review — you're only charged credits for the clips you actually confirm and export, not for the moments the AI merely proposed. That review step matters for quality, too: even a strong AI pick can improve with two seconds shaved off the front, or a tighter aspect ratio crop for a two-person conversation. Treat the shortlist as a draft, not a final cut.",
+      lead: "You pay for the episode, not per clip.",
+      text: "AutoClip bills in Clip Minutes: one minute per minute of source video, however many clips come out of it, so a 60-minute episode costs 60 minutes whether you keep three clips or fifteen. Re-running the same video within 7 days is free, which makes it cheap to try different settings. The review step matters for quality, too: even a strong AI pick can improve with two seconds shaved off the front, or a tighter aspect ratio crop for a two-person conversation. Treat the shortlist as a draft, not a final cut.",
     },
     {
       lead: "Use Smart Auto Reframe instead of a static crop.",
@@ -68,7 +68,7 @@ export const podcastToViralClips: BlogPost = {
     {
       question: "How does Clipiro decide which moments are clip-worthy?",
       answer:
-        "AutoClip analyzes the transcript and audio for hook strength, pacing, and payoff, then assigns each candidate moment a virality score. It's a starting shortlist, not a final decision — you review, trim, or drop every proposed clip before anything is charged to your credits.",
+        "AutoClip analyzes the transcript and audio for hook strength, pacing, and payoff, then assigns each candidate moment a virality score. It's a starting shortlist, not a final decision — you review, trim, or drop every proposed clip before you export anything.",
     },
     {
       question: "Can I edit the clips AutoClip picks, or do I have to use them as-is?",

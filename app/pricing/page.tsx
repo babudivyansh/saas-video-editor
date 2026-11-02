@@ -22,6 +22,10 @@ async function loadPlans(): Promise<PublicPlan[]> {
   }
 }
 
+// Explicit since JsonLd stopped reading request headers: without it this page
+// would prerender at build time with whatever prices (or none) the build saw.
+export const dynamic = "force-dynamic";
+
 export default async function PricingPage() {
   const plans = await loadPlans();
   const subscriptions = plans.filter((p) => p.kind === "subscription");
@@ -32,18 +36,33 @@ export default async function PricingPage() {
         <JsonLd
           data={{
             "@context": "https://schema.org",
-            "@type": "Product",
+            // SoftwareApplication, not Product: Google reads a Product with
+            // Offers as a merchant listing and flags the shipping and return
+            // fields a subscription can never have.
+            "@type": "SoftwareApplication",
             name: "Clipiro",
             description: "AI video clipping — turn long videos into captioned short-form clips.",
-            brand: { "@type": "Brand", name: "Clipiro" },
-            offers: subscriptions.map((p) => ({
-              "@type": "Offer",
-              name: p.name,
-              price: (p.priceInPaise / 100).toFixed(2),
-              priceCurrency: "INR",
-              availability: "https://schema.org/InStock",
-              url: "https://clipiro.com/pricing",
-            })),
+            applicationCategory: "MultimediaApplication",
+            operatingSystem: "Web",
+            url: "https://clipiro.com",
+            publisher: { "@id": "https://clipiro.com/#organization" },
+            offers: subscriptions.map((p) => {
+              const price = (p.priceInPaise / 100).toFixed(2);
+              return {
+                "@type": "Offer",
+                name: p.name,
+                price,
+                priceCurrency: "INR",
+                priceSpecification: {
+                  "@type": "UnitPriceSpecification",
+                  price,
+                  priceCurrency: "INR",
+                  billingDuration: `P${p.intervalMonths}M`,
+                },
+                availability: "https://schema.org/InStock",
+                url: "https://clipiro.com/pricing",
+              };
+            }),
           }}
         />
       )}

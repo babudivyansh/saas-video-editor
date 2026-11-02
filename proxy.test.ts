@@ -34,6 +34,24 @@ function makeRequest(url: string, cookie?: string) {
   return new NextRequest(url, { headers });
 }
 
+describe("proxy() — www host", () => {
+  it("301s www.clipiro.com to the apex, keeping path and query", async () => {
+    const res = await proxy(makeRequest("https://www.clipiro.com/tools/auto-clip?ref=abc"));
+    expect(res.status).toBe(301);
+    expect(res.headers.get("location")).toBe("https://clipiro.com/tools/auto-clip?ref=abc");
+  });
+
+  it("uses 308 for a non-GET so the method survives", async () => {
+    const res = await proxy(new NextRequest("https://www.clipiro.com/api/contact", { method: "POST" }));
+    expect(res.status).toBe(308);
+  });
+
+  it("leaves the apex alone", async () => {
+    const res = await proxy(makeRequest("https://clipiro.com/pricing"));
+    expect(res.status).not.toBe(301);
+  });
+});
+
 describe("proxy() — protected-page auth redirect", () => {
   beforeEach(() => {
     sessionValid = false;

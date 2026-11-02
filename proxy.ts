@@ -72,8 +72,19 @@ function getOptimisticAuth(request: NextRequest, { bearer = false }: { bearer?: 
  *    when the optimistic check succeeds.
  *  - everything else: first-click affiliate attribution cookie.
  */
+// www.clipiro.com served the whole site as a 200 duplicate of the apex (the
+// canonical tag pointed home, but links and AI citations still split across
+// two hosts). Permanent redirect, keeping path and query; 308 for anything but
+// GET/HEAD so a stray POST isn't turned into a GET.
+const WWW_HOST = "www.clipiro.com";
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  if (requestHost(request) === WWW_HOST) {
+    const target = new URL(`${pathname}${request.nextUrl.search}`, "https://clipiro.com");
+    const status = request.method === "GET" || request.method === "HEAD" ? 301 : 308;
+    return NextResponse.redirect(target, status);
+  }
   const nonce = Buffer.from(randomUUID()).toString("base64");
   const csp = buildCsp();
 
@@ -187,8 +198,8 @@ export async function proxy(request: NextRequest) {
   }
 
   // Page responses additionally get a nonce threaded through as a request
-  // header, which JsonLd's headers() read puts on its script tag. The policy
-  // doesn't list it yet (lib/csp.ts says why); it's there for when it does.
+  // header. Nothing reads it yet and the policy doesn't list it (lib/csp.ts
+  // says why); it's there for a future nonce-based policy.
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
   const response = withCsp(NextResponse.next({ request: { headers: requestHeaders } }), csp);

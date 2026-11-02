@@ -1,19 +1,23 @@
 import type { Metadata } from "next";
+import { socialMetadata } from "@/lib/seo/social";
 import MarketingShell from "@/app/components/marketing/MarketingShell";
 import Section from "@/app/components/marketing/Section";
 import { CONTAINER, HERO_Y } from "@/app/components/marketing/styles";
 import { Button } from "@/app/components/ui/Button";
 import FounderSection from "@/app/components/landing/FounderSection";
+import { VOICE_COUNT_LABEL } from "@/app/components/landing/stats";
 
 export const metadata: Metadata = {
-  title: "About Clipiro",
+  // absolute: the "%s · Clipiro" template would make this "About Clipiro · Clipiro".
+  title: { absolute: "About Clipiro: the team and mission" },
   description:
     "Clipiro's mission is to give every creator a studio-grade AI editor that turns one long video into a week of viral short-form content.",
   alternates: { canonical: "/about" },
-  openGraph: {
+  ...socialMetadata({
     title: "About Clipiro",
     description: "Why we built Clipiro and the mission behind AI-powered short-form video.",
-  },
+    path: "/about",
+  }),
 };
 
 const VALUES = [
@@ -48,7 +52,7 @@ const VALUES = [
 
 const STATS = [
   // Same figures as the homepage SocialProof strip — keep the two in step.
-  { value: "20+", label: "AI Narrator Voices" },
+  { value: VOICE_COUNT_LABEL, label: "AI Voices" },
   { value: "3", label: "Export Aspect Ratios" },
   { value: "3", label: "Platforms Supported" },
   { value: "Free", label: "Plan Available" },

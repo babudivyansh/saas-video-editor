@@ -9,9 +9,26 @@
 // app/tools/content.test.ts.
 
 import { CAPTION_TEMPLATES } from "@clipiro/shared/caption-templates";
+import { FREE_TIER_MONTHLY_BONUS_MINUTES, TIER_MAX_AUTOCLIP_SOURCE_SECONDS, type TierId } from "@/lib/plans/tiers";
+import { VOICE_SEED } from "@/lib/voices/catalog";
+import { LIBRARY_VOICES } from "@/lib/voices/library";
 
 /** Counted, not typed: the caption library grows in weekly drops. */
 const CAPTION_TEMPLATE_COUNT = CAPTION_TEMPLATES.length;
+
+// Counted for the same reason, then rounded down: admins can switch single
+// voices off at runtime (/admin/voices) without a deploy, so the exact number
+// moves, and an overclaim is the worse error.
+const ALL_VOICES = [...VOICE_SEED, ...LIBRARY_VOICES];
+const VOICE_COUNT_FLOOR = Math.floor(ALL_VOICES.length / 50) * 50;
+const VOICE_LANGUAGE_COUNT = new Set(ALL_VOICES.flatMap((v) => v.languages ?? [])).size;
+
+/** "30 minutes" / "1 hour" / "6 hours" — AutoClip's per-tier source-length cap. */
+function sourceCap(tier: TierId): string {
+  const minutes = TIER_MAX_AUTOCLIP_SOURCE_SECONDS[tier] / 60;
+  if (minutes < 60) return `${minutes} minutes`;
+  return minutes === 60 ? "1 hour" : `${minutes / 60} hours`;
+}
 
 export interface ToolStep {
   title: string;
@@ -93,10 +110,10 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
     h1: "Turn one long video into a week of clips",
     metaTitle: "AutoClip — Long Video to Short Clips with AI",
     metaDescription:
-      "Drop in a podcast, stream, or interview and AutoClip finds the strongest moments, captions them, and cuts them to vertical. 30 free minutes a month.",
+      `Drop in a podcast, stream, or interview and AutoClip finds the strongest moments, captions them, and cuts them to vertical. ${FREE_TIER_MONTHLY_BONUS_MINUTES} free minutes a month.`,
     lede: "Drop in a podcast, stream, or interview. AutoClip finds the moments worth posting, captions them, reframes them vertical, and hands back a set of ready-to-upload shorts.",
     steps: [
-      { title: "Add your video", body: "Upload a file or paste a link. Paid plans handle uploads from two hours up to six, depending on your plan." },
+      { title: "Add your video", body: `Upload a file or paste a link. Paid plans take sources from ${sourceCap("lite")} up to ${sourceCap("studio")}, depending on your plan.` },
       { title: "AutoClip finds the moments", body: "It scans the transcript and the audio for self-contained, high-energy segments rather than slicing on a fixed timer." },
       { title: "Review and export", body: "Each clip arrives captioned and reframed to vertical. Keep what works, adjust anything in the editor, and export." },
     ],
@@ -106,8 +123,9 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
       { title: "Priced per minute of video, not per clip", body: "One Clip Minute per minute of source, however many clips come out of it. Re-running the same video within 7 days is free." },
     ],
     faqs: [
-      { question: "How long can the source video be?", answer: "The free plan takes videos up to 30 minutes, Creator up to 2 hours, Pro up to 4, and Studio up to 6." },
-      { question: "How is AutoClip priced?", answer: "In Clip Minutes: one minute per minute of source video, however many clips it produces. Creator includes 150 minutes a month, Pro 400, and Studio 1,000. The free plan gets 30 watermarked minutes a month." },
+      { question: "How long can the source video be?", answer: `The free plan takes videos up to ${sourceCap("free")}, Lite up to ${sourceCap("lite")}, Creator up to ${sourceCap("creator")}, Pro up to ${sourceCap("pro")}, and Studio up to ${sourceCap("studio")}.` },
+      // Plan minute grants are DB rows (prisma/seed.ts); content.test.ts checks these against the seed.
+      { question: "How is AutoClip priced?", answer: `In Clip Minutes: one minute per minute of source video, however many clips it produces. Lite includes 60 minutes a month, Creator 200, Pro 400, and Studio 1,000. The free plan gets ${FREE_TIER_MONTHLY_BONUS_MINUTES} watermarked minutes a month.` },
       { question: "Can I edit the clips afterwards?", answer: "Yes. Every clip opens in the editor, so you can retime the cut, change the caption style, or swap the crop before exporting." },
       { question: "What source videos work best?", answer: "Anything with clear speech — podcasts, interviews, streams, lectures, reaction videos. Clean audio matters more than resolution." },
       COMMERCIAL_FAQ,
@@ -195,23 +213,23 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
 
   "ai-voiceover": {
     h1: "Narrate anything in a voice that sounds real",
-    metaTitle: "AI Voiceover Generator — 20+ Narrators",
+    metaTitle: `AI Voiceover Generator — ${VOICE_COUNT_FLOOR}+ Voices`,
     metaDescription:
-      "Turn a script into a natural-sounding voiceover with 20+ narrators across accents and languages. Captions sync in the editor.",
-    lede: "Paste a script, pick from more than twenty narrators, and get natural-sounding audio back in seconds — ready to caption in the editor.",
+      `Turn a script into a natural-sounding voiceover with ${VOICE_COUNT_FLOOR}+ voices in ${VOICE_LANGUAGE_COUNT} languages. Captions sync in the editor.`,
+    lede: `Paste a script, pick from ${VOICE_COUNT_FLOOR}+ voices in ${VOICE_LANGUAGE_COUNT} languages, and get natural-sounding audio back in seconds — ready to caption in the editor.`,
     steps: [
       { title: "Paste your script", body: "Type or paste the text. Punctuation shapes the delivery, so commas and full stops are worth getting right." },
-      { title: "Choose a narrator", body: "Browse twenty-plus voices across accents and languages, and preview any of them before you spend a credit." },
+      { title: "Choose a voice", body: "Filter by language, accent, gender and style, and preview any voice before you spend a credit." },
       { title: "Generate", body: "Download the audio or send it straight to the editor, where captions can be generated in sync with it." },
     ],
     benefits: [
-      { title: "Twenty-plus voices", body: "Enough range to give different channels and formats their own identity instead of reusing one recognisable narrator." },
+      { title: `${VOICE_COUNT_FLOOR}+ voices`, body: "Enough range to give different channels and formats their own identity instead of reusing one recognisable narrator." },
       { title: "Captions that match", body: "Because the timing comes from the generated audio, captions land on the word rather than near it." },
-      { title: "Multiple languages", body: "Narrate in several languages to take the same script to a different audience." },
+      { title: `${VOICE_LANGUAGE_COUNT} languages`, body: "Pick a native voice for each language to take the same script to a different audience." },
     ],
     faqs: [
-      { question: "How many voices are there?", answer: "More than twenty narrators, spanning a range of accents and several languages. You can preview any voice before generating." },
-      { question: "Can I generate in other languages?", answer: "Yes — multiple languages are supported, with narrators suited to each." },
+      { question: "How many voices are there?", answer: `More than ${VOICE_COUNT_FLOOR}, across ${VOICE_LANGUAGE_COUNT} languages and a range of accents and styles. You can preview any voice before generating.` },
+      { question: "Can I generate in other languages?", answer: `Yes — ${VOICE_LANGUAGE_COUNT} languages, with voices suited to each.` },
       COMMERCIAL_FAQ,
       CREDITS_FAQ,
     ],

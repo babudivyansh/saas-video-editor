@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { socialMetadata } from "@/lib/seo/social";
 import Link from "next/link";
 import SiteNavbar from "@/app/components/SiteNavbar";
 import SiteFooter from "@/app/components/SiteFooter";
@@ -16,10 +17,11 @@ export const metadata: Metadata = {
   description:
     "Tips, tutorials, and product updates on AI video clipping, captions, and growing your audience with short-form content.",
   alternates: { canonical: "/blog" },
-  openGraph: {
+  ...socialMetadata({
     title: "Clipiro Blog",
     description: "Tips, tutorials, and updates on AI-powered short-form video.",
-  },
+    path: "/blog",
+  }),
 };
 
 const TOPICS = BLOG_POSTS;

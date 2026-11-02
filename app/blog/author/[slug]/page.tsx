@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { socialMetadata } from "@/lib/seo/social";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import SiteNavbar from "@/app/components/SiteNavbar";
@@ -28,7 +29,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     title: author.name,
     description,
     alternates: { canonical: `/blog/author/${author.slug}` },
-    openGraph: { title: `${author.name} · Clipiro Blog`, description },
+    ...socialMetadata({ title: `${author.name} · Clipiro Blog`, description, path: `/blog/author/${author.slug}` }),
   };
 }
 
