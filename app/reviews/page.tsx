@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { socialMetadata } from "@/lib/seo/social";
 import SiteNavbar from "@/app/components/SiteNavbar";
 import SiteFooter from "@/app/components/SiteFooter";
 import { JsonLd } from "@/app/components/JsonLd";
@@ -18,10 +19,11 @@ export const metadata: Metadata = {
   title: "Reviews",
   description: "See what creators are saying about Clipiro — real, verified reviews from people turning long videos into viral clips.",
   alternates: { canonical: "/reviews" },
-  openGraph: {
+  ...socialMetadata({
     title: "Clipiro Reviews",
     description: "Real, verified reviews from Clipiro creators.",
-  },
+    path: "/reviews",
+  }),
 };
 
 export default async function ReviewsPage() {

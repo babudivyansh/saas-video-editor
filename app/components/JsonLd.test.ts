@@ -1,7 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
-
-vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
-
+import { describe, expect, it } from "vitest";
 import { serializeJsonLd } from "./JsonLd";
 
 describe("serializeJsonLd", () => {

@@ -7,7 +7,7 @@ import { useReducedMotion } from "framer-motion";
 import { useAuth } from "@/app/components/AuthContext";
 import { ArrowRightIcon } from "@/app/components/landing/icons";
 import HeroRatingBadge from "@/app/components/landing/HeroRatingBadge";
-import { MINIMUM_REVIEWS_FOR_SCHEMA } from "@/app/reviews/schema";
+import { MINIMUM_REVIEWS_FOR_RATING } from "@/app/reviews/schema";
 import type { ReviewSummary } from "@/lib/reviews/queries";
 
 // Lime glow under the CTA that blooms on hover. A coloured box-shadow rather
@@ -128,10 +128,10 @@ export default function Hero({ reviewSummary }: HeroProps) {
             <span>Free plan</span>
             <span aria-hidden="true">·</span>
             <span>No credit card</span>
-            {/* Rating badge — hidden below MINIMUM_REVIEWS_FOR_SCHEMA to avoid a
+            {/* Rating badge — hidden below MINIMUM_REVIEWS_FOR_RATING to avoid a
                 thin, unconvincing average (same gate the SEO JSON-LD already
                 applies to aggregateRating). */}
-            {reviewSummary.count >= MINIMUM_REVIEWS_FOR_SCHEMA && (
+            {reviewSummary.count >= MINIMUM_REVIEWS_FOR_RATING && (
               <>
                 {/* Below sm the rating wraps onto its own line; a leading dot there would dangle. */}
                 <span aria-hidden="true" className="hidden sm:inline">·</span>

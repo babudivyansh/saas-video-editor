@@ -2,13 +2,19 @@ import type { PublicReviewDTO, ReviewSummary } from "@/lib/reviews/queries";
 
 const SITE_URL = "https://clipiro.com";
 
-// Google penalizes/ignores thin, self-serving aggregate ratings — omit the
-// fragment entirely below a small sample size rather than shipping a rating
-// backed by 1-2 reviews.
+// Below this many published reviews the homepage shows no testimonial wall —
+// a sparse grid reads worse than none.
 export const MINIMUM_REVIEWS_FOR_SCHEMA = 3;
 
+// A star average is a stronger claim than a few quotes, so it waits for a
+// bigger sample: this gates the AggregateRating JSON-LD (homepage and
+// /reviews) and the hero's "5.0 · N reviews" badge. A perfect 5.0 from five
+// reviews reads as manufactured to visitors and to Google's review-snippet
+// policy alike (2026-11 SEO audit); raised from 3.
+export const MINIMUM_REVIEWS_FOR_RATING = 10;
+
 export function buildAggregateRatingSchema(summary: ReviewSummary) {
-  if (summary.count < MINIMUM_REVIEWS_FOR_SCHEMA) return null;
+  if (summary.count < MINIMUM_REVIEWS_FOR_RATING) return null;
   return {
     "@type": "AggregateRating",
     ratingValue: summary.average,

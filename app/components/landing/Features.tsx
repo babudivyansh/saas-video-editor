@@ -6,6 +6,7 @@ import Link from "next/link";
 import Reveal from "@/app/components/Reveal";
 import ShowcaseGlow from "@/app/components/marketing/ShowcaseGlow";
 import { CheckIcon, ArrowRightIcon } from "@/app/components/landing/icons";
+import { VOICE_COUNT_LABEL } from "@/app/components/landing/stats";
 
 type Pillar = {
   illustration: React.ReactNode;
@@ -55,7 +56,7 @@ const PILLARS: Pillar[] = [
     title: "AI Creation Tools",
     description:
       "Generate what you're missing: AI images, lifelike voiceovers, face swaps, background removal, and more — all in one place.",
-    bullets: ["20+ AI narrator voices", "AI image generation", "Image, audio & video enhancers"],
+    bullets: [`${VOICE_COUNT_LABEL} AI voices`, "AI image generation", "Image, audio & video enhancers"],
     cta: "Explore AI tools",
     href: "/dashboard/tools",
     accent: "from-cyan-300 to-teal-500",

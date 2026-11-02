@@ -26,7 +26,7 @@ export function GET() {
   const lines = [
     "# Clipiro",
     "",
-    "> Clipiro is a browser-based AI video tool for creators. Its main product, AutoClip, turns long videos (podcasts, interviews, streams, webinars) into short vertical clips with captions for YouTube Shorts, Instagram Reels and TikTok. Around it sit AI tools (image generation, voiceover, voice changing, speech enhancement, background and subtitle removal) and free utilities.",
+    "> Clipiro is a browser-based AI video tool for creators. Its main product, AutoClip, turns long videos (podcasts, interviews, streams, webinars) into short vertical clips with captions for YouTube Shorts, Instagram Reels and Facebook. Around it sit AI tools (image generation, voiceover, voice changing, speech enhancement, background and subtitle removal) and free utilities.",
     "",
     `- Plans: Free, ${plans}. The free plan needs no card and includes ${FREE_TIER_MONTHLY_BONUS_MINUTES} watermarked AutoClip minutes a month.`,
     "- AutoClip is billed in Clip Minutes: one minute per minute of source video, however many clips it produces.",

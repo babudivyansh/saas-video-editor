@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { socialMetadata } from "@/lib/seo/social";
 import { notFound } from "next/navigation";
 import SiteNavbar from "@/app/components/SiteNavbar";
 import SiteFooter from "@/app/components/SiteFooter";
@@ -27,7 +28,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     title,
     description,
     alternates: { canonical: `/reviews/${id}` },
-    openGraph: { title, description },
+    ...socialMetadata({ title, description, path: `/reviews/${id}` }),
   };
 }
 

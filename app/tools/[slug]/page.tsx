@@ -62,7 +62,8 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
     {
       "@context": "https://schema.org",
       "@type": "SoftwareApplication",
-      name: `Clipiro ${tool.title}`,
+      // "Clipiro AutoClip" already carries the brand; prefixing it again gave "Clipiro Clipiro AutoClip".
+      name: tool.title.startsWith("Clipiro") ? tool.title : `Clipiro ${tool.title}`,
       applicationCategory: "MultimediaApplication",
       operatingSystem: "Web",
       description: content.metaDescription,

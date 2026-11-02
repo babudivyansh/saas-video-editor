@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { socialMetadata } from "@/lib/seo/social";
 import { notFound } from "next/navigation";
 import SiteNavbar from "@/app/components/SiteNavbar";
 import SiteFooter from "@/app/components/SiteFooter";
@@ -25,10 +26,11 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     title: `${category.label} articles`,
     description: category.blurb,
     alternates: { canonical: `/blog/category/${category.slug}` },
-    openGraph: {
+    ...socialMetadata({
       title: `${category.label} articles · Clipiro Blog`,
       description: category.blurb,
-    },
+      path: `/blog/category/${category.slug}`,
+    }),
   };
 }
 

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { socialMetadata } from "@/lib/seo/social";
 import MarketingShell from "@/app/components/marketing/MarketingShell";
 import AffiliateCTA from "@/app/components/AffiliateCTA";
 import AffiliateFAQ from "@/app/components/AffiliateFAQ";
@@ -8,10 +9,11 @@ export const metadata: Metadata = {
   description:
     "Earn 20% commission for every creator you bring to Clipiro. Share your link, get your friends clipping, and get paid.",
   alternates: { canonical: "/affiliate-program" },
-  openGraph: {
+  ...socialMetadata({
     title: "Clipiro Affiliate Program",
     description: "Earn 20% commission for every creator you bring to Clipiro.",
-  },
+    path: "/affiliate-program",
+  }),
 };
 
 const BENEFITS = [

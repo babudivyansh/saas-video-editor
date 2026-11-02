@@ -23,8 +23,9 @@
 // prerendered page (which can never carry a per-request nonce) would be
 // blocked and hydration would break. A nonce-only policy needs every page
 // rendered dynamically first — see docs/security/csp-and-session-storage.md.
-// proxy.ts still mints the nonce and passes it as x-nonce, which JsonLd puts
-// on its script tag, so that switch is a one-line change here later.
+// proxy.ts still mints the nonce and passes it as x-nonce for that switch.
+// JsonLd no longer reads it (ld+json is a data block CSP doesn't govern, and
+// the headers() read made every page with structured data dynamic).
 
 /** The CDN in front of the asset bucket, as a CSP source, when one is configured. */
 function cdnSource(): string | null {

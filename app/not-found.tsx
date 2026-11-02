@@ -1,16 +1,14 @@
 import Link from "next/link";
 import Image from "next/image";
-import { cookies } from "next/headers";
 import SiteNavbar from "@/app/components/SiteNavbar";
 import SiteFooter from "@/app/components/SiteFooter";
+import NotFoundSecondaryLink from "@/app/components/NotFoundSecondaryLink";
 
 // Wrapped in the marketing navbar and footer so a dead link still leaves the
-// visitor somewhere they can navigate from. The second button depends on
-// whether a session cookie is present: "Dashboard" means nothing to someone
-// who has never signed up.
-export default async function NotFound() {
-  // lib/auth.ts SESSION_COOKIE_NAME (not imported: it pulls in Prisma and Redis).
-  const signedIn = (await cookies()).has("session");
+// visitor somewhere they can navigate from. No request APIs in here
+// (cookies(), headers()): the root not-found is part of every route's tree,
+// so one dynamic read makes the whole site dynamic — see NotFoundSecondaryLink.
+export default function NotFound() {
   return (
     <>
       <SiteNavbar />
@@ -29,12 +27,7 @@ export default async function NotFound() {
             >
               Go home
             </Link>
-            <Link
-              href={signedIn ? "/dashboard" : "/pricing"}
-              className="px-5 py-2.5 rounded-full border border-line hover:border-line-strong text-fg-muted hover:text-fg text-sm font-semibold transition-colors"
-            >
-              {signedIn ? "Dashboard" : "See pricing"}
-            </Link>
+            <NotFoundSecondaryLink />
           </div>
         </div>
       </main>

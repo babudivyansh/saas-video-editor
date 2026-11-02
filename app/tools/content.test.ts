@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { ALL_TOOLS } from "@/app/components/featureLinks";
@@ -36,6 +36,19 @@ describe("tool marketing content", () => {
       const { metaDescription, metaTitle } = TOOL_CONTENT[tool.slug];
       expect(metaDescription.length, `${tool.slug} description`).toBeLessThanOrEqual(165);
       expect(metaTitle.length, `${tool.slug} title`).toBeLessThanOrEqual(60);
+    }
+  });
+
+  // Plan minute grants live in prisma/seed.ts (DB rows, not importable without
+  // a database client), so read them as text: the AutoClip pricing FAQ quoted
+  // Creator's old 150 minutes for a month after the 2026-10-30 restructure.
+  it("quotes each plan's monthly Clip Minutes as seeded", () => {
+    const seed = readFileSync(path.join(process.cwd(), "prisma/seed.ts"), "utf8");
+    const answer = TOOL_CONTENT["auto-clip"].faqs.find((f) => f.question === "How is AutoClip priced?")!.answer;
+    const rows = [...seed.matchAll(/name: "(\w+) \(Monthly\)".*?monthlyMinutes: (\d+)/g)];
+    expect(rows.length).toBeGreaterThan(0);
+    for (const [, plan, minutes] of rows) {
+      expect(answer, plan).toMatch(new RegExp(`${plan}( includes)? ${Number(minutes).toLocaleString("en-US")}\\b`));
     }
   });
 });

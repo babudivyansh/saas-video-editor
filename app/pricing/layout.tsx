@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Pricing",
   description:
-    "Simple credit-based pricing for AI video clipping. Start free, upgrade when you grow — plans for creators, podcasters, and agencies.",
+    "Start free, no card. AutoClip is billed in Clip Minutes, one per minute of source video, and the other AI tools share one credit balance.",
   alternates: { canonical: "/pricing" },
 };
 
