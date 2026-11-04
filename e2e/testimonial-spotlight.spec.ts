@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { prisma } from "@/lib/prisma";
+import { MINIMUM_REVIEWS_FOR_RATING } from "@/app/reviews/schema";
 
 // The landing reviews spotlight (app/components/landing/TestimonialWall.tsx):
 // a featured review plus karaoke-captioned cards, with CSS motion that must
@@ -13,11 +14,12 @@ test.describe.serial("testimonial spotlight", () => {
   let userId: string;
 
   test.beforeAll(async () => {
-    // Ensure the 3-review display threshold is met regardless of what else
-    // is in the DB, without depending on other specs' seeded data still
-    // being present (each spec file cleans up after itself).
+    // Seed up to the rating threshold, not just the wall's 3-review gate: the
+    // animated score (.reviews-score) these tests check only renders once
+    // MINIMUM_REVIEWS_FOR_RATING reviews exist. Counted from the live DB so it
+    // doesn't depend on other specs' data (each spec cleans up after itself).
     const baseline = await prisma.review.count({ where: { status: "published" } });
-    const fillerNeeded = Math.max(0, 3 - baseline - 1);
+    const fillerNeeded = Math.max(0, MINIMUM_REVIEWS_FOR_RATING - baseline - 1);
     const fillerUsers = await Promise.all(
       Array.from({ length: fillerNeeded }, (_, i) =>
         prisma.user.create({ data: { email: `e2e-marquee-filler-${unique}-${i}@example.com`, passwordHash: "not-a-real-hash", name: `Filler ${i}` } }),
