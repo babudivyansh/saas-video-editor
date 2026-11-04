@@ -558,6 +558,47 @@ body {
   to { transform: translateY(0); }
 }
 
+/* Hero headline and definition. The h1 is the LCP candidate, so nothing here
+   starts at opacity 0 (an invisible element isn't painted, and LCP waits for
+   it): words rise from 0.2 opacity and a lowered position, one after another
+   (--i is the word's index), then a single lime highlight sweeps across the
+   line and leaves plain text behind. The definition rises in after the words.
+   Reduced motion gets the finished state with no movement. */
+@media (prefers-reduced-motion: no-preference) {
+  .hero-word {
+    display: inline-block;
+    animation: hero-word 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: calc(80ms + var(--i, 0) * 70ms);
+  }
+  .hero-sweep .hero-word {
+    background-image: linear-gradient(100deg, var(--fg) 40%, var(--primary) 50%, var(--fg) 60%);
+    background-size: 400% 100%;
+    background-position: 100% 0;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation:
+      hero-word 0.8s cubic-bezier(0.16, 1, 0.3, 1) both,
+      hero-sweep 1.4s cubic-bezier(0.45, 0, 0.2, 1) 1s both;
+    animation-delay: calc(80ms + var(--i, 0) * 70ms), calc(900ms + var(--i, 0) * 60ms);
+  }
+  .hero-lede {
+    animation: hero-lede 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.55s both;
+  }
+}
+@keyframes hero-word {
+  from { opacity: 0.2; transform: translateY(0.45em); filter: blur(6px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+@keyframes hero-sweep {
+  from { background-position: 100% 0; }
+  to { background-position: 0% 0; }
+}
+@keyframes hero-lede {
+  from { opacity: 0.2; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+
 /* Scroll-reveal base + revealed states (driven by Reveal.tsx) */
 .reveal {
   opacity: 0;

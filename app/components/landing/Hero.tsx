@@ -19,6 +19,8 @@ const CTA_CLASS =
   "hover:scale-[1.03] hover:bg-brand-dark hover:shadow-[0_0_56px_-6px_color-mix(in_oklab,var(--primary)_85%,transparent)] " +
   "outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-4 focus-visible:ring-offset-bg";
 
+const HEADLINE = "Create viral shorts from long videos in seconds".split(" ");
+
 interface HeroProps {
   reviewSummary: ReviewSummary;
 }
@@ -73,13 +75,24 @@ export default function Hero({ reviewSummary }: HeroProps) {
             headings, and the film's own headline is pixels they cannot read.
             Kept compact so the film still leads; its height cap below budgets
             for this line. */}
-        <h1 className="hero-rise max-w-3xl text-balance text-2xl font-semibold tracking-tight text-fg md:text-4xl">
-          Create viral shorts from long videos in seconds
+        {/* Word-by-word entrance plus one lime sweep (.hero-word / .hero-sweep in
+            globals.css). The words stay real text in one <h1>, so search and
+            screen readers read the same sentence; the spaces between the spans
+            are what keeps it one line of prose. */}
+        <h1 className="hero-sweep max-w-3xl text-balance text-2xl font-semibold tracking-tight text-fg md:text-4xl">
+          {HEADLINE.map((word, i) => (
+            <React.Fragment key={i}>
+              <span className="hero-word" style={{ "--i": i } as React.CSSProperties}>
+                {word}
+              </span>
+              {i < HEADLINE.length - 1 && " "}
+            </React.Fragment>
+          ))}
         </h1>
         {/* The answer-first definition: the sentence answer engines lift for
             "what is Clipiro". It sits above the fold because citations skew to
             the top of a page, and the film's own copy is pixels nobody can quote. */}
-        <p className="hero-rise max-w-2xl text-balance text-sm leading-relaxed text-fg-muted md:text-base">
+        <p className="hero-lede max-w-2xl text-balance text-sm leading-relaxed text-fg-muted md:text-base">
           Clipiro is an AI video clipper for creators. Upload a podcast, interview or stream and AutoClip picks the
           strongest moments, captions them and reframes them to vertical for YouTube Shorts, Instagram Reels and
           Facebook. You pay per minute of source video, and the free plan includes {FREE_TIER_MONTHLY_BONUS_MINUTES}{" "}
