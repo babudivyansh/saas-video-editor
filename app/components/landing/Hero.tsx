@@ -19,7 +19,27 @@ const CTA_CLASS =
   "hover:scale-[1.03] hover:bg-brand-dark hover:shadow-[0_0_56px_-6px_color-mix(in_oklab,var(--primary)_85%,transparent)] " +
   "outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-4 focus-visible:ring-offset-bg";
 
+// Hero copy as words, so each can carry its own delay in the 9s loop
+// (globals.css, "Hero headline, lede and…"). Joined with real spaces in the
+// markup, every line still reads as one sentence to search and screen readers.
 const HEADLINE = "Create viral shorts from long videos in seconds".split(" ");
+/** "long videos": the AutoClip-style lime accent with the drawing underline. */
+const HEADLINE_ACCENT = new Set([4, 5]);
+const LEDE = "Upload a podcast, interview or stream. Get captioned vertical clips back.".split(" ");
+/** "captioned vertical clips" brightens and gets the underline. */
+const LEDE_UNDER = new Set([7, 8, 9]);
+const DEFINITION = (
+  "Clipiro is an AI video clipper for creators. AutoClip picks the strongest moments, captions them and " +
+  "reframes them to vertical for YouTube Shorts, Instagram Reels and Facebook. You pay per minute of " +
+  `source video; the free plan includes ${FREE_TIER_MONTHLY_BONUS_MINUTES} Clip Minutes a month with no card.`
+).split(" ");
+/** "Clipiro", "AI video clipper", "AutoClip" brighten. */
+const DEFINITION_LIT = new Set([0, 3, 4, 5, 8]);
+/** "<n> Clip Minutes": the free offer gets the underline. */
+const DEFINITION_FREE = DEFINITION.indexOf(String(FREE_TIER_MONTHLY_BONUS_MINUTES));
+const DEFINITION_UNDER = new Set([DEFINITION_FREE, DEFINITION_FREE + 1, DEFINITION_FREE + 2]);
+
+const delay = (seconds: number) => ({ "--d": `${seconds.toFixed(2)}s` }) as React.CSSProperties;
 
 interface HeroProps {
   reviewSummary: ReviewSummary;
@@ -75,28 +95,37 @@ export default function Hero({ reviewSummary }: HeroProps) {
             headings, and the film's own headline is pixels they cannot read.
             Kept compact so the film still leads; its height cap below budgets
             for this line. */}
-        {/* Word-by-word entrance plus one lime sweep (.hero-word / .hero-sweep in
-            globals.css). The words stay real text in one <h1>, so search and
-            screen readers read the same sentence; the spaces between the spans
-            are what keeps it one line of prose. */}
-        <h1 className="hero-sweep max-w-3xl text-balance text-2xl font-semibold tracking-tight text-fg md:text-4xl">
+        {/* Words rise out of a clipped line (the AI Tools hub headline); "long
+            videos" is the AutoClip accent with its underline; a caret blinks at
+            the end. Real spaces between the spans keep it one sentence. */}
+        <h1 className="max-w-[1100px] text-balance text-2xl font-bold tracking-[-0.04em] text-fg md:text-[44px] md:leading-[1.06]">
           {HEADLINE.map((word, i) => (
             <React.Fragment key={i}>
-              <span className="hero-word" style={{ "--i": i } as React.CSSProperties}>
-                {word}
+              <span className="hero-hl-word">
+                <span
+                  className={
+                    HEADLINE_ACCENT.has(i) ? `hero-accent${HEADLINE_ACCENT.has(i + 1) ? " hero-accent-join" : ""}` : undefined
+                  }
+                  style={delay(i * 0.12)}
+                >
+                  {word}
+                </span>
               </span>
               {i < HEADLINE.length - 1 && " "}
             </React.Fragment>
           ))}
+          <span aria-hidden="true" className="hero-caret" />
         </h1>
-        {/* The answer-first definition: the sentence answer engines lift for
-            "what is Clipiro". It sits above the fold because citations skew to
-            the top of a page, and the film's own copy is pixels nobody can quote. */}
-        <p className="hero-lede max-w-2xl text-balance text-sm leading-relaxed text-fg-muted md:text-base">
-          Clipiro is an AI video clipper for creators. Upload a podcast, interview or stream and AutoClip picks the
-          strongest moments, captions them and reframes them to vertical for YouTube Shorts, Instagram Reels and
-          Facebook. You pay per minute of source video, and the free plan includes {FREE_TIER_MONTHLY_BONUS_MINUTES}{" "}
-          Clip Minutes a month with no card.
+        {/* One line above the film; the full definition sits under the CTA. */}
+        <p className="max-w-2xl text-balance text-base leading-relaxed text-fg-muted md:text-[17px]">
+          {LEDE.map((word, i) => (
+            <React.Fragment key={i}>
+              <span className={`hero-intro-word${LEDE_UNDER.has(i) ? ` is-under${LEDE_UNDER.has(i + 1) ? " is-join" : ""}` : ""}`} style={delay(1 + i * 0.06)}>
+                {word}
+              </span>
+              {i < LEDE.length - 1 && " "}
+            </React.Fragment>
+          ))}
         </p>
 
         {/* Hero visual: the Clipiro launch film, rendered from the Claude Design
@@ -112,10 +141,10 @@ export default function Hero({ reviewSummary }: HeroProps) {
             in globals.css) it animates on the page itself. On lg it reaches 80px
             past the content padding on each side (the section clips overflow),
             but never so tall that it pushes the CTA below the fold: the width
-            is also capped at 16:9 of the viewport height minus ~23rem (navbar,
-            h1, definition paragraph, button, reassurance line; the button
-            overlaps the film by ~2rem). */}
-        <div className="hero-rise w-full max-w-[1360px] lg:w-[min(calc(100%+160px),calc((100svh-23rem)*16/9))]">
+            is also capped at 16:9 of the viewport height minus ~21rem (navbar,
+            h1, one-line lede, button, reassurance line; the button overlaps
+            the film by ~2rem). */}
+        <div className="hero-rise w-full max-w-[1360px] lg:w-[min(calc(100%+160px),calc((100svh-21rem)*16/9))]">
           <div className="hero-film-fade">
             <video
               ref={filmRef}
@@ -163,6 +192,29 @@ export default function Hero({ reviewSummary }: HeroProps) {
               </>
             )}
           </div>
+        </div>
+
+        {/* The answer-first definition, the passage answer engines lift for
+            "what is Clipiro". Real text in the server HTML, just below the fold
+            line; the eyebrow pulls in like AutoClip's, the words blur in like
+            the AI Tools hub intro. */}
+        <div className="mt-2 flex w-full max-w-[780px] flex-col items-center gap-2">
+          <span className="hero-eyebrow font-mono text-[11px] font-semibold uppercase text-emerald-bright" style={delay(1.4)}>
+            What is Clipiro
+          </span>
+          <p className="w-full text-balance text-[13.5px] leading-[1.7] text-fg-muted">
+            {DEFINITION.map((word, i) => (
+              <React.Fragment key={i}>
+                <span
+                  className={`hero-intro-word${DEFINITION_UNDER.has(i) ? ` is-under${DEFINITION_UNDER.has(i + 1) ? " is-join" : ""}` : DEFINITION_LIT.has(i) ? " is-lit" : ""}`}
+                  style={delay(1.6 + i * 0.03)}
+                >
+                  {word}
+                </span>
+                {i < DEFINITION.length - 1 && " "}
+              </React.Fragment>
+            ))}
+          </p>
         </div>
       </div>
     </section>
