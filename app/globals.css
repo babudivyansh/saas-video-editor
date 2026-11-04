@@ -558,6 +558,127 @@ body {
   to { transform: translateY(0); }
 }
 
+/* Hero headline, lede and "What is Clipiro" definition, on one 9s loop. The
+   same motion vocabulary as the AI Tools hub (app/dashboard/tools/
+   hub.module.css: words rise out of a clipped line; intro words blur in, some
+   brighten, one phrase gets an underline) and the AutoClip flow (auto-clip/
+   _components/flow.module.css: lime accent with a drawing underline, a
+   blinking caret, an eyebrow that pulls in from wide tracking). --d on each
+   word is its delay. The poster is the hero's LCP element (it is preloaded at
+   high priority in Hero.tsx), so text starting hidden doesn't hold LCP back.
+   Reduced motion: everything rests on its finished frame. */
+.hero-hl-word {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: bottom;
+  padding: 0 0.02em 0.1em;
+  margin-bottom: -0.1em;
+}
+.hero-hl-word > span { display: inline-block; }
+.hero-accent { position: relative; color: var(--primary); }
+.hero-accent::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0.06em;
+  height: 0.08em;
+  border-radius: 0.04em;
+  background: var(--primary);
+}
+/* An accent word followed by another runs its underline under the space, so
+   "long videos" reads as one underlined phrase. The clipping wrapper's right
+   padding is widened to match, or the bridge would be cut off. */
+.hero-hl-word:has(> .hero-accent-join) { padding-right: 0.3em; margin-right: -0.3em; }
+.hero-accent-join::after { right: -0.3em; }
+.hero-caret {
+  display: inline-block;
+  width: 0.07em;
+  height: 0.8em;
+  margin-left: 0.08em;
+  vertical-align: -0.04em;
+  background: var(--primary);
+}
+.hero-intro-word { display: inline-block; }
+.hero-intro-word.is-lit { color: var(--fg); }
+.hero-intro-word.is-under { position: relative; color: var(--fg); }
+.hero-intro-word.is-under::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -2px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--primary);
+}
+/* Underlined words followed by another bridge the space, so a phrase gets one line. */
+.hero-intro-word.is-join::after { right: -0.28em; }
+.hero-eyebrow { display: inline-block; letter-spacing: 0.14em; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .hero-hl-word > span {
+    transform: translateY(110%);
+    animation: hero-hl-rise 9s cubic-bezier(0.2, 0.8, 0.2, 1) var(--d, 0s) infinite;
+  }
+  .hero-accent::after {
+    transform: scaleX(0);
+    transform-origin: left;
+    animation: hero-accent-under 9s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+  }
+  .hero-caret { animation: hero-blink 1s steps(1) infinite; }
+  .hero-intro-word {
+    opacity: 0;
+    filter: blur(8px);
+    transform: translateY(6px);
+    animation: hero-intro-in 9s ease-out var(--d, 0s) infinite;
+  }
+  .hero-intro-word.is-lit,
+  .hero-intro-word.is-under {
+    animation-name: hero-intro-in, hero-intro-lit;
+    animation-duration: 9s, 9s;
+    animation-iteration-count: infinite, infinite;
+    animation-delay: var(--d, 0s), var(--d, 0s);
+  }
+  .hero-intro-word.is-under::after {
+    transform: scaleX(0);
+    transform-origin: left;
+    animation: hero-intro-under 9s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+  }
+  .hero-eyebrow { animation: hero-eyebrow 9s ease var(--d, 0s) infinite; }
+}
+@keyframes hero-hl-rise {
+  0% { transform: translateY(110%); }
+  7%, 86% { transform: translateY(0); }
+  94%, 100% { transform: translateY(-110%); }
+}
+@keyframes hero-accent-under {
+  0%, 30% { transform: scaleX(0); }
+  38%, 80% { transform: scaleX(1); }
+  86%, 100% { transform: scaleX(0); transform-origin: right; }
+}
+@keyframes hero-blink { 50% { opacity: 0; } }
+@keyframes hero-intro-in {
+  0% { opacity: 0; filter: blur(8px); transform: translateY(6px); }
+  6%, 84% { opacity: 1; filter: blur(0); transform: none; }
+  92%, 100% { opacity: 0; filter: blur(6px); transform: translateY(-4px); }
+}
+@keyframes hero-intro-lit {
+  0%, 30% { color: var(--fg-muted); }
+  38%, 84% { color: var(--fg); }
+  100% { color: var(--fg-muted); }
+}
+@keyframes hero-intro-under {
+  0%, 44% { transform: scaleX(0); }
+  52%, 84% { transform: scaleX(1); opacity: 1; }
+  92%, 100% { transform: scaleX(1); opacity: 0; }
+}
+@keyframes hero-eyebrow {
+  0% { opacity: 0; letter-spacing: 0.4em; }
+  10%, 80% { opacity: 1; letter-spacing: 0.14em; }
+  95%, 100% { opacity: 0; }
+}
+
 /* Scroll-reveal base + revealed states (driven by Reveal.tsx) */
 .reveal {
   opacity: 0;
