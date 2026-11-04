@@ -145,6 +145,9 @@ const nextConfig: NextConfig = {
       { source: "/editor", destination: "/dashboard/editor", permanent: true },
       { source: "/dashboard/create/:product(reddit-video|text-video|split-video|streamer-video|viral-split-screen)", destination: "/dashboard", permanent: true },
       { source: "/dashboard/ai-creator", destination: "/dashboard", permanent: true },
+      // Blog posts moved from the anonymous team byline to the founder's
+      // (2026-11 SEO pass); the old hub page was indexed and linked.
+      { source: "/blog/author/clipiro-team", destination: "/blog/author/divyansh-verma", permanent: true },
     ];
   },
 };

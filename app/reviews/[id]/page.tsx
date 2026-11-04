@@ -28,6 +28,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     title,
     description,
     alternates: { canonical: `/reviews/${id}` },
+    // One review is ~250 words on a UUID URL: a thin page competing with
+    // /reviews, which carries every review and their structured data. Kept
+    // reachable (shared links, follow) but out of the index and the sitemap.
+    robots: { index: false, follow: true },
     ...socialMetadata({ title, description, path: `/reviews/${id}` }),
   };
 }
@@ -52,7 +56,10 @@ export default async function ReviewDetailPage({ params }: PageProps) {
       <main>
         <section className="mx-auto w-full max-w-2xl px-4 py-14 md:px-12">
           <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Reviews", href: "/reviews" }, { label: review.title || "Review" }]} />
-          <div className="mt-8">
+          <h1 className="mt-6 text-2xl font-bold tracking-tight text-fg">
+            {review.title || `${review.author.name}'s review of Clipiro`}
+          </h1>
+          <div className="mt-6">
             <ReviewCard review={review} />
           </div>
         </section>

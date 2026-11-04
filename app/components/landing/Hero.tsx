@@ -8,6 +8,7 @@ import { useAuth } from "@/app/components/AuthContext";
 import { ArrowRightIcon } from "@/app/components/landing/icons";
 import HeroRatingBadge from "@/app/components/landing/HeroRatingBadge";
 import { MINIMUM_REVIEWS_FOR_RATING } from "@/app/reviews/schema";
+import { FREE_TIER_MONTHLY_BONUS_MINUTES } from "@/lib/plans/tiers";
 import type { ReviewSummary } from "@/lib/reviews/queries";
 
 // Lime glow under the CTA that blooms on hover. A coloured box-shadow rather
@@ -75,6 +76,15 @@ export default function Hero({ reviewSummary }: HeroProps) {
         <h1 className="hero-rise max-w-3xl text-balance text-2xl font-semibold tracking-tight text-fg md:text-4xl">
           Create viral shorts from long videos in seconds
         </h1>
+        {/* The answer-first definition: the sentence answer engines lift for
+            "what is Clipiro". It sits above the fold because citations skew to
+            the top of a page, and the film's own copy is pixels nobody can quote. */}
+        <p className="hero-rise max-w-2xl text-balance text-sm leading-relaxed text-fg-muted md:text-base">
+          Clipiro is an AI video clipper for creators. Upload a podcast, interview or stream and AutoClip picks the
+          strongest moments, captions them and reframes them to vertical for YouTube Shorts, Instagram Reels and
+          Facebook. You pay per minute of source video, and the free plan includes {FREE_TIER_MONTHLY_BONUS_MINUTES}{" "}
+          Clip Minutes a month with no card.
+        </p>
 
         {/* Hero visual: the Clipiro launch film, rendered from the Claude Design
             project "Clipiro Launch Film" to a silent 108s loop. Muted + playsInline
@@ -89,9 +99,10 @@ export default function Hero({ reviewSummary }: HeroProps) {
             in globals.css) it animates on the page itself. On lg it reaches 80px
             past the content padding on each side (the section clips overflow),
             but never so tall that it pushes the CTA below the fold: the width
-            is also capped at 16:9 of the viewport height minus ~19rem (navbar,
-            h1, button, reassurance line; the button overlaps the film by ~2rem). */}
-        <div className="hero-rise w-full max-w-[1360px] lg:w-[min(calc(100%+160px),calc((100svh-19rem)*16/9))]">
+            is also capped at 16:9 of the viewport height minus ~23rem (navbar,
+            h1, definition paragraph, button, reassurance line; the button
+            overlaps the film by ~2rem). */}
+        <div className="hero-rise w-full max-w-[1360px] lg:w-[min(calc(100%+160px),calc((100svh-23rem)*16/9))]">
           <div className="hero-film-fade">
             <video
               ref={filmRef}

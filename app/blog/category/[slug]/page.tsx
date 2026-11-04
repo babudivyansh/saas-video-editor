@@ -6,7 +6,7 @@ import SiteFooter from "@/app/components/SiteFooter";
 import { JsonLd } from "@/app/components/JsonLd";
 import Breadcrumbs from "@/app/components/ui/Breadcrumbs";
 import { EmptyState } from "@/app/components/ui/EmptyState";
-import { BLOG_CATEGORIES, getCategoryBySlug } from "../../categories";
+import { BLOG_CATEGORIES, MIN_POSTS_TO_INDEX_CATEGORY, getCategoryBySlug } from "../../categories";
 import BlogCta from "../../BlogCta";
 import NewsletterSignup from "../../NewsletterSignup";
 import PostCard from "../../PostCard";
@@ -22,12 +22,14 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug } = await params;
   const category = getCategoryBySlug(slug);
   if (!category) return { title: "Category not found" };
+  const thin = getPostsByCategory(category.slug, BLOG_POSTS).length < MIN_POSTS_TO_INDEX_CATEGORY;
   return {
-    title: `${category.label} articles`,
+    title: category.title,
     description: category.blurb,
     alternates: { canonical: `/blog/category/${category.slug}` },
+    ...(thin && { robots: { index: false, follow: true } }),
     ...socialMetadata({
-      title: `${category.label} articles · Clipiro Blog`,
+      title: `${category.title} · Clipiro Blog`,
       description: category.blurb,
       path: `/blog/category/${category.slug}`,
     }),
@@ -42,7 +44,7 @@ export default async function BlogCategoryPage({ params }: { params: Promise<{ s
   const posts = getPostsByCategory(category.slug, BLOG_POSTS);
 
   const collectionSchema = buildCollectionPageSchema({
-    name: `${category.label} articles`,
+    name: category.title,
     description: category.blurb,
     path: `/blog/category/${category.slug}`,
   });
@@ -67,7 +69,7 @@ export default async function BlogCategoryPage({ params }: { params: Promise<{ s
             </div>
             <span className="mt-4 block text-xs font-bold uppercase tracking-widest text-brand">Category</span>
             <h1 className="mx-auto mt-3 max-w-3xl text-4xl font-extrabold leading-tight text-ink md:text-5xl">
-              {category.label}
+              {category.title}
             </h1>
             <p className="mx-auto mt-5 max-w-2xl text-lg text-ink-soft">{category.blurb}</p>
           </div>

@@ -1,4 +1,5 @@
 import type { BlogPost } from "../types";
+import { CAPTION_TEMPLATES } from "@clipiro/shared/caption-templates";
 import { AUTHORS } from "../authors";
 
 export const captionStylesWatchTime: BlogPost = {
@@ -8,8 +9,8 @@ export const captionStylesWatchTime: BlogPost = {
   metaDescription:
     "The caption styles that actually boost watch-time on short-form video — contrast, karaoke-style word highlighting, color-coding, and line-length rules that work.",
   publishedAt: "2025-11-24",
-  updatedAt: "2026-07-26",
-  author: AUTHORS.editorial,
+  updatedAt: "2026-11-04",
+  author: AUTHORS.founder,
   intro:
     "Captions aren't just accessibility — for short-form video watched on mute in a feed, they're often the only way your content gets consumed at all. The style you pick changes how much of the message actually lands.",
   body: [
@@ -40,6 +41,10 @@ export const captionStylesWatchTime: BlogPost = {
     {
       heading: "Testing caption styles without re-shooting anything",
       text: "Caption style is one of the few variables you can change after the fact without touching the underlying footage, which makes it worth testing deliberately rather than guessing once and moving on. Clipiro's per-clip caption restyling lets you change font, color, outline, and animation on an already-rendered clip, and its transcript editor lets you correct wording or re-time breaks directly — so testing three caption treatments on the same clip takes minutes, not three separate re-edits.",
+    },
+    {
+      lead: "Start from a template, not a blank style.",
+      text: `Caption Studio ships ${CAPTION_TEMPLATES.length} caption templates, in families from Viral Bold and Karaoke & Highlight to Podcast & Interview, Minimal & Pro and Hindi & Hinglish, and every word stays editable after you pick one (every one is in the caption template gallery on clipiro.com). Choosing a template close to the tone you want and then changing one variable at a time — the highlight colour, then the line length — keeps each test readable instead of changing five things at once.`,
     },
     {
       heading: "A simple way to run the test",

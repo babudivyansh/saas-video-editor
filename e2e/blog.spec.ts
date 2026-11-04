@@ -11,7 +11,7 @@ test.describe("blog category navigation", () => {
     await page.getByRole("navigation", { name: "Article categories" }).getByRole("link", { name: "Growth" }).click();
 
     await expect(page).toHaveURL(/\/blog\/category\/growth$/);
-    await expect(page.getByRole("heading", { level: 1, name: "Growth" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Growing on Shorts and Reels" })).toBeVisible();
   });
 
   test("a category page lists only that category's posts", async ({ page }) => {

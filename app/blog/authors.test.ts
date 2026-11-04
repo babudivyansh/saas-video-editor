@@ -54,8 +54,8 @@ describe("getAuthorIndex", () => {
 });
 
 describe("getPostsByAuthor", () => {
-  it("returns every post for the shared byline", () => {
-    expect(getPostsByAuthor("clipiro-team", BLOG_POSTS)).toHaveLength(BLOG_POSTS.length);
+  it("returns every post for the founder, whose bylines share one slug", () => {
+    expect(getPostsByAuthor("divyansh-verma", BLOG_POSTS)).toHaveLength(BLOG_POSTS.length);
   });
 
   it("returns empty for an unknown slug rather than throwing", () => {
@@ -63,8 +63,8 @@ describe("getPostsByAuthor", () => {
   });
 
   it("is deterministic despite every post sharing an updatedAt", () => {
-    const a = getPostsByAuthor("clipiro-team", BLOG_POSTS).map((p) => p.slug);
-    const b = getPostsByAuthor("clipiro-team", [...BLOG_POSTS].reverse()).map((p) => p.slug);
+    const a = getPostsByAuthor("divyansh-verma", BLOG_POSTS).map((p) => p.slug);
+    const b = getPostsByAuthor("divyansh-verma", [...BLOG_POSTS].reverse()).map((p) => p.slug);
     expect(a).toEqual(b);
   });
 });

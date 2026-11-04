@@ -61,6 +61,11 @@ export const metadata: Metadata = {
     // object, and a root url made /pricing, /help/* and the legal pages all
     // claim og:url https://clipiro.com. The homepage sets its own (app/page.tsx).
   },
+  // Bing Webmaster Tools ownership tag, read at build time. Unset → no tag.
+  // (Google is verified by public/googleaf82590c78badb04.html instead.)
+  ...(process.env.BING_SITE_VERIFICATION && {
+    verification: { other: { "msvalidate.01": process.env.BING_SITE_VERIFICATION } },
+  }),
   twitter: {
     card: "summary_large_image",
     site: "@ClipiroOfficial",

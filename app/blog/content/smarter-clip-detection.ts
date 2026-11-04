@@ -9,7 +9,7 @@ export const smarterClipDetection: BlogPost = {
     "Clipiro's AutoClip just got smarter: Smart Auto Reframe presets, Smart Audio Trimming, per-clip caption restyling, a transcript editor, and dubbing that carries captions.",
   publishedAt: "2025-10-13",
   updatedAt: "2026-11-02",
-  author: AUTHORS.product,
+  author: AUTHORS.founderProduct,
   intro:
     "AutoClip's clip-selection has gotten a real upgrade — not just \"better AI,\" but a specific set of new controls that change what the pipeline optimizes for and give you more say before anything renders.",
   body: [
@@ -63,7 +63,7 @@ export const smarterClipDetection: BlogPost = {
     {
       question: "Does dubbing support caption translation automatically?",
       answer:
-        "Yes. When you dub a clip into one of Clipiro's 29+ supported languages, the burned-in captions translate and re-time to match the dubbed audio automatically — you don't need to manually re-caption a localized version.",
+        "Yes. When you dub a clip into one of Clipiro's 29 dubbing languages, the burned-in captions translate and re-time to match the dubbed audio automatically — you don't need to manually re-caption a localized version.",
     },
     {
       question: "Does it cost more if I keep more of the clips AutoClip suggests?",

@@ -9,7 +9,7 @@ export const podcastToViralClips: BlogPost = {
     "Learn how to turn a 1-hour podcast into 8-12 viral short clips: find clip-worthy moments fast, cut better hooks, and use Clipiro's AutoClip to skip the scrubbing.",
   publishedAt: "2025-09-08",
   updatedAt: "2026-11-02",
-  author: AUTHORS.editorial,
+  author: AUTHORS.founder,
   intro:
     "A one-hour podcast episode has maybe 90 seconds of clip-worthy material — the trick isn't finding more moments, it's finding the right ones fast enough that clipping doesn't become a second full-time job.",
   body: [

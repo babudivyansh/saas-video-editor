@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { buildBreadcrumbSchema, buildFaqPageSchema } from "@/app/blog/schema";
 import { JsonLd } from "@/app/components/JsonLd";
 import MarketingShell from "@/app/components/marketing/MarketingShell";
@@ -68,6 +69,7 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
       operatingSystem: "Web",
       description: content.metaDescription,
       url: `${SITE_URL}/tools/${slug}`,
+      dateModified: content.updatedAt,
       // The @id ties this to the homepage's full Organization node; name and
       // url stay because a parser reading only this page cannot follow it.
       publisher: { "@type": "Organization", "@id": `${SITE_URL}/#organization`, name: "Clipiro", url: SITE_URL },
@@ -142,6 +144,17 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
         {isFree && (
           <p className="text-[13px] text-ink-soft">Free on every plan — no credits, no watermark.</p>
         )}
+        {slug === "caption-studio" && (
+          <Link href="/caption-templates" className="text-[13px] font-semibold text-brand hover:underline">
+            Browse all caption templates →
+          </Link>
+        )}
+        <p className="text-[12px] text-ink-soft">
+          Updated{" "}
+          <time dateTime={content.updatedAt}>
+            {new Date(`${content.updatedAt}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })}
+          </time>
+        </p>
       </PageHero>
 
       {/* The tool's own steps, benefits and FAQs come first: they are what

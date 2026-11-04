@@ -20,6 +20,8 @@ function blockWordCount(block: BlogBlock): number {
       return wordCount(block.image.caption ?? "");
     case "cta":
       return 0;
+    case "table":
+      return wordCount(block.caption) + [block.columns, ...block.rows].flat().reduce((sum, cell) => sum + wordCount(cell), 0);
   }
 }
 
