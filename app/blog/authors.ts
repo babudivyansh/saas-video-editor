@@ -1,21 +1,28 @@
 import type { BlogAuthor } from "./types";
 
 /**
- * Role-based bylines — no fabricated individual authors, since Clipiro's
- * editorial content isn't attributed to specific people yet.
+ * Bylines. Posts are credited to the founder, a real, named person, because
+ * answer engines and Google's quality raters both look for who is behind a
+ * piece; an anonymous "Clipiro Team" byline gave them nothing to check
+ * (2026-11 SEO audit).
  *
- * All three entries deliberately share one `slug`. They are the same entity
- * wearing different hats, and the author hub indexes by slug, so this produces
- * a single /blog/author/clipiro-team page listing every post rather than three
- * near-identical pages for one author — which is exactly the thin-content
- * pattern Google's helpful-content signals penalise.
+ * Bylines that share a `slug` are the same entity wearing different hats: the
+ * author hub indexes by slug, so they collapse into one /blog/author/<slug>
+ * page instead of several near-identical ones — the thin-content pattern
+ * Google's helpful-content signals penalise. `role` stays per-byline (it
+ * describes the post, not the author), which is why the hub renders `bio`.
  *
- * `role` stays per-byline (it describes the post, not the author), which is
- * why the hub page renders `bio` rather than any one role.
- *
- * When real named authors exist, give each their own slug and set
- * `kind: "Person"`; the hub splits into separate pages automatically.
+ * The team byline is kept for posts no single person wrote; nothing uses it
+ * today, and /blog/author/clipiro-team redirects to the founder's page
+ * (next.config.ts) because that is where its posts went.
  */
+const FOUNDER = {
+  slug: "divyansh-verma",
+  name: "Divyansh Verma",
+  kind: "Person",
+  bio: "Founder and CEO of Clipiro. Divyansh builds AutoClip and the rest of the Clipiro workspace, and writes about turning long videos into short-form content from what creators actually do with the product.",
+} as const;
+
 const CLIPIRO_TEAM = {
   slug: "clipiro-team",
   name: "Clipiro Team",
@@ -23,7 +30,7 @@ const CLIPIRO_TEAM = {
 } as const;
 
 export const AUTHORS = {
-  editorial: { ...CLIPIRO_TEAM, role: "Editorial" },
-  product: { ...CLIPIRO_TEAM, role: "Product" },
-  growth: { ...CLIPIRO_TEAM, role: "Growth" },
+  founder: { ...FOUNDER, role: "Founder" },
+  founderProduct: { ...FOUNDER, role: "Founder · Product" },
+  team: { ...CLIPIRO_TEAM, role: "Editorial" },
 } satisfies Record<string, BlogAuthor>;

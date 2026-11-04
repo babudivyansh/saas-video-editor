@@ -9,7 +9,7 @@ export const hooksThatStopTheScroll: BlogPost = {
     "Master the first 3 seconds of short-form video with proven hook formulas, a hook-testing method, and caption tricks that stop viewers from scrolling past.",
   publishedAt: "2025-09-22",
   updatedAt: "2026-07-26",
-  author: AUTHORS.editorial,
+  author: AUTHORS.founder,
   intro:
     "The hook isn't the first sentence of your video. It's the first sentence someone hears while deciding whether to keep watching — and on a feed that refreshes every second, that decision happens faster than you can finish a normal introduction.",
   body: [

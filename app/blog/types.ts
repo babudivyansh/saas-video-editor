@@ -49,7 +49,13 @@ export type BlogBlock =
   | ({ type?: "paragraph" } & BlogParagraph)
   | { type: "callout"; tone: CalloutTone; title?: string; text: string }
   | { type: "cta"; heading?: string; body?: string; label?: string; href?: string }
-  | { type: "image"; image: BlogImage };
+  | { type: "image"; image: BlogImage }
+  /**
+   * A real <table>, for comparisons: answer engines lift tabular data far more
+   * reliably than the same numbers spread through prose. `caption` names what
+   * is compared and, where it applies, the date and source of the figures.
+   */
+  | { type: "table"; caption: string; columns: string[]; rows: string[][] };
 
 export type CalloutTone = "tip" | "warning" | "note" | "stat";
 

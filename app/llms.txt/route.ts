@@ -3,6 +3,8 @@ import { ALL_TOOLS, CATEGORY_LABELS } from "@/app/components/featureLinks";
 import { HOME_FAQS } from "@/app/components/landing/faqs";
 import { HELP_ARTICLES } from "@/app/help/articles";
 import { getToolContent } from "@/app/tools/content";
+import { COMPETITORS } from "@/app/compare/data";
+import { CAPTION_FAMILIES, CAPTION_TEMPLATES } from "@clipiro/shared/caption-templates";
 import { FREE_TIER_MONTHLY_BONUS_MINUTES, TIER_LABEL, PURCHASABLE_TIER_ORDER } from "@/lib/plans/tiers";
 
 // /llms.txt (llmstxt.org): a plain-Markdown map of the public site for AI
@@ -42,9 +44,20 @@ export function GET() {
     "",
     ...HOME_FAQS.map((f) => `- **${f.q}** ${f.a}`),
     "",
+    "## Caption templates",
+    "",
+    `- [All ${CAPTION_TEMPLATES.length} caption templates](${BASE}/caption-templates): every template, previewed live`,
+    ...CAPTION_FAMILIES.filter((f) => CAPTION_TEMPLATES.some((t) => t.family === f.id)).map(
+      (f) => `- [${f.name}](${BASE}/caption-templates/${f.id}): ${f.description}`,
+    ),
+    "",
+    "## Comparisons",
+    "",
+    ...COMPETITORS.map((c) => `- [${c.name} vs Clipiro](${BASE}/compare/${c.slug}): ${c.summary}`),
+    "",
     "## Help",
     "",
-    ...HELP_ARTICLES.map((a) => `- [${a.title}](${BASE}/help/${a.slug}): ${a.summary}`),
+    ...HELP_ARTICLES.map((a) => `- [${a.title}](${BASE}/help/${a.slug}): ${a.metaDescription}`),
     "",
     "## Blog",
     "",

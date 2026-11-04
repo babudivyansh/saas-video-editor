@@ -11,7 +11,7 @@ import { useAuth } from "@/app/components/AuthContext";
 import { useRazorpayCheckout } from "@/app/components/useRazorpayCheckout";
 import {
   PURCHASABLE_TIER_ORDER, TIER_LABEL, TRIAL_CREDITS, TRIAL_MINUTES, isTrialPlan, renewalNeedsApproval,
-  FREE_TIER_MONTHLY_BONUS_CREDITS, FREE_TIER_MONTHLY_BONUS_MINUTES, FREE_TIER_SIGNUP_MINUTES, SUBSCRIPTION_ROLLOVER_CAP_MULTIPLIER,
+  AUTOCLIP_RERUN_FREE_WINDOW_DAYS, FREE_TIER_MONTHLY_BONUS_CREDITS, FREE_TIER_MONTHLY_BONUS_MINUTES, FREE_TIER_SIGNUP_MINUTES, SUBSCRIPTION_ROLLOVER_CAP_MULTIPLIER,
 } from "@/lib/plans/tiers";
 import { IMAGE_MODELS } from "@/lib/models/imageModels";
 import { AUDIO_RATE_LABEL } from "@/lib/audio-pricing";
@@ -229,6 +229,21 @@ function PricingPageInner({ initialPlans }: { initialPlans: DbPlan[] }) {
         onCurrency={setCurrency}
         savePct={savePct}
       />
+
+      {/* ── How billing works ── the one passage answer engines quote for
+          "how does Clipiro pricing work", in plain text above the cards
+          rather than spread across their bullet lists. */}
+      <section aria-labelledby="how-billing-works" className="mx-auto mt-10 max-w-3xl px-4 sm:px-6">
+        <div className="rounded-[var(--radius-card)] border border-line bg-surface-2 px-5 py-4 sm:px-6">
+          <h2 id="how-billing-works" className="text-sm font-semibold text-fg">How Clipiro pricing works</h2>
+          <p className="mt-1.5 text-sm leading-relaxed text-fg-muted">
+            AutoClip is billed in Clip Minutes: one minute per minute of uploaded video, however many clips it makes, and
+            re-running the same video within {AUTOCLIP_RERUN_FREE_WINDOW_DAYS} days is free. The other AI tools share one
+            credit balance, and the free utilities cost nothing. The free plan includes {FREE_TIER_MONTHLY_BONUS_MINUTES}{" "}
+            watermarked Clip Minutes a month with no card{savePct ? `, and yearly billing saves ${savePct}%` : ""}.
+          </p>
+        </div>
+      </section>
 
       {/* ── Plans ── */}
       <section id="plans" className="relative mx-auto mt-12 max-w-6xl scroll-mt-24 px-4 sm:mt-14 sm:px-6 lg:px-8">

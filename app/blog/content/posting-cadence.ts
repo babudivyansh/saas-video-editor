@@ -9,7 +9,7 @@ export const postingCadence: BlogPost = {
     "How often should you post short-form video? A practical framework for finding your posting cadence across Reels and YouTube Shorts without burning out.",
   publishedAt: "2025-11-03",
   updatedAt: "2026-07-26",
-  author: AUTHORS.growth,
+  author: AUTHORS.founder,
   intro:
     "The honest answer is \"more than you're comfortable with at first, then whatever your retention data tells you\" — but that's not useful on its own, so here's how to actually find your number.",
   body: [

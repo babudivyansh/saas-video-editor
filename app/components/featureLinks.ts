@@ -59,8 +59,8 @@ export const FREE_FEATURES: FeatureLink[] = [
   { title: "Audio Balancer", desc: "Fix one-sided audio or even out loudness", href: "/dashboard/tools/free/audio-balancer", slug: "audio-balancer", icon: "balance", appGroup: "free", category: "free" },
   { title: "Video Compressor", desc: "Shrink video files for sharing", href: "/dashboard/tools/free/video-compressor", slug: "video-compressor", icon: "compress", appGroup: "free", category: "free" },
   { title: "MP3 Converter", desc: "Convert any media file to MP3", href: "/dashboard/tools/free/mp3-converter", slug: "mp3-converter", icon: "note", appGroup: "free", category: "free" },
-  { title: "YouTube Downloader", desc: "Download YouTube videos in a click", href: "/dashboard/tools/youtube-downloader", slug: "youtube-downloader", icon: "youtube", appGroup: "video", category: "video" },
-  { title: "Instagram Downloader", desc: "Save Reels, posts & IGTV", href: "/dashboard/tools/instagram-downloader", slug: "instagram-downloader", icon: "instagram", appGroup: "video", category: "video" },
+  { title: "YouTube Downloader", desc: "Import your YouTube videos to clip", href: "/dashboard/tools/youtube-downloader", slug: "youtube-downloader", icon: "youtube", appGroup: "video", category: "video" },
+  { title: "Instagram Downloader", desc: "Import your Reels, posts & IGTV", href: "/dashboard/tools/instagram-downloader", slug: "instagram-downloader", icon: "instagram", appGroup: "video", category: "video" },
 ];
 
 // Video creation workflows (faceless videos, clipping, editing).

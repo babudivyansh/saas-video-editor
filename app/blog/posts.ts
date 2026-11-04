@@ -9,6 +9,10 @@ import { smarterClipDetection } from "./content/smarter-clip-detection";
 import { postingCadence } from "./content/posting-cadence";
 import { captionStylesWatchTime } from "./content/caption-styles-watch-time";
 import { localizingClipsGlobalAudiences } from "./content/localizing-clips-global-audiences";
+import { aiClippingCost } from "./content/ai-clipping-cost";
+import { hindiCaptionsShortsReels } from "./content/hindi-captions-shorts-reels";
+import { podcastToYoutubeShorts, videoToFacebookReels, videoToInstagramReels } from "./content/platform-guides";
+import { aiClippingIndianCreators } from "./content/ai-clipping-indian-creators";
 
 export const BLOG_POSTS: BlogPost[] = [
   podcastToViralClips,
@@ -17,6 +21,12 @@ export const BLOG_POSTS: BlogPost[] = [
   postingCadence,
   captionStylesWatchTime,
   localizingClipsGlobalAudiences,
+  aiClippingCost,
+  hindiCaptionsShortsReels,
+  podcastToYoutubeShorts,
+  videoToInstagramReels,
+  videoToFacebookReels,
+  aiClippingIndianCreators,
 ];
 
 export function getBlogPost(slug: string): BlogPost | undefined {

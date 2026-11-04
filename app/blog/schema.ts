@@ -25,7 +25,8 @@ export function buildBlogPostingSchema(post: BlogPost) {
       "@type": "Organization",
       name: "Clipiro",
       url: SITE_URL,
-      logo: { "@type": "ImageObject", url: `${SITE_URL}/opengraph-image` },
+      // The square app icon: the 1200×630 share card is a banner, not a logo.
+      logo: { "@type": "ImageObject", url: `${SITE_URL}/icon.png`, width: 512, height: 512 },
     },
     mainEntityOfPage: { "@type": "WebPage", "@id": `${SITE_URL}/blog/${post.slug}` },
   };

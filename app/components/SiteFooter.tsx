@@ -22,6 +22,8 @@ const COLUMNS: { title: string; links: LinkItem[] }[] = [
       { label: "Pricing", href: "/pricing" },
       { label: "How it works", href: "/#how-it-works" },
       { label: "Help Center", href: "/help" },
+      { label: "Caption templates", href: "/caption-templates" },
+      { label: "Compare", href: "/compare" },
       { label: "Updates", href: "/blog" },
     ],
   },

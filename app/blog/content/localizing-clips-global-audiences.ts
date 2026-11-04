@@ -6,10 +6,10 @@ export const localizingClipsGlobalAudiences: BlogPost = {
   category: "Multi-language",
   title: "Going global: localizing your clips for new audiences",
   metaDescription:
-    "How to localize your best-performing clips for new audiences with AI dubbing in 29+ languages — without losing the hook that made them work in the first place.",
+    "How to localize your best-performing clips for new audiences with AI dubbing in 29 languages — without losing the hook that made them work in the first place.",
   publishedAt: "2025-12-15",
-  updatedAt: "2026-07-26",
-  author: AUTHORS.growth,
+  updatedAt: "2026-11-04",
+  author: AUTHORS.founder,
   intro:
     "The fastest way to grow an audience you don't already have isn't making more content for the audience you do have — it's making your best-performing content legible to people who don't speak the language it was made in.",
   body: [
@@ -19,7 +19,7 @@ export const localizingClipsGlobalAudiences: BlogPost = {
     },
     {
       lead: "Dub before you subtitle-only.",
-      text: "Subtitles require active reading, which is a bigger ask on a feed where most viewing is passive, half-attentive scrolling. A dubbed voiceover in the viewer's language, even with captions layered on top, keeps the clip watchable on mute and with sound — Clipiro's dubbing supports 29+ languages including Hindi, Spanish, French, German, and Portuguese, carrying translated captions along with the dubbed audio automatically. Subtitle-only localization still has a place — it's faster and cheaper to produce — but it asks more of the viewer than a native-feeling dubbed clip does, and that gap shows up in retention.",
+      text: "Subtitles require active reading, which is a bigger ask on a feed where most viewing is passive, half-attentive scrolling. A dubbed voiceover in the viewer's language, even with captions layered on top, keeps the clip watchable on mute and with sound — Clipiro's dubbing supports 29 languages including Hindi, Spanish, French, German, and Portuguese, carrying translated captions along with the dubbed audio automatically. Subtitle-only localization still has a place — it's faster and cheaper to produce — but it asks more of the viewer than a native-feeling dubbed clip does, and that gap shows up in retention.",
     },
     {
       lead: "Pick your first languages by where your existing audience already is, not by market size alone.",
@@ -51,7 +51,7 @@ export const localizingClipsGlobalAudiences: BlogPost = {
     {
       question: "Which languages does Clipiro support for dubbing?",
       answer:
-        "Clipiro supports dubbing in 29+ languages, including Hindi, Spanish, French, German, and Portuguese, powered by ElevenLabs voices. Translated captions carry over automatically with the dubbed audio.",
+        "Clipiro dubs clips into 29 languages, including Hindi, Tamil, Spanish, French, German, and Portuguese, powered by ElevenLabs voices. Captions alone can be translated into 34, adding Bengali, Telugu, Marathi, Hungarian and Vietnamese. Translated captions carry over automatically with the dubbed audio.",
     },
     {
       question: "How do I choose which language to localize into first?",

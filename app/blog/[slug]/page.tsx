@@ -183,6 +183,37 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
               if (block.type === "callout") {
                 return <Callout key={i} tone={block.tone} title={block.title} text={block.text} />;
               }
+              if (block.type === "table") {
+                return (
+                  <div key={i} className="my-8 overflow-x-auto rounded-xl border border-line">
+                    <table className="w-full min-w-[480px] border-collapse text-left text-[14px]">
+                      <caption className="caption-bottom px-4 py-3 text-left text-[12.5px] text-fg-muted">{block.caption}</caption>
+                      <thead>
+                        <tr className="bg-surface-2">
+                          {block.columns.map((c) => (
+                            <th key={c} scope="col" className="border-b border-line px-4 py-2.5 font-semibold text-fg">
+                              {c}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {block.rows.map((row, r) => (
+                          <tr key={r} className="border-b border-line last:border-b-0">
+                            {row.map((cell, c) =>
+                              c === 0 ? (
+                                <th key={c} scope="row" className="px-4 py-2.5 font-semibold text-fg">{cell}</th>
+                              ) : (
+                                <td key={c} className="px-4 py-2.5 text-fg-muted">{cell}</td>
+                              ),
+                            )}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              }
               if (block.type === "cta") {
                 return (
                   <div key={i} className="my-10">

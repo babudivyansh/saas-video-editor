@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/app/components/AuthContext";
+import { MINIMUM_REVIEWS_FOR_RATING } from "@/app/reviews/schema";
 import Reveal from "@/app/components/Reveal";
 import { TIER_LABEL, type TierId } from "@/lib/plans/tiers";
 import { reviewExcerpt } from "@/lib/reviews/excerpt";
@@ -202,6 +203,11 @@ export default function TestimonialWall({ summary, reviews }: TestimonialWallPro
   const faces = reviews.slice(0, 2);
   const moreCount = summary.count - faces.length;
   const allFive = summary.count > 0 && summary.distribution["5"] === summary.count;
+  // The quotes show from 3 reviews (the page's gate), but the big score and
+  // the "everyone gave five stars" line wait for the same sample the hero
+  // badge and the AggregateRating JSON-LD wait for: a perfect average from a
+  // handful of reviews reads as manufactured.
+  const showScore = summary.count >= MINIMUM_REVIEWS_FOR_RATING;
 
   return (
     <section className="font-sans">
@@ -217,25 +223,29 @@ export default function TestimonialWall({ summary, reviews }: TestimonialWallPro
             </span>
           </Reveal>
 
-          <Reveal delay={80}>
-            <div className="flex items-end gap-4">
-              <span className="sr-only">Rated {summary.average.toFixed(1)} out of 5</span>
-              <span
-                aria-hidden="true"
-                className="reviews-score text-[112px] font-extrabold leading-[0.82] tracking-[-0.06em] text-fg tabular-nums md:text-[168px]"
-              >
-                {score.toFixed(1)}
-              </span>
-              <span className="flex flex-col gap-2 pb-1.5">
-                <Stars rating={summary.average} size={26} animated />
-                <span className="text-[15px] text-fg-muted">out of 5</span>
-              </span>
-            </div>
-          </Reveal>
+          {showScore && (
+            <Reveal delay={80}>
+              <div className="flex items-end gap-4">
+                <span className="sr-only">Rated {summary.average.toFixed(1)} out of 5</span>
+                <span
+                  aria-hidden="true"
+                  className="reviews-score text-[112px] font-extrabold leading-[0.82] tracking-[-0.06em] text-fg tabular-nums md:text-[168px]"
+                >
+                  {score.toFixed(1)}
+                </span>
+                <span className="flex flex-col gap-2 pb-1.5">
+                  <Stars rating={summary.average} size={26} animated />
+                  <span className="text-[15px] text-fg-muted">out of 5</span>
+                </span>
+              </div>
+            </Reveal>
+          )}
 
           <Reveal delay={160}>
             <h2 className="m-0 text-3xl font-bold leading-[1.1] tracking-[-0.03em] text-fg md:text-[40px]">
-              {allFive ? (
+              {!showScore ? (
+                <>What creators say about <span className="reviews-shine">Clipiro.</span></>
+              ) : allFive ? (
                 <>Every Clipiro user who reviewed us gave <span className="reviews-shine">five stars.</span></>
               ) : (
                 <>Rated <span className="reviews-shine">{summary.average.toFixed(1)} out of 5</span> by real Clipiro creators.</>

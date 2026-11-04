@@ -14,6 +14,7 @@ import { getReviewSummary, listPublishedReviews } from "@/lib/reviews/queries";
 import { buildAggregateRatingSchema, MINIMUM_REVIEWS_FOR_SCHEMA } from "@/app/reviews/schema";
 import type { Metadata } from "next";
 import { socialMetadata } from "@/lib/seo/social";
+import { buildFounderNode, buildOrganizationNode } from "@/lib/seo/organization";
 
 export const metadata: Metadata = {
   alternates: { canonical: "/" },
@@ -47,28 +48,8 @@ export default async function HomePage() {
   const jsonLd = {
     "@context": "https://schema.org",
     "@graph": [
-      {
-        "@type": "Organization",
-        "@id": "https://clipiro.com/#organization",
-        name: "Clipiro",
-        url: "https://clipiro.com",
-        logo: "https://clipiro.com/icon.png",
-        description: "AI-powered tool that turns long videos into viral short-form clips.",
-        // The same profiles SiteFooter links to — this is what lets search and
-        // answer engines tie those accounts to the brand.
-        sameAs: [
-          "https://x.com/ClipiroOfficial",
-          "https://youtube.com/@clipiroofficial",
-          "https://www.instagram.com/clipiroapp/",
-          "https://www.linkedin.com/company/109881774",
-          "https://www.facebook.com/profile.php?id=61593101997903",
-        ],
-        contactPoint: {
-          "@type": "ContactPoint",
-          contactType: "customer support",
-          email: "support@clipiro.com",
-        },
-      },
+      buildOrganizationNode(),
+      buildFounderNode(),
       {
         "@type": "WebSite",
         "@id": "https://clipiro.com/#website",

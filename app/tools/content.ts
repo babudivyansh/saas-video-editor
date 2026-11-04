@@ -48,6 +48,8 @@ export interface ToolFaq {
 export interface ToolContent {
   /** Page <h1>. Leads with the verb — this is what the visitor came to do. */
   h1: string;
+  /** ISO date the page copy was last checked against the product. Shown on the page and used as the sitemap lastmod. */
+  updatedAt: string;
   metaTitle: string;
   metaDescription: string;
   lede: string;
@@ -84,6 +86,7 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
   // ---------------------------------------------------------------- video --
   "video-editor": {
     h1: "Edit video in the browser, nothing to install",
+    updatedAt: "2026-11-04",
     metaTitle: "Online Video Editor — Multi-Track Timeline",
     metaDescription:
       "Edit video in your browser with a multi-track timeline. Trim, layer, caption, and export in full resolution. No download, no install.",
@@ -108,6 +111,7 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
 
   "auto-clip": {
     h1: "Turn one long video into a week of clips",
+    updatedAt: "2026-11-04",
     metaTitle: "AutoClip — Long Video to Short Clips with AI",
     metaDescription:
       `Drop in a podcast, stream, or interview and AutoClip finds the strongest moments, captions them, and cuts them to vertical. ${FREE_TIER_MONTHLY_BONUS_MINUTES} free minutes a month.`,
@@ -134,6 +138,7 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
 
   "cut-and-crop": {
     h1: "Cut and reframe a clip in under a minute",
+    updatedAt: "2026-11-04",
     metaTitle: "Cut & Crop — Trim and Reframe Video Online",
     metaDescription:
       "Trim video to the exact moment and crop it to vertical, square, or wide. A fast single-purpose tool for when you already know the cut you want.",
@@ -162,6 +167,7 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
 
   "caption-studio": {
     h1: "Caption any video, then make every word yours",
+    updatedAt: "2026-11-04",
     metaTitle: "Caption Studio — Templates, Edited Word by Word",
     metaDescription:
       `Upload a video in any shape, pick one of ${CAPTION_TEMPLATE_COUNT} caption templates, then edit, recolour and time every word. Export vertical, square and wide versions in one go.`,
@@ -189,6 +195,7 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
   // ------------------------------------------------------------------- ai --
   "ai-image-generator": {
     h1: "Generate images without nine subscriptions",
+    updatedAt: "2026-11-04",
     metaTitle: "AI Image Generator — Nine Models, One Balance",
     metaDescription:
       "Generate images with Flux 2, Seedream 5.0, GPT Image 2, Ideogram 4, Nano Banana Pro, and more — all from one credit balance, no separate subscriptions.",
@@ -213,6 +220,7 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
 
   "ai-voiceover": {
     h1: "Narrate anything in a voice that sounds real",
+    updatedAt: "2026-11-04",
     metaTitle: `AI Voiceover Generator — ${VOICE_COUNT_FLOOR}+ Voices`,
     metaDescription:
       `Turn a script into a natural-sounding voiceover with ${VOICE_COUNT_FLOOR}+ voices in ${VOICE_LANGUAGE_COUNT} languages. Captions sync in the editor.`,
@@ -237,6 +245,7 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
 
   "ai-face-swap": {
     h1: "Swap a face into a photo in seconds",
+    updatedAt: "2026-11-04",
     metaTitle: "AI Face Swap for Photos",
     metaDescription:
       "Put one face onto the person in another photo with AI. Upload two images, confirm you have permission, and get the swapped photo back in seconds.",
@@ -261,6 +270,7 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
 
   "background-remover": {
     h1: "Cut the background out of any photo",
+    updatedAt: "2026-11-04",
     metaTitle: "AI Background Remover for Images",
     metaDescription:
       "Cut the background out of a photo automatically — clean edges around hair, transparent PNG output ready to composite.",
@@ -285,6 +295,7 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
 
   "ai-voice-changer": {
     h1: "Keep your delivery, change whose voice it is",
+    updatedAt: "2026-11-04",
     metaTitle: "AI Voice Changer — Transform Recorded Audio",
     metaDescription:
       "Convert a recording into a different voice while keeping your original delivery, timing, and emotion intact.",
@@ -309,6 +320,7 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
 
   "ai-vocal-remover": {
     h1: "Split any track into vocals and instrumental",
+    updatedAt: "2026-11-04",
     metaTitle: "AI Vocal Remover — Separate Vocals and Instrumental",
     metaDescription:
       "Split a track into clean vocal and instrumental stems with AI. Works on audio files and on the audio inside a video.",
@@ -333,6 +345,7 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
 
   "ai-speech-enhancer": {
     h1: "Make a bad room sound like a good one",
+    updatedAt: "2026-11-04",
     metaTitle: "AI Speech Enhancer — Remove Noise, Improve Clarity",
     metaDescription:
       "Strip background noise, room echo, and hiss from a recording and bring the voice forward — rescue audio recorded in a bad room.",
@@ -357,6 +370,7 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
 
   "subtitle-remover": {
     h1: "Erase burned-in captions and start over",
+    updatedAt: "2026-11-04",
     metaTitle: "AI Subtitle Remover — Erase Hardcoded Captions",
     metaDescription:
       "Find and blur out hardcoded subtitles in a video with AI text detection, so you can recaption in your own style. Videos up to 10 minutes.",
@@ -381,6 +395,7 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
 
   "ai-brainstormer": {
     h1: "Never open a blank editor again",
+    updatedAt: "2026-11-04",
     metaTitle: "AI Content Idea Generator for Creators",
     metaDescription:
       "Generate video ideas, hooks, and angles tailored to your niche and format — free, with a daily allowance on every plan.",
@@ -406,6 +421,7 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
   // ----------------------------------------------------------------- free --
   "audio-balancer": {
     h1: "Fix one-sided audio in seconds",
+    updatedAt: "2026-11-04",
     metaTitle: "Free Audio Balancer — Fix Uneven Stereo",
     metaDescription:
       "Fix audio that plays louder in one ear or only on one side. Free, no credits, no watermark.",
@@ -430,6 +446,7 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
 
   "video-compressor": {
     h1: "Get under the upload limit without looking like it",
+    updatedAt: "2026-11-04",
     metaTitle: "Free Video Compressor — Reduce File Size Online",
     metaDescription:
       "Compress video to get under an upload limit while keeping it looking good. Free, no credits, no watermark.",
@@ -454,6 +471,7 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
 
   "mp3-converter": {
     h1: "Pull clean audio out of any file",
+    updatedAt: "2026-11-04",
     metaTitle: "Free MP3 Converter — Video and Audio to MP3",
     metaDescription:
       "Pull the audio out of a video or convert between audio formats. Free, no credits, no watermark.",
@@ -477,11 +495,16 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
   },
 
   "youtube-downloader": {
-    h1: "Download a YouTube video, ready to clip",
-    metaTitle: "YouTube Video Downloader",
+    // Positioned as importing your own videos for clipping, not as a generic
+    // downloader: "YouTube downloader" queries come with DMCA complaints and a
+    // results page of spam sites, and downloading breaches YouTube's terms
+    // unless you hold the rights (2026-11 SEO audit).
+    h1: "Import your YouTube video to clip it",
+    updatedAt: "2026-11-04",
+    metaTitle: "Import a YouTube Video for Clipping",
     metaDescription:
-      "Paste a YouTube URL and download the video or its audio, ready to clip or edit. One credit per download, no watermark.",
-    lede: "Paste a link and get the file at the quality you choose, or just the audio as MP3. One credit per download, no watermark.",
+      "Bring a video from your own YouTube channel into Clipiro by link, then clip, caption and edit it. One credit per import, refunded if it fails.",
+    lede: "Paste the link to a video you own or have the rights to, and get the file at the quality you choose, or just its audio as MP3, ready for AutoClip or the editor.",
     steps: [
       { title: "Paste the link", body: "Drop in the YouTube URL." },
       { title: "Pick a quality", body: "Choose the resolution you need." },
@@ -501,11 +524,13 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
   },
 
   "instagram-downloader": {
-    h1: "Save Reels and posts at original quality",
-    metaTitle: "Instagram Video Downloader — Reels and Posts",
+    // Same positioning as the YouTube page: your own content, brought in to clip.
+    h1: "Bring your Reels into Clipiro at original quality",
+    updatedAt: "2026-11-04",
+    metaTitle: "Import Instagram Reels and Posts for Editing",
     metaDescription:
-      "Download public Instagram Reels, posts, and IGTV videos at the best quality available. One credit per download, no watermark.",
-    lede: "Paste a link and download a public Reel, post or IGTV video as the source file rather than a screen capture. One credit per download.",
+      "Import your own public Instagram Reels, posts and IGTV videos by link at the best quality available, then recut and recaption them. One credit each.",
+    lede: "Paste the link to a public Reel, post or IGTV video you own or have the rights to, and import the source file rather than a screen capture. One credit per import.",
     steps: [
       { title: "Paste the link", body: "Drop in the Instagram URL for a Reel, post, or IGTV video." },
       { title: "Fetch", body: "The media is pulled at the best quality available." },

@@ -5,7 +5,12 @@ import Section from "@/app/components/marketing/Section";
 import { CONTAINER, HERO_Y } from "@/app/components/marketing/styles";
 import { Button } from "@/app/components/ui/Button";
 import FounderSection from "@/app/components/landing/FounderSection";
-import { VOICE_COUNT_LABEL } from "@/app/components/landing/stats";
+import { VOICE_COUNT_LABEL, VOICE_LANGUAGE_COUNT } from "@/app/components/landing/stats";
+import { JsonLd } from "@/app/components/JsonLd";
+import { BusinessDetailsList } from "@/app/components/legal/BusinessDetails";
+import { CAPTION_TEMPLATES } from "@clipiro/shared/caption-templates";
+import { LEGAL } from "@/lib/email/tokens";
+import { buildFounderNode, buildOrganizationNode } from "@/lib/seo/organization";
 
 export const metadata: Metadata = {
   // absolute: the "%s · Clipiro" template would make this "About Clipiro · Clipiro".
@@ -19,6 +24,9 @@ export const metadata: Metadata = {
     path: "/about",
   }),
 };
+
+const FOUNDER_BIO =
+  "Divyansh Verma founded Clipiro to take the slowest part of short-form video, watching a long recording back to find the moments worth posting, off creators' plates. He builds the product end to end, from AutoClip's clip detection and the browser editor to billing and the Android app, and writes the Clipiro blog from what creators actually do with it.";
 
 const VALUES = [
   {
@@ -50,6 +58,16 @@ const VALUES = [
   },
 ];
 
+// What has actually shipped, by month — verifiable from the changelog, which
+// is the point: "who is behind this and what have they done" is what quality
+// raters and answer engines look for on an About page.
+const TIMELINE = [
+  { when: "June 2026", what: "Work on Clipiro starts: AutoClip, the browser editor and the first AI tools." },
+  { when: "September 2026", what: "AutoClip moves to Clip Minutes, one per minute of source video, and GST tax invoices go live for Indian customers." },
+  { when: "October 2026", what: `The caption library reaches ${CAPTION_TEMPLATES.length} templates, including Hindi and Hinglish styles, and Pro and Studio get 4K export.` },
+  { when: "November 2026", what: `The voice library grows to ${VOICE_COUNT_LABEL} voices in ${VOICE_LANGUAGE_COUNT} languages, ahead of the public launch.` },
+];
+
 const STATS = [
   // Same figures as the homepage SocialProof strip — keep the two in step.
   { value: VOICE_COUNT_LABEL, label: "AI Voices" },
@@ -59,8 +77,27 @@ const STATS = [
 ];
 
 export default function AboutPage() {
+  const schema = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "AboutPage",
+        "@id": "https://clipiro.com/about",
+        url: "https://clipiro.com/about",
+        name: "About Clipiro",
+        mainEntity: { "@id": "https://clipiro.com/#organization" },
+      },
+      buildOrganizationNode(),
+      {
+        ...buildFounderNode(),
+        description: FOUNDER_BIO,
+      },
+    ],
+  };
+
   return (
     <MarketingShell>
+      <JsonLd data={schema} />
       {/* Two-column hero rather than the shared PageHero: this is the one page
           with a product visual alongside the copy. Typography and container
           still come from the same tokens, so it reads as the same system. */}
@@ -126,6 +163,39 @@ export default function AboutPage() {
       </Section>
 
       <FounderSection />
+
+      <Section
+        id="company"
+        className="border-t border-card-border"
+        eyebrow="Who's behind Clipiro"
+        title="The company and the founder"
+      >
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+          <div className="flex flex-col gap-4" id="founder">
+            <h3 className="text-[17px] font-semibold tracking-tight text-ink">{LEGAL.grievanceOfficer.name}, Founder &amp; CEO</h3>
+            <p className="text-[15px] leading-[1.7] text-ink-soft">{FOUNDER_BIO}</p>
+            <p className="text-[15px] leading-[1.7] text-ink-soft">
+              Clipiro is built and run from Noida, India, and bills in Indian rupees with GST tax invoices. Reach the
+              team at <a href={`mailto:${LEGAL.supportEmail}`} className="font-semibold text-brand hover:underline">{LEGAL.supportEmail}</a>.
+            </p>
+            <div className="rounded-2xl border border-card-border bg-panel p-6 text-[14px] leading-[1.8] text-ink-soft">
+              <BusinessDetailsList />
+            </div>
+          </div>
+          <div>
+            <h3 className="text-[17px] font-semibold tracking-tight text-ink">What we&apos;ve shipped</h3>
+            <ol className="mt-4 flex flex-col gap-4 border-l border-card-border pl-5">
+              {TIMELINE.map((t) => (
+                <li key={t.when} className="relative">
+                  <span aria-hidden="true" className="absolute -left-[25px] top-1.5 h-2.5 w-2.5 rounded-full bg-brand" />
+                  <p className="text-[12px] font-semibold uppercase tracking-[0.12em] text-brand">{t.when}</p>
+                  <p className="mt-1 text-[15px] leading-[1.6] text-ink-soft">{t.what}</p>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </div>
+      </Section>
 
       <section className="border-t border-card-border">
         <div className={`${CONTAINER} py-16 md:py-20`}>

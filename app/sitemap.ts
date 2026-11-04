@@ -1,10 +1,13 @@
 import type { MetadataRoute } from "next";
-import { BLOG_CATEGORIES } from "./blog/categories";
+import { BLOG_CATEGORIES, MIN_POSTS_TO_INDEX_CATEGORY } from "./blog/categories";
 import { BLOG_POSTS } from "./blog/posts";
 import { getAuthorIndex, getPostsByAuthor, getPostsByCategory } from "./blog/utils";
 import { HELP_ARTICLES } from "./help/articles";
 import { LEGAL_DOCS } from "./legal/documents";
 import { ALL_TOOLS } from "./components/featureLinks";
+import { getToolContent } from "./tools/content";
+import { COMPETITORS, COMPETITORS_CHECKED_ON } from "./compare/data";
+import { CAPTION_FAMILIES, CAPTION_TEMPLATES } from "@clipiro/shared/caption-templates";
 import { prisma } from "@/lib/prisma";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
@@ -22,7 +25,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // and "always now" trains crawlers to ignore the field.
   const categoryEntries: MetadataRoute.Sitemap = BLOG_CATEGORIES.flatMap((category) => {
     const posts = getPostsByCategory(category.slug, BLOG_POSTS);
-    if (posts.length === 0) return [];
+    // Thin categories are noindex (app/blog/category/[slug]/page.tsx); listing
+    // a noindex URL in the sitemap sends Search Console mixed signals.
+    if (posts.length < MIN_POSTS_TO_INDEX_CATEGORY) return [];
     return [
       {
         url: `${base}/blog/category/${category.slug}`,
@@ -46,20 +51,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ];
   });
 
-  // The one DB-backed section. If the database is unreachable the rest of the
-  // sitemap is still valid — a 500 here used to drop every URL at once.
+  // The one DB-backed read, only for /reviews' lastmod: individual review
+  // pages are noindex (app/reviews/[id]/page.tsx), so they aren't listed. If
+  // the database is unreachable the rest of the sitemap is still valid.
   const publishedReviews = await prisma.review
     .findMany({
       where: { status: "published" },
-      select: { id: true, updatedAt: true },
+      select: { updatedAt: true },
     })
     .catch(() => []);
-  const reviewEntries: MetadataRoute.Sitemap = publishedReviews.map((r) => ({
-    url: `${base}/reviews/${r.id}`,
-    lastModified: r.updatedAt,
-    changeFrequency: "monthly",
-    priority: 0.4,
-  }));
 
   // lastModified is each document's own `updated` date rather than new Date():
   // legal text changes rarely, and an always-now timestamp is exactly the
@@ -74,18 +74,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // The tool pages are the site's main organic surface — one indexable page per
   // tool, each targeting its own search intent. Priority sits just under
   // /pricing and above the blog for that reason.
-  // Tool, help and the static marketing pages carry no edit date anywhere in
-  // the code, so they omit lastModified rather than claim "now" on every
-  // fetch — Google ignores a lastmod it has caught being wrong, but treats a
-  // missing one as simply unknown.
+  // Tool and help pages carry their own updatedAt (the date their copy was
+  // last checked against the product). The static marketing pages have no
+  // edit date anywhere in the code, so they omit lastModified rather than
+  // claim "now" on every fetch — Google ignores a lastmod it has caught being
+  // wrong, but treats a missing one as simply unknown.
   const toolEntries: MetadataRoute.Sitemap = ALL_TOOLS.map((tool) => ({
     url: `${base}/tools/${tool.slug}`,
+    lastModified: getToolContent(tool.slug)?.updatedAt,
     changeFrequency: "monthly",
     priority: 0.8,
   }));
 
   const helpEntries: MetadataRoute.Sitemap = HELP_ARTICLES.map((a) => ({
     url: `${base}/help/${a.slug}`,
+    lastModified: a.updatedAt,
     changeFrequency: "monthly",
     priority: 0.5,
   }));
@@ -99,13 +102,25 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/pricing`, changeFrequency: "weekly", priority: 0.9 },
     { url: `${base}/tools`, changeFrequency: "weekly", priority: 0.9 },
     ...toolEntries,
+    { url: `${base}/caption-templates`, changeFrequency: "weekly", priority: 0.7 },
+    ...CAPTION_FAMILIES.filter((f) => CAPTION_TEMPLATES.some((t) => t.family === f.id)).map((f) => ({
+      url: `${base}/caption-templates/${f.id}`,
+      changeFrequency: "monthly" as const,
+      priority: 0.5,
+    })),
+    { url: `${base}/compare`, lastModified: COMPETITORS_CHECKED_ON, changeFrequency: "monthly", priority: 0.7 },
+    ...COMPETITORS.map((c) => ({
+      url: `${base}/compare/${c.slug}`,
+      lastModified: COMPETITORS_CHECKED_ON,
+      changeFrequency: "monthly" as const,
+      priority: 0.7,
+    })),
     { url: `${base}/about`, changeFrequency: "monthly", priority: 0.7 },
     { url: `${base}/blog`, lastModified: latest(BLOG_POSTS.map((p) => p.updatedAt)), changeFrequency: "weekly", priority: 0.7 },
     ...categoryEntries,
     ...authorEntries,
     ...blogEntries,
     { url: `${base}/reviews`, lastModified: latest(publishedReviews.map((r) => r.updatedAt)), changeFrequency: "daily", priority: 0.8 },
-    ...reviewEntries,
     { url: `${base}/help`, changeFrequency: "weekly", priority: 0.6 },
     ...helpEntries,
     { url: `${base}/contact`, changeFrequency: "monthly", priority: 0.5 },

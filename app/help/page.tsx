@@ -7,12 +7,18 @@ import PageHero from "@/app/components/marketing/PageHero";
 import Section from "@/app/components/marketing/Section";
 import { CONTAINER } from "@/app/components/marketing/styles";
 import { Button } from "@/app/components/ui/Button";
+import { socialMetadata } from "@/lib/seo/social";
 import { HELP_ARTICLES, HELP_CATEGORIES } from "./articles";
 
 export const metadata: Metadata = {
   title: "Help Center",
   description: "Guides for getting started with Clipiro, credits and billing, Auto Clips, the editor, and account security.",
   alternates: { canonical: "/help" },
+  ...socialMetadata({
+    title: "Clipiro Help Center",
+    description: "Guides for getting started with Clipiro, credits and billing, Auto Clips, the editor, and account security.",
+    path: "/help",
+  }),
 };
 
 export default function HelpPage() {

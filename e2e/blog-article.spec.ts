@@ -88,15 +88,15 @@ test.describe("article table of contents", () => {
 test.describe("author hub", () => {
   test("the byline links to the author page, which lists their posts", async ({ page }) => {
     await page.goto(ARTICLE);
-    await page.getByRole("link", { name: "Clipiro Team" }).first().click();
+    await page.getByRole("link", { name: "Divyansh Verma" }).first().click();
 
-    await expect(page).toHaveURL(/\/blog\/author\/clipiro-team$/);
-    await expect(page.getByRole("heading", { level: 1, name: "Clipiro Team" })).toBeVisible();
+    await expect(page).toHaveURL(/\/blog\/author\/divyansh-verma$/);
+    await expect(page.getByRole("heading", { level: 1, name: "Divyansh Verma" })).toBeVisible();
     await expect(page.locator("main article")).not.toHaveCount(0);
   });
 
   test("author page emits ProfilePage structured data", async ({ page }) => {
-    await page.goto("/blog/author/clipiro-team");
+    await page.goto("/blog/author/divyansh-verma");
 
     const types = await page.locator('script[type="application/ld+json"]').evaluateAll((nodes) =>
       nodes.map((n) => JSON.parse(n.textContent ?? "{}")["@type"]),

@@ -3,7 +3,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import SiteNavbar from "@/app/components/SiteNavbar";
 import SiteFooter from "@/app/components/SiteFooter";
+import { JsonLd } from "@/app/components/JsonLd";
+import { buildBreadcrumbSchema } from "@/app/blog/schema";
+import { socialMetadata } from "@/lib/seo/social";
 import { HELP_ARTICLES, getHelpArticle } from "../articles";
+
+const SITE_URL = "https://clipiro.com";
 
 export function generateStaticParams() {
   return HELP_ARTICLES.map((a) => ({ slug: a.slug }));
@@ -13,7 +18,13 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug } = await params;
   const article = getHelpArticle(slug);
   if (!article) return { title: "Article not found" };
-  return { title: article.title, description: article.summary, alternates: { canonical: `/help/${article.slug}` } };
+  const path = `/help/${article.slug}`;
+  return {
+    title: article.title,
+    description: article.metaDescription,
+    alternates: { canonical: path },
+    ...socialMetadata({ title: article.title, description: article.metaDescription, path }),
+  };
 }
 
 export default async function HelpArticlePage({ params }: { params: Promise<{ slug: string }> }) {
@@ -22,9 +33,32 @@ export default async function HelpArticlePage({ params }: { params: Promise<{ sl
   if (!article) notFound();
 
   const related = HELP_ARTICLES.filter((a) => a.category === article.category && a.slug !== article.slug).slice(0, 2);
+  const path = `/help/${article.slug}`;
+  const updated = new Date(`${article.updatedAt}T00:00:00Z`);
+
+  const schema = [
+    {
+      "@context": "https://schema.org",
+      "@type": "TechArticle",
+      headline: article.title,
+      description: article.metaDescription,
+      dateModified: article.updatedAt,
+      articleSection: article.category,
+      url: `${SITE_URL}${path}`,
+      mainEntityOfPage: `${SITE_URL}${path}`,
+      author: { "@id": `${SITE_URL}/#organization` },
+      publisher: { "@id": `${SITE_URL}/#organization` },
+    },
+    buildBreadcrumbSchema([
+      { name: "Home", path: "/" },
+      { name: "Help Center", path: "/help" },
+      { name: article.title, path },
+    ]),
+  ];
 
   return (
     <div className="min-h-screen bg-bg text-fg font-sans">
+      <JsonLd data={schema} />
       <SiteNavbar solid />
       <main>
         <article className="mx-auto w-full max-w-3xl px-4 py-16 md:px-6">
@@ -36,6 +70,12 @@ export default async function HelpArticlePage({ params }: { params: Promise<{ sl
             {article.category}
           </span>
           <h1 className="mt-4 text-3xl font-extrabold leading-tight text-fg md:text-4xl">{article.title}</h1>
+          <p className="mt-3 text-sm text-fg-muted">
+            Updated{" "}
+            <time dateTime={article.updatedAt}>
+              {updated.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })}
+            </time>
+          </p>
 
           <p className="mt-8 text-lg leading-relaxed text-fg">{article.summary}</p>
 
