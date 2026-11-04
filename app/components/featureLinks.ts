@@ -105,12 +105,6 @@ export const RESOURCES: NavLink[] = [
 /** Every tool, in the order the site presents them. */
 export const ALL_TOOLS: FeatureLink[] = [...VIDEO_TOOLS, ...AI_TOOLS, ...FREE_FEATURES];
 
-export const TOOLS_BY_CATEGORY: Record<ToolCategory, FeatureLink[]> = {
-  video: VIDEO_TOOLS,
-  ai: AI_TOOLS,
-  free: FREE_FEATURES,
-};
-
 /** Tools on the in-app AI Tools hub, in registry order. */
 export const HUB_TOOLS: FeatureLink[] = ALL_TOOLS.filter((tool) => tool.appGroup);
 

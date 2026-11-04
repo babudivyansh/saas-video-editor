@@ -4,5 +4,5 @@
 
 export { buildCaptionTrack, type CaptionTrack, type CaptionTrackOptions, type EmojiOverlay, type GlassPlan } from "./ass";
 export { buildCaptionFilterChain, escapeFilterArg, EMOJI_DIR } from "./filters";
-export { CAPTION_FONTS_DIR, resolveFace, hasFace } from "./fonts";
+export { CAPTION_FONTS_DIR, resolveFace } from "./fonts";
 export type { EngineWord, CaptionLayout } from "./layout";

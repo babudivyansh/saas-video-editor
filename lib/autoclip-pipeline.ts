@@ -124,7 +124,7 @@ const MOOD_TO_FILTER: Record<MoodTag, FilterPreset> = {
 // function the server charges with — see that file. Re-exported here so every
 // existing import site keeps working.
 export {
-  AUTOCLIP_PRICING_DEFAULTS, computeCreditCost, computeAnalysisCost, analysisRefId,
+  AUTOCLIP_PRICING_DEFAULTS, computeCreditCost, analysisRefId,
   type AutoClipPricing,
 } from "@/lib/autoclip-pricing";
 import { projectHref } from "@/lib/project-links";
@@ -139,9 +139,6 @@ export async function getAutoClipPricing(): Promise<AutoClipPricing> {
   }
 }
 
-
-
-
 // What to persist on Project.failureReason for the UI to render.
 //
 // NonRetryableError messages are written for a creator ("Video is too short…",
@@ -152,15 +149,6 @@ export async function getAutoClipPricing(): Promise<AutoClipPricing> {
 export function userFacingFailure(err: unknown): string {
   if (err instanceof NonRetryableError) return err.message;
   return "We couldn't generate clips from this video. Please try again — you haven't been charged.";
-}
-
-/** Credits already paid (net of refunds) for this project's analysis step. */
-export async function getAnalysisCreditsPaid(userId: string, projectId: string): Promise<number> {
-  const rows = await prisma.creditTransaction.findMany({
-    where: { userId, refId: analysisRefId(projectId) },
-    select: { delta: true },
-  });
-  return Math.max(rows.reduce((s, r) => s - r.delta, 0), 0);
 }
 
 /**

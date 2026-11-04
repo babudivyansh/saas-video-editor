@@ -2,10 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { ComparisonBars } from "./ComparisonBars";
-import { DonutChart } from "./DonutChart";
-import { FunnelChart } from "./FunnelChart";
 import { Gauge } from "./Gauge";
-import { StackedBarChart } from "./StackedBarChart";
 import { Sparkline } from "./Sparkline";
 import type { ChartSeriesMeta } from "./ChartFrame";
 
@@ -72,51 +69,6 @@ describe("ComparisonBars", () => {
   });
 });
 
-describe("DonutChart", () => {
-  it("states each slice's share as well as its value", () => {
-    render(
-      <DonutChart
-        title="Content mix"
-        series={[category("reel", "Reels", 75), category("image", "Images", 25)]}
-      />,
-    );
-    expect(screen.getByText("75%")).toBeInTheDocument();
-    expect(screen.getByText("25%")).toBeInTheDocument();
-  });
-
-  it("keeps the sr-only table when the visual is decorative", () => {
-    render(<DonutChart title="Content mix" series={[category("reel", "Reels", 75)]} />);
-    expect(screen.getByRole("table", { name: /data table/i })).toBeInTheDocument();
-  });
-});
-
-describe("FunnelChart", () => {
-  const stages = [
-    { key: "impressions", label: "Impressions", value: 10_000, color: "#335CFF" },
-    { key: "reach", label: "Reach", value: 4_000, color: "#7C3AED" },
-    { key: "engaged", label: "Engaged", value: null, color: "#D946EF", unavailableReason: "Not reported." },
-    { key: "follows", label: "Follows", value: 200, color: "#22C55E" },
-  ];
-
-  it("states each step's conversion from the one above", () => {
-    render(<FunnelChart title="Funnel" stages={stages} />);
-    expect(screen.getByText("40% of previous")).toBeInTheDocument();
-  });
-
-  it("renders an unreported stage as a gap, not as zero", () => {
-    render(<FunnelChart title="Funnel" stages={stages} />);
-    expect(screen.getByText("not reported")).toBeInTheDocument();
-    expect(screen.queryByText("0% of previous")).not.toBeInTheDocument();
-  });
-
-  it("measures across a missing stage rather than against it", () => {
-    // Follows (200) is compared with Reach (4,000) — the last stage that has a
-    // number — not with the unreported Engaged, which would be a divide by null.
-    render(<FunnelChart title="Funnel" stages={stages} />);
-    expect(screen.getByText("5.0% of previous")).toBeInTheDocument();
-  });
-});
-
 describe("Gauge", () => {
   it("shows the components behind the score, not just the score", () => {
     render(
@@ -141,26 +93,6 @@ describe("Gauge", () => {
     render(<Gauge label="Account health" value={null} />);
     expect(screen.getByText("—")).toBeInTheDocument();
     expect(screen.queryByText("0")).not.toBeInTheDocument();
-  });
-});
-
-describe("StackedBarChart", () => {
-  const series: ChartSeriesMeta[] = [
-    { key: "likes", label: "Likes", color: "#335CFF", unit: "count", points: [{ date: "2026-08-01", value: 10 }] },
-    { key: "comments", label: "Comments", color: "#7C3AED", unit: "count", points: [{ date: "2026-08-01", value: 5 }] },
-  ];
-
-  it("keeps the same keyboard contract as the line chart", () => {
-    render(<StackedBarChart title="Interactions" series={series} />);
-    const plot = screen.getByRole("application");
-    expect(plot).toHaveAttribute("tabindex", "0");
-    expect(plot).toHaveAccessibleDescription(/arrow keys/i);
-  });
-
-  it("still ships the data table", () => {
-    render(<StackedBarChart title="Interactions" series={series} />);
-    const table = screen.getByRole("table", { name: /data table/i });
-    expect(within(table).getByRole("columnheader", { name: "Comments" })).toBeInTheDocument();
   });
 });
 

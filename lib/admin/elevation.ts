@@ -29,10 +29,6 @@ export async function grantElevation(userId: string, sessionId: string): Promise
   await redis.set(elevatedKey(userId, sessionId), "1", "EX", ELEVATION_HOURS * 3600);
 }
 
-export async function dropElevation(userId: string, sessionId: string): Promise<void> {
-  await redis.del(elevatedKey(userId, sessionId));
-}
-
 export async function createElevationOtp(userId: string): Promise<string> {
   const code = crypto.randomInt(100000, 1000000).toString();
   await redis.set(otpKey(userId), JSON.stringify({ code, attempts: 0 }), "EX", OTP_TTL_SECONDS);

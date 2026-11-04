@@ -32,8 +32,6 @@ export interface CatalogVoice {
   previewUrl: string | null;
 }
 
-const AGE_LABEL: Record<string, string> = { young: "Young", middle: "Middle aged", mature: "Mature" };
-
 /** The seed in the API's shape, for first paint and for when the fetch fails. */
 export const SEED_VOICES: CatalogVoice[] = VOICE_SEED
   .filter((v) => !v.aliasOf && v.active !== false)
@@ -95,35 +93,3 @@ export function useVoiceCatalog(): VoiceCatalogState {
   return state;
 }
 
-/** Human-readable age, for surfaces that show it as a tag. */
-export function ageLabel(age: string): string {
-  return AGE_LABEL[age] ?? age;
-}
-
-/**
- * Plays a voice sample.
- *
- * Prefers the provider's own hosted mp3, which costs nothing. Synthesizing a
- * preview is a real, billable TTS call, so it is the fallback for voices that
- * have no hosted sample — not the default, which is what every picker used to
- * do on every click.
- */
-export async function playVoicePreview(voice: CatalogVoice): Promise<HTMLAudioElement | null> {
-  try {
-    let src = voice.previewUrl;
-    if (!src) {
-      const res = await fetch("/api/tools/voice-preview", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ slug: voice.slug }),
-      });
-      if (!res.ok) return null;
-      src = URL.createObjectURL(await res.blob());
-    }
-    const audio = new Audio(src);
-    await audio.play();
-    return audio;
-  } catch {
-    return null;
-  }
-}

@@ -15,10 +15,8 @@
 
 import type { MetricKey, MetricUnit } from "../capabilities";
 import type { AccountAlert } from "../metrics/alerts";
-import type { BenchmarkResult, CompetitorComparison, PlatformComparisonRow } from "../metrics/compare";
+import type { BenchmarkResult } from "../metrics/compare";
 import type { Period } from "../metrics/dates";
-import type { Forecast } from "../metrics/forecast";
-import type { GoalProgress } from "../metrics/goals";
 import type { DerivedKpis, Kpi, KpiSet } from "../metrics/kpis";
 import type { ContentTypeBreakdown } from "../metrics/posts";
 import type { PostScoreComponents } from "../metrics/scores";
@@ -438,49 +436,3 @@ export function buildScheduleFactsheet(input: ScheduleFactsheetInput): Factsheet
 
 // ── Growth factsheet — forecast, goals, competitors ─────────────────────────
 
-export interface GrowthFactsheetInput {
-  provider: string;
-  kpis: KpiSet;
-  forecast?: (Forecast & { metric: MetricKey }) | null;
-  goals?: Array<GoalProgress & { metric: string }>;
-  competitors?: CompetitorComparison[];
-  platforms?: PlatformComparisonRow[];
-}
-
-export function buildGrowthFactsheet(input: GrowthFactsheetInput): Factsheet {
-  const lines: string[] = [`Platform: ${providerLabel(input.provider)}`, ...kpiLines(input.kpis)];
-
-  const f = input.forecast;
-  if (f && f.points.length > 0) {
-    const last = f.points[f.points.length - 1];
-    const lastLower = f.lower[f.lower.length - 1];
-    const lastUpper = f.upper[f.upper.length - 1];
-    lines.push(
-      `Forecast (${METRIC_LABELS[f.metric]}, damped trend, fit quality ${f.r2.toFixed(2)}): ${fmtCount(last.value)} by ${fmtDate(new Date(last.date))}, plausible range ${fmtCount(lastLower?.value ?? null)} to ${fmtCount(lastUpper?.value ?? null)}`,
-    );
-    if (f.r2 < 0.3) lines.push("Forecast fit is weak — treat the projection as indicative only.");
-  }
-
-  for (const g of input.goals ?? []) {
-    lines.push(
-      `Goal (${g.metric}): ${fmtCount(g.current)} of ${fmtCount(g.target)}, ${g.pct === null ? UNKNOWN : `${g.pct.toFixed(0)}% done`}, ${g.daysRemaining} days remaining, ${
-        g.hit ? "already hit" : g.onTrack === null ? "pace unknown" : g.onTrack ? "on track" : "behind pace"
-      }${g.projectedHitAt ? `, projected to land ${fmtDate(g.projectedHitAt)}` : ""}`,
-    );
-  }
-
-  for (const c of input.competitors ?? []) {
-    lines.push(
-      `Competitor @${c.handle} (${providerLabel(c.provider)}): ${fmtCount(c.followers)} followers (gap ${fmtCount(c.followerGap)}), engagement rate ${fmtPercent(c.engagementRate)}, ${c.postsPerWeek === null ? UNKNOWN : c.postsPerWeek.toFixed(1)} posts/week`,
-    );
-  }
-
-  for (const p of input.platforms ?? []) {
-    lines.push(
-      `Own account ${p.label} (${providerLabel(p.provider)}): ${fmtCount(p.followers)} followers, ${fmtPercent(p.followerShare)} of total audience, engagement rate ${fmtPercent(p.engagementRate)}`,
-    );
-  }
-
-  lines.push(...absenceLines(input.kpis));
-  return { kind: "growth", lines };
-}

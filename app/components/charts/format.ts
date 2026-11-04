@@ -7,9 +7,6 @@
 export const fmtCompact = (n: number | null | undefined): string =>
   n == null ? "—" : Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(n);
 
-export const fmtFull = (n: number | null | undefined): string =>
-  n == null ? "—" : Intl.NumberFormat("en").format(Math.round(n));
-
 /** One decimal below 10, none above — precision where it carries information. */
 export const fmtPct = (n: number | null | undefined): string =>
   n == null ? "—" : `${n.toFixed(Math.abs(n) < 10 ? 1 : 0)}%`;

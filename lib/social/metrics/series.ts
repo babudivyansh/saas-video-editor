@@ -27,8 +27,6 @@ export interface MetricDelta {
   deltaPct: number | null;
 }
 
-export const EMPTY_DELTA: MetricDelta = { current: null, previous: null, deltaPct: null };
-
 export function mean(values: number[]): number | null {
   if (values.length === 0) return null;
   return values.reduce((s, v) => s + v, 0) / values.length;

@@ -31,7 +31,5 @@ export const BRAND = "#00a968";
 
 export const CHART_GRID = "var(--line)";
 export const CHART_AXIS_TICK = { fontSize: 10, fill: "var(--fg-subtle)" } as const;
-export const CHART_MARGIN = { top: 4, right: 8, bottom: 0, left: 0 } as const;
-
 /** Shown in place of a chart with nothing to draw. */
 export const CHART_EMPTY_COPY = "No data in range.";

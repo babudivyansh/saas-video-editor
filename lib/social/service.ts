@@ -7,7 +7,7 @@ import * as google from "./google";
 import * as meta from "./meta";
 import { PROVIDERS } from "./providers";
 import { classifyError, withRetry } from "./errors";
-import { CACHE_TTL, cached, invalidateAccount, invalidateUser, keys, userVersion } from "./cache";
+import { CACHE_TTL, cached, invalidateAccount, keys, userVersion } from "./cache";
 import type { NormalizedAccount, OAuthProvider, OAuthTokens, ProviderId, ProviderSync } from "./types";
 import { logger } from "@/lib/logger";
 import { auditEvent } from "@/lib/admin/audit";
@@ -352,16 +352,6 @@ export async function refreshAccount(userId: string, accountId: string): Promise
   await syncAccount(account); // already invalidates both versions
   await recordAudit(userId, "social.refresh", accountId, { provider: account.provider });
   return true;
-}
-
-export async function refreshAllForUser(userId: string): Promise<void> {
-  const accounts = await prisma.socialAccount.findMany({ where: { userId } });
-  for (const a of accounts) {
-    try { await syncAccount(a); } catch (e) { logger.error("social", `sync failed for ${a.id}`, e); }
-  }
-  // syncAccount invalidates per account; bump once more so a run where every
-  // account failed still refreshes the account list (statuses will have changed).
-  await invalidateUser(userId);
 }
 
 // Refresh active accounts whose data is older than `maxAgeHours`. Drives both

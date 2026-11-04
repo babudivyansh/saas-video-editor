@@ -20,7 +20,6 @@ export {
   CHART_AXIS_TICK,
   CHART_EMPTY_COPY,
   CHART_GRID,
-  CHART_MARGIN,
   PALETTE,
 } from "./palette";
 export { compact, pct, timeAgo } from "./format";

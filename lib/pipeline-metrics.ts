@@ -118,11 +118,3 @@ export async function summariseStage(stage: PipelineStage): Promise<StageSummary
   }
 }
 
-export const ALL_STAGES: PipelineStage[] = [
-  "download", "transcribe", "select", "faces", "signal", "render", "upload", "lite", "preview",
-];
-
-export async function summariseAllStages(): Promise<StageSummary[]> {
-  const all = await Promise.all(ALL_STAGES.map(summariseStage));
-  return all.filter((s): s is StageSummary => s !== null);
-}

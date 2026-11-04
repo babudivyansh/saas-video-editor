@@ -36,27 +36,6 @@ export interface AuditActionInfo {
   expectsReason?: boolean;
 }
 
-export const CATEGORY_LABEL: Record<AuditCategory, string> = {
-  accounts: "Accounts",
-  billing: "Billing",
-  security: "Security",
-  content: "Content",
-  operations: "Operations",
-  config: "Configuration",
-  reviews: "Reviews",
-  affiliates: "Affiliates",
-  social: "Social",
-};
-
-export const SEVERITY_LABEL: Record<AuditSeverity, string> = {
-  critical: "Critical",
-  destructive: "Destructive",
-  money: "Money",
-  security: "Security",
-  change: "Change",
-  view: "View",
-};
-
 type Row = [label: string, category: AuditCategory, severity: AuditSeverity, targetType: AuditTargetType, description: string, expectsReason?: boolean];
 
 const EXACT: Record<string, Row> = {
@@ -261,26 +240,6 @@ export function patternPrefixesIn(filter: { category?: AuditCategory; severity?:
     );
   }).map((p) => p.prefix);
 }
-
-export const TARGET_TYPE_LABEL: Record<Exclude<AuditTargetType, "none">, string> = {
-  user: "Accounts",
-  coupon: "Coupons",
-  plan: "Plans",
-  review: "Reviews",
-  affiliate: "Affiliates",
-  announcement: "Announcements",
-  project: "Projects",
-  asset: "Library assets",
-  purchase: "Purchases",
-  commission: "Commissions",
-  social_account: "Social accounts",
-  cron: "Scheduled jobs",
-  queue_job: "Queue jobs",
-  flag: "Feature flags",
-  tool: "Tools",
-  model: "AI models",
-  voice: "Voices",
-};
 
 export function actionsExpectingReason(): string[] {
   return Object.entries(EXACT).filter(([, r]) => r[5]).map(([a]) => a);

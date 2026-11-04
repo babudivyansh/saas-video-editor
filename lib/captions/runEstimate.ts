@@ -27,10 +27,3 @@ export function estimateRunCost(input: RunEstimateInput): RunEstimate {
   return { minutes };
 }
 
-/** Upper bound of each clip-length band the create form offers. */
-export function bandMaxSeconds(minDuration: number, maxDuration: number): number {
-  // The form sends the real min/max, so trust maxDuration — but bound it, since
-  // it is client input.
-  if (!Number.isFinite(maxDuration) || maxDuration <= 0) return 60;
-  return Math.min(Math.max(maxDuration, minDuration || 1), 300);
-}

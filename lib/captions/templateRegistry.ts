@@ -48,10 +48,6 @@ async function readOverrides(): Promise<CaptionTemplateOverrides> {
   }
 }
 
-export async function invalidateTemplateCache(): Promise<void> {
-  try { await redis.del(CACHE_KEY); } catch { /* non-fatal */ }
-}
-
 /**
  * The templates the picker offers, in catalogue order, with admin renames
  * applied and hidden ones removed. Devanagari templates are dropped when the

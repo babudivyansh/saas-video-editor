@@ -133,19 +133,3 @@ export async function setToolConfig(slug: string, patch: Partial<ToolConfig>): P
   await redis.del(CACHE_KEY);
 }
 
-// Helper for audit logging — never throws (audit failures must not block
-// operations). Kept for existing call sites; delegates to the canonical
-// lib/admin/audit.ts helper so there is one audit-writing code path.
-export async function writeAuditLog(params: {
-  adminId: string;
-  action: string;
-  targetId?: string;
-  before?: unknown;
-  after?: unknown;
-}) {
-  const { auditAdminAction } = await import("@/lib/admin/audit");
-  await auditAdminAction(params.adminId, params.action, params.targetId, {
-    before: params.before ?? undefined,
-    after: params.after ?? undefined,
-  });
-}

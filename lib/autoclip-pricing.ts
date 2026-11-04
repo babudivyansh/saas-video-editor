@@ -46,10 +46,6 @@ export function computeCreditCost(clipCount: number, totalDurationSec: number, p
   return clipCount * pricing.perClip + twoMinuteBlocks * pricing.perTwoMinutes;
 }
 
-export function computeAnalysisCost(sourceDurationSec: number, pricing: AutoClipPricing): number {
-  return Math.ceil(sourceDurationSec / 1800) * pricing.analysisPerHalfHour;
-}
-
 export const analysisRefId = (projectId: string) => `auto-clip-analysis:${projectId}`;
 
 /**

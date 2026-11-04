@@ -55,7 +55,6 @@
     "@tailwindcss/postcss": "^4",
     "@tanstack/react-query": "^5.101.2",
     "@tanstack/react-virtual": "^3.14.5",
-    "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20",
     "@types/pdfkit": "^0.17.6",

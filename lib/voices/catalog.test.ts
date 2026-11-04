@@ -8,45 +8,26 @@
 // in the fallback voice on the next render.
 import { describe, it, expect } from "vitest";
 import { VOICE_SEED, VOICE_BY_SLUG, DEFAULT_VOICE_SLUG, MULTILINGUAL } from "./catalog";
-import { VOICE_ID_MAP, resolveVoiceId } from "@/utils/voice-ids";
 import { PROVIDER_VOICE_IDS } from "./providerIds";
 import { readFileSync } from "node:fs";
 
 /** Union of all six pre-consolidation lists, captured before they were deleted. */
 const LEGACY_SLUGS = [
-  // utils/voice-ids.ts VOICE_ID_MAP
+  // the old utils/voice-ids.ts VOICE_ID_MAP
   "william", "adam", "dandan", "charlie", "clyde", "daniel", "dave", "ethan",
   "fin", "harry", "josh", "liam", "matthew", "patrick", "sam", "thomas",
   "natasha", "alice", "aria", "bella", "charlotte", "elli", "emily", "freya",
   "grace", "matilda", "rachel", "sarah", "serena", "amir1", "amir2", "spongebob",
 ];
 
-/** The five raw provider ids app/editor/page.tsx used, which had no slug at all. */
-const LEGACY_RAW_IDS = [
-  "21m00Tcm4TlvDq8ikWAM", // Rachel
-  "AZnzlk1XvdvUeBnXmlld", // Domi
-  "EXAVITQu4vr4xnSDxMaL", // Bella
-  "ErXwobaYiN019PkySvjV", // Antoni
-  "MF3mGyEYCl7XYWbV9V6O", // Elli
-];
-
 describe("the voice seed", () => {
   it("still resolves every slug the six old lists could produce", () => {
     for (const slug of LEGACY_SLUGS) {
       expect(VOICE_BY_SLUG[slug], `slug "${slug}" no longer resolves`).toBeDefined();
-      expect(resolveVoiceId(slug)).toMatch(/^[A-Za-z0-9]{20}$/);
     }
   });
 
-  it("passes a raw provider id straight through", () => {
-    // The legacy editor stored these instead of slugs. The fallthrough in
-    // resolveVoiceId is the only reason those projects still speak.
-    for (const id of LEGACY_RAW_IDS) expect(resolveVoiceId(id)).toBe(id);
-  });
 
-  it("derives VOICE_ID_MAP from the seed rather than repeating it", () => {
-    expect(Object.keys(VOICE_ID_MAP).sort()).toEqual(VOICE_SEED.map((v) => v.slug).sort());
-  });
 
   it("keeps every retired slug resolving, pointed at a live voice", () => {
     // ElevenLabs retired 24 of the 32 voices the old lists shipped. Those

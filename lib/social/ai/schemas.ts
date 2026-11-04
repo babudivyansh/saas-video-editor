@@ -107,19 +107,6 @@ export type ScheduleSuggestions = z.infer<typeof scheduleSuggestionsSchema>;
 
 // ── Growth opportunities ────────────────────────────────────────────────────
 
-export const growthOpportunitySchema = z.object({
-  title: shortText,
-  rationale: longText,
-  metric: metricRefSchema.nullable(),
-  horizon: z.enum(["now", "this-month", "this-quarter"]),
-  effort: effortSchema,
-});
-
-export const growthOpportunitiesSchema = z.object({
-  opportunities: z.array(growthOpportunitySchema).min(1).max(6),
-});
-export type GrowthOpportunities = z.infer<typeof growthOpportunitiesSchema>;
-
 // ── Post narration (batched) ────────────────────────────────────────────────
 
 export const postNarrationSchema = z.object({

@@ -11,17 +11,6 @@
 // background where the emerald wordmark would be invisible and the emerald
 // mark only ~2:1. Don't "fix" that one to match.
 
-export function ClipiroMark({ className = "h-8 w-8" }: { className?: string }) {
-  return (
-    <img
-      src="/icon.png"
-      alt="Clipiro Mark"
-      className={className}
-      style={{ objectFit: "contain" }}
-    />
-  );
-}
-
 export default function ClipiroLogo({ className = "h-9" }: { className?: string }) {
   return (
     <img

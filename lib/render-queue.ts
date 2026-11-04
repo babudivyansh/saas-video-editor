@@ -33,13 +33,6 @@ export async function setRenderProgress(projectId: string, stage: RenderStage, p
   try { await redis.set(`render:${projectId}`, JSON.stringify(p), "EX", 3600); } catch { /* non-fatal */ }
 }
 
-export async function getRenderProgress(projectId: string): Promise<RenderProgress | null> {
-  try {
-    const raw = await redis.get(`render:${projectId}`);
-    return raw ? (JSON.parse(raw) as RenderProgress) : null;
-  } catch { return null; }
-}
-
 export interface EnqueueOpts {
   /** BullMQ semantics: lower number = processed sooner. Tier-mapped via
    * lib/plans/tiers.ts tierPriority(); omitted = default (last). */

@@ -195,28 +195,6 @@ export function runAsd(videoUrl: string, opts?: { sampleFps?: number; deadlineMs
 
 // ── Workload: NVENC render ──────────────────────────────────────────────────
 
-export interface GpuRenderInput {
-  /** Presigned GET for the source video. */
-  sourceUrl: string;
-  /** Presigned PUT the service writes the finished mp4 to. */
-  outputPutUrl: string;
-  /** Complete ffmpeg argument list, minus the binary, input and output paths. */
-  args: string[];
-  /** Optional extra inputs (B-roll, subtitle files) as { name, url } pairs. */
-  extraInputs?: { name: string; url: string }[];
-  startSec?: number;
-  endSec?: number;
-}
-
-export interface GpuRenderResult { durationSec: number; bytes: number; encodeSec: number }
-
-export function runGpuRender(input: GpuRenderInput, opts?: { deadlineMs?: number }): Promise<GpuRenderResult> {
-  return runGpuJob<GpuRenderResult>("render", input as unknown as Record<string, unknown>, {
-    deadlineMs: opts?.deadlineMs ?? 15 * 60 * 1000,
-    pollIntervalMs: 2000,
-  });
-}
-
 /** Liveness probe for the admin ops page — distinguishes "our dispatcher is
  * alive" (which the existing worker heartbeat already proves) from "the GPU
  * service is actually reachable", which it does not. */

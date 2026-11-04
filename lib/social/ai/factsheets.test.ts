@@ -4,7 +4,6 @@ import { METRIC_KEYS, type MetricKey } from "../capabilities";
 import {
   buildAccountFactsheet,
   buildContentFactsheet,
-  buildGrowthFactsheet,
   buildKpiFactsheet,
   buildPostBatchFactsheet,
   buildScheduleFactsheet,
@@ -263,73 +262,4 @@ describe("buildScheduleFactsheet", () => {
     expect(text).toContain("No slot has enough posts behind it yet to rank.");
   });
 });
-
-describe("buildGrowthFactsheet", () => {
-  const kpis = emptyKpis();
-  kpis.followers = kpi("followers", { current: 11_000, previous: 10_000, deltaPct: 10 });
-
-  it("labels a weak forecast fit as indicative", () => {
-    const text = renderFactsheet(
-      buildGrowthFactsheet({
-        provider: "instagram",
-        kpis,
-        forecast: {
-          metric: "followers",
-          method: "holt-damped",
-          r2: 0.12,
-          alpha: 0.4,
-          beta: 0.1,
-          points: [{ date: "2026-09-01", value: 12_500 }],
-          lower: [{ date: "2026-09-01", value: 11_800 }],
-          upper: [{ date: "2026-09-01", value: 13_200 }],
-        },
-      }),
-    );
-    expect(text).toContain(
-      "Forecast (Followers, damped trend, fit quality 0.12): 12.5K by 2026-09-01, plausible range 11.8K to 13.2K",
-    );
-    expect(text).toContain("Forecast fit is weak");
-  });
-
-  it("says a goal is behind pace without recomputing it", () => {
-    const text = renderFactsheet(
-      buildGrowthFactsheet({
-        provider: "instagram",
-        kpis,
-        goals: [
-          {
-            metric: "followers",
-            goalId: "g1",
-            pct: 40,
-            current: 11_000,
-            target: 15_000,
-            baseline: 10_000,
-            onTrack: false,
-            daysRemaining: 20,
-            requiredDailyRate: 200,
-            actualDailyRate: 50,
-            projectedHitAt: null,
-            hit: false,
-            overdue: false,
-          },
-        ],
-      }),
-    );
-    expect(text).toContain("Goal (followers): 11K of 15K, 40% done, 20 days remaining, behind pace");
-  });
-
-  it("reports the competitor gap as computed", () => {
-    const text = renderFactsheet(
-      buildGrowthFactsheet({
-        provider: "instagram",
-        kpis,
-        competitors: [
-          { id: "c1", handle: "rival", provider: "instagram", followers: 25_000, followerGap: 14_000, engagementRate: 3.1, postsPerWeek: 5, weekGrowth: 300 },
-        ],
-      }),
-    );
-    expect(text).toContain(
-      "Competitor @rival (Instagram): 25K followers (gap 14K), engagement rate 3.1%, 5.0 posts/week",
-    );
-  });
-});
+

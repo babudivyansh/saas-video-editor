@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { exportFilename, seriesToCsv, seriesToText, type ExportSeries } from "./export";
+import { seriesToCsv, type ExportSeries } from "./export";
 
 const series: ExportSeries[] = [
   {
@@ -54,22 +54,4 @@ describe("seriesToCsv", () => {
     expect(rows[2]).toBe("Ant,2");
   });
 });
-
-describe("seriesToText", () => {
-  it("formats for humans, since it is pasted into a message", () => {
-    const text = seriesToText(series);
-    expect(text).toContain("1.2K");
-    expect(text).toContain("4.3%");
-    expect(text).toContain("—");
-  });
-});
-
-describe("exportFilename", () => {
-  it("slugs the title and dates the file", () => {
-    expect(exportFilename("Follower growth", "png")).toMatch(/^follower-growth-\d{4}-\d{2}-\d{2}\.png$/);
-  });
-
-  it("falls back rather than producing a nameless file", () => {
-    expect(exportFilename("!!!", "csv")).toMatch(/^chart-/);
-  });
-});
+

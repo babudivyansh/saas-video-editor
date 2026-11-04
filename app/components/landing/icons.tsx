@@ -28,24 +28,6 @@ export function ArrowRightIcon({ className = "" }: IconProps) {
   );
 }
 
-export function StarIcon({ className = "" }: IconProps) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-    </svg>
-  );
-}
-
-// ── Feature glyphs ─────────────────────────────────────────────────────────
-export function ScissorsIcon({ className = "" }: IconProps) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-      <circle cx="6" cy="6" r="3" /><circle cx="6" cy="18" r="3" />
-      <path d="M20 4L8.12 15.88M14.47 14.48L20 20M8.12 8.12L12 12" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
 export function CaptionsIcon({ className = "" }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
@@ -55,29 +37,11 @@ export function CaptionsIcon({ className = "" }: IconProps) {
   );
 }
 
-export function ShareIcon({ className = "" }: IconProps) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-      <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
-      <path d="M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 export function SparklesIcon({ className = "" }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
       <path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9L12 3z" strokeLinejoin="round" />
       <path d="M19 14l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8.8-2z" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-export function GlobeIcon({ className = "" }: IconProps) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-      <circle cx="12" cy="12" r="9" />
-      <path d="M3 12h18M12 3c2.5 2.7 2.5 15.3 0 18M12 3c-2.5 2.7-2.5 15.3 0 18" strokeLinecap="round" />
     </svg>
   );
 }
@@ -98,122 +62,6 @@ export function UploadIcon({ className = "" }: IconProps) {
   );
 }
 
-// ── Tool-showcase glyphs ───────────────────────────────────────────────────
-export function MicrophoneIcon({ className = "" }: IconProps) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-      <rect x="9" y="2" width="6" height="12" rx="3" />
-      <path d="M5 11a7 7 0 0014 0M12 18v4M9 22h6" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-export function WaveformIcon({ className = "" }: IconProps) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-      <path d="M3 10v4M7 6v12M11 3v18M15 6v12M19 10v4M23 11v2" />
-    </svg>
-  );
-}
-
-export function VideoCameraIcon({ className = "" }: IconProps) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-      <rect x="2" y="6" width="14" height="12" rx="2" />
-      <path d="M16 10l6-3v10l-6-3z" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-export function ImageIcon({ className = "" }: IconProps) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-      <rect x="3" y="4" width="18" height="16" rx="2" />
-      <circle cx="9" cy="10" r="2" />
-      <path d="M21 17l-5.5-5.5a2 2 0 00-2.83 0L4 20" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-export function FaceIcon({ className = "" }: IconProps) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-      <circle cx="12" cy="12" r="9" />
-      <path d="M9 10h.01M15 10h.01M8.5 15a4 4 0 007 0" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-export function LayersIcon({ className = "" }: IconProps) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-      <path d="M12 3l9 5-9 5-9-5 9-5z" strokeLinejoin="round" />
-      <path d="M3 13l9 5 9-5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-export function ChatBubbleIcon({ className = "" }: IconProps) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-      <path d="M4 5h16v11H8l-4 4V5z" strokeLinejoin="round" />
-      <path d="M8 9h8M8 13h5" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-export function GameControllerIcon({ className = "" }: IconProps) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-      <path d="M7 7h10a4 4 0 014 4v3a3 3 0 01-5.2 2L14 15h-4l-1.8 1a3 3 0 01-5.2-2v-3a4 4 0 014-4z" strokeLinejoin="round" />
-      <path d="M8 11v2M7 12h2M16 10h.01M18 12h.01" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-export function LightbulbIcon({ className = "" }: IconProps) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-      <path d="M9 18h6M10 21h4M8 14a4 4 0 118 0c0 1.5-1 2-1.5 3.2-.3.6-.5 1-.5.8H10c0-.2-.2-.6-.5-.8C9 16 8 15.5 8 14z" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M12 2v1.5M4.2 4.2l1.1 1.1M19.8 4.2l-1.1 1.1M2 11h1.5M20.5 11H22" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-export function MusicNoteIcon({ className = "" }: IconProps) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-      <circle cx="7" cy="18" r="3" /><circle cx="17" cy="16" r="3" />
-      <path d="M10 18V6l10-2v12" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-export function CompressIcon({ className = "" }: IconProps) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-      <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-export function CropIcon({ className = "" }: IconProps) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-      <path d="M6 2v14a2 2 0 002 2h14M18 22V8a2 2 0 00-2-2H2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-export function PersonIcon({ className = "" }: IconProps) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-      <circle cx="12" cy="8" r="4" />
-      <path d="M4 21c0-4 3.5-7 8-7s8 3 8 7" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 // ── Social glyphs ──────────────────────────────────────────────────────────
 export function XIcon({ className = "" }: IconProps) {
   return (
@@ -227,14 +75,6 @@ export function LinkedInIcon({ className = "" }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
       <path d="M20.45 20.45h-3.56v-5.57c0-1.33-.02-3.04-1.85-3.04-1.85 0-2.13 1.45-2.13 2.94v5.67H9.35V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28zM5.34 7.43a2.06 2.06 0 110-4.13 2.06 2.06 0 010 4.13zM7.12 20.45H3.56V9h3.56v11.45zM22.22 0H1.77C.79 0 0 .77 0 1.72v20.56C0 23.23.79 24 1.77 24h20.45c.98 0 1.78-.77 1.78-1.72V1.72C24 .77 23.2 0 22.22 0z" />
-    </svg>
-  );
-}
-
-export function GitHubIcon({ className = "" }: IconProps) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <path d="M12 .5C5.37.5 0 5.78 0 12.29c0 5.21 3.44 9.63 8.21 11.19.6.11.82-.25.82-.57v-2c-3.34.71-4.04-1.58-4.04-1.58-.55-1.36-1.33-1.73-1.33-1.73-1.09-.73.08-.72.08-.72 1.2.08 1.83 1.21 1.83 1.21 1.07 1.8 2.81 1.28 3.5.98.11-.76.42-1.28.76-1.57-2.67-.3-5.47-1.31-5.47-5.83 0-1.29.47-2.34 1.24-3.17-.12-.3-.54-1.5.12-3.14 0 0 1.01-.32 3.3 1.21a11.5 11.5 0 016 0c2.29-1.53 3.3-1.21 3.3-1.21.66 1.64.24 2.84.12 3.14.77.83 1.23 1.88 1.23 3.17 0 4.53-2.81 5.53-5.49 5.82.43.37.82 1.1.82 2.22v3.29c0 .32.21.69.83.57A12.01 12.01 0 0024 12.29C24 5.78 18.63.5 12 .5z" />
     </svg>
   );
 }

@@ -59,6 +59,3 @@ export async function getKnownAccountVoices(): Promise<Map<string, KnownVoice> |
   }
 }
 
-export async function invalidateAccountVoiceCache(): Promise<void> {
-  try { await redis.del(CACHE_KEY); } catch { /* non-fatal */ }
-}

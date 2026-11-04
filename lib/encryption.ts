@@ -51,8 +51,3 @@ export function decryptSecret(payload: string): string {
   return Buffer.concat([decipher.update(Buffer.from(dataB64, "base64")), decipher.final()]).toString("utf8");
 }
 
-// True when a value looks like our ciphertext (used to avoid leaking plaintext
-// if a column is ever read before encryption was applied).
-export function isEncrypted(value: string | null | undefined): boolean {
-  return typeof value === "string" && value.startsWith("v1:") && value.split(":").length === 4;
-}

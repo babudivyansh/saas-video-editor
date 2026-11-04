@@ -22,8 +22,6 @@ import { detectFaceTimeline, type FaceBox, type FaceTimelineResult } from "@/lib
 import { classifySource } from "@/lib/source-url";
 import { logger } from "@/lib/logger";
 
-export const ASD_MIN_CONFIDENCE = 0.5;
-
 /**
  * Flattens the ASD service's per-track output into the flat FaceBox[] the
  * reframe pipeline already consumes, preserving track identity and speaking
@@ -118,11 +116,3 @@ export async function getFaceTimeline(userId: string, videoUrl: string): Promise
   return detectFaceTimeline(videoUrl);
 }
 
-/**
- * True when the timeline carries real speaking scores, i.e. came from ASD.
- * Callers use this to pick between the ASD-aware and heuristic code paths
- * without threading a flag through every function.
- */
-export function hasSpeakingSignal(faces: FaceBox[]): boolean {
-  return faces.some((f) => typeof f.speaking === "number");
-}

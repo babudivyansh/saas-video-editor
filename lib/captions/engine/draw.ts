@@ -11,10 +11,6 @@ export function assAlpha(hex: string): string {
   return `&H${hx(255 - parseHex(hex).a)}&`;
 }
 
-export function isTransparent(hex: string): boolean {
-  return parseHex(hex).a === 0;
-}
-
 /** Linear blend of two hex colours, t in 0..1. Returns #RRGGBB. */
 export function mixHex(a: string, b: string, t: number): string {
   const x = parseHex(a);
