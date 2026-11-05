@@ -4,7 +4,6 @@ import { getAuthUser } from "@/lib/auth";
 import { markQuestComplete } from "@/lib/quests";
 import { randomUUID } from "crypto";
 import { withRateLimit } from "@/lib/with-rate-limit";
-import { withRetry } from "@/lib/with-retry";
 import { logger } from "@/lib/logger";
 import { saveToolResult } from "@/lib/tool-results";
 import { env } from "@/lib/env";
@@ -15,6 +14,7 @@ import os from "os";
 import path from "path";
 import fs from "fs";
 import { FETCH_TIMEOUT } from "@/lib/fetch-timeout";
+import { falUpload, falSubmit, falPollUntilDone, falCancel, extractResultUrl } from "@/lib/fal";
 
 export const maxDuration = 120;
 
@@ -32,6 +32,8 @@ interface Job extends CancellableJob {
 const g = globalThis as unknown as { __bgRemoverJobs?: Map<string, Job> };
 const jobs: Map<string, Job> = g.__bgRemoverJobs ?? (g.__bgRemoverJobs = new Map());
 
+// Runs on every POST and poll, so finished jobs' temp files don't sit on disk
+// until someone starts another job.
 function sweep() {
   const cutoff = Date.now() - 60 * 60 * 1000;
   for (const [id, job] of jobs) {
@@ -42,79 +44,6 @@ function sweep() {
       jobs.delete(id);
     }
   }
-}
-
-function falAuth() {
-  return { Authorization: `Key ${env.FAL_KEY}` };
-}
-
-async function uploadToFal(buffer: Buffer, mimeType: string): Promise<string> {
-  const res = await withRetry(
-    (signal) => fetch("https://storage.fal.run", {
-      method: "POST",
-      headers: { ...falAuth(), "Content-Type": mimeType },
-      body: new Uint8Array(buffer),
-      signal,
-    }),
-    { timeoutMs: 30_000 },
-  );
-  if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(`fal.ai upload failed ${res.status}: ${txt}`);
-  }
-  const data = await res.json();
-  return (data.url ?? data.access_url) as string;
-}
-
-async function submitToFal(imageUrl: string): Promise<string> {
-  const res = await withRetry(
-    (signal) => fetch(`https://queue.fal.run/${FAL_MODEL}`, {
-      method: "POST",
-      headers: { ...falAuth(), "Content-Type": "application/json" },
-      body: JSON.stringify({ image_url: imageUrl }),
-      signal,
-    }),
-    { timeoutMs: 15_000 },
-  );
-  if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(`fal.ai submit error ${res.status}: ${txt}`);
-  }
-  const data = await res.json();
-  return data.request_id as string;
-}
-
-async function pollFal(requestId: string): Promise<string> {
-  // This polls inside the job's detached background promise, AFTER the POST
-  // has already returned its jobId — the route's maxDuration does not apply
-  // to it. A 90s deadline here only meant that any fal queue backlog failed
-  // and refunded the job while fal still finished (and billed) the request.
-  // The server-restart case is covered by reconcileOrphanedToolJobs (15 min).
-  const deadline = Date.now() + 5 * 60 * 1000;
-  while (Date.now() < deadline) {
-    await new Promise(r => setTimeout(r, 3000));
-    const statusRes = await fetch(
-      `https://queue.fal.run/${FAL_MODEL}/requests/${requestId}/status`,
-      { headers: falAuth(), signal: AbortSignal.timeout(FETCH_TIMEOUT.api) }
-    ).catch(() => null); // a stalled poll counts as a missed one
-    if (!statusRes?.ok) continue;
-    const statusData = await statusRes.json();
-    if (statusData.status === "COMPLETED") {
-      const resultRes = await fetch(
-        `https://queue.fal.run/${FAL_MODEL}/requests/${requestId}`,
-        { headers: falAuth(), signal: AbortSignal.timeout(FETCH_TIMEOUT.api) }
-      );
-      if (!resultRes.ok) throw new Error("fal.ai result fetch failed");
-      const result = await resultRes.json();
-      const url = result?.image?.url ?? result?.output?.url ?? result?.url;
-      if (!url) throw new Error("No image URL in fal.ai result");
-      return url as string;
-    }
-    if (statusData.status === "FAILED") {
-      throw new Error(statusData.error ?? "fal.ai background removal failed");
-    }
-  }
-  throw new Error("Background removal timed out");
 }
 
 // POST – start a job
@@ -195,10 +124,14 @@ async function handlePOST(req: NextRequest) {
     try {
       job.progress = 15;
       const fileBuffer = fs.readFileSync(inputPath);
-      const falUrl = await uploadToFal(fileBuffer, file.type);
+      const falUrl = await falUpload(fileBuffer, file.type);
+      if ((job.status as string) === "cancelled") return;
       job.progress = 30;
 
-      const requestId = await submitToFal(falUrl);
+      const request = await falSubmit(FAL_MODEL, { image_url: falUrl });
+      const abort = new AbortController();
+      job.onCancel = () => { abort.abort(); return falCancel(request); };
+      if ((job.status as string) === "cancelled") { await job.onCancel(); return; }
       job.progress = 40;
       if (job.generationId) void updateGenerationProgress(job.generationId, job.progress);
 
@@ -210,12 +143,18 @@ async function handlePOST(req: NextRequest) {
 
       let resultUrl: string;
       try {
-        resultUrl = await pollFal(requestId);
+        // Runs after the POST returned, so maxDuration doesn't bound it; a
+        // restart mid-job is covered by reconcileOrphanedToolJobs (15 min).
+        const raw = await falPollUntilDone(request, { deadlineMs: 5 * 60_000, pollIntervalMs: 2000, signal: abort.signal });
+        resultUrl = extractResultUrl(raw, ["image.url"]);
       } finally {
         clearInterval(ticker);
       }
 
       if ((job.status as string) === "cancelled") return;
+      // From here on the result is the user's: a cancel is refused, so it
+      // can't refund a cut-out that is then delivered anyway.
+      job.finalizing = true;
       job.progress = 90;
 
       const dlRes = await fetch(resultUrl, { signal: AbortSignal.timeout(FETCH_TIMEOUT.transfer) });
@@ -256,8 +195,10 @@ async function handlePOST(req: NextRequest) {
 
 export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy: "user", name: "tools:background-remover" });
 
+const statusHandler = createJobStatusHandler(jobs, { contentType: "image/png", deleteOnDownload: false });
+
 export const GET = withRateLimit(
-  createJobStatusHandler(jobs, { contentType: "image/png", deleteOnDownload: false }),
+  (req: NextRequest) => { sweep(); return statusHandler(req); },
   { limit: 60, windowSec: 60, keyBy: "user", name: "tools:background-remover:status" },
 );
 

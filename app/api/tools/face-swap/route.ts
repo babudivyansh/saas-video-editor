@@ -6,9 +6,7 @@ import { randomUUID } from "crypto";
 import os from "os";
 import path from "path";
 import fs from "fs";
-import { fal } from "@fal-ai/client";
 import { withRateLimit } from "@/lib/with-rate-limit";
-import { withRetry } from "@/lib/with-retry";
 import { logger } from "@/lib/logger";
 import { saveToolResult } from "@/lib/tool-results";
 import { env } from "@/lib/env";
@@ -16,6 +14,7 @@ import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationPro
 import { resolveUploadPolicy, readUploadForm, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
 import { createJobStatusHandler, createJobCancelHandler, idempotencyResponse, type CancellableJob } from "@/lib/job-routes";
 import { FETCH_TIMEOUT } from "@/lib/fetch-timeout";
+import { falUpload, falSubmit, falPollUntilDone, falCancel, extractResultUrl } from "@/lib/fal";
 
 export const maxDuration = 120;
 
@@ -32,6 +31,7 @@ interface Job extends CancellableJob {
 const g = globalThis as unknown as { __faceSwapJobs?: Map<string, Job> };
 const jobs: Map<string, Job> = g.__faceSwapJobs ?? (g.__faceSwapJobs = new Map());
 
+// Runs on every POST and poll, so old temp files don't wait for the next job.
 function sweep() {
   const cutoff = Date.now() - 60 * 60 * 1000;
   for (const [id, job] of jobs) {
@@ -42,65 +42,6 @@ function sweep() {
       jobs.delete(id);
     }
   }
-}
-
-function falAuth() {
-  return { Authorization: `Key ${env.FAL_KEY}` };
-}
-
-async function uploadToFal(buffer: Buffer, mimeType: string): Promise<string> {
-  fal.config({ credentials: env.FAL_KEY! });
-  const blob = new Blob([new Uint8Array(buffer)], { type: mimeType });
-  return fal.storage.upload(blob);
-}
-
-async function submitToFal(swapImageUrl: string, baseImageUrl: string): Promise<string> {
-  const res = await withRetry(
-    (signal) => fetch(`https://queue.fal.run/${FAL_MODEL}`, {
-      method: "POST",
-      headers: { ...falAuth(), "Content-Type": "application/json" },
-      body: JSON.stringify({
-        swap_image_url: swapImageUrl,   // the face to use (character image)
-        base_image_url: baseImageUrl,   // the target to swap into
-      }),
-      signal,
-    }),
-    { timeoutMs: 15_000 },
-  );
-  if (!res.ok) throw new Error(`fal.ai submit error ${res.status}: ${await res.text()}`);
-  const data = await res.json();
-  return data.request_id as string;
-}
-
-async function pollFal(requestId: string): Promise<string> {
-  // This polls inside the job's detached background promise, AFTER the POST
-  // has already returned its jobId — the route's maxDuration does not apply
-  // to it. A 90s deadline here only meant that any fal queue backlog failed
-  // and refunded the job while fal still finished (and billed) the request.
-  // The server-restart case is covered by reconcileOrphanedToolJobs (15 min).
-  const deadline = Date.now() + 5 * 60 * 1000;
-  while (Date.now() < deadline) {
-    await new Promise(r => setTimeout(r, 3000));
-    const statusRes = await fetch(
-      `https://queue.fal.run/${FAL_MODEL}/requests/${requestId}/status`,
-      { headers: falAuth(), signal: AbortSignal.timeout(FETCH_TIMEOUT.api) }
-    ).catch(() => null); // a stalled poll counts as a missed one
-    if (!statusRes?.ok) continue;
-    const s = await statusRes.json();
-    if (s.status === "COMPLETED") {
-      const resultRes = await fetch(
-        `https://queue.fal.run/${FAL_MODEL}/requests/${requestId}`,
-        { headers: falAuth(), signal: AbortSignal.timeout(FETCH_TIMEOUT.api) }
-      );
-      if (!resultRes.ok) throw new Error("fal.ai result fetch failed");
-      const result = await resultRes.json();
-      const url = result?.image?.url ?? result?.images?.[0]?.url ?? result?.output?.url;
-      if (!url) throw new Error("No image URL in fal.ai result");
-      return url as string;
-    }
-    if (s.status === "FAILED") throw new Error(s.error ?? "fal.ai face swap failed");
-  }
-  throw new Error("Face swap timed out");
 }
 
 // POST – start job
@@ -205,12 +146,19 @@ async function handlePOST(req: NextRequest) {
     try {
       job.progress = 15;
       const [charUrl, targUrl] = await Promise.all([
-        uploadToFal(fs.readFileSync(charPath), characterFile.type),
-        uploadToFal(fs.readFileSync(targPath), targetFile.type),
+        falUpload(fs.readFileSync(charPath), characterFile.type),
+        falUpload(fs.readFileSync(targPath), targetFile.type),
       ]);
+      if ((job.status as string) === "cancelled") return;
       job.progress = 35;
 
-      const requestId = await submitToFal(charUrl, targUrl);
+      const request = await falSubmit(FAL_MODEL, {
+        swap_image_url: charUrl, // the face to use (character image)
+        base_image_url: targUrl, // the target to swap into
+      });
+      const abort = new AbortController();
+      job.onCancel = () => { abort.abort(); return falCancel(request); };
+      if ((job.status as string) === "cancelled") { await job.onCancel(); return; }
       job.progress = 45;
       if (job.generationId) void updateGenerationProgress(job.generationId, job.progress);
 
@@ -220,10 +168,16 @@ async function handlePOST(req: NextRequest) {
       }, 3000);
 
       let resultUrl: string;
-      try { resultUrl = await pollFal(requestId); }
-      finally { clearInterval(ticker); }
+      try {
+        // Runs after the POST returned, so maxDuration doesn't bound it; a
+        // restart mid-job is covered by reconcileOrphanedToolJobs (15 min).
+        const raw = await falPollUntilDone(request, { deadlineMs: 5 * 60_000, pollIntervalMs: 3000, signal: abort.signal });
+        resultUrl = extractResultUrl(raw, ["image.url", "images.0.url"]);
+      } finally { clearInterval(ticker); }
 
       if ((job.status as string) === "cancelled") return;
+      // The result is the user's from here: a cancel would refund it anyway.
+      job.finalizing = true;
 
       job.progress = 90;
 
@@ -269,8 +223,10 @@ async function handlePOST(req: NextRequest) {
 
 export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy: "user", name: "tools:face-swap" });
 
+const statusHandler = createJobStatusHandler(jobs, { contentType: "image/jpeg", deleteOnDownload: false });
+
 export const GET = withRateLimit(
-  createJobStatusHandler(jobs, { contentType: "image/jpeg", deleteOnDownload: false }),
+  (req: NextRequest) => { sweep(); return statusHandler(req); },
   { limit: 60, windowSec: 60, keyBy: "user", name: "tools:face-swap:status" },
 );
 

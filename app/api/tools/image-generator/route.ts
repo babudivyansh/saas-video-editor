@@ -8,7 +8,7 @@ import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { getImageModel, resolveImageAspectRatio, providerAspectRatio } from "@/lib/models/imageModels";
-import { falSubmit, falPollUntilDone, extractResultUrl } from "@/lib/fal";
+import { falSubmit, falPollUntilDone, falCancel, extractResultUrl } from "@/lib/fal";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress, checkModelAccess } from "@/lib/credits";
 import { createJobStatusHandler, createJobCancelHandler, idempotencyResponse, type CancellableJob } from "@/lib/job-routes";
 import { saveToolResult } from "@/lib/tool-results";
@@ -164,7 +164,10 @@ async function handlePOST(req: NextRequest) {
         }
 
         job.progress = 15;
-        const requestId = await falSubmit(modelEntry.falEndpoint, input);
+        const request = await falSubmit(modelEntry.falEndpoint, input);
+        const abort = new AbortController();
+        job.onCancel = () => { abort.abort(); return falCancel(request); };
+        if ((job.status as string) === "cancelled") { await job.onCancel(); return; }
         job.progress = 25;
         if (job.generationId) void updateGenerationProgress(job.generationId, job.progress);
 
@@ -176,13 +179,14 @@ async function handlePOST(req: NextRequest) {
         try {
           // Runs after the response was sent, so maxDuration doesn't bound it;
           // a 90s deadline failed (and refunded) jobs fal still billed for.
-          raw = await falPollUntilDone(modelEntry.falEndpoint, requestId, { deadlineMs: 5 * 60_000 });
+          raw = await falPollUntilDone(request, { deadlineMs: 5 * 60_000, signal: abort.signal });
         } finally {
           clearInterval(ticker);
         }
-        const resultUrl = extractResultUrl(raw, modelEntry.resultPath);
-
         if ((job.status as string) === "cancelled") return;
+        const resultUrl = extractResultUrl(raw, modelEntry.resultPath);
+        // The result is the user's from here: a cancel would refund it anyway.
+        job.finalizing = true;
         job.progress = 90;
 
         const dlRes = await fetch(resultUrl, { signal: AbortSignal.timeout(FETCH_TIMEOUT.transfer) });
@@ -217,6 +221,7 @@ async function handlePOST(req: NextRequest) {
         }
 
         if ((job.status as string) === "cancelled") return;
+        job.finalizing = true;
 
         if (!geminiRes || !geminiRes.ok) {
           const err = geminiRes ? await geminiRes.text() : "no response";
