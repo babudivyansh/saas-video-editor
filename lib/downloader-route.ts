@@ -4,13 +4,13 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import ffmpegStatic from "ffmpeg-static";
-import { create as createYoutubeDl } from "youtube-dl-exec";
 import { getAuthUser } from "@/lib/auth";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress } from "@/lib/credits";
 import { checkFreeToolDailyCap, freeToolCapResponseBody } from "@/lib/free-tool-caps";
 import { createJobStatusHandler, createJobCancelHandler, idempotencyResponse, type CancellableJob } from "@/lib/job-routes";
 import { ensureExecutable } from "@/lib/ensure-executable";
 import { logger } from "@/lib/logger";
+import { runYtDlp, ytDlpErrorText, YtDlpError } from "@/lib/ytdlp";
 import { withRateLimit } from "@/lib/with-rate-limit";
 
 // The YouTube and Instagram downloaders, written once (2026-10-14 tools audit).
@@ -35,17 +35,8 @@ const CREDIT_COST = 0;
 const MAX_SOURCE_DURATION_SEC = 20 * 60;
 const Q_ORDER = [2160, 1440, 1080, 720, 480, 360, 240, 144];
 
-// ── yt-dlp + ffmpeg binaries ─────────────────────────────────────────────────
-const YT_DLP_BIN = path.join(
-  process.cwd(),
-  "node_modules",
-  "youtube-dl-exec",
-  "bin",
-  process.platform === "win32" ? "yt-dlp.exe" : "yt-dlp",
-);
-// Standalone deploys can strip the binary's execute bit → spawn EACCES.
-ensureExecutable(YT_DLP_BIN);
-const ytDlp = createYoutubeDl(YT_DLP_BIN);
+// ── ffmpeg (yt-dlp merges streams and extracts audio with it) ───────────────
+// yt-dlp itself is resolved and run by lib/ytdlp.ts.
 
 function resolveFfmpegDir(): string | undefined {
   const candidate = (ffmpegStatic && fs.existsSync(ffmpegStatic))
@@ -109,11 +100,6 @@ interface Job extends CancellableJob {
   isAudio: boolean;
 }
 
-function ytErrorText(err: unknown): string {
-  const e = err as { stderr?: string; message?: string };
-  return e.stderr?.split("\n").find((l) => l.includes("ERROR"))?.replace(/^ERROR:\s*/, "") ?? e.message ?? "";
-}
-
 export function createDownloaderRoute(cfg: DownloaderConfig) {
   const g = globalThis as unknown as Record<string, Map<string, Job> | undefined>;
   const mapKey = `__downloaderJobs_${cfg.slug}`;
@@ -135,7 +121,7 @@ export function createDownloaderRoute(cfg: DownloaderConfig) {
   });
 
   async function fetchInfo(url: string): Promise<YtInfo> {
-    return (await ytDlp(url, { ...COMMON_OPTS, dumpSingleJson: true })) as unknown as YtInfo;
+    return (await runYtDlp(url, { ...COMMON_OPTS, dumpSingleJson: true })) as YtInfo;
   }
 
   async function handleGET(req: NextRequest) {
@@ -158,8 +144,8 @@ export function createDownloaderRoute(cfg: DownloaderConfig) {
     try {
       return NextResponse.json(cfg.infoBody(await fetchInfo(url)));
     } catch (err) {
-      const raw = ytErrorText(err);
-      logger.error(cfg.slug, "info fetch failed", raw);
+      const raw = ytDlpErrorText(err);
+      logger.error(cfg.slug, "info fetch failed", new YtDlpError(`${cfg.slug} info fetch failed`, raw));
       return NextResponse.json({ error: cfg.friendlyError(raw) }, { status: 502 });
     }
   }
@@ -179,16 +165,13 @@ export function createDownloaderRoute(cfg: DownloaderConfig) {
     const height = /^\d{3,4}$/.test(quality) ? quality : "9999";
     const idempotencyKey = typeof body.idempotencyKey === "string" ? body.idempotencyKey.trim() || undefined : undefined;
 
-    const daily = await checkFreeToolDailyCap(cfg.slug, auth.userId);
-    if (!daily.allowed) return NextResponse.json(freeToolCapResponseBody(cfg.slug, daily.cap), { status: 429 });
-
     // Title for the filename, and the length check, before charging.
     let meta: YtInfo;
     try {
       meta = await fetchInfo(url);
     } catch (err) {
-      const raw = ytErrorText(err);
-      logger.error(cfg.slug, "info fetch failed", raw);
+      const raw = ytDlpErrorText(err);
+      logger.error(cfg.slug, "info fetch failed", new YtDlpError(`${cfg.slug} info fetch failed`, raw));
       return NextResponse.json({ error: cfg.friendlyError(raw) }, { status: 502 });
     }
     if ((meta.duration ?? 0) > MAX_SOURCE_DURATION_SEC) {
@@ -197,6 +180,11 @@ export function createDownloaderRoute(cfg: DownloaderConfig) {
         { status: 400 },
       );
     }
+
+    // Counted only once the link is known to work: a dead, private or
+    // too-long link used to burn one of the 25 daily downloads.
+    const daily = await checkFreeToolDailyCap(cfg.slug, auth.userId);
+    if (!daily.allowed) return NextResponse.json(freeToolCapResponseBody(cfg.slug, daily.cap), { status: 429 });
 
     const charge = await chargeCredits({
       userId: auth.userId,
@@ -232,6 +220,14 @@ export function createDownloaderRoute(cfg: DownloaderConfig) {
     };
     jobs.set(jobId, job);
 
+    const removeOutputs = () => {
+      try {
+        for (const f of fs.readdirSync(os.tmpdir())) {
+          if (f.startsWith(`${cfg.filePrefix}_${jobId}.`)) fs.promises.unlink(path.join(os.tmpdir(), f)).catch(() => {});
+        }
+      } catch { /* ignore cleanup errors */ }
+    };
+
     (async () => {
       // yt-dlp's own progress isn't cheaply available without parsing stdout.
       const ticker = setInterval(() => {
@@ -239,16 +235,21 @@ export function createDownloaderRoute(cfg: DownloaderConfig) {
         if (job.generationId) void updateGenerationProgress(job.generationId, job.progress);
       }, 4000);
       try {
-        await ytDlp(url, isAudio
+        await runYtDlp(url, isAudio
           ? { ...COMMON_OPTS, format: "bestaudio/best", extractAudio: true, audioFormat: "mp3", audioQuality: 0, output: outTemplate, ffmpegLocation: FFMPEG_DIR }
           : {
               ...COMMON_OPTS,
-              format: `bestvideo[height<=${height}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=${height}]+bestaudio/best[height<=${height}][ext=mp4]/best`,
+              // H.264 first: plain [ext=mp4] now picks AV1 on YouTube, which
+              // many players (Windows without the AV1 extension, older phones,
+              // editors) can't open. AV1/VP9 only when no H.264 exists.
+              format: `bestvideo[height<=${height}][ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]/bestvideo[height<=${height}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=${height}]+bestaudio/best[height<=${height}][ext=mp4]/best`,
               mergeOutputFormat: "mp4",
               output: outTemplate,
               ffmpegLocation: FFMPEG_DIR,
             });
-        if ((job.status as string) === "cancelled") return;
+        // Cancelled while yt-dlp ran: nobody will download this file, and the
+        // hourly sweep only knows finalPath, not whatever extension yt-dlp used.
+        if ((job.status as string) === "cancelled") { removeOutputs(); return; }
 
         if (!fs.existsSync(finalPath)) {
           // yt-dlp picks the real extension via %(ext)s — find what it wrote.
@@ -264,9 +265,9 @@ export function createDownloaderRoute(cfg: DownloaderConfig) {
           void markGenerationStatus(job.generationId, "completed");
         }
       } catch (err) {
-        if ((job.status as string) === "cancelled") return;
-        const raw = ytErrorText(err);
-        logger.error(cfg.slug, "download failed", raw);
+        if ((job.status as string) === "cancelled") { removeOutputs(); return; }
+        const raw = ytDlpErrorText(err);
+        logger.error(cfg.slug, "download failed", new YtDlpError(`${cfg.slug} download failed`, raw));
         job.status = "error";
         job.error = cfg.friendlyError(raw);
         if (!job.refunded) {
@@ -276,11 +277,7 @@ export function createDownloaderRoute(cfg: DownloaderConfig) {
             if (job.generationId) await markGenerationStatus(job.generationId, "failed", raw.slice(0, 500));
           } catch (e) { logger.error(cfg.slug, "refund failed", e); }
         }
-        try {
-          for (const f of fs.readdirSync(os.tmpdir())) {
-            if (f.startsWith(`${cfg.filePrefix}_${jobId}.`)) fs.promises.unlink(path.join(os.tmpdir(), f)).catch(() => {});
-          }
-        } catch { /* ignore cleanup errors */ }
+        removeOutputs();
       } finally {
         clearInterval(ticker);
       }

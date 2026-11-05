@@ -11,11 +11,10 @@
 // and honours the tier's AutoClip length cap instead of that tool's flat
 // 20-minute limit.
 
-import { create as createYoutubeDl } from "youtube-dl-exec";
 import { uploadFileToS3 } from "@/utils/s3-upload";
 import { TIER_MAX_AUTOCLIP_SOURCE_SECONDS, maxUploadBytesForTier, formatBytes } from "@/lib/plans/tiers";
 import { logger } from "@/lib/logger";
-import { ensureExecutable } from "@/lib/ensure-executable";
+import { runYtDlp, ytDlpErrorText, YtDlpError } from "@/lib/ytdlp";
 import type { TierId } from "@/lib/plans/tiers";
 import ffmpegStatic from "ffmpeg-static";
 import { randomUUID } from "crypto";
@@ -23,15 +22,8 @@ import path from "path";
 import os from "os";
 import fs from "fs";
 
-const ytdlBinary = path.join(
-  process.cwd(),
-  "node_modules",
-  "youtube-dl-exec",
-  "bin",
-  process.platform === "win32" ? "yt-dlp.exe" : "yt-dlp",
-);
-if (fs.existsSync(ytdlBinary)) ensureExecutable(ytdlBinary); // same EACCES risk as ffmpeg on standalone deploys
-const youtubeDl = createYoutubeDl(fs.existsSync(ytdlBinary) ? ytdlBinary : "yt-dlp");
+// yt-dlp is resolved and run by lib/ytdlp.ts (pinned standalone build in
+// production, plus the optional YTDLP_COOKIES_B64 / YTDLP_PROXY).
 
 function ffmpegDir(): string | undefined {
   if (ffmpegStatic && fs.existsSync(ffmpegStatic)) return path.dirname(ffmpegStatic);
@@ -44,8 +36,6 @@ function ffmpegDir(): string | undefined {
 // including 169.254.169.254, where the generic extractor would fetch it and
 // hand back its "title". With generic off, a URL no site extractor claims
 // fails before any request; the site extractors still all work.
-// (Spread into each call: youtube-dl-exec's Flags type predates this yt-dlp
-// option, but it forwards every key as a --flag.)
 const SITE_EXTRACTORS_ONLY = { useExtractors: "default,-generic" };
 
 export class UrlImportError extends Error {}
@@ -88,14 +78,14 @@ interface ProbeInfo { title?: string; duration?: number; is_live?: boolean }
 
 /** Read metadata without downloading, so length is rejected before the bytes. */
 export async function probeSourceUrl(url: string): Promise<{ title: string; durationSec: number; isLive: boolean }> {
-  const info = (await youtubeDl(url, {
+  const info = (await runYtDlp(url, {
     dumpSingleJson: true,
     ...SITE_EXTRACTORS_ONLY,
     noWarnings: true,
     noPlaylist: true,
     skipDownload: true,
     socketTimeout: 30, // seconds; a stalled host fails the probe instead of hanging it
-  })) as unknown as ProbeInfo;
+  })) as ProbeInfo;
 
   return {
     title: (info.title ?? "Imported video").slice(0, 200),
@@ -124,7 +114,9 @@ export async function importSourceFromUrl(args: {
   try {
     probe = await probeSourceUrl(url);
   } catch (err) {
-    logger.warn("url-import", `probe failed for ${url}`, err);
+    // error, not warn: a binary that can't run fails EVERY import here, and
+    // warn never reaches Sentry — that is how a dead yt-dlp went unnoticed.
+    logger.error("url-import", `probe failed for ${url}`, new YtDlpError("url-import probe failed", ytDlpErrorText(err)));
     throw new UrlImportError("We couldn't read that link. It may be private, region-locked, or removed.");
   }
 
@@ -143,7 +135,7 @@ export async function importSourceFromUrl(args: {
 
   const tmpPath = path.join(os.tmpdir(), `import-${projectId}-${randomUUID()}.mp4`);
   try {
-    await youtubeDl(url, {
+    await runYtDlp(url, {
       output: tmpPath,
       format: "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080][ext=mp4]/best",
       mergeOutputFormat: "mp4",
@@ -175,7 +167,7 @@ export async function importSourceFromUrl(args: {
     return { url: stored, key, title: probe.title, durationSec: probe.durationSec, bytes };
   } catch (err) {
     if (err instanceof UrlImportError) throw err;
-    logger.error("url-import", `download failed for ${url}`, err);
+    logger.error("url-import", `download failed for ${url}`, new YtDlpError("url-import download failed", ytDlpErrorText(err)));
     throw new UrlImportError("We couldn't download that video. It may be private or restricted.");
   } finally {
     try { if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath); } catch {}

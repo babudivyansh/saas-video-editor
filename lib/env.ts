@@ -155,6 +155,12 @@ const schema = z.object({
   // is a kill switch) — listed here so the schema is the full inventory.
   CLIPIRO_FFMPEG_PATH: z.string().optional(),
   PIPELINE_METRICS: z.string().optional(), // "off" disables
+  // yt-dlp network settings (lib/ytdlp.ts), read per call. YTDLP_COOKIES_B64 is
+  // base64 of a Netscape cookies.txt from a logged-in throwaway account — gets
+  // past YouTube's datacenter "not a bot" wall and Instagram's login wall.
+  // YTDLP_PROXY: http(s)://user:pass@host:port or socks5://… (residential).
+  YTDLP_COOKIES_B64: z.string().optional(),
+  YTDLP_PROXY: z.string().optional(),
   // Meta (Facebook/Instagram) OAuth — social account linking.
   META_APP_ID: z.string().optional(),
   META_APP_SECRET: z.string().optional(),
