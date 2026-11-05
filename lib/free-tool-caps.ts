@@ -10,14 +10,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { getAuthUser, type TokenPayload } from "@/lib/auth";
 import { getToolConfig } from "@/lib/tool-config";
+import { FREE_TOOL_DAILY_CAPS } from "@/lib/free-tools";
 
-export const FREE_TOOL_DAILY_CAPS: Record<string, number> = {
-  "audio-balancer": 10,
-  "mp3-converter": 15,
-  "video-compressor": 10,
-  "youtube-downloader": 25,
-  "instagram-downloader": 25,
-};
+// The list itself lives in lib/free-tools.ts (no server imports) so the UI and
+// marketing pages can say "Free" from the same source this enforces.
+export { FREE_TOOL_DAILY_CAPS };
 
 /** Extra per-hour limit for callers with no session, keyed by IP. */
 const ANONYMOUS_PER_HOUR = 5;

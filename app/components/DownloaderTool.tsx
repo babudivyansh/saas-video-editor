@@ -4,6 +4,7 @@ import { useAuth } from "@/app/components/AuthContext";
 import { useJobPolling } from "@/app/components/useJobPolling";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 import { Button } from "@/app/components/ui/Button";
+import { FREE_TOOL_DAILY_CAPS } from "@/lib/free-tools";
 import { ToolWorkspace, ToolBadge, ToolField, CostRow, Segmented, StageEmpty } from "@/app/components/tools/ToolWorkspace";
 
 // The YouTube and Instagram downloader pages (2026-10-14 tools audit). They
@@ -101,6 +102,7 @@ export function VideoThumbnail({ src, title }: { src: string; title: string }) {
 
 export default function DownloaderTool(props: DownloaderToolProps) {
   const { slug } = props;
+  const dailyCap = FREE_TOOL_DAILY_CAPS[slug] ?? 25;
   const { user, token, openAuthModal } = useAuth();
   const job = useJobPolling({ toolSlug: slug, token });
   const fireReviewPrompt = useReviewPromptTrigger();
@@ -211,7 +213,7 @@ export default function DownloaderTool(props: DownloaderToolProps) {
     <ToolWorkspace
       title={props.title}
       icon={slug === "youtube-downloader" ? "youtube" : "instagram"}
-      badges={<ToolBadge>1 credit</ToolBadge>}
+      badges={<ToolBadge tone="free">Free</ToolBadge>}
       description={props.intro}
       controls={
         <>
@@ -253,7 +255,7 @@ export default function DownloaderTool(props: DownloaderToolProps) {
                       );
                     })}
                   </div>
-                  <span className="text-[11.5px] text-fg-subtle">Lower quality downloads faster — same 1 credit.</span>
+                  <span className="text-[11.5px] text-fg-subtle">Lower quality downloads faster.</span>
                 </ToolField>
               )}
             </>
@@ -270,9 +272,10 @@ export default function DownloaderTool(props: DownloaderToolProps) {
           {(error || (job.status === "error" && job.error)) && (
             <p role="alert" className="rounded-xl border border-error/30 bg-error/10 px-3.5 py-2.5 text-sm text-error">{error || job.error}</p>
           )}
-          {job.status === "cancelled" && <p className="text-sm text-fg-muted">Cancelled — your credit was refunded.</p>}
-          <CostRow right={user ? `You have ${user.credits.toLocaleString()}` : undefined}>
-            <span className="font-semibold text-fg">1 credit</span> · refunded if it fails
+          {job.status === "cancelled" && <p className="text-sm text-fg-muted">Download cancelled.</p>}
+          {/* Free since 2026-10-30 (lib/free-tools.ts): no credits, a daily cap instead. */}
+          <CostRow right={`Up to ${dailyCap} a day`}>
+            <span className="font-semibold text-fg">Free</span> · no credits used
           </CostRow>
           <Button type="button" className="w-full" onClick={() => void download(selectedQuality)} disabled={!canDownload} loading={busy}>
             {busy ? `Downloading… ${Math.round(job.progress)}%` : info ? `Download ${format === "audio" ? "MP3" : "MP4"}` : "Check the link first"}
@@ -311,7 +314,7 @@ export default function DownloaderTool(props: DownloaderToolProps) {
         ) : (
           <div className="flex flex-1 flex-col gap-4">
             <StageEmpty icon={slug === "youtube-downloader" ? "youtube" : "instagram"} title="Paste a link to see the video here">
-              You&apos;ll see the title and length, and pick the format and quality, before any credit is used.
+              You&apos;ll see the title and length, and pick the format and quality, before anything downloads.
             </StageEmpty>
             <div className="rounded-xl border border-line bg-surface-1 p-4">
               <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-fg-subtle">Supported links</p>
