@@ -8,25 +8,33 @@
  * On Linux that is NOT a native program: it is a Python zipapp
  * (`#!/usr/bin/env python3`). clipiro.com's Hostinger host has only the
  * system Python 3.9, and yt-dlp requires Python >= 3.11, so every call died
- * at import with a Python traceback in ~0.2 s. The YouTube downloader, the
- * Instagram downloader and AutoClip's import-from-URL all failed in
- * production for every user (found 2026-11-05, Sentry CLIPIRO-WEB-Q).
- * Nothing noticed: youtube-dl-exec's own preinstall check only asks for
- * Python >= 3.9, and the deploy sets YOUTUBE_DL_SKIP_PYTHON_CHECK anyway.
+ * at import. The YouTube downloader, the Instagram downloader and AutoClip's
+ * import-from-URL all failed in production for every user (found 2026-11-05,
+ * Sentry CLIPIRO-WEB-Q).
  *
- * `yt-dlp_linux` is the same release built as a self-contained executable
- * (PyInstaller, bundled Python): no interpreter needed on the host. This
- * script installs one exact build of it, verified by SHA-256 before it is
- * trusted, at a stable path outside node_modules — the same ownership model
- * as scripts/install-render-ffmpeg.mjs.
+ * WHY THE ONE-DIRECTORY BUILD
+ * ---------------------------
+ * yt-dlp ships two standalone (bundled-Python) Linux builds. The one-file
+ * `yt-dlp_linux` unpacks its shared libraries into $TMPDIR on EVERY run and
+ * loads them from there. Hostinger mounts /tmp noexec, so it died with
+ * "libz.so.1: failed to map segment from shared object" — the first deploy of
+ * this script failed its own verify:ytdlp step on exactly that (2026-11-05).
+ * `yt-dlp_linux.zip` is the one-directory build: the executable plus an
+ * `_internal/` folder, run in place, nothing written to /tmp. It is also
+ * faster, since nothing is unpacked per call.
+ *
+ * The zip is verified by SHA-256 before it is trusted, then extracted to a
+ * stable path outside node_modules — the same ownership model as
+ * scripts/install-render-ffmpeg.mjs.
  *
  * MOVING THE PIN
  * --------------
- * YouTube changes often enough that yt-dlp needs updating every few weeks.
- * To bump: take the new tag from https://github.com/yt-dlp/yt-dlp/releases,
- * copy the `yt-dlp_linux` line from that release's SHA2-256SUMS asset, and
- * update version + url + sha256 + bytes together. Then redeploy. The build's
- * `verify:ytdlp` step fails if the installed binary doesn't report the pin.
+ * YouTube changes often enough that yt-dlp needs updating every few weeks
+ * (a four-month-old build got HTTP 403 on video data). To bump: take the new
+ * tag from https://github.com/yt-dlp/yt-dlp/releases, copy the
+ * `yt-dlp_linux.zip` line from that release's SHA2-256SUMS asset, and update
+ * version + url + sha256 + bytes together. The build's `verify:ytdlp` step
+ * fails if the installed binary doesn't run or doesn't report the pin.
  *
  * Non-Linux platforms are skipped: Windows/macOS development keeps using
  * youtube-dl-exec's own binary (yt-dlp.exe on Windows is already standalone),
@@ -35,22 +43,26 @@
 
 import fs from "fs";
 import path from "path";
+import zlib from "zlib";
 import crypto from "crypto";
 import { pathToFileURL } from "url";
 
 // ── The pin. Change these four values together. ──
 const PINNED = {
   version: "2026.10.26",
-  url: "https://github.com/yt-dlp/yt-dlp/releases/download/2026.10.26/yt-dlp_linux",
+  url: "https://github.com/yt-dlp/yt-dlp/releases/download/2026.10.26/yt-dlp_linux.zip",
   // From that release's SHA2-256SUMS, and re-checked against a download.
-  sha256: "767ba9dce7052aa196f8b12652f433d76de128ba168966fa84b6394d5e6c6795",
-  bytes: 41166968,
+  sha256: "f34053415136e55073dd64ba5326d161ecc23ce0e98c081d8752867b37809450",
+  bytes: 41236547,
 };
 
 /** Stable, application-owned location. Kept out of node_modules so a package
  *  reinstall (whose postinstall writes the Python zipapp) cannot replace it. */
 export const YTDLP_DIR = path.join(process.cwd(), "vendor", "yt-dlp");
-export const YTDLP_PATH = path.join(YTDLP_DIR, "yt-dlp");
+/** The executable inside the one-directory build (its libraries sit beside it in _internal/). */
+export const YTDLP_PATH = path.join(YTDLP_DIR, "yt-dlp_linux");
+/** Records which archive the directory was extracted from. */
+const MARKER = path.join(YTDLP_DIR, ".pinned-sha256");
 
 export const sha256 = (buf) => crypto.createHash("sha256").update(buf).digest("hex");
 
@@ -72,9 +84,59 @@ export function assertArtifact(buf, expectedSha, expectedBytes) {
   }
 }
 
+/**
+ * Extract a (non-zip64) zip archive into `dest`, keeping unix file modes.
+ * Small on purpose: Node has no zip reader, and depending on a package that is
+ * only present transitively would break the deploy the day it moves.
+ * Refuses any entry that would land outside `dest`.
+ */
+export function extractZip(buf, dest) {
+  // End of central directory: signature 0x06054b50, within the last 64 KiB.
+  let eocd = -1;
+  for (let i = buf.length - 22; i >= Math.max(0, buf.length - 65557); i--) {
+    if (buf.readUInt32LE(i) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error("[yt-dlp] not a zip archive (no end-of-central-directory record)");
+  const count = buf.readUInt16LE(eocd + 10);
+  let p = buf.readUInt32LE(eocd + 16);
+  const root = path.resolve(dest);
+  const files = [];
+
+  for (let n = 0; n < count; n++) {
+    if (buf.readUInt32LE(p) !== 0x02014b50) throw new Error("[yt-dlp] corrupt zip central directory");
+    const method = buf.readUInt16LE(p + 10);
+    const compSize = buf.readUInt32LE(p + 20);
+    const nameLen = buf.readUInt16LE(p + 28);
+    const extraLen = buf.readUInt16LE(p + 30);
+    const commentLen = buf.readUInt16LE(p + 32);
+    const mode = (buf.readUInt32LE(p + 38) >>> 16) & 0o777;
+    const localOffset = buf.readUInt32LE(p + 42);
+    const name = buf.subarray(p + 46, p + 46 + nameLen).toString("utf8");
+    p += 46 + nameLen + extraLen + commentLen;
+
+    const target = path.resolve(root, name);
+    if (target !== root && !target.startsWith(root + path.sep)) throw new Error(`[yt-dlp] zip entry escapes target: ${name}`);
+    if (name.endsWith("/")) { fs.mkdirSync(target, { recursive: true }); continue; }
+
+    if (buf.readUInt32LE(localOffset) !== 0x04034b50) throw new Error(`[yt-dlp] corrupt zip local header: ${name}`);
+    const dataStart = localOffset + 30 + buf.readUInt16LE(localOffset + 26) + buf.readUInt16LE(localOffset + 28);
+    const raw = buf.subarray(dataStart, dataStart + compSize);
+    let data;
+    if (method === 0) data = raw;
+    else if (method === 8) data = zlib.inflateRawSync(raw);
+    else throw new Error(`[yt-dlp] unsupported zip compression method ${method}: ${name}`);
+
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, data);
+    if (mode) fs.chmodSync(target, mode);
+    files.push(name);
+  }
+  return files;
+}
+
 function alreadyInstalled() {
   try {
-    return sha256(fs.readFileSync(YTDLP_PATH)) === PINNED.sha256;
+    return fs.readFileSync(MARKER, "utf8").trim() === PINNED.sha256 && fs.existsSync(YTDLP_PATH);
   } catch {
     return false;
   }
@@ -97,14 +159,14 @@ async function main() {
     return;
   }
 
-  console.log(`[yt-dlp] installing pinned yt-dlp ${PINNED.version} (standalone) …`);
+  console.log(`[yt-dlp] installing pinned yt-dlp ${PINNED.version} (standalone, one-directory) …`);
 
-  let binary;
+  let archive;
   let lastErr;
   // Transient network failure should retry; a checksum mismatch must not.
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      binary = await download(PINNED.url);
+      archive = await download(PINNED.url);
       break;
     } catch (e) {
       lastErr = e;
@@ -112,19 +174,23 @@ async function main() {
       if (attempt < 3) await new Promise((r) => setTimeout(r, attempt * 2000));
     }
   }
-  if (!binary) throw new Error(`could not download pinned yt-dlp after 3 attempts: ${lastErr?.message}`);
+  if (!archive) throw new Error(`could not download pinned yt-dlp after 3 attempts: ${lastErr?.message}`);
 
-  assertArtifact(binary, PINNED.sha256, PINNED.bytes);
+  assertArtifact(archive, PINNED.sha256, PINNED.bytes);
 
-  fs.mkdirSync(YTDLP_DIR, { recursive: true });
-  // Temp name then rename: a crashed install never leaves a half-written
-  // binary that later passes an existence check.
-  const tmp = `${YTDLP_PATH}.partial`;
-  fs.writeFileSync(tmp, binary);
-  fs.chmodSync(tmp, 0o755);
-  fs.renameSync(tmp, YTDLP_PATH);
+  // Extract beside the target, then swap in: a crashed install never leaves a
+  // half-extracted directory that a later existence check would trust.
+  const staging = `${YTDLP_DIR}.partial`;
+  fs.rmSync(staging, { recursive: true, force: true });
+  const files = extractZip(archive, staging);
+  const exe = path.join(staging, path.basename(YTDLP_PATH));
+  if (!fs.existsSync(exe)) throw new Error(`[yt-dlp] archive has no ${path.basename(YTDLP_PATH)} executable`);
+  fs.chmodSync(exe, 0o755);
+  fs.writeFileSync(path.join(staging, path.basename(MARKER)), `${PINNED.sha256}\n`);
+  fs.rmSync(YTDLP_DIR, { recursive: true, force: true });
+  fs.renameSync(staging, YTDLP_DIR);
 
-  console.log(`[yt-dlp] installed yt-dlp ${PINNED.version} -> ${YTDLP_PATH}`);
+  console.log(`[yt-dlp] installed yt-dlp ${PINNED.version} (${files.length} files) -> ${YTDLP_DIR}`);
   console.log(`[yt-dlp] sha256 verified: ${PINNED.sha256}`);
 }
 

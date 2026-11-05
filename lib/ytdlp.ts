@@ -11,7 +11,7 @@ import { logger } from "@/lib/logger";
 // (lib/url-import.ts), which each used to resolve the binary themselves.
 //
 // Binary: on Linux, prefer the pinned standalone build from
-// scripts/install-ytdlp.mjs (vendor/yt-dlp/yt-dlp). youtube-dl-exec's own
+// scripts/install-ytdlp.mjs (vendor/yt-dlp/yt-dlp_linux, the one-directory build). youtube-dl-exec's own
 // Linux `yt-dlp` is a Python zipapp that needs Python >= 3.11 on the host;
 // clipiro.com has 3.9, so it crashed on every call. Windows/macOS dev keeps
 // youtube-dl-exec's binary.
@@ -28,7 +28,7 @@ import { logger } from "@/lib/logger";
 
 export function ytDlpCandidates(cwd = process.cwd(), platform: NodeJS.Platform = process.platform): string[] {
   const pkgBin = path.join(cwd, "node_modules", "youtube-dl-exec", "bin", platform === "win32" ? "yt-dlp.exe" : "yt-dlp");
-  return platform === "linux" ? [path.join(cwd, "vendor", "yt-dlp", "yt-dlp"), pkgBin] : [pkgBin];
+  return platform === "linux" ? [path.join(cwd, "vendor", "yt-dlp", "yt-dlp_linux"), pkgBin] : [pkgBin];
 }
 
 export function resolveYtDlpBin(cwd = process.cwd(), platform: NodeJS.Platform = process.platform): string {

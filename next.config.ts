@@ -49,13 +49,14 @@ const nextConfig: NextConfig = {
       "./node_modules/ffmpeg-static/ffmpeg",
       "./node_modules/ffmpeg-static/ffmpeg.exe",
     ],
-    // vendor/yt-dlp/yt-dlp is the pinned standalone Linux build from
+    // vendor/yt-dlp/** is the pinned standalone Linux build (one-directory:
+    // yt-dlp_linux + _internal/, nothing unpacked to the noexec /tmp) from
     // scripts/install-ytdlp.mjs — what production runs (lib/ytdlp.ts).
     // youtube-dl-exec's bin/ is the Windows/macOS dev binary; its Linux file
     // is a Python zipapp the Hostinger host's Python 3.9 can't run.
-    "/api/tools/youtube-downloader": ["./vendor/yt-dlp/yt-dlp", "./node_modules/youtube-dl-exec/bin/**"],
-    "/api/tools/instagram-downloader": ["./vendor/yt-dlp/yt-dlp", "./node_modules/youtube-dl-exec/bin/**"],
-    "/api/projects/[id]/import-url": ["./vendor/yt-dlp/yt-dlp", "./node_modules/youtube-dl-exec/bin/**"],
+    "/api/tools/youtube-downloader": ["./vendor/yt-dlp/**", "./node_modules/youtube-dl-exec/bin/**"],
+    "/api/tools/instagram-downloader": ["./vendor/yt-dlp/**", "./node_modules/youtube-dl-exec/bin/**"],
+    "/api/projects/[id]/import-url": ["./vendor/yt-dlp/**", "./node_modules/youtube-dl-exec/bin/**"],
   },
   turbopack: {
     // Pin the workspace root to this project. Without this, Next can infer the

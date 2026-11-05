@@ -20,6 +20,10 @@ const eslintConfig = defineConfig([
     "ds-bundle/**",
     // The Android app (Phase 2) brings its own Expo lint config.
     "apps/**",
+    // Third-party binaries installed by postinstall (gitignored). yt-dlp's
+    // one-directory build ships minified JS (_internal/yt_dlp_ejs/…/lib.min.js)
+    // that failed CI lint on Linux, where the installer actually runs.
+    "vendor/**",
     // Local agent worktrees: full repo copies (with their own .next builds)
     // that turn a local `npm run lint` into 100k+ phantom problems.
     ".claude/**",
