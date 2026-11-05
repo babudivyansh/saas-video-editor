@@ -17,7 +17,7 @@ const warn = vi.fn();
 vi.mock("@/lib/logger", () => ({ logger: { info: vi.fn(), warn: (...a: unknown[]) => warn(...a), error: vi.fn() } }));
 vi.mock("@/lib/ensure-executable", () => ({ ensureExecutable: vi.fn() }));
 
-const { ytDlpCandidates, resolveYtDlpBin, runYtDlp, configuredCookies, ytDlpErrorText, YtDlpError, jsRuntimeFlag } = await import("./ytdlp");
+const { ytDlpCandidates, resolveYtDlpBin, runYtDlp, configuredCookies, ytDlpErrorText, YtDlpError, jsRuntimeFlag, ytDlpChildEnv } = await import("./ytdlp");
 
 const COOKIES = "# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t0\tSID\tabc\n";
 const b64 = (s: string) => Buffer.from(s, "utf8").toString("base64");
@@ -127,9 +127,43 @@ describe("proxy (YTDLP_PROXY)", () => {
     expect(calls[0].opts.env?.HTTP_PROXY).toBe("http://user:secret@proxy.example:8080");
   });
 
-  it("not set → the parent environment is inherited untouched", async () => {
+  it("not set → no proxy vars are added", async () => {
     await runYtDlp("https://x", {});
-    expect(calls[0].opts.env).toBeUndefined();
+    expect(calls[0].opts.env?.HTTPS_PROXY).toBe(process.env.HTTPS_PROXY);
+  });
+});
+
+describe("child environment", () => {
+  it("drops NODE_OPTIONS so a host preload can't wrap the JS solver's stdout", () => {
+    // Hostinger's console wrapper, inherited via NODE_OPTIONS, turned the
+    // solver's JSON into {"level":"LOG","message":…} → KeyError('type').
+    const env = ytDlpChildEnv({ PATH: "/bin", HOME: "/home/u", NODE_OPTIONS: "--require /opt/host/console-json.js" }, null);
+    expect(env.NODE_OPTIONS).toBeUndefined();
+    expect(env.PATH).toBe("/bin");
+    expect(env.HOME).toBe("/home/u");
+  });
+
+  it("does not mutate the parent's environment", () => {
+    const base = { NODE_OPTIONS: "--require x" };
+    ytDlpChildEnv(base, null);
+    expect(base.NODE_OPTIONS).toBe("--require x");
+  });
+
+  it("adds the proxy vars when a proxy is configured", () => {
+    const env = ytDlpChildEnv({ NODE_OPTIONS: "--require x" }, "http://u:p@h:1");
+    expect(env.HTTPS_PROXY).toBe("http://u:p@h:1");
+    expect(env.NODE_OPTIONS).toBeUndefined();
+  });
+
+  it("is what runYtDlp hands the process", async () => {
+    process.env.NODE_OPTIONS = "--require /opt/host/console-json.js";
+    try {
+      await runYtDlp("https://x", {});
+      expect(calls[0].opts.env).toBeDefined();
+      expect(calls[0].opts.env?.NODE_OPTIONS).toBeUndefined();
+    } finally {
+      delete process.env.NODE_OPTIONS;
+    }
   });
 });
 
