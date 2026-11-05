@@ -85,6 +85,33 @@ export function configuredProxy(): string | null {
 
 export type YtDlpFlags = Record<string, unknown>;
 
+/** Env vars that make every `node` started from this process load extra code. */
+const NODE_PRELOAD_VARS = ["NODE_OPTIONS"] as const;
+let preloadLogged = false;
+
+/**
+ * The environment yt-dlp runs with. yt-dlp starts `node` to solve YouTube's JS
+ * challenge and parses its stdout as JSON. Hostinger preloads a console
+ * wrapper into the app (its runtime logs are JSON lines), and a NODE_OPTIONS
+ * preload is inherited by every child node — so the solver's answer came back
+ * wrapped as {"level":"LOG","message":…}, and yt-dlp failed with
+ * `[jsc] Unexpected error solving … using "node" provider: KeyError('type')`
+ * (prod, 2026-11-05; reproduced with a console-wrapping --require preload).
+ * The child gets the environment without those vars.
+ */
+export function ytDlpChildEnv(base: NodeJS.ProcessEnv = process.env, proxy: string | null = configuredProxy()): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...base };
+  const stripped = NODE_PRELOAD_VARS.filter((k) => env[k] !== undefined);
+  for (const k of stripped) delete env[k];
+  if (stripped.length && !preloadLogged) {
+    preloadLogged = true;
+    // Names only: the values can carry paths or flags nobody needs in logs.
+    logger.info("ytdlp", `not passing ${stripped.join(", ")} to yt-dlp's JS runtime`);
+  }
+  if (proxy) Object.assign(env, { HTTPS_PROXY: proxy, HTTP_PROXY: proxy, https_proxy: proxy, http_proxy: proxy });
+  return env;
+}
+
 /**
  * Run yt-dlp on one URL. Returns parsed JSON for --dump-single-json, stdout
  * otherwise; rejects with youtube-dl-exec's error (stderr on `.stderr`).
@@ -96,10 +123,7 @@ export async function runYtDlp(url: string, flags: YtDlpFlags): Promise<unknown>
   const cookiesPath = cookies ? path.join(os.tmpdir(), `ytdlp-cookies-${randomUUID()}.txt`) : null;
   if (cookiesPath) fs.writeFileSync(cookiesPath, cookies!, { mode: 0o600 });
 
-  const proxy = configuredProxy();
-  const opts = proxy
-    ? { env: { ...process.env, HTTPS_PROXY: proxy, HTTP_PROXY: proxy, https_proxy: proxy, http_proxy: proxy } }
-    : {};
+  const opts = { env: ytDlpChildEnv() };
 
   try {
     // youtube-dl-exec's Flags type predates several yt-dlp options this code
