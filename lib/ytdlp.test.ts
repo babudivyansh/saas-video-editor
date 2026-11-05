@@ -36,7 +36,7 @@ afterEach(() => {
 describe("binary resolution", () => {
   it("prefers the pinned standalone build on Linux, never the Python zipapp first", () => {
     const c = ytDlpCandidates("/app", "linux");
-    expect(c[0]).toBe(path.join("/app", "vendor", "yt-dlp", "yt-dlp"));
+    expect(c[0]).toBe(path.join("/app", "vendor", "yt-dlp", "yt-dlp_linux"));
     expect(c[1]).toBe(path.join("/app", "node_modules", "youtube-dl-exec", "bin", "yt-dlp"));
   });
 
@@ -48,10 +48,10 @@ describe("binary resolution", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ytdlp-res-"));
     try {
       fs.mkdirSync(path.join(dir, "vendor", "yt-dlp"), { recursive: true });
-      fs.writeFileSync(path.join(dir, "vendor", "yt-dlp", "yt-dlp"), "");
+      fs.writeFileSync(path.join(dir, "vendor", "yt-dlp", "yt-dlp_linux"), "");
       fs.mkdirSync(path.join(dir, "node_modules", "youtube-dl-exec", "bin"), { recursive: true });
       fs.writeFileSync(path.join(dir, "node_modules", "youtube-dl-exec", "bin", "yt-dlp"), "");
-      expect(resolveYtDlpBin(dir, "linux")).toBe(path.join(dir, "vendor", "yt-dlp", "yt-dlp"));
+      expect(resolveYtDlpBin(dir, "linux")).toBe(path.join(dir, "vendor", "yt-dlp", "yt-dlp_linux"));
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }

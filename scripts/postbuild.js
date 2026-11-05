@@ -84,7 +84,7 @@ function ensureBinariesExecutable() {
   const bins = [
     '.next/standalone/node_modules/ffmpeg-static/ffmpeg',
     '.next/standalone/node_modules/youtube-dl-exec/bin/yt-dlp',
-    '.next/standalone/vendor/yt-dlp/yt-dlp',
+    '.next/standalone/vendor/yt-dlp/yt-dlp_linux',
   ];
   for (const b of bins) {
     try {
