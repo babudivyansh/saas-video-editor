@@ -6,7 +6,6 @@ import { getAuthUser } from "@/lib/auth";
 import { markQuestComplete } from "@/lib/quests";
 import { trimAudioForProvider, runFFmpegArgs } from "@/utils/ffmpeg-render";
 import { withRateLimit } from "@/lib/with-rate-limit";
-import { withRetry } from "@/lib/with-retry";
 import { env } from "@/lib/env";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress } from "@/lib/credits";
 import { vocalRemoverCredits } from "@/lib/audio-pricing";
@@ -18,6 +17,8 @@ import path from "path";
 import fs from "fs";
 import { randomUUID } from "crypto";
 import { FETCH_TIMEOUT } from "@/lib/fetch-timeout";
+import { falUpload, falSubmit, falPollUntilDone, falCancel } from "@/lib/fal";
+import { DEMUCS_MODEL, INSTRUMENTAL_STEMS, demucsStems, type Stems } from "@/lib/demucs";
 
 export const maxDuration = 300;
 
@@ -39,11 +40,10 @@ interface Job extends CancellableJob {
   meta?: { vocalsUrl: string | null };
 }
 
-interface Stems { instrumental: string; vocals: string | null }
-
 const g = globalThis as unknown as { __vocalRemoverJobs?: Map<string, Job> };
 const jobs: Map<string, Job> = g.__vocalRemoverJobs ?? (g.__vocalRemoverJobs = new Map());
 
+// Runs on every POST and poll, so old temp files don't wait for the next job.
 function sweep() {
   const cutoff = Date.now() - 60 * 60 * 1000;
   for (const [id, job] of jobs) {
@@ -54,46 +54,6 @@ function sweep() {
       jobs.delete(id);
     }
   }
-}
-
-function falAuth() {
-  return { Authorization: `Key ${env.FAL_KEY}` };
-}
-
-async function uploadToFal(buffer: Buffer, mimeType: string): Promise<string> {
-  const res = await withRetry(
-    (signal) => fetch("https://storage.fal.run", {
-      method: "POST",
-      headers: { ...falAuth(), "Content-Type": mimeType },
-      body: new Uint8Array(buffer),
-      signal,
-    }),
-    { timeoutMs: 30_000 },
-  );
-  if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(`fal.ai storage upload failed ${res.status}: ${txt}`);
-  }
-  const data = await res.json();
-  return (data.url ?? data.access_url) as string;
-}
-
-async function falSubmit(audioUrl: string): Promise<string> {
-  const res = await withRetry(
-    (signal) => fetch(`https://queue.fal.run/${FAL_MODEL}`, {
-      method: "POST",
-      headers: { ...falAuth(), "Content-Type": "application/json" },
-      body: JSON.stringify({ audio_url: audioUrl, stems: "2stems" }),
-      signal,
-    }),
-    { timeoutMs: 15_000 },
-  );
-  if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(`fal.ai submit error ${res.status}: ${txt}`);
-  }
-  const data = await res.json();
-  return data.request_id as string;
 }
 
 /** Fetch a fal output and re-encode it to MP3 at `outPath`. */
@@ -109,47 +69,30 @@ async function downloadAsMp3(url: string, outPath: string, tmpName: string): Pro
   }
 }
 
-async function falPollUntilDone(requestId: string): Promise<Stems> {
-  // This polls inside the job's detached background promise, AFTER the POST
-  // has already returned its jobId — the route's maxDuration does not apply
-  // to it. A 90s deadline here only meant that any fal queue backlog failed
-  // and refunded the job while fal still finished (and billed) the request.
-  // The server-restart case is covered by reconcileOrphanedToolJobs (15 min).
-  // Separation takes longer than the image models, hence 8 minutes.
-  const deadline = Date.now() + 8 * 60 * 1000;
-  while (Date.now() < deadline) {
-    await new Promise(r => setTimeout(r, 5000));
-    const statusRes = await fetch(
-      `https://queue.fal.run/${FAL_MODEL}/requests/${requestId}/status`,
-      { headers: falAuth(), signal: AbortSignal.timeout(FETCH_TIMEOUT.api) },
-    ).catch(() => null); // a stalled poll counts as a missed one
-    if (!statusRes?.ok) continue;
-    const statusData = await statusRes.json();
-    const status = statusData.status as string;
-    if (status === "COMPLETED") {
-      const resultRes = await fetch(
-        `https://queue.fal.run/${FAL_MODEL}/requests/${requestId}`,
-        { headers: falAuth(), signal: AbortSignal.timeout(FETCH_TIMEOUT.api) },
-      );
-      if (!resultRes.ok) throw new Error("fal.ai result fetch failed");
-      const result = await resultRes.json();
-      const url =
-        result?.stems?.accompaniment?.url ??
-        result?.accompaniment?.url ??
-        result?.no_vocals?.url ??
-        (result?.audio_url as string | undefined);
-      if (!url) throw new Error("No accompaniment URL in fal.ai result");
-      // The vocals stem is half of what people use this for (acapellas); it
-      // used to be thrown away.
-      const vocals = (result?.stems?.vocals?.url ?? result?.vocals?.url ?? null) as string | null;
-      return { instrumental: url, vocals };
+/** Download the non-vocal stems and mix them into one MP3 at `outPath`. */
+async function mixInstrumental(urls: string[], outPath: string, jobId: string): Promise<void> {
+  if (urls.length === 1) return downloadAsMp3(urls[0], outPath, `${jobId}-instrumental-raw`);
+  const parts: string[] = [];
+  try {
+    for (const [i, url] of urls.entries()) {
+      const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT.transfer) });
+      if (!res.ok) throw new Error(`Failed to download a stem from fal.ai (${res.status})`);
+      const p = path.join(os.tmpdir(), `${jobId}-stem-${i}`);
+      fs.writeFileSync(p, Buffer.from(await res.arrayBuffer()));
+      parts.push(p);
     }
-    if (status === "FAILED") {
-      const err = statusData.error ?? "fal.ai separation failed";
-      throw new Error(typeof err === "string" ? err : JSON.stringify(err));
-    }
+    // amix averages its inputs (divides by their count); the volume filter
+    // undoes that, so the stems sum back to the original level. Spelled this
+    // way, not amix's normalize=0, which older FFmpeg builds don't have.
+    await runFFmpegArgs([
+      "-y",
+      ...parts.flatMap((p) => ["-i", p]),
+      "-filter_complex", `amix=inputs=${parts.length}:duration=longest:dropout_transition=0,volume=${parts.length}`,
+      "-vn", "-c:a", "libmp3lame", "-b:a", "320k", outPath,
+    ]);
+  } finally {
+    for (const p of parts) { try { fs.unlinkSync(p); } catch { /* ignore */ } }
   }
-  throw new Error("fal.ai vocal removal timed out after 8 minutes");
 }
 
 async function handlePOST(req: NextRequest) {
@@ -246,11 +189,20 @@ async function handlePOST(req: NextRequest) {
       // Upload to fal.ai storage — the billed length only, never the raw file
       // (its header duration is what we charged for, and it can lie).
       await trimAudioForProvider(inputPath, providerPath, durationSec, "320k");
-      const falUrl = await uploadToFal(fs.readFileSync(providerPath), "audio/mpeg");
+      const falUrl = await falUpload(fs.readFileSync(providerPath), "audio/mpeg");
+      if ((job.status as string) === "cancelled") return;
       job.progress = 15;
 
-      // Submit to Demucs queue
-      const requestId = await falSubmit(falUrl);
+      // Submit to Demucs queue. `stems` is a list (fal rejects a string).
+      const request = await falSubmit(FAL_MODEL, {
+        audio_url: falUrl,
+        model: DEMUCS_MODEL,
+        stems: ["vocals", ...INSTRUMENTAL_STEMS],
+        output_format: "mp3",
+      });
+      const abort = new AbortController();
+      job.onCancel = () => { abort.abort(); return falCancel(request); };
+      if ((job.status as string) === "cancelled") { await job.onCancel(); return; }
       job.progress = 20;
       if (job.generationId) void updateGenerationProgress(job.generationId, job.progress);
 
@@ -262,18 +214,22 @@ async function handlePOST(req: NextRequest) {
 
       let stems: Stems;
       try {
-        stems = await falPollUntilDone(requestId);
+        // Runs after the POST returned, so maxDuration doesn't bound it; a
+        // restart mid-job is covered by reconcileOrphanedToolJobs (15 min).
+        // Separation takes longer than the image models, hence 8 minutes.
+        const raw = await falPollUntilDone(request, { deadlineMs: 8 * 60_000, pollIntervalMs: 5000, signal: abort.signal });
+        stems = demucsStems(raw);
       } finally {
         clearInterval(progressTimer);
       }
 
       if ((job.status as string) === "cancelled") return;
+      // The result is the user's from here: a cancel would refund it anyway.
+      job.finalizing = true;
       job.progress = 90;
 
-      // Download the instrumental track. Re-encoded to a real MP3: fal's stem
-      // format isn't guaranteed, and it used to be saved as-is under an
-      // .mp3 name and an audio/mpeg type.
-      await downloadAsMp3(stems.instrumental, outputPath, `${jobId}-instrumental-raw`);
+      // Mix the instrumental stems into one MP3.
+      await mixInstrumental(stems.instrumental, outputPath, jobId);
       const audioBuffer = fs.readFileSync(outputPath);
       // The local file serves the web's download; this keeps the result past a
       // restart, on the Generation and in the user's Assets.
@@ -342,8 +298,10 @@ async function handlePOST(req: NextRequest) {
 
 export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy: "user", name: "tools:vocal-remover" });
 
+const statusHandler = createJobStatusHandler(jobs, { contentType: "audio/mpeg", deleteOnDownload: true });
+
 export const GET = withRateLimit(
-  createJobStatusHandler(jobs, { contentType: "audio/mpeg", deleteOnDownload: true }),
+  (req: NextRequest) => { sweep(); return statusHandler(req); },
   { limit: 60, windowSec: 60, keyBy: "user", name: "tools:vocal-remover:status" },
 );
 

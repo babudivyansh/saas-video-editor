@@ -127,6 +127,13 @@ export interface CancellableJob extends PollableJob {
   generationId?: string;
   creditCost: number;
   refunded: boolean;
+  /** Set once the job has its output and is saving it. A cancel that lands
+   * now is refused: it refunded a result the user still received, and the
+   * finishing job then overwrote "cancelled" with "done". */
+  finalizing?: boolean;
+  /** Stops the job's provider work (e.g. falCancel) so a cancelled request
+   * is not run, and billed, to completion. Best-effort; errors are ignored. */
+  onCancel?: () => void | Promise<void>;
 }
 
 /**
@@ -155,8 +162,14 @@ export function createJobCancelHandler<J extends CancellableJob>(
     if (job.status !== "processing") {
       return NextResponse.json({ error: "Job already finished" }, { status: 409 });
     }
+    if (job.finalizing) {
+      return NextResponse.json({ error: "Too late to cancel — your result is being saved." }, { status: 409 });
+    }
 
     job.status = "cancelled";
+    if (job.onCancel) {
+      void Promise.resolve().then(job.onCancel).catch(() => { /* best-effort */ });
+    }
 
     if (!job.refunded) {
       job.refunded = true;

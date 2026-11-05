@@ -165,15 +165,22 @@ export function useJobPolling(opts: UseJobPollingOptions): UseJobPolling {
     const token = tokenRef.current;
     try {
       if (token) {
-        await fetch(`/api/tools/${toolSlug}?jobId=${jobId}`, {
+        const res = await fetch(`/api/tools/${toolSlug}?jobId=${jobId}`, {
           method: "DELETE",
           headers: { Authorization: `Bearer ${token}` },
         });
+        // 409: the job already finished, or is saving its result and can no
+        // longer be cancelled (nothing was refunded). Keep following it, so
+        // the user gets the result instead of a "refunded" message.
+        if (res.status === 409) {
+          poll(jobId);
+          return;
+        }
       }
     } catch { /* best-effort */ }
     setStatus("cancelled");
     try { sessionStorage.removeItem(storageKey); } catch { /* ignore */ }
-  }, [jobId, toolSlug, stopPolling, storageKey]);
+  }, [jobId, toolSlug, stopPolling, storageKey, poll]);
 
   const retry = useCallback(() => {
     if (lastSubmitRef.current) void start(lastSubmitRef.current);
