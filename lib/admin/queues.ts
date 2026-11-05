@@ -10,8 +10,6 @@ import { KNOWN_RENDER_QUEUE_NAMES, type RenderQueueName } from "@/lib/render-que
 
 export type QueueDriver = "bullmq" | "in-process";
 export type JobState = "waiting" | "active" | "delayed" | "failed" | "completed";
-export const JOB_STATES: readonly JobState[] = ["waiting", "active", "delayed", "failed", "completed"];
-
 export const queueDriver = (): QueueDriver => (env.RENDER_QUEUE_DRIVER === "in-process" ? "in-process" : "bullmq");
 
 export function isKnownQueue(name: string): name is RenderQueueName {

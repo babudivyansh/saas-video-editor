@@ -48,11 +48,6 @@ export function renderS3Key(projectId: string, renderId: string): string {
   return `renders/${projectId}/${renderId}.mp4`;
 }
 
-/** True while any ratio of any batch is still queued or rendering. */
-export async function hasActiveRender(projectId: string): Promise<boolean> {
-  return (await prisma.projectRender.count({ where: { projectId, status: { in: ACTIVE } } })) > 0;
-}
-
 /**
  * Settles a batch once every ratio is done: refund if none rendered, notify.
  * Safe to call from every finishing render (and the stale sweep): claiming

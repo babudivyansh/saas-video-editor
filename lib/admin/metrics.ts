@@ -22,8 +22,6 @@ export type MetricsSection =
   // NOTE: this list and the z.enum in lib/admin/schemas.ts's metricsQuerySchema
   // are separate and BOTH have to change when a section is added.
   | "lifecycle" | "credits" | "pipeline" | "acquisition";
-export const METRIC_RANGES = [7, 30, 90, 365] as const;
-
 const DAY_MS = 86400_000;
 
 // ── KPIs ─────────────────────────────────────────────────────────────────────

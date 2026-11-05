@@ -1,11 +1,10 @@
 "use client";
 // Split out of ../page.tsx (stage 7 of the AutoClip audit) — moved, not rewritten.
-import { useRef, useState, useEffect, type ReactNode } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { registerAsset, type AssetRow } from "@/app/dashboard/editor/components/panels/shared/assetData";
-import { IcMore, apiFetch, ClipItem, publishStatusLabel } from "./shared";
-import { useMenuNav } from "@/app/components/ui/useMenuNav";
+import { apiFetch, ClipItem, publishStatusLabel } from "./shared";
 
 // Stable empty fallbacks. An inline `?? []` is a NEW array every render, so
 // the effects that depend on these re-ran on every render (and on every poll
@@ -222,40 +221,4 @@ export function RetryClipButton({ projectId, clip, onQueued }: { projectId: stri
 // Moved to lib/ass-color.ts so the caption style grid can render swatches
 // without importing this 2,200-line page. Re-exported nowhere — the grid
 // imports the leaf module directly.
-
-// A small popover menu anchored to a trigger. Closes on outside-click / Esc.
-export function OverflowMenu({ children, ariaLabel = "More actions", align = "right" }: { children: (close: () => void) => ReactNode; ariaLabel?: string; align?: "right" | "left" }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement | null>(null);
-  // Arrow keys / Home / End between items, focus in on open and back on close
-  // — role="menu" promises that, and it had none of it.
-  const panelRef = useRef<HTMLDivElement | null>(null);
-  useMenuNav(panelRef, open);
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onKey);
-    return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
-  }, [open]);
-  return (
-    <div className="relative" ref={ref}>
-      <button
-        aria-label={ariaLabel}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }}
-        className="w-8 h-8 flex-shrink-0 rounded-lg border border-card-border bg-panel text-ink-soft hover:bg-tint-blue hover:text-ink transition-colors flex items-center justify-center"
-      >
-        <IcMore />
-      </button>
-      {open && (
-        <div ref={panelRef} role="menu" aria-label={ariaLabel} className={`ac-pop absolute z-30 mt-1 w-52 rounded-xl border border-card-border bg-panel p-1.5 shadow-card ${align === "right" ? "right-0" : "left-0"}`}>
-          {children(() => setOpen(false))}
-        </div>
-      )}
-    </div>
-  );
-}
 

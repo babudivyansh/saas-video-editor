@@ -120,14 +120,6 @@ function stripTags(literal: string): string {
     .replace(/<[^>]+>/g, "");
 }
 
-/** Join SafeHtml pieces, preserving both representations. */
-export function joinSafe(parts: SafeHtml[], separatorHtml = "", separatorText = ""): SafeHtml {
-  return new SafeHtml(
-    parts.map((p) => p.html).join(separatorHtml),
-    parts.map((p) => p.text).join(separatorText),
-  );
-}
-
 /** Coerce a template field that may be either form into SafeHtml. */
 export function toSafe(value: string | SafeHtml): SafeHtml {
   return value instanceof SafeHtml ? value : new SafeHtml(escapeHtml(value), value);

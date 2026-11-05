@@ -160,4 +160,3 @@ export const LEGAL = {
 } as const;
 
 export const PRODUCT_NAME = "Clipiro";
-export const TAGLINE = "AI video, made in minutes";

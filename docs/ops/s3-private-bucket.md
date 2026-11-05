@@ -74,29 +74,14 @@ and merge any rules already there.
 S3 runs expiry once a day (around 00:00 UTC), so an object lives 1–2 days, never
 less than the 24 hours its download link is valid for.
 
-## 2. Music catalogue: its own public location
+## 2. Music catalogue
 
-Block Public Access is per bucket, so a public `music/` prefix inside the media
-bucket is not an option. Decision: background-music tracks (licensed catalogue,
-not user data) live in a **separate public-read bucket**, e.g.
-`clipiro-public-assets`, under `music/<slug>.mp3`.
-
-1. Create the bucket (same region). Leave *Block all public access* **off** for
-   this bucket only.
-2. Bucket policy — public read of `music/*` only:
-   ```json
-   { "Version": "2012-10-17", "Statement": [{
-       "Sid": "PublicMusic", "Effect": "Allow", "Principal": "*",
-       "Action": "s3:GetObject", "Resource": "arn:aws:s3:::clipiro-public-assets/music/*" }] }
-   ```
-3. Upload the tracks listed in `lib/music/catalog.ts` as `music/<slug>.mp3`.
-4. Set `NEXT_PUBLIC_MUSIC_BASE=https://clipiro-public-assets.s3.<region>.amazonaws.com/music`
-   in the production env and rebuild (it is inlined at build time).
-
-Unset, the catalogue falls back to the app's own `/music` path
-(`public/music/`). Nothing imports the catalogue today (the create products
-that used it were removed 2026-09-10), so this blocks nothing at launch.
-Never put anything user-generated in the public bucket.
+Removed 2026-11-05. The background-music catalogue (`lib/music/`) had no
+importers after the create products were deleted on 2026-09-10, so it, its
+bucket-check script and `NEXT_PUBLIC_MUSIC_BASE` were deleted. If a music
+library comes back, give it a separate public-read bucket: Block Public Access
+is per bucket, so a public prefix inside the media bucket is not an option.
+Never put anything user-generated in a public bucket.
 
 ## 3. Turn on Block Public Access
 
@@ -161,5 +146,3 @@ aws s3api put-bucket-policy --bucket "$AWS_S3_BUCKET" --policy file://policy-bef
   avatar/attachment URLs (~6 h lifetime). After more than ~6 h with no traffic,
   the first visitor gets the stale page with expired images while it
   regenerates. Review attachments already behaved this way.
-- `scripts/verify-music-assets.mjs` still HEADs the media bucket; point it at
-  the public-assets bucket once that exists.

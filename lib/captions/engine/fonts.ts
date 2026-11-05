@@ -40,10 +40,6 @@ export function resolveFace(family: string, weight: number, italic = false): Fon
   return pool.reduce((best, f) => (Math.abs(f.weight - weight) < Math.abs(best.weight - weight) ? f : best));
 }
 
-export function hasFace(family: string): boolean {
-  return FACES.some((f) => f.family === family);
-}
-
 interface LoadedFont {
   font: fontkit.Font;
   /** Pixels per font unit at a 1px em. */

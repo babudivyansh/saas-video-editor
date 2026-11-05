@@ -7,7 +7,7 @@
 
 import { useId, useState } from "react";
 import {
-  Area, AreaChart, Bar, BarChart, Brush, CartesianGrid, Cell, ComposedChart, Line, LineChart,
+  Area, AreaChart, Bar, BarChart, Brush, CartesianGrid, Cell, Line, LineChart,
   Pie, PieChart, RadialBar, RadialBarChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import { BRAND, PALETTE, TOOLTIP_ITEM_STYLE, TOOLTIP_LABEL_STYLE, TOOLTIP_STYLE, compact, inr } from "./ui";
@@ -116,52 +116,6 @@ export function RevenueAreaChart({
             )}
             {data.length > 14 && <Brush dataKey="date" height={18} travellerWidth={8} stroke="var(--line-strong)" fill="var(--surface-2)" />}
           </AreaChart>
-        </ResponsiveContainer>
-      </div>
-    </div>
-  );
-}
-
-export function GrowthLineChart({ daily }: { daily: Array<{ date: string; value: number }> }) {
-  const [bucket, setBucket] = useState<"daily" | "weekly">("daily");
-  const data =
-    bucket === "daily"
-      ? daily
-      : Object.entries(
-          daily.reduce<Record<string, number>>((acc, d) => {
-            const dt = new Date(d.date);
-            const week = new Date(dt);
-            week.setDate(dt.getDate() - dt.getDay());
-            const key = week.toISOString().slice(0, 10);
-            acc[key] = (acc[key] ?? 0) + d.value;
-            return acc;
-          }, {}),
-        ).map(([date, value]) => ({ date, value }));
-
-  return (
-    <div>
-      <div className="flex gap-1 mb-2">
-        {(["daily", "weekly"] as const).map((b) => (
-          <button
-            key={b}
-            onClick={() => setBucket(b)}
-            aria-pressed={bucket === b}
-            className={`text-[11px] font-semibold px-2 py-1 rounded-lg capitalize cursor-pointer ${bucket === b ? "bg-surface-3 text-fg" : "text-fg-subtle"}`}
-          >
-            {b}
-          </button>
-        ))}
-        <span className="ml-auto text-[10px] text-fg-subtle self-center">Returning users: needs activity events — not tracked yet</span>
-      </div>
-      <div className="h-56">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
-            <CartesianGrid stroke={GRID} vertical={false} />
-            <XAxis dataKey="date" tick={AXIS_TICK} tickLine={false} axisLine={{ stroke: GRID }} minTickGap={32} />
-            <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} allowDecimals={false} width={32} />
-            <Tooltip contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} labelStyle={TOOLTIP_LABEL_STYLE} />
-            <Line type="monotone" dataKey="value" name="New users" stroke={BRAND} strokeWidth={2} dot={false} />
-          </LineChart>
         </ResponsiveContainer>
       </div>
     </div>
@@ -556,40 +510,6 @@ export function Heatmap({
       </div>
       {peakLabel && <p className="text-[10.5px] text-fg-subtle mt-3">Busiest: {peakLabel}</p>}
       <span className="sr-only">Generation volume by hour of day and day of week. Peak {peakLabel ?? "unknown"}.</span>
-    </div>
-  );
-}
-
-// ── Combo bar + line (dual axis) ─────────────────────────────────────────────
-export function ComboBarLine({
-  data, bar, line, height = 220, barFmt = compact, lineFmt = (n: number) => `${n.toFixed(0)}%`,
-}: {
-  data: Row[];
-  bar: SeriesDef;
-  line: SeriesDef;
-  height?: number;
-  barFmt?: (n: number) => string;
-  lineFmt?: (n: number) => string;
-}) {
-  if (data.length === 0) return EMPTY;
-  return (
-    <div style={{ height }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
-          <CartesianGrid stroke={GRID} vertical={false} />
-          <XAxis dataKey="date" tick={AXIS_TICK} tickLine={false} axisLine={{ stroke: GRID }} minTickGap={32} />
-          <YAxis yAxisId="l" tick={AXIS_TICK} tickLine={false} axisLine={false} width={42} tickFormatter={(v: number) => barFmt(v)} />
-          <YAxis yAxisId="r" orientation="right" tick={AXIS_TICK} tickLine={false} axisLine={false} width={40} tickFormatter={(v: number) => lineFmt(v)} />
-          <Tooltip
-            formatter={(value, name) => [name === line.name ? lineFmt(Number(value)) : barFmt(Number(value)), String(name)]}
-            contentStyle={TOOLTIP_STYLE}
-            itemStyle={TOOLTIP_ITEM_STYLE}
-            labelStyle={TOOLTIP_LABEL_STYLE}
-          />
-          <Bar yAxisId="l" dataKey={bar.key} name={bar.name} fill={bar.color ?? PALETTE[3]} fillOpacity={0.55} radius={[2, 2, 0, 0]} />
-          <Line yAxisId="r" type="monotone" dataKey={line.key} name={line.name} stroke={line.color ?? BRAND} strokeWidth={2} dot={false} />
-        </ComposedChart>
-      </ResponsiveContainer>
     </div>
   );
 }

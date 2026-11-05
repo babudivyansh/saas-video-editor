@@ -332,34 +332,3 @@ async function shareOf(
     .filter((r) => r.value > 0);
 }
 
-/**
- * Traffic sources, as a share of views. Not an audience dimension — returned
- * separately so callers can choose whether to persist it.
- */
-export async function fetchTrafficSources(
-  accessToken: string,
-  now: Date = new Date(),
-  windowDays = 90,
-): Promise<Array<{ source: string; views: number; sharePct: number }>> {
-  const endDate = isoDay(new Date(now.getTime() - LAG_DAYS * 86_400_000));
-  const startDate = isoDay(new Date(now.getTime() - windowDays * 86_400_000));
-  const resp = await report(accessToken, {
-    startDate,
-    endDate,
-    metrics: "views,estimatedMinutesWatched",
-    dimensions: "insightTrafficSourceType",
-    sort: "-views",
-    maxResults: "25",
-  });
-  const records = rowsAsRecords(resp);
-  const total = records.reduce((s, r) => s + (num(r.views) ?? 0), 0);
-  if (total <= 0) return [];
-  return records.map((r) => {
-    const views = num(r.views) ?? 0;
-    return {
-      source: String(r.insightTrafficSourceType).toLowerCase(),
-      views,
-      sharePct: (views / total) * 100,
-    };
-  });
-}

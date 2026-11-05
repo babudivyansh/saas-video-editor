@@ -15,4 +15,3 @@ export function clipEditorHref(projectId: string, clipId: string): string {
   return `${projectHref(projectId)}?clip=${encodeURIComponent(clipId)}`;
 }
 
-export const PROJECTS_HREF = "/dashboard/projects";

@@ -158,9 +158,3 @@ export function downloadFile(
   });
 }
 
-export function getAudioDurationMs(_audioPath: string): number {
-  // Parse duration from MP3 frame headers is complex — instead we track it
-  // via ElevenLabs word timings. This helper returns 0 as a safe default
-  // when called without timings context; callers should use wordTimings instead.
-  return 0;
-}

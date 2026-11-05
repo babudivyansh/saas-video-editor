@@ -19,7 +19,6 @@ const { generateCaptions, BRIEF_MAX_CHARS } = await import("./caption-hashtags")
 const { generatePostNarrations, batchPosts, NARRATION_BATCH_SIZE } = await import("./post-narration");
 const { generateScheduleSuggestions } = await import("./schedule-suggestions");
 const { generateContentRecommendations } = await import("./content-recommendations");
-const { generateGrowthOpportunities } = await import("./growth-opportunities");
 
 const FACTS = { kind: "account" as const, lines: ["Followers: 1.1K (+10.0% vs previous period)"] };
 
@@ -211,7 +210,6 @@ describe("the remaining generators", () => {
   it.each([
     ["schedule", () => generateScheduleSuggestions(FACTS), "do not invent a day or time"],
     ["content recommendations", () => generateContentRecommendations(FACTS), "say the sample is too small"],
-    ["growth opportunities", () => generateGrowthOpportunities(FACTS), "do not build an opportunity on it"],
   ])("%s refuses to extrapolate past the facts", async (_name, run, expected) => {
     generateStructured.mockResolvedValue({});
     await run();

@@ -647,12 +647,6 @@ export async function isGenerationCancelled(generationId: string): Promise<boole
   return row?.cancelledAt != null;
 }
 
-export async function hasEnoughCredits(userId: string, amount: number): Promise<boolean> {
-  const cached = await redis.get(`credits:${userId}`);
-  if (cached !== null) return parseInt(cached, 10) >= amount;
-  return (await getBalances(userId)).total >= amount;
-}
-
 export interface ModelAccessCheck {
   allowed: boolean;
   requiredTier?: TierId; // present only when allowed === false

@@ -117,22 +117,6 @@ export function getAssetKind(mimeType: string): "video" | "audio" | "image" {
   return "image";
 }
 
-/**
- * Best-effort image MIME detection from magic bytes, for the rare input path
- * that hands over raw bytes with no Content-Type at all (e.g. a base64 avatar
- * decoded from a JSON body, as opposed to a multipart File that already
- * carries one). Returns null rather than guessing when the format isn't
- * recognized — callers should treat that as "skip adoption", not fall back to
- * a wrong MIME.
- */
-export function sniffImageMimeType(buffer: Buffer): string | null {
-  if (buffer.length >= 8 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) return "image/png";
-  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return "image/jpeg";
-  if (buffer.length >= 12 && buffer.toString("ascii", 0, 4) === "RIFF" && buffer.toString("ascii", 8, 12) === "WEBP") return "image/webp";
-  if (buffer.length >= 6 && (buffer.toString("ascii", 0, 6) === "GIF87a" || buffer.toString("ascii", 0, 6) === "GIF89a")) return "image/gif";
-  return null;
-}
-
 function tierDisplayName(tier: TierId): string {
   return tier === "free" ? "Free" : TIER_LABEL[tier];
 }

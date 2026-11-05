@@ -26,8 +26,6 @@ export const accountIdsSchema = z
   .transform((s) => s.split(",").map((v) => v.trim()).filter(Boolean))
   .pipe(z.array(accountIdSchema).min(1).max(10));
 
-export const providerSchema = z.enum(["youtube", "instagram", "facebook"]);
-
 /** Ranges the UI offers. Wider than the old {7,30,90} so YoY becomes possible. */
 export const rangeDaysSchema = z.coerce.number().int().refine(
   (v) => [7, 14, 30, 90, 180, 365].includes(v),
@@ -143,8 +141,6 @@ export const reportConfigSchema = z.object({
 });
 
 export const exportKindSchema = z.enum(["posts", "snapshots", "daily", "audience", "competitors"]);
-
-export const exportFormatSchema = z.enum(["csv", "xlsx"]).default("csv");
 
 export const cronJobSchema = z
   .enum(["refresh", "retention", "digest", "recalibrate-virality", "daily-metrics", "scores", "reports", "goals"])

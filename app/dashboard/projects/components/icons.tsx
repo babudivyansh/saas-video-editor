@@ -27,13 +27,11 @@ export const IcFilm = ({ className = "w-5 h-5" }: P) => <svg {...base} className
 export const IcGrid = ({ className = "w-4 h-4" }: P) => <svg {...base} className={className}><rect x="4" y="4" width="6.5" height="6.5" rx="1" /><rect x="13.5" y="4" width="6.5" height="6.5" rx="1" /><rect x="4" y="13.5" width="6.5" height="6.5" rx="1" /><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1" /></svg>;
 export const IcList = ({ className = "w-4 h-4" }: P) => <svg {...base} className={className}><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" /></svg>;
 export const IcFilter = ({ className = "w-4 h-4" }: P) => <svg {...base} className={className}><path d="M4 5h16l-6 7.5V19l-4-2v-4.5z" /></svg>;
-export const IcSort = ({ className = "w-4 h-4" }: P) => <svg {...base} className={className}><path d="M4 6h10M4 12h7M4 18h4M17 8V20M14 17l3 3 3-3" /></svg>;
 export const IcDownload = ({ className = "w-4 h-4" }: P) => <svg {...base} className={className}><path d="M12 4v12M7 11l5 5 5-5M4 20h16" /></svg>;
 export const IcCalendar = ({ className = "w-4 h-4" }: P) => <svg {...base} className={className}><rect x="4" y="5" width="16" height="15" rx="2" /><path d="M4 10h16M9 3v4M15 3v4" /></svg>;
 export const IcCopy = ({ className = "w-4 h-4" }: P) => <svg {...base} className={className}><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" /></svg>;
 export const IcXml = ({ className = "w-4 h-4" }: P) => <svg {...base} className={className}><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6M10 13l-2 2 2 2M14 13l2 2-2 2" /></svg>;
 export const IcEdit = ({ className = "w-4 h-4" }: P) => <svg {...base} className={className}><path d="M4 20h4L19 9l-4-4L4 16zM14 6l4 4" /></svg>;
-export const IcPlay = ({ className = "w-5 h-5" }: P) => <svg {...base} className={className} fill="currentColor"><path d="M8 5v14l11-7z" /></svg>;
 export const IcChevronUp = ({ className = "w-4 h-4" }: P) => <svg {...base} className={className}><path d="m6 15 6-6 6 6" /></svg>;
 export const IcChevronDown = ({ className = "w-4 h-4" }: P) => <svg {...base} className={className}><path d="m6 9 6 6 6-6" /></svg>;
 export const IcClose = ({ className = "w-4 h-4" }: P) => <svg {...base} className={className}><path d="M6 6l12 12M18 6 6 18" /></svg>;

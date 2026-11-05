@@ -31,10 +31,6 @@ export function IcPlay() {
 export function IcMore() {
   return <svg viewBox="0 0 24 24" fill="currentColor" className="w-[18px] h-[18px]"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>;
 }
-export function IcClock() {
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>;
-}
-
 export const AUTH_HEADERS = () => ({ Authorization: `Bearer ${getStoredToken() ?? ""}` });
 
 export class ApiError extends Error {
@@ -170,14 +166,5 @@ export const PUBLISH_STATUS_LABELS: Record<string, string> = {
 };
 export function publishStatusLabel(status: string): string {
   return PUBLISH_STATUS_LABELS[status] ?? status.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
-}
-
-// A one-line reason a creator can act on, distilled from the AI breakdown.
-export function clipReason(clip: ClipItem): string {
-  const bd = clip.scoreBreakdown as unknown as ScoreBreakdownWithInsights | null;
-  if (bd?.reasoning) return bd.reasoning;
-  const band = scoreBand(clip.score).label;
-  if (clip.mood) return `${clip.mood[0].toUpperCase()}${clip.mood.slice(1)} moment · ${band.toLowerCase()}`;
-  return band;
 }
 

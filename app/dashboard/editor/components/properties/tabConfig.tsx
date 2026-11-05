@@ -22,7 +22,6 @@ function items(ids: string[]): TabItem[] {
 
 export const VIDEO_TAB_ITEMS = items(["basic", "animation", "adjust", "audio", "effects"]);
 export const TEXT_TAB_ITEMS = items(["basic", "adjust", "transform", "animation", "ai"]);
-export const AUDIO_TAB_ITEMS = items(["basic"]);
 export const IMAGE_TAB_ITEMS = items(["basic", "transform", "animation"]);
 // No "ai" tab here — all 8 caption AI actions (fix grammar, remove filler
 // words, etc.) are whole-track operations, so they live once on the left

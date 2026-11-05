@@ -48,15 +48,6 @@ export async function suppress(
   }
 }
 
-/** Manual un-suppression, for support to undo a false positive. */
-export async function unsuppress(email: string): Promise<void> {
-  try {
-    await prisma.emailSuppression.delete({ where: { email } });
-  } catch {
-    // Already absent is the desired end state, not an error.
-  }
-}
-
 export interface LogInput {
   recipient: string;
   templateId: string;
