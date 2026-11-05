@@ -30,6 +30,19 @@ describe("buildCsp", () => {
     expect(directive(csp, "media-src")).toContain("https://storage.googleapis.com"); // voice previews
   });
 
+  it("shows the downloaders' video thumbnails — images only, nothing else from those hosts", () => {
+    // Prod CSP report: img-src blocked https://i.ytimg.com/vi_webp/<id>/maxresdefault.webp,
+    // leaving a broken-image preview on every YouTube lookup.
+    const csp = buildCsp();
+    const img = directive(csp, "img-src");
+    for (const host of ["https://*.ytimg.com", "https://*.cdninstagram.com", "https://*.fbcdn.net"]) {
+      expect(img).toContain(host);
+      for (const d of ["script-src", "connect-src", "media-src", "frame-src", "default-src"]) {
+        expect(directive(csp, d)).not.toContain(host);
+      }
+    }
+  });
+
   it("adds the asset CDN's origin when one is configured", () => {
     vi.stubEnv("CDN_BASE_URL", "https://cdn.clipiro.com/assets/");
     const csp = buildCsp();
