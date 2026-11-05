@@ -239,7 +239,10 @@ export function createDownloaderRoute(cfg: DownloaderConfig) {
           ? { ...COMMON_OPTS, format: "bestaudio/best", extractAudio: true, audioFormat: "mp3", audioQuality: 0, output: outTemplate, ffmpegLocation: FFMPEG_DIR }
           : {
               ...COMMON_OPTS,
-              format: `bestvideo[height<=${height}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=${height}]+bestaudio/best[height<=${height}][ext=mp4]/best`,
+              // H.264 first: plain [ext=mp4] now picks AV1 on YouTube, which
+              // many players (Windows without the AV1 extension, older phones,
+              // editors) can't open. AV1/VP9 only when no H.264 exists.
+              format: `bestvideo[height<=${height}][ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]/bestvideo[height<=${height}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=${height}]+bestaudio/best[height<=${height}][ext=mp4]/best`,
               mergeOutputFormat: "mp4",
               output: outTemplate,
               ffmpegLocation: FFMPEG_DIR,

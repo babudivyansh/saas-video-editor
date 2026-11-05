@@ -36,7 +36,26 @@ export function resolveYtDlpBin(cwd = process.cwd(), platform: NodeJS.Platform =
   if (!found) return "yt-dlp"; // PATH fallback; the build's verify:ytdlp step catches a deploy without one
   // Standalone deploys can strip the execute bit → spawn EACCES.
   ensureExecutable(found);
+  // On Windows, youtube-dl-exec runs a binary whose path contains whitespace
+  // through cmd.exe (shell: true). cmd then reads the `<` in a format string
+  // like `bestvideo[height<=720]` as an input redirect, and every download
+  // failed with "The system cannot find the file specified" (the info call
+  // has no `<`, so it worked). A cwd-relative path has no whitespace — the
+  // candidates all live under cwd — so no shell is involved; spawn resolves
+  // it against the process cwd.
+  if (platform === "win32" && /\s/.test(found)) {
+    const rel = path.relative(cwd, found);
+    if (!/\s/.test(rel) && !path.isAbsolute(rel)) return rel;
+  }
   return found;
+}
+
+/** yt-dlp needs a JavaScript runtime to solve YouTube's player challenge
+ *  ("YouTube extraction without a JS runtime has been deprecated, and some
+ *  formats may be missing"). It only looks for deno by default; the node
+ *  running this server is always there, so hand it that. */
+export function jsRuntimeFlag(execPath = process.execPath): string | null {
+  return /node(\.exe)?$/i.test(path.basename(execPath)) ? `node:${execPath}` : null;
 }
 
 export const YTDLP_BIN = resolveYtDlpBin();
@@ -85,7 +104,12 @@ export async function runYtDlp(url: string, flags: YtDlpFlags): Promise<unknown>
   try {
     // youtube-dl-exec's Flags type predates several yt-dlp options this code
     // uses (useExtractors, …); it forwards every key as a --flag regardless.
-    return await runner(url, { ...flags, ...(cookiesPath ? { cookies: cookiesPath } : {}) } as never, opts as never);
+    const jsRuntime = jsRuntimeFlag();
+    return await runner(
+      url,
+      { ...flags, ...(jsRuntime ? { jsRuntimes: jsRuntime } : {}), ...(cookiesPath ? { cookies: cookiesPath } : {}) } as never,
+      opts as never,
+    );
   } finally {
     if (cookiesPath) fs.promises.unlink(cookiesPath).catch(() => {});
   }

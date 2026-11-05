@@ -17,7 +17,7 @@ const warn = vi.fn();
 vi.mock("@/lib/logger", () => ({ logger: { info: vi.fn(), warn: (...a: unknown[]) => warn(...a), error: vi.fn() } }));
 vi.mock("@/lib/ensure-executable", () => ({ ensureExecutable: vi.fn() }));
 
-const { ytDlpCandidates, resolveYtDlpBin, runYtDlp, configuredCookies, ytDlpErrorText, YtDlpError } = await import("./ytdlp");
+const { ytDlpCandidates, resolveYtDlpBin, runYtDlp, configuredCookies, ytDlpErrorText, YtDlpError, jsRuntimeFlag } = await import("./ytdlp");
 
 const COOKIES = "# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t0\tSID\tabc\n";
 const b64 = (s: string) => Buffer.from(s, "utf8").toString("base64");
@@ -57,8 +57,37 @@ describe("binary resolution", () => {
     }
   });
 
+  it("on Windows, avoids a whitespace path so youtube-dl-exec never goes through cmd.exe", () => {
+    // cmd.exe read `<` in `bestvideo[height<=720]` as a redirect: every download
+    // failed with "The system cannot find the file specified".
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ytdlp space "));
+    try {
+      const bin = path.join(dir, "node_modules", "youtube-dl-exec", "bin");
+      fs.mkdirSync(bin, { recursive: true });
+      fs.writeFileSync(path.join(bin, "yt-dlp.exe"), "");
+      const resolved = resolveYtDlpBin(dir, "win32");
+      expect(resolved).toBe(path.join("node_modules", "youtube-dl-exec", "bin", "yt-dlp.exe"));
+      expect(resolved).not.toMatch(/\s/);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("falls back to PATH when nothing is installed", () => {
     expect(resolveYtDlpBin(path.join(os.tmpdir(), "does-not-exist-ytdlp"), "linux")).toBe("yt-dlp");
+  });
+});
+
+describe("JS runtime for YouTube's player challenge", () => {
+  it("hands yt-dlp the node running the server", async () => {
+    expect(jsRuntimeFlag("/usr/bin/node")).toBe("node:/usr/bin/node");
+    expect(jsRuntimeFlag("C:\\Program Files\\nodejs\\node.exe")).toBe("node:C:\\Program Files\\nodejs\\node.exe");
+    await runYtDlp("https://x", {});
+    expect(calls[0].flags.jsRuntimes).toBe(`node:${process.execPath}`);
+  });
+
+  it("passes nothing when not running under node", () => {
+    expect(jsRuntimeFlag("/usr/bin/bun")).toBeNull();
   });
 });
 
