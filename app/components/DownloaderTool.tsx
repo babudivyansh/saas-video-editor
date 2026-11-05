@@ -4,6 +4,7 @@ import { useAuth } from "@/app/components/AuthContext";
 import { useJobPolling } from "@/app/components/useJobPolling";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 import { Button } from "@/app/components/ui/Button";
+import { FREE_TOOL_DAILY_CAPS } from "@/lib/free-tools";
 import { ToolWorkspace, ToolBadge, ToolField, CostRow, Segmented, StageEmpty } from "@/app/components/tools/ToolWorkspace";
 
 // The YouTube and Instagram downloader pages (2026-10-14 tools audit). They
@@ -60,9 +61,48 @@ function formatCount(n: number, suffix: string) {
   return `${n} ${suffix}`;
 }
 
+/**
+ * The video's thumbnail in the preview card. Hotlinked from YouTube's /
+ * Instagram's image CDN (allowed in lib/csp.ts img-src). If it can't load —
+ * a removed video, an expired CDN link, a host that refuses hotlinking — it
+ * shows a placeholder instead of the browser's broken-image icon.
+ */
+export function VideoThumbnail({ src, title }: { src: string; title: string }) {
+  const [state, setState] = useState<"loading" | "loaded" | "failed">(src ? "loading" : "failed");
+  const box = "relative aspect-video w-full flex-shrink-0 overflow-hidden rounded-lg bg-surface-3 sm:w-72";
+
+  if (state === "failed") {
+    return (
+      <div className={`${box} flex flex-col items-center justify-center gap-1.5 text-fg-subtle`} role="img" aria-label="Preview unavailable">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <rect x="2.5" y="5" width="19" height="14" rx="2.5" />
+          <path d="M10 9.5v5l4.5-2.5z" fill="currentColor" stroke="none" />
+        </svg>
+        <span className="text-[11.5px]">Preview unavailable</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className={box}>
+      {state === "loading" && <div className="absolute inset-0 animate-pulse bg-surface-3" aria-hidden="true" />}
+      {/* eslint-disable-next-line @next/next/no-img-element -- remote CDN thumbnail, not worth routing through next/image */}
+      <img
+        src={src}
+        alt={`Thumbnail: ${title}`}
+        referrerPolicy="no-referrer"
+        onLoad={() => setState("loaded")}
+        onError={() => setState("failed")}
+        className={`h-full w-full object-cover transition-opacity duration-200 ${state === "loaded" ? "opacity-100" : "opacity-0"}`}
+      />
+    </div>
+  );
+}
+
 
 export default function DownloaderTool(props: DownloaderToolProps) {
   const { slug } = props;
+  const dailyCap = FREE_TOOL_DAILY_CAPS[slug] ?? 25;
   const { user, token, openAuthModal } = useAuth();
   const job = useJobPolling({ toolSlug: slug, token });
   const fireReviewPrompt = useReviewPromptTrigger();
@@ -173,7 +213,7 @@ export default function DownloaderTool(props: DownloaderToolProps) {
     <ToolWorkspace
       title={props.title}
       icon={slug === "youtube-downloader" ? "youtube" : "instagram"}
-      badges={<ToolBadge>1 credit</ToolBadge>}
+      badges={<ToolBadge tone="free">Free</ToolBadge>}
       description={props.intro}
       controls={
         <>
@@ -215,7 +255,7 @@ export default function DownloaderTool(props: DownloaderToolProps) {
                       );
                     })}
                   </div>
-                  <span className="text-[11.5px] text-fg-subtle">Lower quality downloads faster — same 1 credit.</span>
+                  <span className="text-[11.5px] text-fg-subtle">Lower quality downloads faster.</span>
                 </ToolField>
               )}
             </>
@@ -232,9 +272,10 @@ export default function DownloaderTool(props: DownloaderToolProps) {
           {(error || (job.status === "error" && job.error)) && (
             <p role="alert" className="rounded-xl border border-error/30 bg-error/10 px-3.5 py-2.5 text-sm text-error">{error || job.error}</p>
           )}
-          {job.status === "cancelled" && <p className="text-sm text-fg-muted">Cancelled — your credit was refunded.</p>}
-          <CostRow right={user ? `You have ${user.credits.toLocaleString()}` : undefined}>
-            <span className="font-semibold text-fg">1 credit</span> · refunded if it fails
+          {job.status === "cancelled" && <p className="text-sm text-fg-muted">Download cancelled.</p>}
+          {/* Free since 2026-10-30 (lib/free-tools.ts): no credits, a daily cap instead. */}
+          <CostRow right={`Up to ${dailyCap} a day`}>
+            <span className="font-semibold text-fg">Free</span> · no credits used
           </CostRow>
           <Button type="button" className="w-full" onClick={() => void download(selectedQuality)} disabled={!canDownload} loading={busy}>
             {busy ? `Downloading… ${Math.round(job.progress)}%` : info ? `Download ${format === "audio" ? "MP3" : "MP4"}` : "Check the link first"}
@@ -248,10 +289,7 @@ export default function DownloaderTool(props: DownloaderToolProps) {
         info ? (
           <div className="flex flex-1 flex-col gap-4">
             <div className="flex flex-col gap-4 rounded-xl border border-line bg-surface-1 p-4 sm:flex-row">
-              {info.thumbnail && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={info.thumbnail} alt="" className="aspect-video w-full flex-shrink-0 rounded-lg bg-surface-3 object-cover sm:w-72" />
-              )}
+              <VideoThumbnail key={info.thumbnail} src={info.thumbnail} title={info.title} />
               <div className="flex min-w-0 flex-1 flex-col justify-center gap-1.5">
                 <h3 className="line-clamp-2 text-[16px] font-bold leading-snug text-fg">{info.title}</h3>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fg-subtle">
@@ -276,7 +314,7 @@ export default function DownloaderTool(props: DownloaderToolProps) {
         ) : (
           <div className="flex flex-1 flex-col gap-4">
             <StageEmpty icon={slug === "youtube-downloader" ? "youtube" : "instagram"} title="Paste a link to see the video here">
-              You&apos;ll see the title and length, and pick the format and quality, before any credit is used.
+              You&apos;ll see the title and length, and pick the format and quality, before anything downloads.
             </StageEmpty>
             <div className="rounded-xl border border-line bg-surface-1 p-4">
               <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-fg-subtle">Supported links</p>

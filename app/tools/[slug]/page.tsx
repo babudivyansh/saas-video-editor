@@ -15,6 +15,7 @@ import { hasSecondaryMotif } from "@/app/components/marketing/toolMotifs";
 import SocialProof from "@/app/components/landing/SocialProof";
 import FounderSection from "@/app/components/landing/FounderSection";
 import CTABanner from "@/app/components/landing/CTABanner";
+import { isFreeTool } from "@/lib/free-tools";
 import { getToolContent } from "../content";
 import { getToolImages } from "../toolImages";
 
@@ -55,7 +56,9 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
   if (!tool || !content) notFound();
 
   const categoryLabel = CATEGORY_LABELS[tool.category];
-  const isFree = tool.category === "free";
+  // The downloaders are free too but are filed under "video" in navigation,
+  // so "free" is also read from the list the routes actually enforce.
+  const isFree = tool.category === "free" || isFreeTool(slug);
   // A designed illustration wins over the generated motif when one exists.
   const artwork = getToolImages(slug);
 

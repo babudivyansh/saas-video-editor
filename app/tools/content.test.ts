@@ -17,6 +17,17 @@ describe("tool marketing content", () => {
     expect(orphans).toEqual([]);
   });
 
+  it("never tells people the free tools cost credits", () => {
+    // The downloaders went free on 2026-10-30 but their pages still said
+    // "One credit per import, refunded if it fails" (fixed 2026-11-06).
+    for (const slug of ["youtube-downloader", "instagram-downloader"]) {
+      const text = JSON.stringify(TOOL_CONTENT[slug]);
+      expect(text, slug).not.toMatch(/\b(one|1) credit\b/i);
+      expect(text, slug).not.toMatch(/refunded (automatically )?if it fails/i);
+      expect(text, slug).toMatch(/free/i);
+    }
+  });
+
   it("uses unique slugs across all three categories", () => {
     const slugs = ALL_TOOLS.map((tool) => tool.slug);
     expect(new Set(slugs).size).toBe(slugs.length);

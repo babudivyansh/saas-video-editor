@@ -11,6 +11,7 @@
 import { CAPTION_TEMPLATES } from "@clipiro/shared/caption-templates";
 import { FREE_TIER_MONTHLY_BONUS_MINUTES, TIER_MAX_AUTOCLIP_SOURCE_SECONDS, type TierId } from "@/lib/plans/tiers";
 import { VOICE_SEED } from "@/lib/voices/catalog";
+import { FREE_TOOL_DAILY_CAPS } from "@/lib/free-tools";
 import { LIBRARY_VOICES } from "@/lib/voices/library";
 
 /** Counted, not typed: the caption library grows in weekly drops. */
@@ -75,6 +76,9 @@ const COMMERCIAL_FAQ: ToolFaq = {
   answer:
     "Yes. Every plan includes a commercial license, so you can monetize what you create on YouTube, TikTok, Instagram, or for client work.",
 };
+
+// The downloaders are free with a daily cap (lib/free-tools.ts); both share it.
+const DOWNLOADER_DAILY_CAP = FREE_TOOL_DAILY_CAPS["youtube-downloader"];
 
 const FREE_TOOL_FAQ: ToolFaq = {
   question: "Is this really free?",
@@ -503,7 +507,7 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
     updatedAt: "2026-11-04",
     metaTitle: "Import a YouTube Video for Clipping",
     metaDescription:
-      "Bring a video from your own YouTube channel into Clipiro by link, then clip, caption and edit it. One credit per import, refunded if it fails.",
+      "Bring a video from your own YouTube channel into Clipiro by link, then clip, caption and edit it. Free on every plan, no credits used.",
     lede: "Paste the link to a video you own or have the rights to, and get the file at the quality you choose, or just its audio as MP3, ready for AutoClip or the editor.",
     steps: [
       { title: "Paste the link", body: "Drop in the YouTube URL." },
@@ -511,12 +515,12 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
       { title: "Download", body: "Save the file, then upload it to AutoClip or the editor to start clipping." },
     ],
     benefits: [
-      { title: "One credit, refunded on failure", body: "A download that doesn't complete costs nothing." },
+      { title: "Free on every plan", body: `No credits used, on any plan including the free one: up to ${DOWNLOADER_DAILY_CAP} downloads a day.` },
       { title: "The first step of a clipping workflow", body: "Downloading is usually step one before AutoClip, and both live in the same account." },
       { title: "Quality you choose", body: "Grab the highest resolution available, or a smaller file if that is all you need." },
     ],
     faqs: [
-      { question: "How much does a download cost?", answer: "One credit per download, refunded automatically if it fails. Videos up to 20 minutes." },
+      { question: "How much does a download cost?", answer: `Nothing. Downloads are free on every plan and use no credits; each account can download up to ${DOWNLOADER_DAILY_CAP} videos a day, each up to 20 minutes long.` },
       { question: "What am I allowed to download?", answer: "Only content you own or have permission to use. Downloading and reposting someone else's video without rights breaches YouTube's terms and, usually, copyright law — that is on you, not on the tool." },
       { question: "Can I send it straight to AutoClip?", answer: "Save the download, then upload it to AutoClip — or give AutoClip the YouTube link directly." },
       CANCEL_FAQ,
@@ -529,20 +533,20 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
     updatedAt: "2026-11-04",
     metaTitle: "Import Instagram Reels and Posts for Editing",
     metaDescription:
-      "Import your own public Instagram Reels, posts and IGTV videos by link at the best quality available, then recut and recaption them. One credit each.",
-    lede: "Paste the link to a public Reel, post or IGTV video you own or have the rights to, and import the source file rather than a screen capture. One credit per import.",
+      "Import your own public Instagram Reels, posts and IGTV videos by link at the best quality available, then recut and recaption them. Free, no credits used.",
+    lede: "Paste the link to a public Reel, post or IGTV video you own or have the rights to, and import the source file rather than a screen capture. Free on every plan.",
     steps: [
       { title: "Paste the link", body: "Drop in the Instagram URL for a Reel, post, or IGTV video." },
       { title: "Fetch", body: "The media is pulled at the best quality available." },
       { title: "Download", body: "Save the video, or just its audio as MP3." },
     ],
     benefits: [
-      { title: "One credit, refunded on failure", body: "A download that doesn't complete costs nothing." },
+      { title: "Free on every plan", body: `No credits used, on any plan including the free one: up to ${DOWNLOADER_DAILY_CAP} downloads a day.` },
       { title: "Original quality", body: "Grabs the source file rather than a re-encoded screen capture." },
       { title: "Reels, posts, and IGTV", body: "One tool for all three formats." },
     ],
     faqs: [
-      { question: "How much does a download cost?", answer: "One credit per download, refunded automatically if it fails. Videos up to 20 minutes." },
+      { question: "How much does a download cost?", answer: `Nothing. Downloads are free on every plan and use no credits; each account can download up to ${DOWNLOADER_DAILY_CAP} videos a day, each up to 20 minutes long.` },
       { question: "What am I allowed to download?", answer: "Only your own content, or content you have permission to use. Reposting someone else's video without rights breaches Instagram's terms and, usually, copyright law." },
       { question: "Does it work on private accounts?", answer: "No — only publicly accessible posts." },
       CANCEL_FAQ,

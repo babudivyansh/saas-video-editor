@@ -38,6 +38,15 @@ function cdnSource(): string | null {
   }
 }
 
+/** Where the downloaders' video thumbnails are served from (img-src only):
+ *  YouTube (i.ytimg.com, i9.ytimg.com, …) and Instagram's CDNs. Before these
+ *  were allowed the preview was a broken-image icon on every lookup. */
+export const DOWNLOADER_THUMBNAIL_HOSTS = [
+  "https://*.ytimg.com",
+  "https://*.cdninstagram.com",
+  "https://*.fbcdn.net",
+] as const;
+
 export function buildCsp(): string {
   const isDev = process.env.NODE_ENV === "development";
   const assets = ["https://*.amazonaws.com", cdnSource()].filter(Boolean).join(" ");
@@ -49,7 +58,9 @@ export function buildCsp(): string {
     "style-src 'self' 'unsafe-inline'",
     // Stock thumbnails and hover previews load straight from the providers
     // (the hosts in lib/stock-hosts.ts) until the user adds one.
-    `img-src 'self' data: blob: ${assets} https://lh3.googleusercontent.com https://images.pexels.com https://*.giphy.com`,
+    // The YouTube/Instagram downloaders preview the video's own thumbnail,
+    // which comes from YouTube's and Instagram's image CDNs.
+    `img-src 'self' data: blob: ${assets} https://lh3.googleusercontent.com https://images.pexels.com https://*.giphy.com ${DOWNLOADER_THUMBNAIL_HOSTS.join(" ")}`,
     `media-src 'self' blob: ${assets} https://storage.googleapis.com https://videos.pexels.com https://player.vimeo.com https://*.jamendo.com`,
     `connect-src 'self' blob: ${assets} https://api.razorpay.com https://*.razorpay.com https://*.sentry.io https://*.ingest.sentry.io`,
     "frame-src 'self' https://api.razorpay.com https://*.razorpay.com",
