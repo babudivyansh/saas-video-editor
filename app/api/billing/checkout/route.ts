@@ -12,6 +12,7 @@ import { isTrialPlan, TRIAL_DAYS } from "@/lib/plans/tiers";
 import { syncRazorpayPlan } from "@/lib/billing/razorpay-plans";
 import { describeRazorpayError, isMissingRazorpayPlan } from "@/lib/billing/razorpay-errors";
 import { redis } from "@/lib/redis";
+import { DIWALI, diwaliOfferFor } from "@/lib/campaigns/diwali";
 
 // How long one open coupon checkout blocks a second one for the same user.
 const COUPON_HOLD_SECONDS = 30 * 60;
@@ -215,8 +216,20 @@ async function handlePOST(req: NextRequest) {
     // before that handler overwrites razorpaySubscriptionId (the orphaned
     // auto-charging mandate this guards against).
 
-    const createSubscription = (planId: string) => razorpay.subscriptions.create({
+    // Diwali 2026 (lib/campaigns/diwali.ts): a NEW yearly INR subscription
+    // bought 8–15 Nov gets a Razorpay Offer (extra 10% off the first payment).
+    // Subscriptions take no coupons, so this is the only way that discount is
+    // really charged. Undefined outside the window or before the offer id is
+    // configured.
+    const diwaliOffer = diwaliOfferFor({
+      intervalMonths: basePlan.intervalMonths ?? 1,
+      currency,
+      trial: wantsTrial,
+    });
+
+    const createSubscriptionRaw = (planId: string, offerId?: string) => razorpay.subscriptions.create({
         plan_id: planId,
+        ...(offerId ? { offer_id: offerId } : {}),
         customer_notify: 1,
         // ~10 years whatever the period. Razorpay requires a bound and caps a
         // subscription at 100 years, so the flat 120 this used to send asked a
@@ -238,8 +251,27 @@ async function handlePOST(req: NextRequest) {
           // The currency this subscription bills in — copied onto the user on
           // trial start / activation so "first charge" lines quote it.
           currency,
+          ...(offerId ? { campaign: DIWALI.code, offerId } : {}),
         },
       });
+
+    // An offer Razorpay refuses for this plan (expired, wrong plan, test/live
+    // mismatch) must not block the purchase: log it loudly and sell at the
+    // normal price rather than 502 a customer who is trying to pay.
+    const createSubscription = async (planId: string) => {
+      if (!diwaliOffer) return createSubscriptionRaw(planId);
+      try {
+        return await createSubscriptionRaw(planId, diwaliOffer);
+      } catch (e) {
+        if (isMissingRazorpayPlan(e)) throw e;
+        logger.error(
+          "billing/checkout",
+          `Diwali offer ${diwaliOffer} refused for ${basePlan.slug} — charging full price: ${describeRazorpayError(e)}`,
+          e,
+        );
+        return createSubscriptionRaw(planId);
+      }
+    };
 
     let subscription;
     try {

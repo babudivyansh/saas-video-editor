@@ -14,6 +14,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { Modal } from "@/app/components/ui/Modal";
 import { formatMoney, type Currency } from "@/lib/currency-shared";
 import { minorUnits } from "@/lib/plans/display";
+import { DIWALI, diwaliDiscountMinor, diwaliOfferApplies } from "@/lib/campaigns/diwali";
 import type { DbPlan } from "./types";
 
 // Modal.tsx reads useTranslations("Common") for its close-button label, and
@@ -37,7 +38,11 @@ export function CheckoutModal(props: {
   const months = plan.intervalMonths ?? 1;
   const termLabel = months > 1 ? `${months} months` : "1 month";
   const priceMinor = minorUnits(plan, currency);
-  const dueNow = trial ? 0 : priceMinor;
+  // Diwali 2026: mirrors the server's diwaliOfferFor() so the total shown is
+  // the total Razorpay takes on the first yearly payment.
+  const diwali = diwaliOfferApplies({ intervalMonths: months, currency, trial });
+  const diwaliOff = diwali ? diwaliDiscountMinor(priceMinor) : 0;
+  const dueNow = trial ? 0 : priceMinor - diwaliOff;
 
   return (
     <NextIntlClientProvider locale="en" messages={COMMON_MESSAGES}>
@@ -90,6 +95,16 @@ export function CheckoutModal(props: {
               <span className="min-w-0 truncate text-fg-muted">{plan.name}</span>
               <span className="whitespace-nowrap text-fg">{formatMoney(priceMinor, currency)}</span>
             </div>
+
+            {diwali && (
+              <div className="flex items-start justify-between gap-2 text-sm">
+                <span className="min-w-0 text-warning">
+                  Diwali offer · extra {DIWALI.extraPct}% off
+                  <span className="block text-xs text-fg-subtle">First yearly payment · applied automatically</span>
+                </span>
+                <span className="whitespace-nowrap text-warning">−{formatMoney(diwaliOff, currency)}</span>
+              </div>
+            )}
 
             <div className="border-t border-line pt-4">
               <div className="flex items-baseline justify-between">
