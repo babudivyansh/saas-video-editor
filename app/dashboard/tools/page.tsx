@@ -100,21 +100,17 @@ function StorySection({ group, index, tools, tier }: { group: StageGroup; index:
   const release = () => setHovering(false);
 
   return (
+    // Tools on the left, a slightly smaller stage on the right — the same way
+    // round in every section. On narrow screens the stage stacks on top.
     <section
-      className={`mt-20 flex flex-wrap items-center gap-9 ${index % 2 ? "flex-row-reverse" : ""}`}
+      className="mt-20 flex flex-col gap-9 lg:grid lg:grid-cols-[minmax(0,1.22fr)_minmax(0,1fr)] lg:items-center lg:gap-12"
       aria-labelledby={`hub-${group}`}
     >
-      <div className={`${s.stage} min-w-0 flex-[999_1_560px]`}>
-        {/* keyed so each tool mounts fresh and its loop starts at frame 0 */}
-        <div key={current.slug} className="absolute inset-0">
-          <ToolStage tool={current} />
-        </div>
-      </div>
-      <div className="flex flex-[1_1_340px] flex-col gap-[18px]">
-        <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-fg-subtle">
+      <div className="flex min-w-0 flex-col gap-5">
+        <span className="font-mono text-xs font-semibold uppercase tracking-[0.12em] text-fg-subtle">
           {String(index + 1).padStart(2, "0")} · {t(`groups.${group}`)}
         </span>
-        <h2 id={`hub-${group}`} className="text-[28px] font-bold leading-[1.1] tracking-[-0.025em] text-fg sm:text-[34px]">
+        <h2 id={`hub-${group}`} className="text-[30px] font-bold leading-[1.08] tracking-[-0.025em] text-fg sm:text-[38px]">
           {t(`stories.${group}`)}
         </h2>
         <ul className="flex flex-col border-t border-line">
@@ -128,20 +124,26 @@ function StorySection({ group, index, tools, tier }: { group: StageGroup; index:
                 onFocus={() => show(i)}
                 onBlur={release}
                 aria-current={tool.slug === current.slug ? "true" : undefined}
-                className={`${s.row} group flex items-center gap-3.5 border-b border-line px-3 py-3.5 text-fg outline-none`}
+                className={`${s.row} group flex items-center gap-4 border-b border-line px-3.5 py-[18px] text-fg outline-none`}
               >
-                <span className="w-[22px] font-mono text-xs font-semibold text-fg-subtle">{String(i + 1).padStart(2, "0")}</span>
+                <span className="w-[26px] font-mono text-[13px] font-semibold text-fg-subtle">{String(i + 1).padStart(2, "0")}</span>
                 <ToolThumb tool={tool} offset={(i % 3) as 0 | 1 | 2} />
-                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <span className={`text-[15px] font-semibold transition-colors group-hover:text-primary ${tool.slug === current.slug ? "text-primary" : "text-fg"}`}>{tool.title}</span>
-                  <span className="text-[13px] leading-snug text-fg-muted">{tool.desc}</span>
+                <span className="flex min-w-0 flex-1 flex-col gap-1">
+                  <span className={`text-[17px] font-semibold transition-colors group-hover:text-primary ${tool.slug === current.slug ? "text-primary" : "text-fg"}`}>{tool.title}</span>
+                  <span className="text-sm leading-snug text-fg-muted">{tool.desc}</span>
                 </span>
                 <CostMark tool={tool} tier={tier} />
-                <span className="text-fg-subtle transition-transform group-hover:translate-x-0.5 group-hover:text-primary" aria-hidden="true">→</span>
+                <span className="text-lg text-fg-subtle transition-transform group-hover:translate-x-0.5 group-hover:text-primary" aria-hidden="true">→</span>
               </Link>
             </li>
           ))}
         </ul>
+      </div>
+      <div className={`${s.stage} order-first min-w-0 lg:order-none`}>
+        {/* keyed so each tool mounts fresh and its loop starts at frame 0 */}
+        <div key={current.slug} className="absolute inset-0">
+          <ToolStage tool={current} />
+        </div>
       </div>
     </section>
   );
@@ -216,7 +218,7 @@ export default function ToolsPage() {
     [filter, q],
   );
   // Stage sections run in STAGE_GROUPS order (Video, Image, Audio), not the
-  // registry's, so the alternating stage sides read as designed.
+  // registry's, so they number 01 · Video, 02 · Image, 03 · Audio.
   const stories = sections
     .filter((sec): sec is { group: StageGroup; tools: FeatureLink[] } => (STAGE_GROUPS as readonly string[]).includes(sec.group))
     .sort((a, b) => STAGE_GROUPS.indexOf(a.group) - STAGE_GROUPS.indexOf(b.group));
