@@ -34,7 +34,9 @@ export default function ArticleToc({ items, className = "" }: { items: TocItem[]
       // headings (96px on blog posts, 128px on legal documents) or clicking a
       // TOC link lands its target just short of the line and highlights the
       // previous section instead.
-      const passed = positions.filter((p) => p.top <= 140);
+      // Plus any root scroll-padding (the launch ticker adds some while it shows).
+      const extra = parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0;
+      const passed = positions.filter((p) => p.top <= 140 + extra);
       setActiveId(passed.length > 0 ? passed[passed.length - 1].id : "");
     };
 

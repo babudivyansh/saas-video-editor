@@ -15,7 +15,11 @@ const DISMISS_KEY = "clipiro:diwali26:site-ticker";
 
 export function useSiteTicker(): { visible: boolean; dismiss: () => void } {
   const { phase } = useDiwaliPhase();
-  const [dismissed, dismiss] = useDismissed(DISMISS_KEY, "session");
+  // Rendered in the server HTML (starts not-dismissed): if it only appeared
+  // after hydration, the header grew 40px under the reader, and an anchor
+  // clicked before that landed its heading under the header (blog e2e).
+  // A visitor who closed it sees it once more for a moment on the next page.
+  const [dismissed, dismiss] = useDismissed(DISMISS_KEY, "session", false);
   return { visible: phase !== "over" && !dismissed, dismiss };
 }
 
@@ -39,6 +43,11 @@ export default function SiteLaunchTicker({ onDismiss }: { onDismiss: () => void 
 
   return (
     <div role="region" aria-label="Launch announcement" className="relative flex h-10 flex-col bg-[#0d0a04] font-sans">
+      {/* Anchor targets (blog TOC, legal sections, #plans) carry scroll-margins
+          sized for the 80px header; push every in-page jump down by the
+          ticker's height while it shows. In the HTML, so it holds before
+          hydration too. ArticleToc reads it to move its "being read" line. */}
+      <style>{`html{scroll-padding-top:${SITE_TICKER_HEIGHT}px}`}</style>
       <Toran small className="h-[6px]" />
       <div className="flex min-h-0 flex-1 items-center">
         <Marquee duration={36} className="min-w-0 flex-1">

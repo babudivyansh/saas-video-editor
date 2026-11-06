@@ -46,10 +46,11 @@ export function useLaunchCountdown(): { k: string; v: string }[] | null {
   ];
 }
 
-/** Remembered dismissal (per browser). Starts "dismissed" until the stored
- *  value is read, so a closed banner never flashes back in on load. */
-export function useDismissed(key: string, storage: "local" | "session" = "local"): [boolean, () => void] {
-  const [dismissed, setDismissed] = useState(true);
+/** Remembered dismissal (per browser). By default starts "dismissed" until the
+ *  stored value is read, so a closed banner never flashes back in on load;
+ *  pass `initial: false` for one that must be in the server HTML. */
+export function useDismissed(key: string, storage: "local" | "session" = "local", initial = true): [boolean, () => void] {
+  const [dismissed, setDismissed] = useState(initial);
   useEffect(() => {
     try {
       const store = storage === "local" ? window.localStorage : window.sessionStorage;
