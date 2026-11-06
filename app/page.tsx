@@ -2,6 +2,7 @@ import { JsonLd } from "@/app/components/JsonLd";
 import SiteNavbar from "@/app/components/SiteNavbar";
 import SiteFooter from "@/app/components/SiteFooter";
 import Hero from "@/app/components/landing/Hero";
+import LaunchHeroBanner from "@/app/components/campaign/LaunchHeroBanner";
 import SocialProof from "@/app/components/landing/SocialProof";
 import Features from "@/app/components/landing/Features";
 import HowItWorks from "@/app/components/landing/HowItWorks";
@@ -95,6 +96,8 @@ export default async function HomePage() {
       <div className="min-h-screen bg-bg text-fg font-sans">
         <SiteNavbar />
         <main>
+          {/* Diwali 2026 launch banner — renders nothing after 15 Nov. */}
+          <LaunchHeroBanner />
           <Hero reviewSummary={reviewSummary} />
           <SocialProof />
           {testimonials.length > 0 && <TestimonialWall summary={reviewSummary} reviews={testimonials} />}

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useAuth } from "@/app/components/AuthContext";
 import { ChevronDownIcon } from "@/app/components/landing/icons";
 import ClipiroLogo from "@/app/components/ClipiroLogo";
+import SiteLaunchTicker, { SITE_TICKER_HEIGHT, useSiteTicker } from "@/app/components/campaign/SiteLaunchTicker";
 import {
   FREE_FEATURES, VIDEO_TOOLS, AI_TOOLS, RESOURCES, toNavLink, toolPath,
   type NavLink as NavItem,
@@ -78,7 +79,7 @@ function NavDropdown({
 
   const positionClass =
     align === "screen"
-      ? "fixed top-[80px] left-1/2 -translate-x-1/2"
+      ? "fixed top-[var(--site-nav-h,80px)] left-1/2 -translate-x-1/2"
       : "absolute top-full mt-3 left-1/2 -translate-x-1/2";
 
   return (
@@ -118,6 +119,7 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
   const [mobileSection, setMobileSection] = useState<string | null>(null);
   const [scrolled, setScrolled] = useState(false);
   const { user, openAuthModal } = useAuth();
+  const ticker = useSiteTicker();
 
   useEffect(() => {
     if (solid) return;
@@ -163,11 +165,21 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
   }, [menuOpen]);
 
   return (
-    <header className="sticky top-0 z-50 font-sans">
+    <header
+      className="sticky top-0 z-50 font-sans"
+      // The fixed mega-menu and mobile menu sit just below the header; the
+      // Diwali launch ticker (until 15 Nov 2026) makes it taller.
+      style={{ "--site-nav-h": `${80 + (ticker.visible ? SITE_TICKER_HEIGHT : 0)}px` } as React.CSSProperties}
+    >
       <div
         className={`absolute inset-0 transition-opacity duration-300 ${showBar ? "opacity-100" : "opacity-0"}`}
         style={barStyle}
       />
+      {ticker.visible && (
+        <div className="relative">
+          <SiteLaunchTicker onDismiss={ticker.dismiss} />
+        </div>
+      )}
       <div className="relative max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 pt-3">
         <div className="flex items-center justify-between h-16">
 
@@ -280,7 +292,7 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
           and any scrolling while it was open just scrolled the background
           page instead, landing you at a random scroll position once closed. */}
       {menuOpen && (
-        <div className="md:hidden fixed inset-x-0 top-[80px] z-50 max-h-[calc(100vh-80px)] overflow-y-auto overscroll-contain border-t border-line bg-panel px-4 py-4 space-y-1">
+        <div className="md:hidden fixed inset-x-0 top-[var(--site-nav-h,80px)] z-50 max-h-[calc(100vh-var(--site-nav-h,80px))] overflow-y-auto overscroll-contain border-t border-line bg-panel px-4 py-4 space-y-1">
           {/* Features */}
           <button onClick={() => setMobileSection(mobileSection === "features" ? null : "features")} className="flex items-center justify-between w-full text-sm font-semibold text-fg py-2">
             Features

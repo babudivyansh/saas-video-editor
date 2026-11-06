@@ -1,0 +1,77 @@
+/* Diwali 2026 launch decorations. Everything here pauses for people who ask
+   their device for reduced motion (bottom of file). */
+
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+/* A track holds its content twice; sliding by half loops seamlessly,
+   right to left. */
+.track {
+  display: flex;
+  width: max-content;
+  animation: marquee var(--marquee-duration, 30s) linear infinite;
+}
+.pauseOnHover:hover .track { animation-play-state: paused; }
+
+@keyframes flicker {
+  0%, 100% { transform: scale(1, 1); opacity: 1; }
+  25% { transform: scale(0.92, 1.15); }
+  50% { transform: scale(1.05, 0.9); opacity: 0.85; }
+  75% { transform: scale(1, 1.08); }
+}
+.flame {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: flicker 1.2s ease-in-out infinite;
+}
+
+@keyframes swing {
+  0%, 100% { transform: rotate(-6deg); }
+  50% { transform: rotate(6deg); }
+}
+.swing { transform-origin: 50% 0; animation: swing 3.4s ease-in-out infinite; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin 70s linear infinite; }
+
+@keyframes twinkle {
+  0%, 100% { opacity: 0.15; transform: scale(0.5); }
+  50% { opacity: 1; transform: scale(1); }
+}
+.twinkle { animation: twinkle 2.6s ease-in-out infinite; }
+
+@keyframes burst {
+  0% { transform: scale(0.2); opacity: 0; }
+  30% { opacity: 1; }
+  100% { transform: scale(1.25); opacity: 0; }
+}
+.burst { transform-origin: 50% 50%; animation: burst 2.8s ease-out infinite; }
+
+/* Marigold toran: two offset rows of dots, drifting right to left. */
+@keyframes garland { to { background-position: -32px 0, -32px 0; } }
+.toran {
+  background:
+    radial-gradient(circle at 8px 50%, #ff9f1c 6px, transparent 6.5px) 0 0 / 32px 100% repeat-x,
+    radial-gradient(circle at 24px 50%, #ffd23f 6px, transparent 6.5px) 0 0 / 32px 100% repeat-x;
+  animation: garland 1.6s linear infinite;
+}
+.toranSmall {
+  background:
+    radial-gradient(circle at 6px 50%, #ff9f1c 3.5px, transparent 4px) 0 0 / 24px 100% repeat-x,
+    radial-gradient(circle at 18px 50%, #ffd23f 3.5px, transparent 4px) 0 0 / 24px 100% repeat-x;
+  animation: garlandSmall 1.4s linear infinite;
+}
+@keyframes garlandSmall { to { background-position: -24px 0, -24px 0; } }
+
+.serif {
+  font-family: "Playfair Display", Georgia, serif;
+  font-style: italic;
+  font-weight: 400;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .track, .flame, .swing, .spin, .twinkle, .burst, .toran, .toranSmall {
+    animation: none !important;
+  }
+}

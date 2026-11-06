@@ -15,6 +15,7 @@
 import { usePathname } from "next/navigation";
 import DashboardHeader from "@/app/components/DashboardHeader";
 import { AppTopBar } from "@/app/components/AppTopBar";
+import DashboardOfferStrip from "@/app/components/campaign/DashboardOfferStrip";
 import ToolsSidebar from "@/app/components/ToolsSidebar";
 import { CreditModalProvider } from "@/app/components/billing/CreditModalContext";
 import { BillingOverlayProvider, useBillingOverlay } from "@/app/components/billing/BillingOverlayContext";
@@ -67,6 +68,8 @@ function ShellChrome({ children }: { children: React.ReactNode }) {
         {/* Below xl: the header (menu drawer, logo, credits, account).
             From xl up: a slim top bar — search plus the status cluster — on
             every page but Home, which renders its own (HomeTopBar). */}
+        {/* Diwali 2026 offer strip — nothing outside 8–15 Nov. */}
+        <DashboardOfferStrip />
         <DashboardHeader />
         {pathname !== "/dashboard" && <AppTopBar />}
         {/*

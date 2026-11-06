@@ -27,6 +27,7 @@ import { CreditsExplainer } from "./_components/CreditsExplainer";
 import { AddonStrip } from "./_components/AddonStrip";
 import { CompareTable } from "./_components/CompareTable";
 import { CheckoutModal } from "./_components/CheckoutModal";
+import PricingOfferRibbon from "@/app/components/campaign/PricingOfferRibbon";
 import type { DbPlan, ToolCost } from "./_components/types";
 import { GST_RATE_PERCENT } from "@/lib/invoice/seller";
 
@@ -100,6 +101,10 @@ function PricingPageInner({ initialPlans }: { initialPlans: DbPlan[] }) {
     return () => io.disconnect();
   }, []);
   const [term, setTerm] = useState(1);
+  // ?billing=yearly (the Diwali banners' "Claim" links) opens on yearly prices.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("billing") === "yearly") setTerm(12);
+  }, []);
   // Default from the browser locale, then let the visitor override. Set in an
   // effect rather than during render so server and client markup agree.
   const [currency, setCurrency] = useState<Currency>("INR");
@@ -229,6 +234,9 @@ function PricingPageInner({ initialPlans }: { initialPlans: DbPlan[] }) {
         onCurrency={setCurrency}
         savePct={savePct}
       />
+
+      {/* Diwali 2026 offer — nothing outside 8–15 Nov. */}
+      <PricingOfferRibbon term={term} onTerm={setTerm} currency={currency} />
 
       {/* ── How billing works ── the one passage answer engines quote for
           "how does Clipiro pricing work", in plain text above the cards

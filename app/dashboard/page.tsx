@@ -28,6 +28,8 @@ import type { ProjectRow } from "@/app/dashboard/projects/components/projectUi";
 import { AutoClipLaunchBox } from "@/app/components/dashboard/AutoClipLaunchBox";
 import { HomeEmptyState, RecentProjects, ToolChips, TopClips, WhatsNew } from "@/app/components/dashboard/HomeSections";
 import { HomeTopBar } from "@/app/components/dashboard/HomeTopBar";
+import DashboardOfferCard from "@/app/components/campaign/DashboardOfferCard";
+import LaunchDayModal from "@/app/components/campaign/LaunchDayModal";
 import { projectHref as projectLink } from "@/lib/project-links";
 
 const HAS_PROJECTS_STORAGE_KEY = "clipiro:hasAnyProjects";
@@ -306,6 +308,7 @@ function DashboardPageInner() {
             onClose={() => setWelcomeOpen(false)}
           />
         )}
+        {!welcomeOpen && !showTourOverlay && <LaunchDayModal />}
         {showTourOverlay && (
           <ProductTour
             startStep={tourStep}
@@ -322,6 +325,11 @@ function DashboardPageInner() {
 
           <div className="mt-8 xl:mt-14">
             <AutoClipLaunchBox />
+          </div>
+
+          {/* Diwali 2026 offer — nothing outside 8–15 Nov. */}
+          <div className="mt-8 empty:hidden">
+            <DashboardOfferCard />
           </div>
 
           <div className="mt-9">
