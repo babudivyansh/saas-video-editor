@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DIWALI, diwaliDiscountMinor, diwaliOfferApplies, diwaliOfferFor, diwaliPhase, isDiwaliOfferLive } from "./diwali";
+import { DIWALI, diwaliDiscountMinor, diwaliMonthlyBonus, diwaliMonthlyBonusApplies, diwaliOfferApplies, diwaliOfferFor, diwaliPhase, isDiwaliOfferLive } from "./diwali";
 
 const BEFORE = Date.parse("2026-11-07T23:59:59+05:30");
 const LAUNCH = DIWALI.launchAt;
@@ -39,5 +39,21 @@ describe("Diwali offer", () => {
 
   it("discounts 10% of the first payment", () => {
     expect(diwaliDiscountMinor(1_000_000)).toBe(100_000);
+  });
+});
+
+describe("Diwali monthly bonus", () => {
+  it("applies to monthly plans inside the window only — no Razorpay offer needed", () => {
+    vi.stubEnv("NEXT_PUBLIC_RAZORPAY_DIWALI_OFFER_ID", "");
+    expect(diwaliMonthlyBonusApplies({ intervalMonths: 1 }, LAUNCH)).toBe(true);
+    expect(diwaliMonthlyBonusApplies({ intervalMonths: 1 }, LAST_MINUTE)).toBe(true);
+    expect(diwaliMonthlyBonusApplies({ intervalMonths: 1 }, BEFORE)).toBe(false);
+    expect(diwaliMonthlyBonusApplies({ intervalMonths: 1 }, AFTER)).toBe(false);
+    expect(diwaliMonthlyBonusApplies({ intervalMonths: 12 }, LAUNCH)).toBe(false);
+  });
+
+  it("is 50% of the allowance, rounded up", () => {
+    expect(diwaliMonthlyBonus(60, 20)).toEqual({ minutes: 30, credits: 10 });
+    expect(diwaliMonthlyBonus(25, 7)).toEqual({ minutes: 13, credits: 4 });
   });
 });

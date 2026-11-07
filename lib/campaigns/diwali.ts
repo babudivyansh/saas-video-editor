@@ -3,7 +3,9 @@
 //
 // Clipiro launches on Diwali, 8 Nov 2026. From launch until the end of 15 Nov
 // (IST) every NEW yearly subscription gets an extra 10% off its first payment,
-// on top of the usual ~25% yearly saving that is already in the plan price.
+// on top of the usual ~25% yearly saving that is already in the plan price,
+// and every NEW monthly subscription gets 50% more Clip Minutes + AI credits
+// in its first month (a bonus grant, see lib/fulfillment.ts).
 //
 // How the 10% is charged: plans are Razorpay Subscriptions, which take no
 // coupons (lib/coupons.ts — a coupon there was shown and never charged). The
@@ -25,6 +27,10 @@ export const DIWALI = {
   extraPct: 10,
   /** The standing yearly saving the copy refers to ("on top of the usual 25%"). */
   yearlyPct: 25,
+  /** Monthly plans: extra Clip Minutes + AI credits in the first month, as a
+   *  percentage of the plan's monthly allowance. No Razorpay involvement — it's
+   *  a bonus grant on the first charge, so it's live whenever the window is. */
+  monthlyBonusPct: 50,
   /** Campaign label shown on banners. Not a coupon: there is nothing to type. */
   code: "DIWALI26",
   endLabel: "15 Nov 2026",
@@ -67,6 +73,26 @@ export function diwaliOfferApplies(args: DiwaliEligibilityArgs, now: number = Da
 /** The offer id to send on Razorpay subscription create, or undefined. */
 export function diwaliOfferFor(args: DiwaliEligibilityArgs, now: number = Date.now()): string | undefined {
   return diwaliOfferApplies(args, now) ? (diwaliOfferId() ?? undefined) : undefined;
+}
+
+/** Ledger reason for the monthly bonus; also the once-per-account guard. */
+export const DIWALI_MONTHLY_BONUS_REASON = "grant:diwali-monthly-bonus";
+
+/** Subscription note value checkout stamps on an eligible monthly purchase. */
+export const DIWALI_MONTHLY_BONUS_NOTE = "monthly";
+
+/** Whether a monthly checkout started now earns the first-month bonus. The
+ *  window is judged at checkout (stamped on the subscription's notes), so a
+ *  trial or a slow first charge that lands after 15 Nov still gets it. */
+export function diwaliMonthlyBonusApplies(args: { intervalMonths: number }, now: number = Date.now()): boolean {
+  return diwaliPhase(now) === "live" && args.intervalMonths === 1;
+}
+
+/** The bonus for a plan's monthly allowance, rounded up so a small plan
+ *  never shows "+0". */
+export function diwaliMonthlyBonus(monthlyMinutes: number, monthlyCredits: number): { minutes: number; credits: number } {
+  const pct = DIWALI.monthlyBonusPct / 100;
+  return { minutes: Math.ceil(monthlyMinutes * pct), credits: Math.ceil(monthlyCredits * pct) };
 }
 
 /** The discount shown in the checkout summary, in minor units. */

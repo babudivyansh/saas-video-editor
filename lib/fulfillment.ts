@@ -11,6 +11,7 @@ import { grantCredits, getBalances } from "@/lib/credits";
 import { grantMinutes, grantMonthlyMinutes } from "@/lib/minutes";
 import { logger } from "@/lib/logger";
 import { recurringTerm } from "@/lib/billing/term";
+import { DIWALI_MONTHLY_BONUS_NOTE, DIWALI_MONTHLY_BONUS_REASON, diwaliMonthlyBonus } from "@/lib/campaigns/diwali";
 import { parseCurrency } from "@/lib/currency-shared";
 import { greetingName } from "@/lib/display-name";
 
@@ -98,6 +99,9 @@ export interface SubscriptionChargeArgs {
    * otherwise the first charge grants 0 credits (the user row has no plan yet).
    */
   notesPlanId?: string;
+  /** `notes.diwaliBonus` — set at checkout on a monthly plan bought during the
+   *  Diwali 2026 window (lib/campaigns/diwali.ts). */
+  notesDiwaliBonus?: string;
 }
 
 /**
@@ -202,6 +206,48 @@ export async function fulfillSubscriptionCharge(args: SubscriptionChargeArgs): P
     const appliedMinutes = await grantMonthlyMinutes({
       userId: user.id, monthlyMinutes, reason: "grant:subscription-charge", refId: paymentId, tx,
     });
+
+    // Diwali 2026: a monthly plan bought in the window gets 50% more minutes and
+    // credits on its FIRST charge, into the bonus buckets (uncapped, expiring
+    // with the first month). Once per account — the ledger row is the guard, so
+    // renewals and a cancel-and-resubscribe don't grant it again.
+    let diwaliBonus = { minutes: 0, credits: 0 };
+    if (args.notesDiwaliBonus === DIWALI_MONTHLY_BONUS_NOTE && (intervalMonths ?? 1) === 1) {
+      const already = await tx.creditTransaction.findFirst({
+        where: { userId: user.id, reason: DIWALI_MONTHLY_BONUS_REASON },
+        select: { id: true },
+      }) ?? await tx.minuteTransaction.findFirst({
+        where: { userId: user.id, reason: DIWALI_MONTHLY_BONUS_REASON },
+        select: { id: true },
+      });
+      if (!already) {
+        diwaliBonus = diwaliMonthlyBonus(monthlyMinutes, monthlyCredits);
+        const expiries = await tx.user.findUnique({
+          where: { id: user.id },
+          select: { bonusCreditsExpireAt: true, bonusMinutesExpireAt: true },
+        });
+        // Never shorten the life of bonus the user already had.
+        const later = (d: Date | null | undefined, days: number) => {
+          const ours = new Date(Date.now() + days * 86_400_000);
+          return d && d > ours ? d : ours;
+        };
+        const { BONUS_CREDITS_EXPIRY_DAYS, BONUS_MINUTES_EXPIRY_DAYS } = await import("@/lib/plans/tiers");
+        if (diwaliBonus.credits > 0) {
+          await grantCredits({
+            userId: user.id, bucket: "bonus", amount: diwaliBonus.credits,
+            reason: DIWALI_MONTHLY_BONUS_REASON, refId: paymentId,
+            bonusExpiresAt: later(expiries?.bonusCreditsExpireAt, BONUS_CREDITS_EXPIRY_DAYS), tx,
+          });
+        }
+        if (diwaliBonus.minutes > 0) {
+          await grantMinutes({
+            userId: user.id, bucket: "bonus", amount: diwaliBonus.minutes,
+            reason: DIWALI_MONTHLY_BONUS_REASON, refId: paymentId,
+            bonusExpiresAt: later(expiries?.bonusMinutesExpireAt, BONUS_MINUTES_EXPIRY_DAYS), tx,
+          });
+        }
+      }
+    }
 
     const term = recurringTerm(new Date(), intervalMonths);
     await tx.user.update({
