@@ -20,6 +20,7 @@ import type { Plan } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getPlanPriceMinor, type Currency } from "@/lib/currency";
 import { logger } from "@/lib/logger";
+import { describeRazorpayError, isMissingRazorpayPlan } from "@/lib/billing/razorpay-errors";
 
 export const SYNC_CURRENCIES: readonly Currency[] = ["INR", "USD"];
 
@@ -47,8 +48,8 @@ export type SyncOutcome =
  * Ensure `plan` has a Razorpay Plan for `currency` priced at its CURRENT price.
  *
  * `force` mints a replacement even when an id is already stored — that is the
- * price-change path. Without it this is the idempotent provisioning the sync
- * script has always done.
+ * price-change path. Without it this is idempotent provisioning: a stored id is
+ * kept if Razorpay still knows it under the current keys, and replaced if not.
  */
 export async function syncRazorpayPlan(
   plan: Plan,
@@ -64,7 +65,24 @@ export async function syncRazorpayPlan(
 
   const existing = storedPlanId(plan, currency);
   if (existing && !opts.force) {
-    return { ok: true, currency, razorpayPlanId: existing, created: false };
+    // A stored id is only "synced" if it exists for the keys in use NOW.
+    // Razorpay test and live mode keep separate Plans, so after switching
+    // keys every stored id pointed at the other mode's plan: Sync reported
+    // "Synced" and created nothing (2026-11-07, prod moved to test keys and
+    // Lite — and every other plan — had no plan in the test account).
+    try {
+      await razorpay().plans.fetch(existing);
+      return { ok: true, currency, razorpayPlanId: existing, created: false };
+    } catch (e) {
+      if (!isMissingRazorpayPlan(e)) {
+        logger.error("billing/razorpay-plans", `plans.fetch failed for ${plan.slug} (${currency}): ${describeRazorpayError(e)}`, e);
+        return { ok: false, currency, error: `Couldn't reach Razorpay to check the ${currency} plan. Please try again.` };
+      }
+      logger.warn(
+        "billing/razorpay-plans",
+        `${existing} for ${plan.slug} (${currency}) doesn't exist for these keys (test/live switch?) — minting a new one`,
+      );
+    }
   }
 
   // Razorpay Plans are priced per billing cycle; intervalMonths=12 plans still
