@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
       };
       refund?: { entity: { id: string; payment_id: string; amount: number } };
       dispute?: { entity: { id: string; payment_id: string; amount?: number; reason_code?: string } };
-      subscription?: { entity: { id: string; start_at?: number | null; notes?: { userId?: string; planId?: string; trial?: string; currency?: string } } };
+      subscription?: { entity: { id: string; start_at?: number | null; notes?: { userId?: string; planId?: string; trial?: string; currency?: string; diwaliBonus?: string } } };
     };
   };
 
@@ -259,6 +259,8 @@ export async function POST(req: NextRequest) {
         // Lets the first charge grant credits even if it arrives before
         // subscription.activated has written the plan onto the user.
         notesPlanId: subEntity.notes?.planId,
+        // Diwali 2026 monthly first-month bonus, stamped at checkout.
+        notesDiwaliBonus: subEntity.notes?.diwaliBonus,
       });
       if (result.fulfilled) await maybePromptAfterBillingSuccess(subEntity.notes?.userId);
     }

@@ -12,7 +12,7 @@ import { isTrialPlan, TRIAL_DAYS } from "@/lib/plans/tiers";
 import { syncRazorpayPlan } from "@/lib/billing/razorpay-plans";
 import { describeRazorpayError, isMissingRazorpayPlan } from "@/lib/billing/razorpay-errors";
 import { redis } from "@/lib/redis";
-import { DIWALI, diwaliOfferFor } from "@/lib/campaigns/diwali";
+import { DIWALI, DIWALI_MONTHLY_BONUS_NOTE, diwaliMonthlyBonusApplies, diwaliOfferFor } from "@/lib/campaigns/diwali";
 
 // How long one open coupon checkout blocks a second one for the same user.
 const COUPON_HOLD_SECONDS = 30 * 60;
@@ -226,6 +226,7 @@ async function handlePOST(req: NextRequest) {
       currency,
       trial: wantsTrial,
     });
+    const diwaliMonthlyBonus = diwaliMonthlyBonusApplies({ intervalMonths: basePlan.intervalMonths ?? 1 });
 
     const createSubscriptionRaw = (planId: string, offerId?: string) => razorpay.subscriptions.create({
         plan_id: planId,
@@ -252,6 +253,10 @@ async function handlePOST(req: NextRequest) {
           // trial start / activation so "first charge" lines quote it.
           currency,
           ...(offerId ? { campaign: DIWALI.code, offerId } : {}),
+          // Monthly plans bought 8–15 Nov: the first charge adds a bonus
+          // (lib/fulfillment.ts). Stamped here so the window is judged at
+          // purchase, not whenever the first charge happens to land.
+          ...(diwaliMonthlyBonus ? { campaign: DIWALI.code, diwaliBonus: DIWALI_MONTHLY_BONUS_NOTE } : {}),
         },
       });
 

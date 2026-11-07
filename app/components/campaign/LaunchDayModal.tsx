@@ -9,7 +9,7 @@ import ClipiroLogo from "@/app/components/ClipiroLogo";
 import { Modal } from "@/app/components/ui/Modal";
 import { useBillingOverlay } from "@/app/components/billing/BillingOverlayContext";
 import { DIWALI } from "@/lib/campaigns/diwali";
-import { Diya, Marquee, diwaliStyles as s, useDiwaliPhase } from "./DiwaliDecor";
+import { Diya, Marquee, OFFER_COPY, diwaliStyles as s, useDiwaliOffers } from "./DiwaliDecor";
 
 const SEEN_KEY = "clipiro:diwali26:launch-modal";
 const DIYAS = Array.from({ length: 20 }, (_, i) => i);
@@ -20,12 +20,18 @@ const BURSTS = [
 ];
 
 export default function LaunchDayModal() {
-  const { phase, offerLive } = useDiwaliPhase();
+  const { phase, monthly, yearly } = useDiwaliOffers();
+  const offerLive = phase === "live" && (monthly || yearly);
+  const lines = [...(monthly ? [OFFER_COPY.monthly] : []), ...(yearly ? [OFFER_COPY.yearly] : [])];
   const { openBilling } = useBillingOverlay();
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
     if (phase !== "live") return;
+    // Automated browsers (Playwright e2e, crawlers) never get it: a dialog
+    // opening 1.2s into Home would sit on top of whatever a test clicks next,
+    // and CI would start failing on launch day.
+    if (typeof navigator !== "undefined" && navigator.webdriver) return;
     let seen = false;
     try { seen = window.localStorage.getItem(SEEN_KEY) === "1"; } catch { /* storage blocked */ }
     if (seen) return;
@@ -73,13 +79,19 @@ export default function LaunchDayModal() {
           <h2 className="m-0 text-[26px] font-extrabold tracking-[-0.02em] sm:text-[28px]">Clipiro is live{offerLive ? " — and it’s on us" : ""}</h2>
           <p className="m-0 max-w-[400px] text-[15px] leading-relaxed text-[#a9bdb3]">
             We launched on Diwali, 8 November 2026.
-            {offerLive && (
-              <>
-                {" "}Take <strong className="text-[#ffd23f]">an extra {DIWALI.extraPct}% off</strong> yearly plans, on top of the usual {DIWALI.yearlyPct}%,
-                applied automatically until {DIWALI.endLabel}.
-              </>
-            )}
+            {offerLive ? ` Our Diwali Launch Offer runs until ${DIWALI.endLabel}:` : ""}
           </p>
+          {offerLive && (
+            <div className="flex flex-col items-start gap-1.5 rounded-xl border border-[#3d3416] bg-[#0d0a04] px-4 py-3 text-left">
+              {lines.map((l) => (
+                <p key={l} className="m-0 flex items-center gap-2 text-[14px] font-semibold text-[#ffd23f]">
+                  <Diya size={18} />
+                  {l}
+                </p>
+              ))}
+              <p className="m-0 text-xs text-[#c9b98f]">Applied automatically · no code needed</p>
+            </div>
+          )}
           <div className="mt-2.5 flex flex-wrap justify-center gap-2.5">
             {offerLive && (
               <button
@@ -87,7 +99,7 @@ export default function LaunchDayModal() {
                 onClick={() => { close(); openBilling({ view: "plans" }); }}
                 className="inline-flex h-[46px] items-center rounded-[10px] bg-[#00a968] px-5 text-[15px] font-bold text-[#021a10] transition-colors hover:bg-[#20d68a]"
               >
-                Claim extra {DIWALI.extraPct}% off
+                See plans
               </button>
             )}
             <button

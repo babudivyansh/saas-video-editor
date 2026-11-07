@@ -4,7 +4,7 @@
 // right-to-left marquee, and the hooks that decide what shows when.
 
 import { Children, useEffect, useState, type CSSProperties, type ReactNode } from "react";
-import { DIWALI, diwaliPhase, isDiwaliOfferLive, type DiwaliPhase } from "@/lib/campaigns/diwali";
+import { DIWALI, diwaliOfferId, diwaliPhase, isDiwaliOfferLive, type DiwaliPhase } from "@/lib/campaigns/diwali";
 import s from "./diwali.module.css";
 
 export { s as diwaliStyles };
@@ -25,6 +25,26 @@ export function useDiwaliPhase(): { phase: DiwaliPhase; offerLive: boolean } {
   if (preview) return { phase: "live", offerLive: true };
   return { phase: diwaliPhase(now), offerLive: isDiwaliOfferLive(now) };
 }
+
+/** Which halves of the combined Diwali Launch Offer a banner may promise.
+ *  Monthly (+50% first month) needs nothing from Razorpay, so it's announced
+ *  from the countdown until the window closes. Yearly (extra 10%) is promised
+ *  only once the Razorpay Offer id is configured — before launch as a
+ *  heads-up, during launch week because checkout really applies it. */
+export function useDiwaliOffers(): { phase: DiwaliPhase; monthly: boolean; yearly: boolean; any: boolean } {
+  const { phase, offerLive } = useDiwaliPhase();
+  const monthly = phase !== "over";
+  const yearly = offerLive || (phase === "countdown" && diwaliOfferId() !== null);
+  return { phase, monthly, yearly, any: monthly || yearly };
+}
+
+/** The two offer lines, worded once for every banner. */
+export const OFFER_COPY = {
+  monthly: `Monthly: ${DIWALI.monthlyBonusPct}% more minutes & credits in your first month`,
+  monthlyShort: `Monthly: +${DIWALI.monthlyBonusPct}% minutes & credits`,
+  yearly: `Yearly: extra ${DIWALI.extraPct}% off, on top of ${DIWALI.yearlyPct}%`,
+  yearlyShort: `Yearly: extra ${DIWALI.extraPct}% off`,
+} as const;
 
 /** Days/hours/minutes/seconds to launch. Null until mounted, so the server
  *  HTML never carries digits that disagree with the visitor's clock. */

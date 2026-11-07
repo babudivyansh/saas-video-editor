@@ -1,23 +1,24 @@
 "use client";
 
 // Dismissible offer strip across the top of the dashboard (mockup 3). Shown
-// only while the Diwali offer is live AND really applied at checkout.
+// during launch week; the yearly line only once its Razorpay offer is set.
 // Mounted in DashboardShell above the header.
 
 import { useBillingOverlay } from "@/app/components/billing/BillingOverlayContext";
 import { DIWALI } from "@/lib/campaigns/diwali";
-import { Diya, Marquee, Sparkle, useDiwaliPhase, useDismissed } from "./DiwaliDecor";
+import { Diya, Marquee, OFFER_COPY, Sparkle, useDiwaliOffers, useDismissed } from "./DiwaliDecor";
 
 export default function DashboardOfferStrip() {
-  const { offerLive } = useDiwaliPhase();
+  const { phase, monthly, yearly } = useDiwaliOffers();
   const [dismissed, dismiss] = useDismissed("clipiro:diwali26:dash-strip");
   const { openBilling } = useBillingOverlay();
-  if (!offerLive || dismissed) return null;
+  if (phase !== "live" || dismissed) return null;
 
   const items = [
     { text: "Clipiro is officially live: 8 Nov 2026", cls: "font-bold text-[#20d68a]" },
-    { text: `Extra ${DIWALI.extraPct}% off yearly plans this Diwali, on top of ${DIWALI.yearlyPct}%`, cls: "" },
-    { text: `${DIWALI.code} · applied automatically at checkout`, cls: "font-bold text-[#ffd23f]" },
+    ...(monthly ? [{ text: OFFER_COPY.monthly, cls: "" }] : []),
+    ...(yearly ? [{ text: OFFER_COPY.yearly, cls: "" }] : []),
+    { text: "Applied automatically · no code needed", cls: "font-bold text-[#ffd23f]" },
     { text: `Offer ends ${DIWALI.endLabel}`, cls: "" },
   ];
   const row = [...items, ...items, ...items];
@@ -39,15 +40,16 @@ export default function DashboardOfferStrip() {
         ))}
       </Marquee>
       <span className="sr-only">
-        Clipiro is live. Diwali offer: an extra {DIWALI.extraPct}% off yearly plans, on top of {DIWALI.yearlyPct}%, applied automatically until {DIWALI.endLabel}.
+        Clipiro is live. Diwali Launch Offer, applied automatically until {DIWALI.endLabel}.
+        {monthly ? ` ${OFFER_COPY.monthly}.` : ""}{yearly ? ` ${OFFER_COPY.yearly}.` : ""}
       </span>
       <button
         type="button"
         onClick={() => openBilling({ view: "plans" })}
         className="relative z-[1] ml-3 flex h-8 shrink-0 items-center whitespace-nowrap rounded-lg bg-[#00a968] px-3.5 text-[13px] font-bold text-[#021a10] transition-colors hover:bg-[#20d68a]"
       >
-        <span className="hidden sm:inline">Upgrade · extra {DIWALI.extraPct}% off</span>
-        <span className="sm:hidden">{DIWALI.extraPct}% off</span>
+        <span className="hidden sm:inline">See the Diwali offer</span>
+        <span className="sm:hidden">Offer</span>
       </button>
       <button
         type="button"

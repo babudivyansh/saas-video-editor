@@ -7,24 +7,24 @@
 
 import Link from "next/link";
 import ClipiroLogo from "@/app/components/ClipiroLogo";
-import { DIWALI, diwaliOfferId } from "@/lib/campaigns/diwali";
-import { Diya, Lantern, Marquee, Rangoli, Sparkle, Toran, diwaliStyles as s, useDiwaliPhase, useLaunchCountdown } from "./DiwaliDecor";
+import { DIWALI } from "@/lib/campaigns/diwali";
+import { Diya, Lantern, Marquee, OFFER_COPY, Rangoli, Sparkle, Toran, diwaliStyles as s, useDiwaliOffers, useLaunchCountdown } from "./DiwaliDecor";
 
 const SPARKS: [number, number][] = [[57, 20], [63, 10], [70, 87], [82, 78], [92, 15], [49, 78], [88, 43], [67, 42], [97, 67], [44, 10]];
 
 export default function LaunchHeroBanner() {
-  const { phase, offerLive } = useDiwaliPhase();
+  const { phase, monthly, yearly } = useDiwaliOffers();
   const units = useLaunchCountdown();
   if (phase === "over") return null;
-  // The offer is only promised once it is really applied at checkout; before
-  // launch, it's announced if the offer id is configured.
-  const showOffer = offerLive || (phase === "countdown" && diwaliOfferId() !== null);
+  const showOffer = monthly || yearly;
+  const lines = [...(monthly ? [OFFER_COPY.monthly] : []), ...(yearly ? [OFFER_COPY.yearly] : [])];
 
   const ticker = [
     phase === "live" ? "Clipiro is live" : "Launching 8 Nov 2026",
-    ...(showOffer ? [`Diwali offer: extra ${DIWALI.extraPct}% off yearly`, `On top of ${DIWALI.yearlyPct}%`, `Ends ${DIWALI.endLabelShort}`] : []),
+    ...(monthly ? [OFFER_COPY.monthlyShort] : []),
+    ...(yearly ? [OFFER_COPY.yearlyShort] : []),
+    ...(showOffer ? [`Ends ${DIWALI.endLabelShort}`] : []),
     "Happy Diwali",
-    "AI clips in minutes",
   ];
 
   return (
@@ -62,13 +62,22 @@ export default function LaunchHeroBanner() {
 
         <p className="m-0 max-w-[560px] text-base leading-relaxed text-[#a9bdb3] md:text-[19px]">
           Long videos in, ready-to-post clips out.
-          {showOffer && (
-            <>
-              {" "}Light up launch week with our Diwali offer: <strong className="text-[#eef5f1]">an extra {DIWALI.extraPct}% off</strong> yearly
-              plans, on top of the usual {DIWALI.yearlyPct}%. Applied automatically until {DIWALI.endLabelShort}.
-            </>
-          )}
         </p>
+
+        {showOffer && (
+          <div className="flex max-w-[600px] flex-col gap-2 rounded-2xl border border-[#3d3416] bg-[#0d0a04] px-4 py-3.5 md:px-5">
+            <p className="m-0 text-xs font-bold uppercase tracking-[0.1em] text-[#f5b544] md:text-sm">
+              Diwali Launch Offer · {phase === "live" ? `until ${DIWALI.endLabel}` : `8–15 Nov`}
+            </p>
+            {lines.map((l) => (
+              <p key={l} className="m-0 flex items-start gap-2.5 text-[15px] font-semibold text-[#eef5f1] md:text-[17px]">
+                <Diya size={20} className="mt-0.5" />
+                {l}
+              </p>
+            ))}
+            <p className="m-0 text-xs text-[#c9b98f] md:text-sm">Applied automatically · no code needed</p>
+          </div>
+        )}
 
         {phase === "countdown" ? (
           <div role="timer" aria-label="Time until launch" className="flex gap-2.5 md:gap-3">
@@ -88,10 +97,10 @@ export default function LaunchHeroBanner() {
 
         <div className="flex flex-col gap-3 sm:flex-row">
           <Link
-            href={showOffer ? "/pricing?billing=yearly#plans" : "/pricing"}
+            href={yearly ? "/pricing?billing=yearly#plans" : "/pricing#plans"}
             className="inline-flex h-[52px] items-center justify-center gap-2.5 rounded-xl bg-[#00a968] px-6 text-base font-bold text-[#021a10] no-underline transition-colors hover:bg-[#20d68a] md:text-[17px]"
           >
-            {showOffer ? `Claim extra ${DIWALI.extraPct}% off` : "See plans"}
+            {showOffer ? "Claim the Diwali offer" : "See plans"}
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
           </Link>
           <Link

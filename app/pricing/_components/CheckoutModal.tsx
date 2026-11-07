@@ -14,7 +14,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { Modal } from "@/app/components/ui/Modal";
 import { formatMoney, type Currency } from "@/lib/currency-shared";
 import { minorUnits } from "@/lib/plans/display";
-import { DIWALI, diwaliDiscountMinor, diwaliOfferApplies } from "@/lib/campaigns/diwali";
+import { DIWALI, diwaliDiscountMinor, diwaliMonthlyBonus, diwaliMonthlyBonusApplies, diwaliOfferApplies } from "@/lib/campaigns/diwali";
 import type { DbPlan } from "./types";
 
 // Modal.tsx reads useTranslations("Common") for its close-button label, and
@@ -43,6 +43,10 @@ export function CheckoutModal(props: {
   const diwali = diwaliOfferApplies({ intervalMonths: months, currency, trial });
   const diwaliOff = diwali ? diwaliDiscountMinor(priceMinor) : 0;
   const dueNow = trial ? 0 : priceMinor - diwaliOff;
+  // Diwali 2026 monthly bonus — mirrors the checkout note + first-charge grant.
+  const monthlyBonus = diwaliMonthlyBonusApplies({ intervalMonths: months })
+    ? diwaliMonthlyBonus(plan.monthlyMinutes ?? 0, plan.monthlyCredits ?? 0)
+    : null;
 
   return (
     <NextIntlClientProvider locale="en" messages={COMMON_MESSAGES}>
@@ -103,6 +107,20 @@ export function CheckoutModal(props: {
                   <span className="block text-xs text-fg-subtle">First yearly payment · applied automatically</span>
                 </span>
                 <span className="whitespace-nowrap text-warning">−{formatMoney(diwaliOff, currency)}</span>
+              </div>
+            )}
+
+            {monthlyBonus && (monthlyBonus.minutes > 0 || monthlyBonus.credits > 0) && (
+              <div className="flex items-start justify-between gap-2 text-sm">
+                <span className="min-w-0 text-warning">
+                  Diwali bonus · first month
+                  <span className="block text-xs text-fg-subtle">Added with your first payment · applied automatically</span>
+                </span>
+                <span className="whitespace-nowrap text-right text-warning">
+                  {monthlyBonus.minutes > 0 && <>+{monthlyBonus.minutes} min</>}
+                  {monthlyBonus.minutes > 0 && monthlyBonus.credits > 0 && <br />}
+                  {monthlyBonus.credits > 0 && <>+{monthlyBonus.credits} credits</>}
+                </span>
               </div>
             )}
 

@@ -1,18 +1,20 @@
 "use client";
 
 // Diwali offer card on dashboard Home, under the AutoClip launch box
-// (mockup 4). Only while the offer is live and really applied at checkout.
+// (mockup 4). During launch week; the yearly line only once its Razorpay
+// offer is set.
 
 import { useBillingOverlay } from "@/app/components/billing/BillingOverlayContext";
 import { DIWALI } from "@/lib/campaigns/diwali";
-import { Diya, Lantern, Marquee, Sparkle, diwaliStyles as s, useDiwaliPhase } from "./DiwaliDecor";
+import { Diya, Lantern, Marquee, OFFER_COPY, Sparkle, diwaliStyles as s, useDiwaliOffers } from "./DiwaliDecor";
 
 const DIYAS = Array.from({ length: 16 }, (_, i) => i);
 
 export default function DashboardOfferCard() {
-  const { offerLive } = useDiwaliPhase();
+  const { phase, monthly, yearly } = useDiwaliOffers();
   const { openBilling } = useBillingOverlay();
-  if (!offerLive) return null;
+  if (phase !== "live") return null;
+  const lines = [...(monthly ? [OFFER_COPY.monthly] : []), ...(yearly ? [OFFER_COPY.yearly] : [])];
 
   return (
     <section
@@ -25,23 +27,25 @@ export default function DashboardOfferCard() {
           <span className="text-[13px] text-[#a9bdb3]">Ends {DIWALI.endLabel}</span>
         </div>
         <h2 className="m-0 text-2xl font-extrabold leading-tight tracking-[-0.025em] sm:text-[30px]">
-          Happy Diwali — <span className={`${s.serif} text-[#ffd23f]`}>extra {DIWALI.extraPct}% off</span> yearly
+          Happy Diwali — the <span className={`${s.serif} text-[#ffd23f]`}>Diwali Launch Offer</span>
         </h2>
-        <p className="m-0 max-w-[560px] text-[15px] text-[#a9bdb3]">
-          Stacks on the usual {DIWALI.yearlyPct}% yearly saving, on your first yearly payment. We launched on Diwali — this one&apos;s on us.
-        </p>
+        <div className="flex flex-col gap-1.5">
+          {lines.map((l) => (
+            <p key={l} className="m-0 flex items-center gap-2 text-[15px] font-semibold text-[#eef5f1]">
+              <Diya size={18} />
+              {l}
+            </p>
+          ))}
+        </div>
         <div className="mt-1.5 flex flex-wrap items-center gap-3">
           <button
             type="button"
             onClick={() => openBilling({ view: "plans" })}
             className="inline-flex h-11 items-center rounded-[10px] bg-[#00a968] px-5 text-[15px] font-bold text-[#021a10] transition-colors hover:bg-[#20d68a]"
           >
-            Claim offer
+            See plans
           </button>
-          <span className="inline-flex h-11 items-center gap-2 rounded-[10px] border border-dashed border-[#f5b544] px-3.5 text-sm font-bold tracking-[0.06em] text-[#ffd23f]">
-            {DIWALI.code}
-            <span className="text-xs font-medium tracking-normal text-[#c9b98f]">· no code needed</span>
-          </span>
+          <span className="text-sm text-[#c9b98f]">Applied automatically · no code needed</span>
         </div>
       </div>
 

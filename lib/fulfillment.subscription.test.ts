@@ -83,6 +83,12 @@ vi.mock("@/lib/prisma", () => {
     },
     creditTransaction: {
       create: vi.fn(async ({ data }: { data: (typeof ledger)[number] }) => { ledger.push(data); return data; }),
+      findFirst: vi.fn(async ({ where }: { where: { userId: string; reason: string } }) =>
+        ledger.find((r) => r.userId === where.userId && r.reason === where.reason) ?? null),
+    },
+    minuteTransaction: {
+      findFirst: vi.fn(async () => null),
+      create: vi.fn(async () => ({})),
     },
     razorpayEvent: {
       create: vi.fn(async ({ data }: { data: { id: string } }) => {
@@ -258,5 +264,34 @@ describe("fulfillSubscriptionCharge — currency", () => {
   it("leaves it alone when Razorpay gave no currency", async () => {
     await fulfillSubscriptionCharge({ subscriptionId: "sub_1", paymentId: "pay_none", amountInPaise: 219900 });
     expect((user as unknown as { subscriptionCurrency?: string }).subscriptionCurrency).toBeUndefined();
+  });
+});
+
+describe("fulfillSubscriptionCharge — Diwali 2026 monthly bonus", () => {
+  const monthly = { subscriptionId: "sub_1", amountInPaise: 219900, notesPlanId: "plan-pro-monthly", notesDiwaliBonus: "monthly" };
+
+  it("adds 50% of the monthly credits to the bonus bucket on the first charge", async () => {
+    await fulfillSubscriptionCharge({ ...monthly, paymentId: "pay_1" });
+    expect(user.subscriptionCredits).toBe(160);
+    expect(user.bonusCredits).toBe(80);
+    expect(ledger).toContainEqual(expect.objectContaining({ bucket: "bonus", delta: 80, reason: "grant:diwali-monthly-bonus", refId: "pay_1" }));
+  });
+
+  it("grants it once per account — a renewal gets none", async () => {
+    await fulfillSubscriptionCharge({ ...monthly, paymentId: "pay_1" });
+    await fulfillSubscriptionCharge({ ...monthly, paymentId: "pay_2" });
+    expect(ledger.filter((r) => r.reason === "grant:diwali-monthly-bonus")).toHaveLength(1);
+    expect(user.bonusCredits).toBe(80);
+  });
+
+  it("gives a yearly plan none, even if the note were present", async () => {
+    await fulfillSubscriptionCharge({ ...monthly, notesPlanId: "plan-pro-annual", paymentId: "pay_1" });
+    expect(user.bonusCredits).toBe(0);
+  });
+
+  it("gives nothing without the checkout note (bought outside the window)", async () => {
+    await fulfillSubscriptionCharge({ ...monthly, notesDiwaliBonus: undefined, paymentId: "pay_1" });
+    expect(user.bonusCredits).toBe(0);
+    expect(ledger.some((r) => r.reason === "grant:diwali-monthly-bonus")).toBe(false);
   });
 });

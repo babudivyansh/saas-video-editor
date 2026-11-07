@@ -60,18 +60,18 @@ async function diwaliCard() {
             <span style={{ color: "#ffd23f", fontStyle: "italic", fontFamily: "Georgia, serif", fontWeight: 400 }}>Diwali</span>
           </div>
           <div style={{ marginTop: 22, fontSize: 28, color: "#a9bdb3" }}>
-            {offer ? `Launches 8 Nov · Diwali offer ends ${DIWALI.endLabel}` : "Launching 8 November 2026"}
+            {`Launches 8 Nov · Diwali Launch Offer until ${DIWALI.endLabelShort}`}
           </div>
-          {offer && (
-            <div style={{ marginTop: 28, display: "flex", alignItems: "center", gap: 14 }}>
-              <div style={{ padding: "12px 20px", borderRadius: 12, background: "#ffd23f", color: "#1a0f02", fontSize: 26, fontWeight: 800 }}>
-                {`${DIWALI.yearlyPct}% + extra ${DIWALI.extraPct}% off yearly`}
-              </div>
-              <div style={{ padding: "10px 18px", borderRadius: 12, border: "2px dashed #f5b544", color: "#ffd23f", fontSize: 24, fontWeight: 700, letterSpacing: "2px" }}>
-                {DIWALI.code}
-              </div>
+          <div style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "flex", alignSelf: "flex-start", padding: "10px 18px", borderRadius: 12, background: "#ffd23f", color: "#1a0f02", fontSize: 26, fontWeight: 800 }}>
+              {`Monthly: +${DIWALI.monthlyBonusPct}% minutes & credits, first month`}
             </div>
-          )}
+            {offer && (
+              <div style={{ display: "flex", alignSelf: "flex-start", padding: "10px 18px", borderRadius: 12, border: "2px solid #f5b544", color: "#ffd23f", fontSize: 26, fontWeight: 800 }}>
+                {`Yearly: extra ${DIWALI.extraPct}% off, on top of ${DIWALI.yearlyPct}%`}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Row of diyas */}
