@@ -8,10 +8,19 @@ import type { Plan } from "@prisma/client";
 
 const created: Array<{ amount: number; currency: string; period: string; name: string }> = [];
 let createShouldFail = false;
+// Plan ids the mocked Razorpay account knows (fetch succeeds for these), and
+// how fetch fails for any other id.
+const knownPlanIds = new Set<string>();
+let fetchFailure: "missing" | "network" = "missing";
 
 vi.mock("razorpay", () => ({
   default: class {
     plans = {
+      fetch: async (id: string) => {
+        if (knownPlanIds.has(id)) return { id };
+        if (fetchFailure === "network") throw new Error("ECONNRESET");
+        throw { statusCode: 400, error: { code: "BAD_REQUEST_ERROR", description: "The id provided does not exist" } };
+      },
       create: async (args: { period: string; item: { name: string; amount: number; currency: string } }) => {
         if (createShouldFail) throw new Error("razorpay down");
         created.push({
@@ -70,6 +79,8 @@ beforeEach(() => {
   created.length = 0;
   planUpdates.length = 0;
   createShouldFail = false;
+  knownPlanIds.clear();
+  fetchFailure = "missing";
 });
 
 describe("syncRazorpayPlan", () => {
@@ -82,8 +93,24 @@ describe("syncRazorpayPlan", () => {
   });
 
   it("is idempotent — an already-synced currency is left alone", async () => {
+    knownPlanIds.add("plan_existing");
     const res = await syncRazorpayPlan(makePlan({ razorpayPlanIdInr: "plan_existing" }), "INR");
     expect(res).toMatchObject({ ok: true, created: false, razorpayPlanId: "plan_existing" });
+    expect(created).toHaveLength(0);
+    expect(planUpdates).toHaveLength(0);
+  });
+
+  it("replaces a stored id the current keys don't know (test/live switch)", async () => {
+    const res = await syncRazorpayPlan(makePlan({ slug: "sub_lite_1mo", priceInPaise: 49900, razorpayPlanIdInr: "plan_from_live" }), "INR");
+    expect(res).toMatchObject({ ok: true, created: true, razorpayPlanId: "plan_rzp_1" });
+    expect(created[0]).toMatchObject({ amount: 49900, currency: "INR" });
+    expect(planUpdates[0]).toEqual({ razorpayPlanIdInr: "plan_rzp_1" });
+  });
+
+  it("keeps the stored id and reports an error when Razorpay can't be reached", async () => {
+    fetchFailure = "network";
+    const res = await syncRazorpayPlan(makePlan({ razorpayPlanIdInr: "plan_existing" }), "INR");
+    expect(res).toMatchObject({ ok: false });
     expect(created).toHaveLength(0);
     expect(planUpdates).toHaveLength(0);
   });
