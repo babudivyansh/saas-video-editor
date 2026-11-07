@@ -60,7 +60,7 @@ async function diwaliCard() {
             <span style={{ color: "#ffd23f", fontStyle: "italic", fontFamily: "Georgia, serif", fontWeight: 400 }}>Diwali</span>
           </div>
           <div style={{ marginTop: 22, fontSize: 28, color: "#a9bdb3" }}>
-            {`Launches 8 Nov · Diwali Launch Offer until ${DIWALI.endLabelShort}`}
+            {`Launches 8 Nov, 11 AM IST · Diwali Launch Offer until ${DIWALI.endLabelShort}`}
           </div>
           <div style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ display: "flex", alignSelf: "flex-start", padding: "10px 18px", borderRadius: 12, background: "#ffd23f", color: "#1a0f02", fontSize: 26, fontWeight: 800 }}>

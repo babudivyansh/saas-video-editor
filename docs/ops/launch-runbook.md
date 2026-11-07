@@ -1,4 +1,10 @@
-# Web launch runbook (clipiro.com, 8 Nov 2026)
+# Web launch runbook (clipiro.com, 8 Nov 2026, 11:00 AM IST)
+
+The launch moment lives in `lib/campaigns/diwali.ts` (`DIWALI.launchAt`). At
+11:00 AM IST the countdown hits zero, every banner flips to "Clipiro is live",
+and the Diwali offers (monthly bonus, extra 10% yearly) start applying at
+checkout — no deploy needed at that moment, but the build carrying this date
+must be live on Hostinger before then.
 
 What to do before, during and after the public launch. It covers the web app;
 the Android release has its own checklist in `docs/mobile/RELEASE.md`. Source:
