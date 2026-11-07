@@ -1,7 +1,7 @@
 "use client";
 
 // Landing page launch banner (mockups 1 + 7: desktop and phone are the same
-// component). Before 8 Nov it counts down to launch; from launch to the end of
+// component). Before 8 Nov, 11 AM IST it counts down to launch; from launch to the end of
 // the offer it says "We're live". Gone after 15 Nov. Mounted in app/page.tsx,
 // above the hero.
 
@@ -20,7 +20,7 @@ export default function LaunchHeroBanner() {
   const lines = [...(monthly ? [OFFER_COPY.monthly] : []), ...(yearly ? [OFFER_COPY.yearly] : [])];
 
   const ticker = [
-    phase === "live" ? "Clipiro is live" : "Launching 8 Nov 2026",
+    phase === "live" ? "Clipiro is live" : `Launching ${DIWALI.launchLabel}`,
     ...(monthly ? [OFFER_COPY.monthlyShort] : []),
     ...(yearly ? [OFFER_COPY.yearlyShort] : []),
     ...(showOffer ? [`Ends ${DIWALI.endLabelShort}`] : []),
@@ -58,6 +58,12 @@ export default function LaunchHeroBanner() {
           {phase === "live" ? "Clipiro is live" : "Clipiro goes live"}
           <br />
           <span className={`${s.serif} text-[#ffd23f]`}>8 November</span> 2026
+          {phase === "countdown" && (
+            <>
+              <br />
+              <span className="text-[28px] font-bold tracking-[-0.02em] text-[#f6e7c1] md:text-[36px]">at 11 AM IST</span>
+            </>
+          )}
         </h2>
 
         <p className="m-0 max-w-[560px] text-base leading-relaxed text-[#a9bdb3] md:text-[19px]">

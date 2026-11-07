@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DIWALI, diwaliDiscountMinor, diwaliMonthlyBonus, diwaliMonthlyBonusApplies, diwaliOfferApplies, diwaliOfferFor, diwaliPhase, isDiwaliOfferLive } from "./diwali";
 
-const BEFORE = Date.parse("2026-11-07T23:59:59+05:30");
+const BEFORE = Date.parse("2026-11-08T10:59:59+05:30");
 const LAUNCH = DIWALI.launchAt;
 const LAST_MINUTE = Date.parse("2026-11-15T23:59:00+05:30");
 const AFTER = Date.parse("2026-11-16T00:00:00+05:30");
@@ -11,6 +11,11 @@ const yearlyInr = { intervalMonths: 12, currency: "INR" as const, trial: false }
 afterEach(() => vi.unstubAllEnvs());
 
 describe("diwaliPhase", () => {
+  it("launches at 11:00 AM IST on 8 Nov 2026", () => {
+    expect(new Date(DIWALI.launchAt).toISOString()).toBe("2026-11-08T05:30:00.000Z");
+    expect(diwaliPhase(Date.parse("2026-11-08T00:00:00+05:30"))).toBe("countdown");
+  });
+
   it("counts down before launch, is live through 15 Nov IST, then over", () => {
     expect(diwaliPhase(BEFORE)).toBe("countdown");
     expect(diwaliPhase(LAUNCH)).toBe("live");

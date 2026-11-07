@@ -1,7 +1,7 @@
 // Diwali 2026 launch campaign — one source of truth for the dates, the copy
 // numbers and whether the extra yearly discount is really applied.
 //
-// Clipiro launches on Diwali, 8 Nov 2026. From launch until the end of 15 Nov
+// Clipiro launches on Diwali, 8 Nov 2026 at 11:00 AM IST. From launch until the end of 15 Nov
 // (IST) every NEW yearly subscription gets an extra 10% off its first payment,
 // on top of the usual ~25% yearly saving that is already in the plan price,
 // and every NEW monthly subscription gets 50% more Clip Minutes + AI credits
@@ -19,8 +19,9 @@
 // offer can never produce a banner that promises money off that isn't taken.
 
 export const DIWALI = {
-  /** Launch moment: 8 Nov 2026, 00:00 IST. */
-  launchAt: Date.parse("2026-11-08T00:00:00+05:30"),
+  /** Launch moment: 8 Nov 2026, 11:00 AM IST. The countdown, the banners
+   *  flipping to "live" and both offers all key off this one value. */
+  launchAt: Date.parse("2026-11-08T11:00:00+05:30"),
   /** Offer closes at the end of 15 Nov 2026 IST. */
   offerEndsAt: Date.parse("2026-11-15T23:59:59+05:30"),
   /** The extra discount on a yearly plan's first payment, percent. */
@@ -33,6 +34,9 @@ export const DIWALI = {
   monthlyBonusPct: 50,
   /** Campaign label shown on banners. Not a coupon: there is nothing to type. */
   code: "DIWALI26",
+  /** Launch moment as shown in copy. Keep in sync with launchAt. */
+  launchLabel: "8 Nov 2026, 11 AM IST",
+  launchLabelLong: "8 November 2026 at 11 AM IST",
   endLabel: "15 Nov 2026",
   endLabelShort: "15 Nov",
 } as const;

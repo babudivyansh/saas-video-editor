@@ -28,7 +28,7 @@ export default function SiteLaunchTicker({ onDismiss }: { onDismiss: () => void 
 
   const gold = "font-extrabold uppercase tracking-[0.05em] text-[#ffd23f]";
   const items: { text: string; cls: string }[] = [
-    { text: phase === "live" ? "Clipiro is live" : "Launching 8 Nov 2026", cls: gold },
+    { text: phase === "live" ? "Clipiro is live" : `Launching ${DIWALI.launchLabel}`, cls: gold },
     ...(any ? [{ text: "Diwali Launch Offer", cls: gold }] : []),
     ...(monthly ? [{ text: OFFER_COPY.monthly, cls: "" }] : []),
     ...(yearly ? [{ text: OFFER_COPY.yearly, cls: "" }] : []),
@@ -55,7 +55,7 @@ export default function SiteLaunchTicker({ onDismiss }: { onDismiss: () => void 
           ))}
         </Marquee>
         <span className="sr-only">
-          {phase === "live" ? "Clipiro is live." : "Clipiro launches 8 November 2026."}
+          {phase === "live" ? "Clipiro is live." : `Clipiro launches ${DIWALI.launchLabelLong}.`}
           {monthly ? ` ${OFFER_COPY.monthly}.` : ""}
           {yearly ? ` ${OFFER_COPY.yearly}.` : ""}
           {any ? ` Applied automatically until ${DIWALI.endLabel}.` : ""}
