@@ -89,6 +89,22 @@ export function TemplateEditStep({ project, transcribe, save, startTranscription
       { subtitlesStyle: { templateId, ...(project.language ? { language: project.language } : {}), removeFillers: project.removeFillers } },
     );
   };
+  // The gallery animates ~150 template cards; it must not re-render on every
+  // video frame (timeMs below changes ~60×/s while playing). Memoised on what
+  // it shows; `choose` is read through a ref so the memo never holds a stale one.
+  const chooseRef = useRef(choose);
+  useEffect(() => { chooseRef.current = choose; });
+  const galleryValue = savedPick ? null : picked;
+  const hasSavedPick = !!savedPick;
+  const gallery = useMemo(() => (
+    <CaptionTemplateGallery
+      value={galleryValue}
+      onChange={(id) => { if (id !== picked || hasSavedPick) chooseRef.current(id, null); }}
+      onLocked={upgrade}
+      columns={2}
+      maxHeightClass="max-h-[60vh] lg:max-h-none"
+    />
+  ), [galleryValue, picked, hasSavedPick, upgrade]);
   const pickedName = savedPick?.name ?? templates.find((t) => t.id === picked)?.name ?? null;
 
   // ── Words ─────────────────────────────────────────────────────────────
@@ -197,13 +213,7 @@ export function TemplateEditStep({ project, transcribe, save, startTranscription
           </div>
         )}
 
-        <CaptionTemplateGallery
-          value={savedPick ? null : picked}
-          onChange={(id) => { if (id !== picked || savedPick) choose(id, null); }}
-          onLocked={upgrade}
-          columns={2}
-          maxHeightClass="max-h-[60vh] lg:max-h-none"
-        />
+        {gallery}
       </section>
 
       {/* Preview */}

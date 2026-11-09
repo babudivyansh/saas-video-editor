@@ -12,6 +12,7 @@ import { Card } from "@/app/components/ui/Card";
 import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
 import { StatusBadge } from "@/app/components/ui/StatusBadge";
 import { useToast } from "@/app/components/ui/Toast";
+import { downloadFile } from "@/lib/download-file";
 
 interface ExportStatus {
   status: "queued" | "ready" | "failed";
@@ -63,7 +64,7 @@ export function DataExport({ userId, email, headers }: { userId: string; email: 
         purchases, login history and social data. The user is not emailed. Use it for a data-access request that came through support.
       </p>
       {s === "ready" && status.data?.url ? (
-        <Button size="sm" variant="primary" href={status.data.url}>Download JSON</Button>
+        <Button size="sm" variant="primary" onClick={() => downloadFile(status.data!.url!, "user-data.json")}>Download JSON</Button>
       ) : (
         <Button size="sm" variant="secondary" loading={!!jobId && (s === "queued" || status.isLoading)} onClick={() => setConfirm(true)}>
           {jobId && (s === "failed" || status.isError) ? "Try again" : "Export data…"}

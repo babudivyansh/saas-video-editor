@@ -85,6 +85,52 @@ export async function getPresignedUrl(key: string, expiresIn = 3600): Promise<st
   return getSignedUrl(s3, cmd, { expiresIn: expiresIn + SIGNING_WINDOW_SEC, signingDate });
 }
 
+/**
+ * A short-lived presigned URL that makes S3 answer with
+ * `Content-Disposition: attachment`, so opening it saves the file to the
+ * device instead of the browser navigating to (and playing) the S3 object.
+ * The disposition is a signed query parameter — it can't be added to an
+ * existing presigned URL client-side.
+ */
+export async function getPresignedDownloadUrl(key: string, disposition: string, expiresIn = 300): Promise<string> {
+  const cmd = new GetObjectCommand({ Bucket: BUCKET, Key: key, ResponseContentDisposition: disposition });
+  return getSignedUrl(s3, cmd, { expiresIn });
+}
+
+function parseAmzDate(v: string): Date | null {
+  const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/.exec(v);
+  if (!m) return null;
+  return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]));
+}
+
+/**
+ * The S3 key of `url` when it is an unexpired read URL that WE presigned for
+ * our bucket (getPresignedUrl), else null. Verified by re-deriving the SigV4
+ * signature from its own date/expiry — no network call — so holding a valid
+ * URL is the proof of access: a caller can only turn a URL they were already
+ * handed into a download of that same object.
+ */
+export async function verifyPresignedReadUrl(url: string): Promise<string | null> {
+  let u: URL;
+  try { u = new URL(url); } catch { return null; }
+  if (u.protocol !== "https:" || u.hostname !== `${BUCKET}.s3.${env.AWS_REGION}.amazonaws.com`) return null;
+  const q = u.searchParams;
+  const sig = q.get("X-Amz-Signature");
+  const date = parseAmzDate(q.get("X-Amz-Date") ?? "");
+  const expires = Number(q.get("X-Amz-Expires"));
+  if (!sig || !date || !Number.isInteger(expires) || expires <= 0 || expires > 604_800) return null;
+  if (date.getTime() + expires * 1000 < Date.now()) return null;
+  const key = decodeURIComponent(u.pathname.replace(/^\//, ""));
+  if (!key) return null;
+  const expected = new URL(
+    await getSignedUrl(s3, new GetObjectCommand({ Bucket: BUCKET, Key: key }), { expiresIn: expires, signingDate: date }),
+  ).searchParams.get("X-Amz-Signature");
+  if (!expected || expected.length !== sig.length) return null;
+  let diff = 0;
+  for (let i = 0; i < sig.length; i++) diff |= sig.charCodeAt(i) ^ expected.charCodeAt(i);
+  return diff === 0 ? key : null;
+}
+
 export function sanitizeS3Key(rawKey: string): string {
   // Only allow alphanumeric, hyphens, underscores, dots, and forward-slashes
   return rawKey.replace(/[^a-zA-Z0-9\-_./]/g, "");

@@ -25,6 +25,7 @@ import { OrganizeDialog } from "./components/OrganizeDialog";
 import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
 import { CommandPalette } from "./components/CommandPalette";
 import type { Asset, KindFilter, SortOption, Tag } from "./types";
+import { downloadFile } from "@/lib/download-file";
 
 // List-or-grid, remembered per browser. A tiny external store rather than
 // state + effect so the saved choice is read without a second render, and a
@@ -217,10 +218,7 @@ function AssetsPageInner() {
         if (status.status === "ready" && status.url) {
           setZipJobId(null);
           showToast("Your download is ready");
-          const a = document.createElement("a");
-          a.href = status.url;
-          a.download = "assets.zip";
-          a.click();
+          downloadFile(status.url, "assets.zip");
           return;
         }
         if (status.status === "failed") {

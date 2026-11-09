@@ -35,14 +35,28 @@ export interface StudioPreviewProps {
   frameRef?: React.Ref<HTMLDivElement>;
 }
 
-/** The video's clock, read every frame while it plays (ms). */
-function useVideoTime(ref: React.RefObject<HTMLVideoElement | null>): number {
+/** The video's clock, read every frame while it plays (ms). `onTime` is
+ * called from the same animation-frame tick, not from an effect watching the
+ * returned value: an effect that sets the parent's state on every frame is a
+ * passive-effect update cascade, which React reports as "Maximum update depth
+ * exceeded" once frames run long (a parent with a full template gallery). */
+function useVideoTime(ref: React.RefObject<HTMLVideoElement | null>, onTime?: (ms: number) => void): number {
   const [ms, setMs] = useState(0);
+  const onTimeRef = useRef(onTime);
+  useEffect(() => { onTimeRef.current = onTime; }, [onTime]);
   useEffect(() => {
     let raf = 0;
+    let last = 0;
     const tick = () => {
       const v = ref.current;
-      if (v) setMs((prev) => (Math.abs(prev - v.currentTime * 1000) > 15 ? v.currentTime * 1000 : prev));
+      if (v) {
+        const now = v.currentTime * 1000;
+        if (Math.abs(last - now) > 15) {
+          last = now;
+          setMs(now);
+          onTimeRef.current?.(now);
+        }
+      }
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -54,8 +68,7 @@ function useVideoTime(ref: React.RefObject<HTMLVideoElement | null>): number {
 export function StudioPreview({ doc, media, templateId, maxWidth, maxHeight, className = "", videoRef: outerRef, autoPlay = true, onTime, children, frameRef }: StudioPreviewProps) {
   const ownRef = useRef<HTMLVideoElement>(null);
   const videoRef = outerRef ?? ownRef;
-  const timeMs = useVideoTime(videoRef);
-  useEffect(() => { onTime?.(timeMs); }, [timeMs, onTime]);
+  const timeMs = useVideoTime(videoRef, onTime);
   const frame = docDimensions(doc);
   const scale = Math.min(maxWidth / frame.w, maxHeight / frame.h);
   const clip = doc.tracks.video[0];

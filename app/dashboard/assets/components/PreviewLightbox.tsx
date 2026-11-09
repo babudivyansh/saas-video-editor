@@ -10,6 +10,7 @@ import {
 } from "@/app/components/related/RelatedContent";
 import type { Asset } from "../types";
 import { clipHref, projectHref } from "@/lib/project-links";
+import { downloadHref } from "@/lib/download-file";
 
 interface PreviewLightboxProps {
   asset: Asset | null;
@@ -108,7 +109,7 @@ export function PreviewLightbox({ asset, onClose, onPrev, onNext }: PreviewLight
               Open detail
             </Link>
             <a
-              href={asset.url}
+              href={downloadHref(asset.url, asset.name)}
               download={asset.name}
               className="min-h-[36px] px-3.5 rounded-xl border border-card-border bg-panel text-ink text-xs font-semibold hover:bg-tint-blue transition-colors flex items-center"
             >

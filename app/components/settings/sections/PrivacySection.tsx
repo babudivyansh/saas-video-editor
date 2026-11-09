@@ -6,6 +6,7 @@ import { useAuth } from "@/app/components/AuthContext";
 import { useToast } from "@/app/components/ui/Toast";
 import { Card } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
+import { downloadFile } from "@/lib/download-file";
 
 function IcSpinner() { return <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />; }
 
@@ -88,7 +89,7 @@ export default function PrivacySettingsPage() {
           {state === "queued" && <Button disabled><IcSpinner /> {t("preparing")}</Button>}
           {state === "ready" && downloadUrl && (
             <div className="flex items-center gap-3">
-              <Button href={downloadUrl}>{t("downloadData")}</Button>
+              <Button onClick={() => downloadFile(downloadUrl, "clipiro-data.json")}>{t("downloadData")}</Button>
               <Button variant="secondary" onClick={requestExport}>{t("requestAgain")}</Button>
             </div>
           )}
