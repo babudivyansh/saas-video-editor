@@ -11,6 +11,7 @@ import {
 } from "@/app/components/related/RelatedContent";
 import type { Asset } from "../types";
 import { clipHref, projectHref } from "@/lib/project-links";
+import { downloadHref } from "@/lib/download-file";
 
 // Deep-linkable asset detail.
 //
@@ -112,7 +113,7 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
           <h1 className="text-xl font-extrabold text-ink truncate mt-1">{asset.name}</h1>
         </div>
         <a
-          href={asset.url}
+          href={downloadHref(asset.url, asset.name)}
           download={asset.name}
           className="shrink-0 min-h-[40px] px-4 rounded-xl grad-brand text-on-primary text-[13px] font-bold shadow-glow flex items-center"
         >

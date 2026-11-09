@@ -11,6 +11,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/app/components/ui/Button";
 import { Checkbox } from "@/app/components/ui/Checkbox";
 import { clientAuthToken } from "@/lib/client-session";
+import { downloadFile } from "@/lib/download-file";
 
 const SECTIONS = [
   { id: "kpis", label: "Metrics" },
@@ -153,12 +154,7 @@ export function ReportBuilder({ accounts, initialRuns }: ReportBuilderProps) {
     // a click on a detached anchor is the same navigation without the argument,
     // and it carries the download attribute honestly.
     if (!data.downloadUrl) return;
-    const anchor = document.createElement("a");
-    anchor.href = data.downloadUrl;
-    anchor.rel = "noopener";
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
+    downloadFile(data.downloadUrl);
   };
 
   const toggle = (list: string[], value: string) =>

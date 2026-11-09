@@ -12,6 +12,7 @@ import { Tooltip } from "@/app/components/ui/Tooltip";
 import { Modal } from "@/app/components/ui/Modal";
 import { Button } from "@/app/components/ui/Button";
 import { ToolWorkspace, ToolBadge, ToolField, CostRow, StageEmpty, StageProgress } from "@/app/components/tools/ToolWorkspace";
+import { downloadFile } from "@/lib/download-file";
 
 // Aspect ratios are per model (lib/models/imageModels.ts, from each provider's
 // schema). The old shared list offered "Original" and ratios most models ignored.
@@ -187,7 +188,8 @@ async function saveImage(url: string) {
     document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(href), 60_000);
   } catch {
-    window.open(url, "_blank", "noopener,noreferrer");
+    // Not opened in a new tab: that showed the S3 page instead of saving.
+    downloadFile(url, "generated-image.png");
   }
 }
 

@@ -21,6 +21,7 @@ import { useUpgradePrompt } from "@/app/components/captions/useUpgradePrompt";
 import { effectivePlan } from "@/lib/plans/effective-plan";
 import { tierAtLeast, TIER_LABEL } from "@/lib/plans/tiers";
 import { EXPORT_4K_MAX_SECONDS, EXPORT_4K_MIN_TIER, exportFrame, type ExportQuality } from "@/lib/editor/export-quality";
+import { downloadHref } from "@/lib/download-file";
 
 type Stage = "confirm" | "waiting-save" | "rendering" | "done" | "error";
 
@@ -248,7 +249,7 @@ export default function ExportModal() {
               </div>
               {stage === "done" && videoUrl ? (
                 <>
-                  <a href={videoUrl} download target="_blank" rel="noopener noreferrer"
+                  <a href={downloadHref(videoUrl, `clipiro-export-${resolution}.mp4`)} download={`clipiro-export-${resolution}.mp4`}
                      className="inline-flex w-full items-center justify-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-on-primary outline-none focus-visible:ring-2 focus-visible:ring-primary/70">
                     Download MP4
                   </a>

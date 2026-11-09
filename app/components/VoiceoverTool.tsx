@@ -12,6 +12,7 @@ import { Button } from "@/app/components/ui/Button";
 import { ToolWorkspace, ToolBadge, ToolField, CostRow, OptionCards } from "@/app/components/tools/ToolWorkspace";
 import { useVoiceCatalog, type CatalogVoice } from "@/app/components/voices/useVoiceCatalog";
 import VoiceLibraryPicker, { VoiceAvatar, voiceLanguageLabel } from "@/app/components/voices/VoiceLibraryPicker";
+import { downloadHref } from "@/lib/download-file";
 
 function IcInfo() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" className="w-3.5 h-3.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>;
@@ -78,7 +79,7 @@ function PlayerCard({
           </div>
         </div>
         <a
-          href={take.url}
+          href={downloadHref(take.url, take.name)}
           download={take.name}
           className="w-8 h-8 rounded-lg text-fg-subtle hover:text-fg hover:bg-surface-3 flex items-center justify-center flex-shrink-0 transition-colors"
           aria-label={`Download ${take.name}`}

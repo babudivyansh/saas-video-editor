@@ -20,6 +20,7 @@ import { tierAtLeast, TIER_LABEL } from "@/lib/plans/tiers";
 import { EXPORT_4K_MAX_SECONDS, EXPORT_4K_MIN_TIER, exportFrame, type ExportQuality } from "@/lib/editor/export-quality";
 import { StudioPreview } from "./StudioPreview";
 import type { StudioProject } from "./useStudioProject";
+import { downloadHref } from "@/lib/download-file";
 
 interface RenderRow {
   id: string;
@@ -239,7 +240,7 @@ export function ExportStep({ project }: { project: StudioProject }) {
                   )}
                 </div>
                 {r.status === "completed" && r.url ? (
-                  <a href={r.url} target="_blank" rel="noopener noreferrer" className="text-[13px] font-semibold text-emerald-bright hover:underline">Download</a>
+                  <a href={downloadHref(r.url, `${base}-${r.aspect === "original" ? "original" : r.aspect.replace(":", "x")}.mp4`)} download className="text-[13px] font-semibold text-emerald-bright hover:underline">Download</a>
                 ) : r.status !== "failed" && r.status !== "completed" ? (
                   <span className="font-mono text-xs text-fg-muted">{r.status === "queued" ? "Queued" : `${r.progress}%`}</span>
                 ) : null}
