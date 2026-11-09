@@ -287,6 +287,11 @@ export default function DashboardHeader() {
   const { openBilling } = useBillingOverlay();
   const t = useTranslations("Nav");
   const [menuOpen, setMenuOpen] = useState(false);
+  // The drawer opens from the header's real bottom edge, not a fixed 64px:
+  // anything above the header (the Diwali offer strip, 48px) pushes it down,
+  // and a drawer pinned at top-16 then covered the header's own Close button.
+  const headerRef = useRef<HTMLElement>(null);
+  const [drawerTop, setDrawerTop] = useState(64);
   const [mobileSection, setMobileSection] = useState<string | null>(null);
   const { groups: railGroups, bottomNav: railBottomNav } = useDashboardNavItems();
   const createItems = useCreateItems();
@@ -325,11 +330,14 @@ export default function DashboardHeader() {
     <>
     {/* Below xl only: from xl up every page uses the sidebar rail plus a slim
         top bar (AppTopBar, or Home's own HomeTopBar). */}
-    <header className="flex xl:hidden items-center gap-2 sm:gap-4 px-3 sm:px-5 h-16 flex-shrink-0 border-b border-line bg-panel z-40">
+    <header ref={headerRef} className="flex xl:hidden items-center gap-2 sm:gap-4 px-3 sm:px-5 h-16 flex-shrink-0 border-b border-line bg-panel z-40">
       {user && (
         <button
           className="xl:hidden p-2 -ml-2 rounded-md text-ink-soft hover:text-ink flex-shrink-0"
-          onClick={() => setMenuOpen((p) => !p)}
+          onClick={() => {
+            if (!menuOpen) setDrawerTop(headerRef.current?.getBoundingClientRect().bottom ?? 64);
+            setMenuOpen((p) => !p);
+          }}
           aria-label={menuOpen ? "Close menu" : "Open menu"}
         >
           <IcMenu open={menuOpen} />
@@ -404,7 +412,7 @@ export default function DashboardHeader() {
     {/* Mobile drawer — replaces the ToolsSidebar rail + everything the header
         hides below `xl`, in one place, mirroring SiteNavbar.tsx's mobile menu. */}
     {user && menuOpen && (
-      <div className="xl:hidden fixed inset-x-0 top-16 bottom-0 z-50 flex overflow-hidden overscroll-none" data-testid="mobile-nav-drawer">
+      <div className="xl:hidden fixed inset-x-0 bottom-0 z-50 flex overflow-hidden overscroll-none" style={{ top: drawerTop }} data-testid="mobile-nav-drawer">
         {/* touch-none: dragging the backdrop must not pan the page behind. */}
         <div className="absolute inset-0 bg-black/40 touch-none" onClick={closeMobile} />
         {/* Vertical scroll only, and never chained to the page at either end. */}
