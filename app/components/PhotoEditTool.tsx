@@ -245,6 +245,7 @@ export default function PhotoEditTool() {
   async function suggest() {
     if (!active || !token || suggesting) return;
     setSuggesting(true);
+    setError(null);
     try {
       const res = await fetch("/api/tools/photo-edit/suggest", {
         method: "POST",
@@ -344,7 +345,7 @@ export default function PhotoEditTool() {
             <option value="auto">Auto (best fit, {creditLabel(quote({ action: "edit", model: "auto" })!.creditsPerImage)})</option>
             {pickableModels.map((m) => (
               <option key={m.id} value={m.id}>
-                {m.displayName} ({creditLabel(m.creditCost)}{m.allowedTiers[0] !== "free" ? `, ${m.allowedTiers[0]}+` : ""})
+                {m.displayName} ({creditLabel(m.creditCost)}{m.allowedTiers[0] === "studio" ? ", Studio only" : m.allowedTiers[0] !== "free" ? `, ${m.allowedTiers[0][0].toUpperCase()}${m.allowedTiers[0].slice(1)}+` : ""})
               </option>
             ))}
           </select>

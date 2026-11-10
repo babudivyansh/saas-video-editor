@@ -78,7 +78,7 @@ export async function routeEdit(input: RouteInput, opts?: { timeoutMs?: number }
   try {
     const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash-lite",
+      model: "gemini-3.5-flash-lite",
       systemInstruction: SYSTEM,
       generationConfig: { responseMimeType: "application/json", temperature: 0.2, maxOutputTokens: 400 },
     });

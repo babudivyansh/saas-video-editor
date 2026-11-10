@@ -54,7 +54,9 @@ export async function geminiEdit(
   if (!res || !res.ok) {
     const text = res ? await res.text().catch(() => "") : "no response";
     logger.error("photo-edit", `gemini edit failed ${res?.status}`, text.slice(0, 500));
-    if (res?.status === 503) throw new UserFacingError("The image service is busy right now. Try again in a moment.");
+    if (res?.status === 503 || res?.status === 429) {
+      throw new UserFacingError("The image service is busy right now. Your credits were refunded. Try again in a moment, or pick another model.");
+    }
     throw new Error(`Gemini edit failed ${res?.status}: ${text.slice(0, 300)}`);
   }
 

@@ -7,7 +7,7 @@ import { logger } from "@/lib/logger";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { rateLimit } from "@/lib/rate-limit";
 import { downloadS3ObjectToBuffer } from "@/utils/s3-upload";
-import { prepareImage } from "@/lib/photo-edit/image-prep";
+import sharp from "sharp";
 import { screenPrompt } from "@/lib/photo-edit/policy";
 
 // "Ideas for this photo": Gemini looks at the photo and proposes a few edits a
@@ -40,17 +40,22 @@ async function handlePOST(req: NextRequest) {
   if (!cap.allowed) return NextResponse.json({ error: `You've used today's ${IDEAS_PER_DAY} idea requests.` }, { status: 429 });
 
   try {
-    const photo = await prepareImage(await downloadS3ObjectToBuffer(asset.s3Key));
-    // Ideas don't need detail; a small copy keeps the call fast and cheap.
+    // Ideas don't need detail: a 768px copy keeps the call fast and cheap.
+    let small: Buffer;
+    try {
+      small = await sharp(await downloadS3ObjectToBuffer(asset.s3Key)).rotate().resize(768, 768, { fit: "inside", withoutEnlargement: true }).jpeg({ quality: 80 }).toBuffer();
+    } catch {
+      return NextResponse.json({ error: "We couldn't read this image." }, { status: 400 });
+    }
     const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash-lite",
+      model: "gemini-3.5-flash-lite",
       systemInstruction: SYSTEM,
       generationConfig: { responseMimeType: "application/json", temperature: 0.7, maxOutputTokens: 400 },
     });
     const res = await model.generateContent(
-      { contents: [{ role: "user", parts: [{ inlineData: { mimeType: photo.mimeType, data: photo.buffer.toString("base64") } }, { text: "Suggest 4 edits for this photo." }] }] },
-      { timeout: 15_000 },
+      { contents: [{ role: "user", parts: [{ inlineData: { mimeType: "image/jpeg", data: small.toString("base64") } }, { text: "Suggest 4 edits for this photo." }] }] },
+      { timeout: 25_000 },
     );
     const parsed = JSON.parse(res.response.text()) as { suggestions?: unknown };
     const suggestions = (Array.isArray(parsed.suggestions) ? parsed.suggestions : [])
