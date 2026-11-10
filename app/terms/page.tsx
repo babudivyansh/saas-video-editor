@@ -98,6 +98,7 @@ const doc: LegalDoc = {
           <ul>
             <li>AI script generation powered by Google Gemini</li>
             <li>AI voiceover synthesis via ElevenLabs</li>
+            <li>AI photo editing of images you upload, via Google Gemini and models hosted by fal.ai</li>
             <li>Karaoke-style caption generation with word-level timing</li>
             <li>Background music and visual selection</li>
             <li>Video rendering and export in 9:16 vertical format</li>

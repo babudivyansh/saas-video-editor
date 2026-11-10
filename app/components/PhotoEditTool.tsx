@@ -233,11 +233,9 @@ export default function PhotoEditTool() {
     const images = (meta?.images ?? []).filter((i): i is { url: string; assetId: string } => !!i.assetId);
     if (!images.length) return;
     const label = action === "edit" ? prompt.trim() : ACTIONS.find(([a]) => a === action)?.[1] ?? action;
-    setVersions((prev) => {
-      const next = [...prev, ...images.map((im) => ({ key: newKey(), assetId: im.assetId, url: im.url, label, parent: pendingParent.current, model: meta?.model ?? null }))];
-      setCurrent(prev.length);
-      return next;
-    });
+    // Nothing else changes the list while a job runs, so this render's list is current.
+    setVersions([...versions, ...images.map((im) => ({ key: newKey(), assetId: im.assetId, url: im.url, label, parent: pendingParent.current, model: meta?.model ?? null }))]);
+    setCurrent(versions.length);
     if (action === "erase") maskRef.current?.clear();
     setCompare(true);
     void refreshUser();

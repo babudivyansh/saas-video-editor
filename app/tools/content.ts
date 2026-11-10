@@ -272,6 +272,34 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
     ],
   },
 
+  "ai-photo-editor": {
+    h1: "Edit any photo by typing what to change",
+    updatedAt: "2026-11-10",
+    metaTitle: "AI Photo Editor — Edit Photos With a Prompt",
+    metaDescription:
+      "Upload a photo and describe the change. Swap backgrounds, fix lighting, erase objects, expand to 9:16 and upscale, with every version kept.",
+    lede: "Upload a photo, type what you want changed, and get the edited version back in seconds. Auto picks the right AI model for each instruction, and every version stays in your Assets.",
+    steps: [
+      { title: "Add a photo", body: "Upload a JPG, PNG or WebP up to 20 MB, or pick an image you already have in Assets." },
+      { title: "Describe the change", body: "Type an instruction like \"put me on a sunset beach\", tap a preset, or paint over something to erase it." },
+      { title: "Keep going", body: "Each edit becomes a new version. Compare before and after, go back to any version, and download the one you like." },
+    ],
+    benefits: [
+      { title: "The right model, chosen for you", body: "Text changes go to a model that writes clean lettering, restyles to one built for style, and edits to people to one that keeps faces the same." },
+      { title: "Made for thumbnails and posts", body: "Change backgrounds, fix lighting, expand a landscape photo to 9:16 and upscale it, without opening Photoshop." },
+      { title: "Every version kept", body: "Nothing is overwritten. Each result is saved to your Assets, ready to use in the editor or on a clip." },
+      { title: "Clear prices", body: "Edits start at 2 credits on Auto, background removal at 1, and you see the price before you press Edit." },
+    ],
+    faqs: [
+      { question: "Which AI models does it use?", answer: "Auto chooses between Google Gemini 2.5 Flash Image, Qwen Image Edit, FLUX.1 Kontext and Seedream for each instruction. Pro and Studio plans can also pick Nano Banana 2, GPT Image 2 and Nano Banana Pro directly." },
+      { question: "Will it change my face?", answer: "Auto sends edits to people to a model that keeps faces and identity unchanged, and adds \"keep everything else unchanged\" to your instruction. For the most careful results, describe only what should change." },
+      { question: "Can I use it on the free plan?", answer: "Yes. Free accounts can make up to 10 edits a day with Auto, paid for with credits like any other tool." },
+      { question: "What won't it do?", answer: "It refuses sexual or nude edits, edits of ID documents, money or official seals, and fake scenes of real public figures. A refused edit costs nothing." },
+      CREDITS_FAQ,
+      COMMERCIAL_FAQ,
+    ],
+  },
+
   "background-remover": {
     h1: "Cut the background out of any photo",
     updatedAt: "2026-11-04",
