@@ -50,6 +50,7 @@ const SOURCE_LABELS: Record<string, string> = {
   "face-swap": "AI Face Swap",
   "subtitle-remover": "Subtitle Remover",
   "cut-and-crop": "Cut & Crop",
+  "photo-edit": "AI Photo Editor",
 };
 
 function AssetPlayer({ asset }: { asset: Asset }) {
@@ -112,13 +113,23 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
           </Link>
           <h1 className="text-xl font-extrabold text-ink truncate mt-1">{asset.name}</h1>
         </div>
-        <a
-          href={downloadHref(asset.url, asset.name)}
-          download={asset.name}
-          className="shrink-0 min-h-[40px] px-4 rounded-xl grad-brand text-on-primary text-[13px] font-bold shadow-glow flex items-center"
-        >
-          Download
-        </a>
+        <div className="flex shrink-0 items-center gap-2">
+          {asset.kind === "image" && (
+            <Link
+              href={`/dashboard/tools/photo-edit?asset=${asset.id}`}
+              className="min-h-[40px] px-4 rounded-xl border border-card-border bg-panel text-ink text-[13px] font-bold flex items-center hover:bg-tint-blue transition-colors"
+            >
+              Edit with AI
+            </Link>
+          )}
+          <a
+            href={downloadHref(asset.url, asset.name)}
+            download={asset.name}
+            className="min-h-[40px] px-4 rounded-xl grad-brand text-on-primary text-[13px] font-bold shadow-glow flex items-center"
+          >
+            Download
+          </a>
+        </div>
       </div>
 
       <div className="rounded-2xl overflow-hidden bg-black flex items-center justify-center">

@@ -75,19 +75,8 @@ export async function prepareMask(dataUrl: string, width: number, height: number
   return sharp(data, { raw: { width: info.width, height: info.height, channels: 1 } }).png().toBuffer();
 }
 
-export const EXPAND_RATIOS = ["1:1", "9:16", "16:9", "4:5", "3:4", "4:3"] as const;
-export type ExpandRatio = (typeof EXPAND_RATIOS)[number];
-
-/** Canvas size for an image grown to a ratio: it only ever grows, never crops. */
-export function expandedSize(width: number, height: number, ratio: ExpandRatio): { width: number; height: number } {
-  const [rw, rh] = ratio.split(":").map(Number);
-  const target = rw / rh;
-  const current = width / height;
-  if (Math.abs(current - target) < 0.01) return { width, height };
-  return current < target
-    ? { width: Math.round(height * target), height }
-    : { width, height: Math.round(width / target) };
-}
+export { EXPAND_RATIOS, expandedSize, type ExpandRatio } from "@/lib/photo-edit/ratios";
+import { expandedSize, type ExpandRatio } from "@/lib/photo-edit/ratios";
 
 /** How far the mask reaches back into the original, so the seam is blended instead of a hard line. */
 const SEAM_OVERLAP = 12;
