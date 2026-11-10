@@ -65,7 +65,8 @@ export type SourceFeature =
   | "background-remover"
   | "face-swap"
   | "subtitle-remover"
-  | "cut-and-crop";
+  | "cut-and-crop"
+  | "photo-edit";
 
 export interface AdoptResult {
   asset: Asset & { url: string };

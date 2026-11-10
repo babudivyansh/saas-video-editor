@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAllToolConfigs, TOOL_SERVICE } from "@/lib/tool-config";
 import { IMAGE_MODELS } from "@/lib/models/imageModels";
+import { EDIT_MODELS, PHOTO_EDIT_STARTING_CREDIT_COST } from "@/lib/models/editModels";
 import { AUTOCLIP_PRICING_DEFAULTS } from "@/lib/autoclip-pricing";
 import { AUDIO_RATE_LABEL } from "@/lib/audio-pricing";
 import { memoFor } from "@/lib/memo";
@@ -24,6 +25,7 @@ const LABELS: Record<string, string> = {
   "instagram-downloader": "Instagram Downloader",
   "background-remover": "Background Remover",
   "face-swap": "AI Face Swap",
+  "photo-edit": "AI Photo Editor",
   "auto-clip": "Auto Clips",
   "clip-dub": "Clip Dubbing",
   "social-exec-report": "Social Tracker: Exec Report",
@@ -49,6 +51,8 @@ const RATE_LABELS: Record<string, string> = { ...AUDIO_RATE_LABEL };
 
 const RANGES: Record<string, { min: number; max: number }> = {
   "image-generator": { min: Math.min(...IMAGE_COSTS), max: Math.max(...IMAGE_COSTS) },
+  // Background removal at the bottom, Nano Banana Pro 4K at the top.
+  "photo-edit": { min: PHOTO_EDIT_STARTING_CREDIT_COST, max: Math.max(...EDIT_MODELS.map((m) => m.hiRes?.creditCost ?? m.creditCost)) },
   // Matches creditCostForDuration's clamp in app/api/tools/subtitle-remover/route.ts.
   "subtitle-remover": { min: 2, max: 20 },
   // Dubbing bills by duration rather than per run, so a single figure would be
