@@ -15,3 +15,12 @@ export function expandedSize(width: number, height: number, ratio: ExpandRatio):
     ? { width: Math.round(height * target), height }
     : { width, height: Math.round(width / target) };
 }
+
+/** The editor aspect closest to a photo's shape; vertical when unknown. */
+export function aspectForImage(width: number | null, height: number | null): "9:16" | "1:1" | "16:9" {
+  if (!width || !height) return "9:16";
+  const r = width / height;
+  if (r >= 1.3) return "16:9";
+  if (r <= 0.8) return "9:16";
+  return "1:1";
+}

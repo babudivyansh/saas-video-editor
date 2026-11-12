@@ -15,6 +15,7 @@ import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationPro
 import { createJobStatusHandler, createJobCancelHandler, idempotencyResponse, type CancellableJob } from "@/lib/job-routes";
 import { saveToolResult } from "@/lib/tool-results";
 import { markQuestComplete } from "@/lib/quests";
+import { auditEvent } from "@/lib/admin/audit";
 import { getEditModel, INPAINT_MODEL, UPSCALE_MODEL, REMOVE_BG_MODEL, type EditModelEntry } from "@/lib/models/editModels";
 import { quote, clampVariations, autoModelsForTier, PHOTO_EDIT_ACTIONS, FREE_DAILY_EDITS, type PhotoEditAction } from "@/lib/photo-edit/pricing";
 import { screenPrompt, POLICY_MESSAGES } from "@/lib/photo-edit/policy";
@@ -69,6 +70,21 @@ interface Body {
 
 const bad = (error: string, status = 400, extra?: Record<string, unknown>) => NextResponse.json({ error, ...extra }, { status });
 
+/**
+ * A refused instruction or result, on the admin Audit Log (Content). Shows
+ * who keeps trying what; auditEvent never throws.
+ */
+function auditBlocked(userId: string, stage: "keyword" | "router" | "model", details: { prompt: string; reason: string; assetId?: string; model?: string }) {
+  return auditEvent({
+    actorId: userId,
+    actorType: "user",
+    action: "photo_edit.blocked",
+    targetId: userId,
+    reason: details.reason,
+    after: { stage, prompt: details.prompt.slice(0, 500), assetId: details.assetId ?? null, model: details.model ?? null },
+  });
+}
+
 async function loadImageAsset(userId: string, id: string) {
   const asset = await prisma.asset.findFirst({
     where: { id, userId, archivedAt: null },
@@ -99,7 +115,10 @@ async function handlePOST(req: NextRequest) {
   if (action === "edit" && !prompt) return bad("Describe the change you want.");
   if (prompt) {
     const verdict = screenPrompt(prompt);
-    if (!verdict.allowed) return bad(verdict.reason, 422, { code: "policy_blocked" });
+    if (!verdict.allowed) {
+      await auditBlocked(auth.userId, "keyword", { prompt, reason: verdict.reason, assetId: typeof body.assetId === "string" ? body.assetId : undefined });
+      return bad(verdict.reason, 422, { code: "policy_blocked" });
+    }
   }
 
   const refIds = action === "edit" && Array.isArray(body.referenceAssetIds)
@@ -153,7 +172,7 @@ async function handlePOST(req: NextRequest) {
         .filter((id) => env.FAL_KEY || getEditModel(id)?.integration === "direct-gemini");
       const decision = await routeEdit({ prompt, referenceCount: refs.length, allowedModelIds: allowedIds });
       if (decision.blocked) {
-        logger.warn("photo-edit", "router blocked an instruction", { userId: auth.userId, reason: decision.reason });
+        await auditBlocked(auth.userId, "router", { prompt, reason: decision.reason || POLICY_MESSAGES.router, assetId: source.id });
         return bad(POLICY_MESSAGES.router, 422, { code: "policy_blocked" });
       }
       model = getEditModel(decision.modelId);
@@ -344,6 +363,9 @@ async function handlePOST(req: NextRequest) {
       logger.error("photo-edit", "job failed", err);
       job.status = "error";
       job.error = userMessage(err, FAILED);
+      if (err instanceof UserFacingError && err.message === POLICY_MESSAGES.router) {
+        void auditBlocked(auth.userId, "model", { prompt: prompt || action, reason: "The model's safety filter refused the edit.", assetId: source.id, model: usedModelId });
+      }
       if (!job.refunded) {
         job.refunded = true;
         try {

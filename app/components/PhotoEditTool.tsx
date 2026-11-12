@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "./AuthContext";
 import { useModKey } from "./useModKey";
 import { useJobPolling } from "./useJobPolling";
@@ -12,6 +12,8 @@ import { AssetPicker } from "@/app/components/assets/AssetPicker";
 import { uploadPickerAsset, type PickerAsset } from "@/app/components/assets/assetPickerData";
 import { BeforeAfter } from "@/app/components/photo-edit/BeforeAfter";
 import { MaskCanvas, type MaskCanvasHandle } from "@/app/components/photo-edit/MaskCanvas";
+import { ClipThumbnailPicker } from "@/app/components/photo-edit/ClipThumbnailPicker";
+import { registerAsset, type AssetRow } from "@/app/dashboard/editor/components/panels/shared/assetData";
 import { EDIT_MODELS, MAX_VARIATIONS, getEditModel } from "@/lib/models/editModels";
 import { quote, FREE_DAILY_EDITS, type PhotoEditAction } from "@/lib/photo-edit/pricing";
 import { EXPAND_RATIOS, type ExpandRatio } from "@/lib/photo-edit/ratios";
@@ -73,6 +75,7 @@ export default function PhotoEditTool() {
   const job = useJobPolling({ toolSlug: "photo-edit", token });
   const overrides = useModelOverrides();
   const params = useSearchParams();
+  const router = useRouter();
 
   const [versions, setVersions] = useState<Version[]>([]);
   const [current, setCurrent] = useState(0);
@@ -94,6 +97,8 @@ export default function PhotoEditTool() {
   const [lastModel, setLastModel] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<string[] | null>(null);
   const [suggesting, setSuggesting] = useState(false);
+  const [sendingToEditor, setSendingToEditor] = useState(false);
+  const [thumbPickerOpen, setThumbPickerOpen] = useState(false);
 
   const maskRef = useRef<MaskCanvasHandle>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
@@ -259,6 +264,28 @@ export default function PhotoEditTool() {
       setError(e instanceof Error ? e.message : "No ideas right now.");
     } finally {
       setSuggesting(false);
+    }
+  }
+
+  // A new editor project with this version on the image track.
+  async function sendToEditor() {
+    if (!active || sendingToEditor) return;
+    setSendingToEditor(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/tools/photo-edit/to-editor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders(token) },
+        body: JSON.stringify({ assetId: active.assetId }),
+      });
+      const data = await res.json() as { editorProjectId?: string; asset?: AssetRow; error?: string };
+      if (!res.ok || !data.editorProjectId) throw new Error(data.error || "The editor project wasn't created.");
+      // The editor's media cache only learns of assets it fetched itself.
+      if (data.asset) registerAsset(data.asset);
+      router.push(`/dashboard/editor?projectId=${data.editorProjectId}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "The editor project wasn't created.");
+      setSendingToEditor(false);
     }
   }
 
@@ -447,6 +474,8 @@ export default function PhotoEditTool() {
         <Button type="button" size="sm" variant="secondary" onClick={() => setCompare((c) => !c)}>{compare ? "Hide compare" : "Compare"}</Button>
       )}
       <Button type="button" size="sm" variant="secondary" onClick={() => downloadFile(active.url, `${active.label.slice(0, 40).replace(/[^\w -]/g, "").trim() || "photo"}.png`)}>Download</Button>
+      <Button type="button" size="sm" variant="secondary" onClick={() => void sendToEditor()} loading={sendingToEditor}>Send to video editor</Button>
+      <Button type="button" size="sm" variant="secondary" onClick={() => setThumbPickerOpen(true)}>Use as clip thumbnail</Button>
       <Link href={`/dashboard/assets/${active.assetId}`} className="rounded-lg border border-line px-3 py-1.5 text-[12.5px] font-semibold text-fg-muted hover:text-fg">Open in Assets</Link>
     </div>
   ) : undefined;
@@ -480,6 +509,9 @@ export default function PhotoEditTool() {
           setPicker(null);
         }}
       />
+      {active && (
+        <ClipThumbnailPicker open={thumbPickerOpen} onClose={() => setThumbPickerOpen(false)} assetId={active.assetId} headers={authHeaders(token)} />
+      )}
       <ToolWorkspace
         title="AI Photo Editor"
         icon="image"

@@ -49,6 +49,8 @@ vi.mock("@fal-ai/client", () => ({ fal: { config: vi.fn(), storage: { upload: ()
 const fetchMock = vi.fn<typeof fetch>();
 
 vi.mock("@/lib/quests", () => ({ markQuestComplete: vi.fn() }));
+const auditEvent = vi.fn(async () => {});
+vi.mock("@/lib/admin/audit", () => ({ auditEvent: (...a: unknown[]) => auditEvent(...a) }));
 vi.mock("@/lib/job-routes", () => ({
   createJobStatusHandler: () => vi.fn(),
   createJobCancelHandler: () => vi.fn(),
@@ -104,6 +106,9 @@ describe("POST /api/tools/photo-edit — refused before any charge", () => {
     expect(res.status).toBe(422);
     expect((await res.json()).code).toBe("policy_blocked");
     expect(chargeCredits).not.toHaveBeenCalled();
+    expect(auditEvent).toHaveBeenCalledWith(expect.objectContaining({
+      actorId: "u1", actorType: "user", action: "photo_edit.blocked", after: expect.objectContaining({ stage: "keyword", prompt: "make her naked" }),
+    }));
   });
 
   it("refuses a photo that isn't the user's", async () => {
