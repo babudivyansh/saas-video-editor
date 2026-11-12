@@ -11,6 +11,7 @@ import {
 } from "@/lib/plans/tiers";
 import { TOOL_COSTS } from "@/lib/tool-costs";
 import { CAPTION_TEMPLATES, templateTierAllowed } from "@clipiro/shared/caption-templates";
+import { EDIT_MODELS } from "@/lib/models/editModels";
 import { IMAGE_MODELS } from "@/lib/models/imageModels";
 import type { DbPlan } from "./types";
 
@@ -81,6 +82,8 @@ function buildGroups(subs: DbPlan[], term: number): { core: Group; more: Group[]
         ...(STUDIO_ONLY.length > 0
           ? [{ label: STUDIO_ONLY.map(m => m.displayName).join(", "), cells: anyModel(STUDIO_ONLY) }]
           : []),
+        { label: "AI Photo Editor", cells: tool("photo-edit") },
+        { label: "Photo Editor models", cells: byTier(t => String(EDIT_MODELS.filter(m => m.allowedTiers.includes(t)).length)) },
         { label: "AI Face Swap", cells: tool("face-swap") },
         { label: "Subtitle Remover", cells: tool("subtitle-remover") },
         { label: "Vocal Remover", cells: tool("vocal-remover") },

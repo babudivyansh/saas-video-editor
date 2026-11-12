@@ -76,6 +76,7 @@ export const AI_TOOLS: FeatureLink[] = [
   { title: "AI Image Generator", desc: "High-quality AI images in seconds", href: "/dashboard/tools/image-generator", slug: "ai-image-generator", icon: "image", appGroup: "image", homeRank: 5, category: "ai" },
   { title: "AI Voiceover", desc: "Lifelike voiceovers · 200+ voices", href: "/dashboard/tools/voiceover", slug: "ai-voiceover", icon: "mic", appGroup: "audio", costKey: "voiceover", homeRank: 4, category: "ai" },
   { title: "AI Face Swap", desc: "Swap faces in photos", href: "/dashboard/tools/face-swap", slug: "ai-face-swap", icon: "face", appGroup: "video", costKey: "face-swap", category: "ai" },
+  { title: "AI Photo Editor", desc: "Edit any photo by typing what to change", href: "/dashboard/tools/photo-edit", slug: "ai-photo-editor", icon: "sparkle", appGroup: "image", costKey: "photo-edit", category: "ai" },
   { title: "Background Remover", desc: "Remove image backgrounds", href: "/dashboard/tools/background-remover", slug: "background-remover", icon: "eraser", appGroup: "image", homeRank: 6, category: "ai" },
   { title: "AI Voice Changer", desc: "Change any voice with AI", href: "/dashboard/tools/voice-changer", slug: "ai-voice-changer", icon: "wave", appGroup: "audio", costKey: "voice-changer", homeRank: 2, category: "ai" },
   { title: "AI Vocal Remover", desc: "Strip vocals from audio or video", href: "/dashboard/tools/vocal-remover", slug: "ai-vocal-remover", icon: "music", appGroup: "audio", costKey: "vocal-remover", category: "ai" },

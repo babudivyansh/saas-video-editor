@@ -40,6 +40,7 @@ export const SOURCE_LABELS: Record<string, string> = {
   "face-swap": "AI Face Swap",
   "subtitle-remover": "Subtitle Remover",
   "cut-and-crop": "Cut & Crop",
+  "photo-edit": "AI Photo Editor",
 };
 
 function Meta({ label, value }: { label: string; value: string }) {
@@ -108,6 +109,14 @@ export function PreviewLightbox({ asset, onClose, onPrev, onNext }: PreviewLight
             >
               Open detail
             </Link>
+            {asset.kind === "image" && (
+              <Link
+                href={`/dashboard/tools/photo-edit?asset=${asset.id}`}
+                className="min-h-[36px] px-3.5 rounded-xl border border-card-border bg-panel text-ink text-xs font-semibold hover:bg-tint-blue transition-colors flex items-center"
+              >
+                Edit with AI
+              </Link>
+            )}
             <a
               href={downloadHref(asset.url, asset.name)}
               download={asset.name}

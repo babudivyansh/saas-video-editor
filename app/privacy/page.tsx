@@ -160,7 +160,7 @@ const doc: LegalDoc = {
           <h3>Service Providers</h3>
           <p>
             We share your information with trusted third-party vendors who perform services on our behalf, such as
-            cloud hosting (AWS), payment processing (Razorpay), AI services (Google Gemini, ElevenLabs), and customer
+            cloud hosting (AWS), payment processing (Razorpay), AI services (Google Gemini, ElevenLabs, fal.ai), and customer
             communications. These providers are contractually obligated to use your data only to provide their services
             to us and to maintain appropriate security measures.
           </p>
@@ -210,6 +210,16 @@ const doc: LegalDoc = {
             is generated in real time and not stored by ElevenLabs on your behalf. If you clone your voice, the sample
             you upload is sent to ElevenLabs to create it, and ElevenLabs keeps that voice until you delete it in
             Clipiro.
+          </p>
+
+          <h3>AI Photo Editor (Google Gemini and fal.ai)</h3>
+          <p>
+            When you edit a photo with the AI Photo Editor, the photo, any reference images you add, any area you paint,
+            and your instruction are sent to the AI model that makes the edit: Google&apos;s Gemini API, or a model
+            run by fal.ai (from Alibaba, Black Forest Labs, ByteDance, Google or OpenAI). Your instruction is also sent
+            to Google Gemini to choose the model and check it against our content rules. These providers receive the
+            images to return the edit, under their own privacy policies. The edited images are stored in
+            your Assets on AWS S3 until you delete them.
           </p>
 
           <h3>Amazon Web Services (AWS)</h3>

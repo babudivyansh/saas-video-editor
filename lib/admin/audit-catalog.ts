@@ -102,6 +102,7 @@ const EXACT: Record<string, Row> = {
   "content.asset_deleted": ["Deleted library files of", "content", "critical", "user", "Library assets and their stored files were permanently deleted.", true],
   "asset.moderation_approve": ["Approved flagged asset", "content", "change", "asset", "A moderation-flagged asset was returned to its owner.", true],
   "asset.moderation_remove": ["Removed flagged asset", "content", "destructive", "asset", "A moderation-flagged asset was deleted with its file.", true],
+  "photo_edit.blocked": ["Blocked a photo edit by", "content", "security", "user", "An AI Photo Editor instruction or result was refused by the content policy (keyword screen, Auto router or the model's own filter). Nothing was charged, or the credits were refunded."],
   "storage.orphans_previewed": ["Previewed orphaned-upload cleanup", "content", "view", "none", "Counted what the orphaned-upload sweep would remove."],
   "storage.orphans_run": ["Cleaned up orphaned uploads", "content", "destructive", "none", "Orphaned S3 uploads were deleted.", true],
   "storage.retention_previewed": ["Previewed archive clean-up", "content", "view", "none", "Counted archived assets past retention."],

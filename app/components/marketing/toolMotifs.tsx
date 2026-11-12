@@ -557,6 +557,7 @@ const SECONDARY: Record<string, ReactNode> = {
   "ai-image-generator": <StepStrip scenes={[PromptScene, SparkleScene, DownloadScene]} />,
   "ai-voiceover": <StepStrip scenes={[ScriptScene, VoicePickScene, DownloadScene]} />,
   "background-remover": <StepStrip scenes={[UploadScene, SparkleScene, DownloadScene]} />,
+  "ai-photo-editor": <StepStrip scenes={[UploadScene, PromptScene, DownloadScene]} />,
   "ai-speech-enhancer": <StepStrip scenes={[UploadScene, SparkleScene, DownloadScene]} />,
 };
 
@@ -570,6 +571,7 @@ const DESCRIPTIONS: Record<string, string> = {
   "ai-voiceover": "a script feeding a list of voices, one of them playing",
   "ai-face-swap": "a source portrait and a result portrait either side of a swap control",
   "background-remover": "a subject on a background beside the same subject on transparency",
+  "ai-photo-editor": "a photo upload, a typed edit instruction, and the edited photo ready to download",
   "ai-voice-changer": "a recorded waveform converted into a chosen AI voice",
   "ai-vocal-remover": "one mixed track separating into a vocal and an instrumental stem",
   "ai-speech-enhancer": "an uneven waveform cleaned into an even one",

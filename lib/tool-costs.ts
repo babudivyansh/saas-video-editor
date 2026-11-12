@@ -1,5 +1,6 @@
 import type { TierId } from "@/lib/plans/tiers";
 import { IMAGE_MODELS } from "@/lib/models/imageModels";
+import { PHOTO_EDIT_STARTING_CREDIT_COST } from "@/lib/models/editModels";
 
 export interface ToolCost {
   /** Flat credits per generation (per unit for the duration-scaled audio tools). */
@@ -71,6 +72,10 @@ export const TOOL_COSTS: Record<string, ToolCost> = {
   "background-remover":   { creditCost: 1, costUsd: 0.018, costBasis: "$0.018/run (fal-ai/imageutils/rembg)", generationType: "image" },
   // Gated pro+ until a real per-run figure is confirmed (same rationale as
   // subtitle-remover above).
+  // Photo Edit (2026-11): per-model credits live in lib/models/editModels.ts
+  // and lib/photo-edit/pricing.ts; this is the "from" price — background
+  // removal at 1, edits from 2 — and the default-model cost for spend reports.
+  "photo-edit":           { creditCost: PHOTO_EDIT_STARTING_CREDIT_COST, costUsd: 0.039, costBasis: "Gemini 2.5 Flash Image edit $0.039 (Auto default); fal edit models $0.035-$0.15, FLUX Fill, SeedVR upscale and rembg per model — see lib/models/editModels.ts", generationType: "image" },
   "face-swap":            { creditCost: 2, costUsd: null, costBasis: "fal-ai/face-swap, no reliable figure found — estimate ~$0.02-0.05/run", generationType: "image", requiredTier: "pro" },
 
   // ── AutoClip (2026-09 pricing audit) ──────────────────────────────────────

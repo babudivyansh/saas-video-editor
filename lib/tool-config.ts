@@ -50,6 +50,9 @@ export const TOOL_DEFAULTS: ToolConfigMap = {
   "instagram-downloader":   { enabled: true, creditCost: TOOL_COSTS["instagram-downloader"].creditCost },
   "background-remover":     { enabled: true, creditCost: TOOL_COSTS["background-remover"].creditCost },
   "face-swap":              { enabled: true, creditCost: TOOL_COSTS["face-swap"].creditCost },
+  // Display-only like image-generator: each edit is priced by its model
+  // (lib/photo-edit/pricing.ts). The entry is the admin kill switch.
+  "photo-edit":             { enabled: true, creditCost: TOOL_COSTS["photo-edit"].creditCost },
   // AutoClip bills through getAutoClipPricing, not this map — these two entries
   // exist so the feature has a published price and an admin enable/disable
   // switch like every other tool. creditCost is display-only for both.
@@ -79,6 +82,7 @@ export const TOOL_SERVICE: Record<string, string> = {
   "instagram-downloader":  "yt-dlp (Instagram)",
   "background-remover":    "fal.ai rembg",
   "face-swap":             "fal.ai face-swap",
+  "photo-edit":            "7 edit models — Gemini, Qwen, FLUX Kontext, Seedream…",
   "auto-clip":             "Whisper/ElevenLabs + Gemini + GPU render",
   "clip-dub":              "ElevenLabs Dubbing",
 };
