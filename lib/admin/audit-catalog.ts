@@ -137,6 +137,7 @@ const EXACT: Record<string, Row> = {
   "maintenance.disabled": ["Turned maintenance mode off", "operations", "change", "none", "Normal traffic was restored."],
   "clip.stale_sweep_run": ["Ran the stale AutoClip sweep", "operations", "change", "none", "Stuck clips were failed and refunded."],
   "clip.dub_sweep_run": ["Ran the dub sweep", "operations", "change", "none", "Pending dubbing jobs were checked."],
+  "moderation.rescan_run": ["Re-ran content moderation on skipped uploads", "operations", "change", "none", "Uploads whose scan was skipped were counted or sent back to be scanned."],
   "render.diagnostics_reproduce": ["Reproduced a render for diagnosis on", "operations", "change", "project", "A failed render was re-run in diagnostic mode."],
   "render_job.retry": ["Retried render job", "operations", "change", "queue_job", "A failed job was re-queued."],
   "render_job.remove": ["Removed render job", "operations", "destructive", "queue_job", "A failed job was discarded."],

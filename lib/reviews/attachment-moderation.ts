@@ -16,6 +16,7 @@ import { createRenderQueue } from "@/lib/render-queue";
 import { generateVideoThumbnail } from "@/lib/asset-thumbnail";
 import { notifyAdmins } from "@/lib/notify";
 import { extensionForMime } from "@/utils/s3-upload";
+import { scanErrorReason } from "@/lib/moderation-errors";
 
 const FLAG_CONFIDENCE_THRESHOLD = 80;
 
@@ -93,11 +94,12 @@ export async function reviewAttachmentModerationJob(payload: ReviewAttachmentMod
   } catch (e) {
     // Never let a moderation failure (missing Rekognition permission, region
     // mismatch, transient AWS error) block the review from displaying its
-    // own attachment — fall back to "skipped", logged for operator follow-up.
-    logger.warn("review-attachment-moderation", `moderation scan failed for attachment ${attachmentId}`, { reason: (e as Error).message });
+    // own attachment — fall back to "skipped". logger.error so it reaches
+    // Sentry, and the reason is kept (see lib/asset-moderation.ts).
+    logger.error("review-attachment-moderation", `moderation scan failed for attachment ${attachmentId}`, e);
     await prisma.reviewAttachment.update({
       where: { id: attachmentId },
-      data: { moderationStatus: "skipped" },
+      data: { moderationStatus: "skipped", moderationLabels: { scanError: scanErrorReason(e) } },
     }).catch(() => { /* best-effort */ });
   }
 }

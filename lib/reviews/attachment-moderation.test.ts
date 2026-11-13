@@ -26,6 +26,9 @@ const notifyAdmins = vi.fn(async () => {});
 vi.mock("@/lib/notify", () => ({ notifyAdmins: (...args: unknown[]) => notifyAdmins(...args) }));
 
 vi.mock("@/utils/s3-upload", () => ({ extensionForMime: () => "mp4" }));
+// logger.error requires @sentry/nextjs synchronously, which is slow here.
+const logError = vi.fn();
+vi.mock("@/lib/logger", () => ({ logger: { error: (...a: unknown[]) => logError(...a), warn: vi.fn(), info: vi.fn() } }));
 
 // The module builds its queue at import time. Unmocked, that is a live BullMQ
 // Queue + Worker (and lib/redis client) against REDIS_URL, whose connect/
@@ -113,11 +116,19 @@ describe("reviewAttachmentModerationJob", () => {
     );
   });
 
-  it("falls back to skipped on a scan failure, never reporting clean", async () => {
-    rekognitionSend.mockRejectedValue(new Error("AWS down"));
+  it("falls back to skipped on a scan failure, never reporting clean, and says so loudly", async () => {
+    const denied = Object.assign(new Error("not authorized to perform: rekognition:DetectModerationLabels"), { name: "AccessDeniedException" });
+    rekognitionSend.mockRejectedValue(denied);
     await reviewAttachmentModerationJob(basePayload);
     expect(attachmentUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { moderationStatus: "skipped" } }),
+      expect.objectContaining({
+        data: {
+          moderationStatus: "skipped",
+          moderationLabels: { scanError: "AccessDeniedException: not authorized to perform: rekognition:DetectModerationLabels" },
+        },
+      }),
     );
+    // An error, so it reaches Sentry. As a warning nobody saw it for months.
+    expect(logError).toHaveBeenCalledWith("review-attachment-moderation", expect.stringContaining("att-1"), denied);
   });
 });
