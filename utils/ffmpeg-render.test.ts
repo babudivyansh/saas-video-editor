@@ -38,7 +38,8 @@ describe("runFFmpegWithProgress", () => {
     );
     try {
       await expect(run).rejects.toBeInstanceOf(FfmpegStalledError);
-      await expect(run).rejects.toThrow(/encoded nothing new for 2500ms[\s\S]*testsrc/);
+      // The setup lines survive however many status lines follow them.
+      await expect(run).rejects.toThrow(/encoded nothing new for 2500ms[\s\S]*Input #0, lavfi[\s\S]*Stream #0:0/);
       expect(Date.now() - started).toBeLessThan(15_000);
     } finally {
       try { fs.unlinkSync(out); } catch { /* best effort */ }

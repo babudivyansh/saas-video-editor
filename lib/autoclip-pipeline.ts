@@ -1352,7 +1352,10 @@ export function buildMultiBrollFilterComplex(
   const tail = mainSpans[mainSpans.length - 1];
   if (tail.end - tail.start > 0.04) emitMain(usableMain[spanCursor++] ?? tail);
 
-  const postConcat = [moodFilter, captionsFilter].filter((f): f is string => !!f);
+  // The rate again after the join: concat drops its output frame rate on
+  // ffmpeg 7 even when every segment agrees, and the encoder then falls back
+  // to 25 fps. Per-segment alone was enough on ffmpeg 6.
+  const postConcat = [fps && fps > 0 ? `fps=${fps}` : null, moodFilter, captionsFilter].filter((f): f is string => !!f);
   const concat = `${order.join("")}concat=n=${order.length}:v=1:a=0`;
   parts.push(postConcat.length > 0
     ? `${concat}[vconcatraw];[vconcatraw]${postConcat.join(",")}[video]`

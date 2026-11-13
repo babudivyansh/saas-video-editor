@@ -492,9 +492,21 @@ export function runFFmpegWithProgress(
   return new Promise((resolve, reject) => {
     const proc = spawnFfmpeg(ffmpegBin!, args, { stdio: ["ignore", "pipe", "pipe"] });
     let stderrBuf = "";
-    // The tail of what ffmpeg said, so a killed run can be diagnosed from the
-    // error alone. A kill used to report only that it happened.
-    const tail = () => stderrBuf.slice(-2000);
+    // The start of ffmpeg's output: inputs, streams and the stream mapping.
+    // Kept apart from the tail because a long run's status lines push it out.
+    let head = "";
+    // What ffmpeg said, so a killed run can be diagnosed from the error alone
+    // (a kill used to report only that it happened): the input and stream
+    // lines from the start, then the tail.
+    const tail = () => {
+      const start = head || stderrBuf.slice(0, 32_000);
+      const setup = start
+        .split(/\r?\n/)
+        .filter((l) => /^\s*(Input #|Output #|Stream #|Stream mapping|Duration:)/.test(l))
+        .slice(0, 24)
+        .join("\n");
+      return `${setup ? `${setup}\n…\n` : ""}${stderrBuf.slice(-2000)}`;
+    };
     const clearWatchdog = killAfterTimeout(proc, timeoutMs, () => {
       reject(new Error(`FFmpeg timed out after ${timeoutMs}ms and was killed:\n${tail()}`));
     });
@@ -526,7 +538,9 @@ export function runFFmpegWithProgress(
     proc.stderr.on("data", (chunk: Buffer) => {
       const s = chunk.toString();
       stderrBuf += s;
-      // Only the tail is ever read once the duration is known.
+      // Past the setup lines only the tail is read: keep the start once, then
+      // let the buffer roll.
+      if (!head && stderrBuf.length > 32_000) head = stderrBuf.slice(0, 32_000);
       if (totalMs > 0 && stderrBuf.length > 64_000) stderrBuf = stderrBuf.slice(-8000);
 
       if (totalMs === 0) {
