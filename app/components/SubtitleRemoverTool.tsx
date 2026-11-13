@@ -5,19 +5,34 @@ import { useAuth } from "@/app/components/AuthContext";
 import { useJobPolling } from "@/app/components/useJobPolling";
 import { useReviewPromptTrigger } from "@/app/components/reviews/ReviewPromptProvider";
 import { useUploadEntitlement } from "@/app/hooks/useUploadEntitlement";
-import { subtitleRemoverCredits } from "@/lib/subtitle-remover-pricing";
+import { subtitleRemoverCredits, SUBTITLE_REMOVER_MAX_SEC, SUBTITLE_REMOVER_CREDIT_RANGE, type SubtitleRemoverMode } from "@/lib/subtitle-remover-pricing";
 import { ToolPlanGate, useToolAccess } from "@/app/components/ToolPlanGate";
 import { Button } from "@/app/components/ui/Button";
 import { ToolWorkspace, ToolBadge, ToolField, CostRow, FileDrop, OptionCards, Segmented, StageEmpty, StageProgress, RecentResults } from "@/app/components/tools/ToolWorkspace";
+import { RegionPicker, type FractionBox } from "@/app/components/tools/RegionPicker";
 
-// Must match MAX_DURATION_SEC in app/api/tools/subtitle-remover/route.ts.
-const MAX_DURATION_SEC = 10 * 60;
+type Capabilities = Record<SubtitleRemoverMode, boolean>;
+
+const MODE_OPTIONS: Record<SubtitleRemoverMode, readonly [SubtitleRemoverMode, string, string]> = {
+  bottom: ["bottom", "Bottom third", "AI finds the captions; titles and logos stay"],
+  region: ["region", "I'll mark them", "Draw boxes over the text, anywhere on screen"],
+  auto: ["auto", "Anywhere · AI erase", "AI finds text anywhere and rebuilds the background"],
+};
+
+const MODE_NOTE: Record<SubtitleRemoverMode, string> = {
+  bottom: "The captions are patched from the pixels around them, so busy backgrounds may show a soft smudge.",
+  region: "Each box is patched from the pixels around it for the whole video, so busy backgrounds may show a soft smudge.",
+  auto: "AI rebuilds what was behind the text. Best quality; takes a few minutes. Every piece of text, logos included, is removed.",
+};
+
+const fmtRate = (mode: SubtitleRemoverMode) =>
+  mode === "auto" ? "1 per 4 s" : mode === "region" ? "1 per minute" : "1 per 10 s";
 
 export default function SubtitleRemoverTool() {
   const { user, token, refreshUser, openAuthModal } = useAuth();
   const hasAccess = useToolAccess("pro");
   const { maxBytes: uploadMaxBytes, formattedMaxSize: uploadMaxSizeLabel } = useUploadEntitlement("subtitle-remover");
-  // OCR of up to 90 frames plus a full re-encode can outlast the 10-minute default.
+  // OCR of up to 150 frames, or AI erase, plus an encode can outlast the 10-minute default.
   const job = useJobPolling({ toolSlug: "subtitle-remover", token, maxDurationMs: 30 * 60 * 1000 });
   const fireReviewPrompt = useReviewPromptTrigger();
 
@@ -27,15 +42,33 @@ export default function SubtitleRemoverTool() {
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [downloadName, setDownloadName] = useState("subtitle-removed.mp4");
   const [compareView, setCompareView] = useState<"before" | "after">("after");
-  // Where the captions sit. "bottom" leaves titles, logos and signs alone.
-  const [area, setArea] = useState<"bottom" | "auto">("bottom");
-  // Read from the file in the browser, so the price is known before running
-  // (the route charges by the same length: 1 credit per 10 s, 2–20).
+  const [area, setArea] = useState<SubtitleRemoverMode>("bottom");
+  const [regions, setRegions] = useState<FractionBox[]>([]);
+  // Which modes this server can run (AI erase needs a provider key).
+  const [caps, setCaps] = useState<Capabilities>({ bottom: true, region: true, auto: false });
+  // Read from the file in the browser, so the price is known before running.
   const [durationSec, setDurationSec] = useState<number | null>(null);
   const downloadedForJobId = useRef<string | null>(null);
   const submittingRef = useRef(false);
 
   const MAX_MB_LABEL = uploadMaxSizeLabel ?? "500 MB";
+
+  useEffect(() => {
+    if (!token) return;
+    let live = true;
+    fetch("/api/tools/subtitle-remover?capabilities=1", { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((c: Capabilities | null) => { if (live && c) setCaps(c); })
+      .catch(() => { /* keep the defaults */ });
+    return () => { live = false; };
+  }, [token]);
+
+  // Never leave a mode selected that the server can't run.
+  useEffect(() => {
+    if (!caps[area]) setArea(caps.bottom ? "bottom" : "region");
+  }, [caps, area]);
+
+  const modeOptions = (["bottom", "region", "auto"] as const).filter((m) => caps[m]).map((m) => MODE_OPTIONS[m]);
 
   const acceptFile = useCallback((f: File) => {
     if (!f.type.startsWith("video/")) {
@@ -51,13 +84,14 @@ export default function SubtitleRemoverTool() {
     setFile(f);
     setOriginalPreviewUrl(url);
     setDurationSec(null);
+    setRegions([]);
     const probe = document.createElement("video");
     probe.preload = "metadata";
     probe.onloadedmetadata = () => {
       const d = Number.isFinite(probe.duration) ? probe.duration : null;
       setDurationSec(d);
-      if (d != null && d > MAX_DURATION_SEC) {
-        setErrorMsg(`This video is ${Math.round(d / 60)} minutes long. Subtitle Remover handles up to ${MAX_DURATION_SEC / 60} minutes.`);
+      if (d != null && d > SUBTITLE_REMOVER_MAX_SEC) {
+        setErrorMsg(`This video is ${Math.round(d / 60)} minutes long. Subtitle Remover handles up to ${SUBTITLE_REMOVER_MAX_SEC / 60} minutes.`);
       }
     };
     probe.src = url;
@@ -71,6 +105,7 @@ export default function SubtitleRemoverTool() {
     if (originalPreviewUrl) URL.revokeObjectURL(originalPreviewUrl);
     setFile(null);
     setOriginalPreviewUrl(null);
+    setRegions([]);
     setErrorMsg("");
     setDownloadUrl(null);
     job.reset();
@@ -85,16 +120,18 @@ export default function SubtitleRemoverTool() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const needsRegions = area === "region" && regions.length === 0;
+
   const handleRemove = useCallback(async () => {
     if (!file || job.status === "processing") return;
     if (!user || !token) { openAuthModal("login", "Subtitle Remover"); return; }
-    if (durationSec != null && durationSec > MAX_DURATION_SEC) return;
+    if (durationSec != null && durationSec > SUBTITLE_REMOVER_MAX_SEC) return;
+    if (area === "region" && regions.length === 0) return;
     if (submittingRef.current) return;
     submittingRef.current = true;
 
     setErrorMsg("");
-    const name = `subtitle-removed-${file.name}`;
-    setDownloadName(name);
+    setDownloadName(`subtitle-removed-${file.name}`);
     const idempotencyKey = crypto.randomUUID();
 
     try {
@@ -102,6 +139,7 @@ export default function SubtitleRemoverTool() {
         const form = new FormData();
         form.append("video", file);
         form.append("area", area);
+        if (area === "region") form.append("regions", JSON.stringify(regions));
         form.append("idempotencyKey", idempotencyKey);
 
         const res = await fetch("/api/tools/subtitle-remover", {
@@ -118,13 +156,17 @@ export default function SubtitleRemoverTool() {
     } finally {
       submittingRef.current = false;
     }
-  }, [file, job, user, token, openAuthModal, durationSec, area]);
+  }, [file, job, user, token, openAuthModal, durationSec, area, regions]);
 
-  // Once the job is done, fetch and auto-download the result.
+  const nothingFound = job.status === "done" && job.meta?.regionsDetected === 0;
+
+  // Once the job is done, fetch and auto-download the result (there is none
+  // when nothing was found: the video wasn't changed and nothing was charged).
   useEffect(() => {
     if (job.status !== "done" || !job.jobId || !token) return;
     if (downloadedForJobId.current === job.jobId) return;
     downloadedForJobId.current = job.jobId;
+    if (job.meta?.regionsDetected === 0) { void refreshUser(); return; }
     fireReviewPrompt("tool_generation_complete", { featureHint: "ai_tools" }).catch(() => { /* non-critical */ });
 
     (async () => {
@@ -146,16 +188,16 @@ export default function SubtitleRemoverTool() {
 
         void refreshUser();
       } catch {
-        // Job succeeded server-side; a failed download fetch just means the
-        // user needs "Download again" rather than a hard error state.
+        // Job succeeded server-side; it is in the user's Assets either way.
       }
     })();
-  }, [job.status, job.jobId, token, downloadName, refreshUser, fireReviewPrompt]);
+  }, [job.status, job.jobId, job.meta, token, downloadName, refreshUser, fireReviewPrompt]);
 
   const handleAgain = () => {
     if (originalPreviewUrl) URL.revokeObjectURL(originalPreviewUrl);
     setFile(null);
     setOriginalPreviewUrl(null);
+    setRegions([]);
     setErrorMsg("");
     if (downloadUrl) {
       URL.revokeObjectURL(downloadUrl);
@@ -167,13 +209,17 @@ export default function SubtitleRemoverTool() {
   const isComplete = job.status === "done";
   const busy = job.status === "processing";
   const fmtLen = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
+  const regionsDetected = typeof job.meta?.regionsDetected === "number" ? job.meta.regionsDetected : null;
+  const resultNote = regionsDetected == null || regionsDetected < 0
+    ? (job.meta?.mode === "auto" ? "Erased with AI · " : "")
+    : `${regionsDetected} caption area${regionsDetected === 1 ? "" : "s"} cleaned · `;
 
   return (
     <ToolWorkspace
       title="Subtitle Remover"
       icon="subs"
-      badges={<><ToolBadge tone="pro">Pro</ToolBadge><ToolBadge>2–20 credits</ToolBadge></>}
-      description={`Blurs out burned-in captions so you can add your own. Videos up to ${MAX_DURATION_SEC / 60} minutes.`}
+      badges={<><ToolBadge tone="pro">Pro</ToolBadge><ToolBadge>{SUBTITLE_REMOVER_CREDIT_RANGE.min}–{SUBTITLE_REMOVER_CREDIT_RANGE.max} credits</ToolBadge></>}
+      description={`Removes burned-in captions so you can add your own. Videos up to ${SUBTITLE_REMOVER_MAX_SEC / 60} minutes.`}
       controls={
         !hasAccess ? (
           <ToolPlanGate toolName="Subtitle Remover" minTier="pro" />
@@ -183,7 +229,7 @@ export default function SubtitleRemoverTool() {
               <FileDrop
                 accept="video/*"
                 title="Click or drag a video here"
-                hint={<>MP4, MOV, WEBM · up to {MAX_MB_LABEL} · {MAX_DURATION_SEC / 60} min</>}
+                hint={<>MP4, MOV, WEBM · up to {MAX_MB_LABEL} · {SUBTITLE_REMOVER_MAX_SEC / 60} min</>}
                 file={file}
                 detail={durationSec != null ? fmtLen(durationSec) : undefined}
                 onFile={acceptFile}
@@ -194,16 +240,8 @@ export default function SubtitleRemoverTool() {
             </ToolField>
             {file && !isComplete && !busy && (
               <ToolField label="Where are the captions?">
-                <OptionCards
-                  name="caption-area"
-                  value={area}
-                  onChange={setArea}
-                  options={[
-                    ["bottom", "Bottom third", "Most videos — leaves titles and logos alone"],
-                    ["auto", "Anywhere", "Blur any text the AI finds"],
-                  ] as const}
-                />
-                <p className="text-[12px] text-fg-subtle">Captions are blurred rather than redrawn, so busy backgrounds may show a soft patch.</p>
+                <OptionCards name="caption-area" value={area} onChange={setArea} options={modeOptions} columns={1} />
+                <p className="text-[12px] text-fg-subtle">{MODE_NOTE[area]}</p>
               </ToolField>
             )}
           </>
@@ -224,25 +262,25 @@ export default function SubtitleRemoverTool() {
             {file && !isComplete && (
               <CostRow right={user ? `You have ${user.credits.toLocaleString()}` : undefined}>
                 {durationSec != null
-                  ? <>Costs <span className="font-semibold text-fg">{subtitleRemoverCredits(durationSec)} credits</span> · 1 per 10 s</>
+                  ? <>Costs <span className="font-semibold text-fg">{subtitleRemoverCredits(durationSec, area)} credit{subtitleRemoverCredits(durationSec, area) === 1 ? "" : "s"}</span> · {fmtRate(area)}</>
                   : "Reading video length…"}
               </CostRow>
             )}
             {!isComplete ? (
               <Button type="button" className="w-full" loading={busy} onClick={() => void handleRemove()}
-                      disabled={!file || busy || durationSec == null || durationSec > MAX_DURATION_SEC}>
-                {busy ? "Removing…" : "Remove subtitles"}
+                      disabled={!file || busy || durationSec == null || durationSec > SUBTITLE_REMOVER_MAX_SEC || needsRegions}>
+                {busy ? "Removing…" : needsRegions ? "Mark the captions first" : "Remove subtitles"}
               </Button>
             ) : (
               <Button type="button" className="w-full" variant="secondary" onClick={handleAgain}>Remove from another video</Button>
             )}
-            <p className="text-center text-[12px] text-fg-subtle">No captions found? Your credits come back.</p>
+            <p className="text-center text-[12px] text-fg-subtle">Something goes wrong or no captions are found? Your credits come back.</p>
           </>
         )
       }
       stageTitle="Preview"
       stageActions={
-        isComplete && downloadUrl && job.meta?.regionsDetected !== 0 ? (
+        isComplete && downloadUrl && !nothingFound ? (
           <div className="flex flex-wrap items-center gap-2">
             <Segmented label="Compare" value={compareView} onChange={setCompareView} options={[["before", "Before"], ["after", "After"]] as const} />
             <a href={downloadUrl} download={downloadName} className="rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-fg hover:bg-surface-3">Download again</a>
@@ -251,31 +289,37 @@ export default function SubtitleRemoverTool() {
       }
       stage={
         busy ? (
-          <StageProgress label="Removing subtitles…" progress={job.progress} onCancel={() => void job.cancel()} cancelLabel="Cancel" />
+          <StageProgress label={area === "auto" ? "Erasing text with AI…" : "Removing subtitles…"} progress={job.progress} onCancel={() => void job.cancel()} cancelLabel="Cancel" />
+        ) : nothingFound ? (
+          <StageEmpty icon="subs" title="No captions found">
+            Nothing was found in the bottom third, so the video wasn&apos;t changed and your credits were refunded. Try marking them yourself.
+          </StageEmpty>
         ) : isComplete && downloadUrl ? (
-          job.meta?.regionsDetected === 0 ? (
-            <StageEmpty icon="subs" title="No captions found">
-              Nothing was found{area === "bottom" ? " in the bottom third" : ""}, so the video wasn&apos;t changed — your credits were refunded.
-            </StageEmpty>
-          ) : (
-            <div className="flex flex-1 flex-col gap-2">
-              {originalPreviewUrl && (
-                <video key={compareView} src={compareView === "before" ? originalPreviewUrl : downloadUrl} controls
-                       className="w-full flex-1 rounded-xl border border-line bg-black max-h-[620px]" />
-              )}
-              <p className="text-[12px] text-fg-subtle">
-                {typeof job.meta?.regionsDetected === "number" ? `${job.meta.regionsDetected} text region${job.meta.regionsDetected === 1 ? "" : "s"} blurred · ` : ""}Downloaded and saved to your Assets
-              </p>
-            </div>
-          )
+          <div className="flex flex-1 flex-col gap-2">
+            {originalPreviewUrl && (
+              <video key={compareView} src={compareView === "before" ? originalPreviewUrl : downloadUrl} controls
+                     className="w-full flex-1 rounded-xl border border-line bg-black max-h-[620px]" />
+            )}
+            <p className="text-[12px] text-fg-subtle">{resultNote}Downloaded and saved to your Assets</p>
+          </div>
+        ) : isComplete ? (
+          <StageEmpty icon="subs" title="Done — saved to your Assets">
+            The download didn&apos;t start here, but the cleaned video is in your Assets.
+          </StageEmpty>
+        ) : originalPreviewUrl && area === "region" ? (
+          <RegionPicker src={originalPreviewUrl} regions={regions} onChange={setRegions} />
         ) : originalPreviewUrl ? (
           <div className="relative flex flex-1 items-center justify-center overflow-hidden rounded-xl border border-line bg-black">
-            <video src={originalPreviewUrl} controls className="max-h-[620px] w-full" />
-            {area === "bottom" && (
-              <div aria-hidden="true" className="pointer-events-none absolute inset-x-[6%] bottom-[12%] h-[22%] rounded-lg border-2 border-dashed border-primary/80 bg-primary/5" />
-            )}
+            {/* Sized by the video itself, so the dashed box lines up with the picture, not the letterbox. */}
+            <div className="relative inline-block">
+              <video src={originalPreviewUrl} controls className="block max-h-[620px] max-w-full" />
+              {area === "bottom" && (
+                // Matches the server: text centred below 55% of the height counts (lib/subtitle-remover/regions.ts).
+                <div aria-hidden="true" className="pointer-events-none absolute inset-x-[3%] bottom-[2%] top-[50%] rounded-lg border-2 border-dashed border-primary/80 bg-primary/5" />
+              )}
+            </div>
             <span className="absolute left-3 top-3 rounded-md bg-black/70 px-2 py-1 text-[11px] text-white">
-              {area === "bottom" ? "Dashed box: the area that gets cleaned" : "The whole frame is scanned"}
+              {area === "bottom" ? "Dashed box: where captions are looked for" : "AI scans the whole frame"}
             </span>
           </div>
         ) : (

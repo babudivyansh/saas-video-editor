@@ -3,12 +3,18 @@ import { userMessage, rawErrorText } from "@/lib/user-facing-error";
 import { NextRequest, NextResponse } from "next/server";
 import { fal } from "@fal-ai/client";
 import { getAuthUser } from "@/lib/auth";
-import { runFFmpegArgs, runFFmpegWithProgress, getMediaDimensions } from "@/utils/ffmpeg-render";
+import { runFFmpegArgs, runFFmpegWithProgress, encodeArgs, probeVideoStream } from "@/utils/ffmpeg-render";
+import { uploadFileToS3, getPresignedUrl, deleteS3Object } from "@/utils/s3-upload";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { withRetry } from "@/lib/with-retry";
 import { logger } from "@/lib/logger";
 import { saveToolResult } from "@/lib/tool-results";
-import { subtitleRemoverCredits } from "@/lib/subtitle-remover-pricing";
+import { subtitleRemoverCredits, SUBTITLE_REMOVER_MAX_SEC, type SubtitleRemoverMode } from "@/lib/subtitle-remover-pricing";
+import {
+  parseOcrRegions, captionBands, parseUserRegions, userRegionsToPatches, buildDelogoFilter, pngSize, sampleFpsFor,
+  type Box, type Detection, type FrameSize, type PatchRegion,
+} from "@/lib/subtitle-remover/regions";
+import { createRemoveSubtitleTask, waitForTask, isSafeResultUrl, PIAPI_MAX_BYTES, PIAPI_MAX_SEC } from "@/lib/subtitle-remover/piapi";
 import { env } from "@/lib/env";
 import { chargeCredits, refundCredits, markGenerationStatus, updateGenerationProgress, checkModelAccess } from "@/lib/credits";
 import { resolveUploadPolicy, readUploadForm, assertWithinUploadPolicy, UploadPolicyError, uploadPolicyErrorBody, uploadPolicyErrorStatus } from "@/lib/upload-policy";
@@ -16,41 +22,32 @@ import { createJobStatusHandler, createJobCancelHandler, idempotencyResponse, ty
 import os from "os";
 import path from "path";
 import fs from "fs";
+import { Readable } from "stream";
+import { pipeline } from "stream/promises";
 import { randomUUID } from "crypto";
 
 export const maxDuration = 300;
 
-// Sample at most this many frames regardless of video length, spacing them
-// evenly across the video's duration — bounds OCR call count (and therefore
-// cost/latency) for long videos instead of scaling 1:1 with duration.
-const SAMPLE_FRAME_CAP = 90;
-// Detections this close in time (relative to the sampling interval) and with
-// enough bounding-box overlap are treated as the same on-screen subtitle
-// rather than two separate ones.
-const CLUSTER_TIME_GAP_MULTIPLIER = 2.5;
-const CLUSTER_IOU_THRESHOLD = 0.3;
-const MAX_CLUSTERS = 8;
-// Longest video accepted (the price is capped at 20 credits, see pricing).
-const MAX_DURATION_SEC = 10 * 60;
-// With area "bottom", only text whose centre is below this fraction of the
-// frame height counts as a caption.
-const BOTTOM_AREA_FROM = 0.55;
-// How many frames to OCR concurrently — bounded to avoid hammering fal.ai
-// with dozens of simultaneous requests for a single job.
+// How many frames to OCR at once, so one job doesn't flood fal.
 const OCR_CONCURRENCY = 4;
-
-// Credits scale with video duration: lib/subtitle-remover-pricing.ts.
-const creditCostForDuration = subtitleRemoverCredits;
-
-interface DetectedRegion { x: number; y: number; w: number; h: number; t: number }
-interface SubtitleCluster { x: number; y: number; w: number; h: number; startSec: number; endSec: number }
+// OCR frames are scaled down to this width: Florence-2 works at 768 px anyway,
+// and 150 full-size 4K PNGs would be over a gigabyte of temp files.
+const OCR_FRAME_MAX_WIDTH = 1280;
+// Jobs running at once across the whole server. Every job ends in an encode on
+// the shared host, so more than this are refused before anything is charged.
+const MAX_ACTIVE_JOBS = 3;
+// PiAPI's processing time is unpublished; give up (and refund) after this.
+const AI_TASK_TIMEOUT_MS = 25 * 60 * 1000;
+// Largest result we will download from PiAPI.
+const AI_RESULT_MAX_BYTES = 2 * 1024 * 1024 * 1024;
 
 interface Job extends CancellableJob {
   status: "processing" | "done" | "error" | "cancelled";
   userId: string;
   inputPath: string;
   createdAt: number;
-  meta?: { regionsDetected: number; refunded: boolean };
+  /** regionsDetected: -1 when the provider doesn't report it (AI erase). */
+  meta?: { regionsDetected: number; refunded: boolean; mode: SubtitleRemoverMode };
 }
 
 const g = globalThis as unknown as { __subtitleRemoverJobs?: Map<string, Job> };
@@ -59,7 +56,7 @@ const jobs: Map<string, Job> = g.__subtitleRemoverJobs ?? (g.__subtitleRemoverJo
 function sweep() {
   const cutoff = Date.now() - 30 * 60 * 1000;
   for (const [id, job] of jobs) {
-    if (job.createdAt < cutoff) {
+    if (job.createdAt < cutoff && job.status !== "processing") {
       for (const f of [job.inputPath, job.outputPath]) {
         try { fs.unlinkSync(f); } catch { /* ignore */ }
       }
@@ -68,94 +65,176 @@ function sweep() {
   }
 }
 
-// Schema confirmed directly from @fal-ai/client's shipped type definitions
-// for this endpoint (Florence2LargeOcrWithRegionOutput / OCRBoundingBox /
-// BoundingBox — node_modules/@fal-ai/client/src/types/endpoints.d.ts) rather
-// than from documentation guesswork: `results.quad_boxes` is an array of
-// already-rectangular `{x, y, w, h, label}` boxes in absolute pixel
-// coordinates — no corner-point math or normalization needed. Still parsed
-// defensively (never throws) since a live response can in principle drift
-// from its published type.
-function parseOcrRegions(raw: unknown): Array<{ x: number; y: number; w: number; h: number }> {
-  const results = (raw as { results?: { quad_boxes?: unknown[] } } | null | undefined)?.results;
-  const boxes = results?.quad_boxes;
-  if (!Array.isArray(boxes)) return [];
-  return boxes
-    .filter((b): b is { x: number; y: number; w: number; h: number } =>
-      !!b && typeof b === "object" && ["x", "y", "w", "h"].every((k) => typeof (b as Record<string, unknown>)[k] === "number"))
-    .map((b) => ({ x: b.x, y: b.y, w: b.w, h: b.h }));
+const isCancelled = (job: Job) => (job.status as string) === "cancelled";
+
+function setProgress(job: Job, pct: number) {
+  job.progress = Math.max(job.progress, Math.min(99, Math.round(pct)));
+  if (job.generationId) void updateGenerationProgress(job.generationId, job.progress);
 }
 
-async function detectTextInFrame(framePath: string, tSec: number): Promise<DetectedRegion[]> {
-  const buffer = fs.readFileSync(framePath);
-  const blob = new Blob([new Uint8Array(buffer)], { type: "image/png" });
+/** The displayed frame size (after rotation), read from one decoded frame. */
+async function displayFrameSize(inputPath: string, workDir: string): Promise<FrameSize | null> {
+  const out = path.join(workDir, "probe.png");
+  try {
+    await runFFmpegArgs(["-y", "-i", inputPath, "-frames:v", "1", out], 60_000);
+    return pngSize(fs.readFileSync(out));
+  } catch {
+    return null;
+  } finally {
+    try { fs.unlinkSync(out); } catch { /* ignore */ }
+  }
+}
+
+async function detectTextInFrame(framePath: string): Promise<Box[]> {
+  const blob = new Blob([new Uint8Array(fs.readFileSync(framePath))], { type: "image/png" });
   const imageUrl = await withRetry(() => fal.storage.upload(blob), { timeoutMs: 20_000 });
-  const { data } = await fal.subscribe("fal-ai/florence-2-large/ocr-with-region", {
-    input: { image_url: imageUrl },
-    logs: false,
+  // A hung fal queue used to hold the job "processing" until the client gave up.
+  const { data } = await withRetry(
+    (signal) => fal.subscribe("fal-ai/florence-2-large/ocr-with-region", { input: { image_url: imageUrl }, logs: false, abortSignal: signal }),
+    { timeoutMs: 60_000, maxAttempts: 2 },
+  );
+  return parseOcrRegions(data);
+}
+
+/** Bottom-third mode: sample frames, OCR them, and return the caption bands to patch. */
+async function findCaptionBands(job: Job, inputPath: string, durationSec: number, frame: FrameSize, workDir: string): Promise<PatchRegion[] | null> {
+  fal.config({ credentials: env.FAL_KEY });
+  const framesDir = path.join(workDir, "frames");
+  fs.mkdirSync(framesDir, { recursive: true });
+
+  const sampleFps = sampleFpsFor(durationSec);
+  const intervalSec = 1 / sampleFps;
+  await runFFmpegArgs([
+    "-y", "-i", inputPath,
+    "-vf", `fps=${sampleFps},scale='min(${OCR_FRAME_MAX_WIDTH},iw)':-2`,
+    path.join(framesDir, "frame-%04d.png"),
+  ]);
+  setProgress(job, 12);
+  if (isCancelled(job)) return null;
+
+  const frameFiles = fs.readdirSync(framesDir).filter((f) => f.endsWith(".png")).sort();
+  if (frameFiles.length === 0) throw new Error("no frames could be read from this video");
+  const ocrSize = pngSize(fs.readFileSync(path.join(framesDir, frameFiles[0])));
+  if (!ocrSize) throw new Error("sampled frame unreadable");
+  const scale = frame.w / ocrSize.w;
+
+  const detections: Detection[] = [];
+  let failures = 0;
+  for (let i = 0; i < frameFiles.length; i += OCR_CONCURRENCY) {
+    if (isCancelled(job)) return null;
+    const batch = frameFiles.slice(i, i + OCR_CONCURRENCY);
+    const results = await Promise.allSettled(batch.map((f) => detectTextInFrame(path.join(framesDir, f))));
+    results.forEach((r, j) => {
+      const t = (i + j) * intervalSec;
+      if (r.status === "fulfilled") {
+        for (const b of r.value) detections.push({ x: b.x * scale, y: b.y * scale, w: b.w * scale, h: b.h * scale, t });
+      } else {
+        failures++;
+        logger.error("subtitle-remover", "OCR call failed for a sampled frame", r.reason);
+      }
+    });
+    setProgress(job, 12 + ((i + batch.length) / frameFiles.length) * 38);
+  }
+  // Every call failing is an outage, not "no text in this video"; most of them
+  // failing would quietly leave captions on screen.
+  if (failures > frameFiles.length / 2) throw new Error(`${failures} of ${frameFiles.length} OCR calls failed`);
+
+  return captionBands(detections, frame, intervalSec);
+}
+
+/** Patches the regions with delogo and re-encodes (one libx264 thread: see encodeArgs). */
+async function encodePatched(job: Job, inputPath: string, outputPath: string, regions: PatchRegion[], durationSec: number, from: number) {
+  const filter = buildDelogoFilter(regions);
+  if (!filter) throw new Error("nothing to patch");
+  await runFFmpegWithProgress(
+    ["-y", "-i", inputPath, "-vf", filter, "-map", "0:v:0", "-map", "0:a:0?", ...encodeArgs("cpu"), outputPath],
+    (pct) => setProgress(job, from + (pct / 100) * (99 - from)),
+    { totalSec: durationSec, stallMs: 3 * 60 * 1000 },
+  );
+}
+
+/**
+ * The MP4 PiAPI accepts: regular (not fragmented), no rotation metadata, one
+ * video track, at most 60 MiB. The audio is left out and put back afterwards,
+ * so it never has to share the 60 MiB.
+ */
+async function prepareProviderInput(inputPath: string, durationSec: number, workDir: string): Promise<string> {
+  const out = path.join(workDir, "provider-input.mp4");
+  const info = await probeVideoStream(inputPath);
+  const tooBig = () => fs.statSync(out).size > PIAPI_MAX_BYTES;
+
+  if (info.codec === "h264" && info.pixFmt === "yuv420p" && !info.rotated) {
+    await runFFmpegArgs(["-y", "-i", inputPath, "-map", "0:v:0", "-an", "-c:v", "copy", "-movflags", "+faststart", out]);
+    if (!tooBig()) return out;
+  }
+  // Re-encode upright (ffmpeg applies the rotation), at most 1080 on the short side.
+  const scale = "scale='if(gte(iw,ih),-2,min(1080,iw))':'if(gte(iw,ih),min(1080,ih),-2)'";
+  const base = ["-y", "-i", inputPath, "-map", "0:v:0", "-an", "-vf", scale, "-threads", "1", "-c:v", "libx264", "-preset", "superfast", "-pix_fmt", "yuv420p", "-movflags", "+faststart"];
+  await runFFmpegArgs([...base, "-crf", "23", out]);
+  if (!tooBig()) return out;
+  // Still too big: spend exactly the budget (92% of it, for container overhead).
+  const bps = Math.floor((PIAPI_MAX_BYTES * 0.92 * 8) / Math.max(1, durationSec));
+  await runFFmpegArgs([...base, "-b:v", String(bps), "-maxrate", String(bps), "-bufsize", String(bps * 2), out]);
+  if (tooBig()) throw new Error("couldn't make this video small enough for AI erase");
+  return out;
+}
+
+async function downloadResult(url: string, dest: string) {
+  if (!isSafeResultUrl(url)) throw new Error("AI erase returned an unexpected result address");
+  const res = await fetch(url, { signal: AbortSignal.timeout(10 * 60 * 1000) });
+  if (!res.ok || !res.body) throw new Error(`couldn't download the AI erase result (${res.status})`);
+  const len = Number(res.headers.get("content-length") ?? 0);
+  if (len > AI_RESULT_MAX_BYTES) throw new Error("AI erase result too large");
+  let seen = 0;
+  const body = Readable.fromWeb(res.body as import("stream/web").ReadableStream<Uint8Array>);
+  body.on("data", (chunk: Buffer) => {
+    seen += chunk.length;
+    if (seen > AI_RESULT_MAX_BYTES) body.destroy(new Error("AI erase result too large"));
   });
-  return parseOcrRegions(data).map((r) => ({ ...r, t: tSec }));
+  await pipeline(body, fs.createWriteStream(dest));
 }
 
-function rectIntersectionOverUnion(a: DetectedRegion, b: { x: number; y: number; w: number; h: number }): number {
-  const ix = Math.max(a.x, b.x), iy = Math.max(a.y, b.y);
-  const iw = Math.min(a.x + a.w, b.x + b.w) - ix;
-  const ih = Math.min(a.y + a.h, b.y + b.h) - iy;
-  if (iw <= 0 || ih <= 0) return 0;
-  const inter = iw * ih;
-  const union = a.w * a.h + b.w * b.h - inter;
-  return union > 0 ? inter / union : 0;
-}
+/** Anywhere mode: PiAPI erases the text and fills the background; we put the original audio back. */
+async function runAiErase(job: Job, jobId: string, inputPath: string, outputPath: string, durationSec: number, workDir: string): Promise<boolean> {
+  const apiKey = env.PIAPI_API_KEY;
+  if (!apiKey) throw new Error("AI erase is not configured");
+  const providerInput = await prepareProviderInput(inputPath, durationSec, workDir);
+  setProgress(job, 15);
+  if (isCancelled(job)) return false;
 
-// Groups per-frame detections into stable on-screen regions across time —
-// subtitles are usually static within a scene, so consecutive detections in
-// roughly the same place get merged into one cluster spanning the time range
-// they appeared in, rather than treated as N separate unrelated boxes.
-function clusterRegions(detections: DetectedRegion[], frameIntervalSec: number): SubtitleCluster[] {
-  const sorted = [...detections].sort((a, b) => a.t - b.t);
-  const maxGap = frameIntervalSec * CLUSTER_TIME_GAP_MULTIPLIER;
-  const clusters: SubtitleCluster[] = [];
+  const key = `tool-inputs/subtitle-remover/${job.userId}/${jobId}.mp4`;
+  await uploadFileToS3(providerInput, key, "video/mp4");
+  try {
+    setProgress(job, 20);
+    const task = await createRemoveSubtitleTask(apiKey, await getPresignedUrl(key, 2 * 60 * 60));
+    const resultUrl = await waitForTask(apiKey, task.taskId, {
+      timeoutMs: AI_TASK_TIMEOUT_MS,
+      shouldStop: () => isCancelled(job),
+      // PiAPI reports no percentage: creep towards 85% over a few minutes.
+      onStatus: (_s, elapsed) => setProgress(job, 20 + 65 * (1 - Math.exp(-elapsed / (3 * 60 * 1000)))),
+    });
+    if (isCancelled(job)) return false;
 
-  for (const det of sorted) {
-    const match = clusters.find(
-      (c) => det.t - c.endSec <= maxGap && rectIntersectionOverUnion(det, c) >= CLUSTER_IOU_THRESHOLD,
-    );
-    if (match) {
-      // Extend the cluster's time range and union its bounding box so it
-      // covers every frame it was actually seen in.
-      const x = Math.min(match.x, det.x), y = Math.min(match.y, det.y);
-      const right = Math.max(match.x + match.w, det.x + det.w);
-      const bottom = Math.max(match.y + match.h, det.y + det.h);
-      match.x = x; match.y = y; match.w = right - x; match.h = bottom - y;
-      match.endSec = det.t;
-    } else {
-      clusters.push({ x: det.x, y: det.y, w: det.w, h: det.h, startSec: det.t, endSec: det.t });
-    }
+    const erased = path.join(workDir, "provider-output.mp4");
+    await downloadResult(resultUrl, erased);
+    setProgress(job, 90);
+    // Video as PiAPI returned it, audio from the original upload. No video re-encode.
+    await runFFmpegArgs([
+      "-y", "-i", erased, "-i", inputPath,
+      "-map", "0:v:0", "-map", "1:a:0?",
+      "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart",
+      outputPath,
+    ]);
+    return true;
+  } finally {
+    // The input only had to live until PiAPI fetched it.
+    deleteS3Object(key).catch((err) => logger.error("subtitle-remover", "couldn't delete provider input", err));
   }
-
-  // Pad each cluster's time range by half a sampling interval on each side so
-  // the blur doesn't visibly cut in/out exactly on a sampled frame.
-  for (const c of clusters) {
-    c.startSec = Math.max(0, c.startSec - frameIntervalSec / 2);
-    c.endSec += frameIntervalSec / 2;
-  }
-
-  return clusters
-    .sort((a, b) => (b.endSec - b.startSec) - (a.endSec - a.startSec))
-    .slice(0, MAX_CLUSTERS);
 }
 
-function buildDelogoFilter(clusters: SubtitleCluster[]): string | null {
-  if (clusters.length === 0) return null;
-  return clusters
-    .map((c) => {
-      const x = Math.max(0, Math.round(c.x));
-      const y = Math.max(0, Math.round(c.y));
-      const w = Math.max(2, Math.round(c.w));
-      const h = Math.max(2, Math.round(c.h));
-      return `delogo=x=${x}:y=${y}:w=${w}:h=${h}:show=0:enable='between(t,${c.startSec.toFixed(2)},${c.endSec.toFixed(2)})'`;
-    })
-    .join(",");
+function cleanup(inputPath: string, workDir: string) {
+  try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
+  try { fs.rmSync(workDir, { recursive: true, force: true }); } catch { /* ignore */ }
 }
 
 async function handlePOST(req: NextRequest) {
@@ -164,11 +243,7 @@ async function handlePOST(req: NextRequest) {
   const auth = await getAuthUser(req);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  if (!env.FAL_KEY) {
-    return NextResponse.json({ error: "Subtitle remover is not configured (missing FAL_KEY)" }, { status: 503 });
-  }
-
-  // Pro+ only while the per-frame OCR cost is unverified (see lib/tool-costs.ts).
+  // Pro+ only while fal's per-frame OCR cost is unverified (see lib/tool-costs.ts).
   const access = await checkModelAccess(auth.userId, { allowedTiers: ["pro", "studio"] });
   if (!access.allowed) {
     return NextResponse.json(
@@ -178,9 +253,30 @@ async function handlePOST(req: NextRequest) {
     );
   }
 
+  const active = [...jobs.values()].filter((j) => j.status === "processing").length;
+  if (active >= MAX_ACTIVE_JOBS) {
+    return NextResponse.json({ error: "Subtitle Remover is busy right now. Please try again in a minute." }, { status: 429 });
+  }
+
   const policy = await resolveUploadPolicy(auth.userId, "subtitle-remover");
   const formData = await readUploadForm(req, policy);
   if (formData instanceof NextResponse) return formData;
+
+  // "bottom" (default): AI finds the captions in the bottom third.
+  // "region": the user marked the boxes. "auto": AI erase anywhere (PiAPI).
+  const rawArea = formData.get("area");
+  const mode: SubtitleRemoverMode = rawArea === "auto" || rawArea === "region" ? rawArea : "bottom";
+  if (mode === "bottom" && !env.FAL_KEY) {
+    return NextResponse.json({ error: "Automatic caption finding isn't available right now. Mark the captions yourself instead." }, { status: 503 });
+  }
+  if (mode === "auto" && !env.PIAPI_API_KEY) {
+    return NextResponse.json({ error: "AI erase isn't available right now." }, { status: 503 });
+  }
+  let userRegions: Box[] | null = null;
+  if (mode === "region") {
+    userRegions = parseUserRegions(formData.get("regions"));
+    if (!userRegions) return NextResponse.json({ error: "Mark at least one caption area (up to 4)." }, { status: 400 });
+  }
 
   const videoFile = formData.get("video") as File | null;
   if (!videoFile) return NextResponse.json({ error: "No video file provided" }, { status: 400 });
@@ -196,58 +292,51 @@ async function handlePOST(req: NextRequest) {
 
   const jobId = randomUUID();
   const outputPath = path.join(os.tmpdir(), `${jobId}-output.mp4`);
+  const workDir = path.join(os.tmpdir(), `${jobId}-work`);
   const downloadName = `subtitle-removed-${Date.now()}.mp4`;
 
   // Safe temp extension + container allow-list (lib/media-upload.ts).
   const saved = await saveMediaUpload(videoFile, jobId, "mp4");
   if (saved instanceof NextResponse) return saved;
-  const { inputPath } = saved;
+  const { inputPath, durationSec } = saved;
+  const reject = (error: string) => {
+    cleanup(inputPath, workDir);
+    return NextResponse.json({ error }, { status: 400 });
+  };
 
-  // Probe duration BEFORE charging — an undetectable duration means ffmpeg
-  // couldn't read this file at all (corrupt/unsupported), not a valid
-  // zero-length clip, so reject rather than silently proceeding.
-  const durationSec = saved.durationSec;
-  if (durationSec <= 0) {
-    try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
-    return NextResponse.json(
-      { error: "Couldn't read this video's duration — it may be corrupted or an unsupported format." },
-      { status: 400 },
-    );
+  // An undetectable duration means ffmpeg couldn't read the file at all.
+  if (durationSec <= 0) return reject("Couldn't read this video's duration — it may be corrupted or an unsupported format.");
+  if (durationSec > SUBTITLE_REMOVER_MAX_SEC || (mode === "auto" && durationSec > PIAPI_MAX_SEC)) {
+    return reject(`This video is ${Math.round(durationSec / 60)} minutes long. Subtitle Remover handles up to ${SUBTITLE_REMOVER_MAX_SEC / 60} minutes.`);
   }
-  // The price tops out at 20 credits, so without a length cap a multi-hour
-  // video was a full re-encode on the shared server for the same price.
-  if (durationSec > MAX_DURATION_SEC) {
-    try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
-    return NextResponse.json(
-      { error: `This video is ${Math.round(durationSec / 60)} minutes long. Subtitle Remover handles up to ${MAX_DURATION_SEC / 60} minutes.` },
-      { status: 400 },
-    );
-  }
+  if (mode === "auto" && durationSec < 1) return reject("AI erase needs a video at least 1 second long.");
 
-  // Where the captions are: "bottom" (default) or "auto" (any text anywhere).
-  const area = (formData.get("area") as string | null) === "auto" ? "auto" : "bottom";
-  const frameHeight = area === "bottom" ? (await getMediaDimensions(inputPath)).h : 0;
+  // The size boxes are measured against: the frame as displayed, after any
+  // rotation, which is what OCR sees and what the user drew on.
+  fs.mkdirSync(workDir, { recursive: true });
+  const frame = mode === "auto" ? null : await displayFrameSize(inputPath, workDir);
+  if (mode !== "auto" && !frame) return reject("Couldn't read a frame from this video — it may be corrupted or an unsupported format.");
 
   const idempotencyKey = (formData.get("idempotencyKey") as string | null) ?? undefined;
-  const CREDIT_COST = creditCostForDuration(durationSec);
+  const creditCost = subtitleRemoverCredits(durationSec, mode);
   const charge = await chargeCredits({
     userId: auth.userId,
-    amount: CREDIT_COST,
+    amount: creditCost,
     toolSlug: "subtitle-remover",
     idempotencyKey,
     log: { generationType: "video" },
   });
   const replayed = idempotencyResponse(charge, jobs);
   if (replayed) {
-    try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
+    cleanup(inputPath, workDir);
     return replayed;
   }
   if (!charge.ok) {
-    try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
+    cleanup(inputPath, workDir);
     if (charge.reason === "tool_disabled") {
       return NextResponse.json({ error: "Subtitle remover is temporarily disabled." }, { status: 503 });
     }
-    return NextResponse.json({ error: `Insufficient credits (need ${CREDIT_COST})` }, { status: 402 });
+    return NextResponse.json({ error: `Insufficient credits (need ${creditCost})` }, { status: 402 });
   }
 
   const job: Job = {
@@ -259,91 +348,39 @@ async function handlePOST(req: NextRequest) {
     createdAt: Date.now(),
     userId: auth.userId,
     refunded: false,
-    creditCost: CREDIT_COST,
+    creditCost,
     generationId: charge.generationId,
   };
   jobs.set(jobId, job);
 
-  const framesDir = path.join(os.tmpdir(), `${jobId}-frames`);
-
   (async () => {
     try {
-      fal.config({ credentials: env.FAL_KEY });
-      fs.mkdirSync(framesDir, { recursive: true });
+      let regionsDetected = -1;
+      if (mode === "auto") {
+        if (!(await runAiErase(job, jobId, inputPath, outputPath, durationSec, workDir))) return;
+      } else {
+        const regions = mode === "region"
+          ? userRegionsToPatches(userRegions!, frame!)
+          : await findCaptionBands(job, inputPath, durationSec, frame!, workDir);
+        if (regions === null || isCancelled(job)) return;
+        regionsDetected = regions.length;
 
-      // 1. Sample frames evenly across the video, capped at SAMPLE_FRAME_CAP
-      // total regardless of length.
-      const sampleFps = durationSec > SAMPLE_FRAME_CAP ? SAMPLE_FRAME_CAP / durationSec : 1;
-      const frameIntervalSec = 1 / sampleFps;
-      job.progress = 10;
-      await runFFmpegArgs(["-y", "-i", inputPath, "-vf", `fps=${sampleFps}`, path.join(framesDir, "frame-%04d.png")]);
-      if (job.generationId) void updateGenerationProgress(job.generationId, job.progress);
-
-      if ((job.status as string) === "cancelled") return;
-
-      const frameFiles = fs.readdirSync(framesDir).filter((f) => f.endsWith(".png")).sort();
-
-      // 2. OCR each sampled frame (small bounded concurrency), collecting
-      // detected text regions with their timestamp.
-      let detections: DetectedRegion[] = [];
-      let ocrFailures = 0;
-      for (let i = 0; i < frameFiles.length; i += OCR_CONCURRENCY) {
-        if ((job.status as string) === "cancelled") return;
-        const batch = frameFiles.slice(i, i + OCR_CONCURRENCY);
-        const results = await Promise.allSettled(
-          batch.map((f, j) => detectTextInFrame(path.join(framesDir, f), (i + j) * frameIntervalSec)),
-        );
-        for (const r of results) {
-          if (r.status === "fulfilled") detections.push(...r.value);
-          else { ocrFailures++; logger.error("subtitle-remover", "OCR call failed for a sampled frame", r.reason); }
+        if (regions.length === 0) {
+          // Nothing to remove: no encode, no result, no charge.
+          job.meta = { regionsDetected: 0, refunded: true, mode };
+          job.refunded = true;
+          await refundCredits({ userId: job.userId, amount: job.creditCost, generationId: job.generationId });
+          if (job.generationId) await markGenerationStatus(job.generationId, "failed", "No captions found — credits refunded");
+          job.progress = 100;
+          job.status = "done";
+          return;
         }
-        job.progress = 10 + Math.round(((i + batch.length) / frameFiles.length) * 30);
-        if (job.generationId) void updateGenerationProgress(job.generationId, job.progress);
+        await encodePatched(job, inputPath, outputPath, regions, durationSec, mode === "region" ? 10 : 50);
       }
 
-      if ((job.status as string) === "cancelled") return;
-
-      // Every OCR call failing is an outage, not "no text in this video" — it
-      // used to fall through to the no-text path and charge in full.
-      if (frameFiles.length > 0 && ocrFailures === frameFiles.length) {
-        throw new Error(`all ${ocrFailures} OCR calls failed`);
-      }
-
-      // "Bottom third" (the default) ignores text higher in the frame, so
-      // titles, logos and signs aren't blurred along with the captions.
-      if (area === "bottom" && frameHeight > 0) {
-        detections = detections.filter((d) => d.y + d.h / 2 >= frameHeight * BOTTOM_AREA_FROM);
-      }
-
-      // 3. Cluster detections into stable regions, and build a filter that
-      // only touches the actual detected region(s) for the time range they
-      // were seen in — never the whole frame, and never when nothing was
-      // detected at all.
-      const clusters = clusterRegions(detections, frameIntervalSec);
-      const filter = buildDelogoFilter(clusters);
-      job.meta = { regionsDetected: clusters.length, refunded: clusters.length === 0 };
-
-      // Nothing to remove: the user gets their video back unchanged, so they
-      // are not charged for it.
-      if (clusters.length === 0 && !job.refunded) {
-        job.refunded = true;
-        await refundCredits({ userId: job.userId, amount: job.creditCost, generationId: job.generationId });
-      }
-
-      job.progress = 45;
-      const ffmpegArgs = filter
-        ? ["-y", "-i", inputPath, "-vf", filter, "-c:v", "libx264", "-preset", "fast", "-crf", "22", "-c:a", "copy", outputPath]
-        // No text detected anywhere — re-encode straight through with no
-        // filter rather than altering footage that doesn't need it.
-        : ["-y", "-i", inputPath, "-c:v", "libx264", "-preset", "fast", "-crf", "22", "-c:a", "copy", outputPath];
-
-      await runFFmpegWithProgress(ffmpegArgs, (pct) => {
-        job.progress = 45 + Math.round((pct / 100) * 54);
-        if (job.generationId) void updateGenerationProgress(job.generationId, job.progress);
-      });
-
-      if ((job.status as string) === "cancelled") return;
-
+      if (isCancelled(job)) return;
+      job.finalizing = true;
+      job.meta = { regionsDetected, refunded: false, mode };
       // The local file serves the web's download; this keeps the result past a
       // restart, on the Generation and in the user's Assets.
       await saveToolResult({ userId: job.userId, generationId: job.generationId, toolSlug: "subtitle-remover", source: { filePath: outputPath }, mimeType: "video/mp4", name: downloadName, durationMs: Math.round(durationSec * 1000) });
@@ -355,9 +392,9 @@ async function handlePOST(req: NextRequest) {
         void markGenerationStatus(job.generationId, "completed");
       }
     } catch (err) {
-      if ((job.status as string) === "cancelled") return;
+      if (isCancelled(job)) return;
       job.status = "error";
-      logger.error("subtitle-remover", "job failed", err);
+      logger.error("subtitle-remover", `job failed (${mode})`, err);
       job.error = userMessage(err, "We couldn't remove the subtitles from this video. Your credits were refunded — please try again.");
       if (!job.refunded) {
         job.refunded = true;
@@ -367,8 +404,7 @@ async function handlePOST(req: NextRequest) {
         } catch { /* swallow */ }
       }
     } finally {
-      try { fs.unlinkSync(inputPath); } catch { /* ignore */ }
-      try { fs.rmSync(framesDir, { recursive: true, force: true }); } catch { /* ignore */ }
+      cleanup(inputPath, workDir);
     }
   })();
 
@@ -378,10 +414,19 @@ async function handlePOST(req: NextRequest) {
 
 export const POST = withRateLimit(handlePOST, { limit: 10, windowSec: 60, keyBy: "user", name: "tools:subtitle-remover" });
 
-export const GET = withRateLimit(
-  createJobStatusHandler(jobs, { contentType: "video/mp4", deleteOnDownload: true }),
-  { limit: 60, windowSec: 60, keyBy: "user", name: "tools:subtitle-remover:status" },
-);
+const statusHandler = createJobStatusHandler(jobs, { contentType: "video/mp4", deleteOnDownload: true });
+
+/** `?capabilities=1`: which modes this server can run, so the page offers only those. */
+async function handleGET(req: NextRequest) {
+  if (new URL(req.url).searchParams.get("capabilities")) {
+    const auth = await getAuthUser(req);
+    if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ bottom: !!env.FAL_KEY, region: true, auto: !!env.PIAPI_API_KEY });
+  }
+  return statusHandler(req);
+}
+
+export const GET = withRateLimit(handleGET, { limit: 60, windowSec: 60, keyBy: "user", name: "tools:subtitle-remover:status" });
 
 export const DELETE = withRateLimit(
   createJobCancelHandler(jobs),

@@ -72,7 +72,7 @@ export const TOOL_SERVICE: Record<string, string> = {
   "social-post-narration": "Google Gemini",
   "social-kpi-explain":    "Google Gemini",
   "cut-and-crop":     "FFmpeg (local)",
-  "subtitle-remover": "FFmpeg (local)",
+  "subtitle-remover": "fal OCR / PiAPI + FFmpeg",
   "image-generator":  "9 models — Gemini, Seedream, Flux, GPT Image…",
   "voiceover":        "ElevenLabs TTS",
   "vocal-remover":    "fal.ai Demucs",

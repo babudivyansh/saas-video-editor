@@ -402,24 +402,24 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
 
   "subtitle-remover": {
     h1: "Erase burned-in captions and start over",
-    updatedAt: "2026-11-04",
+    updatedAt: "2026-11-14",
     metaTitle: "AI Subtitle Remover — Erase Hardcoded Captions",
     metaDescription:
-      "Find and blur out hardcoded subtitles in a video with AI text detection, so you can recaption in your own style. Videos up to 10 minutes.",
-    lede: "AI finds the burned-in captions and blurs them out where they appear, so you can recaption in your own style instead of stacking text on text.",
+      "Remove hardcoded subtitles from a video: AI finds the captions, or you mark them anywhere on screen. Recaption in your own style. Videos up to 10 minutes.",
+    lede: "AI finds the burned-in captions and cleans them out where they appear — or you mark the text yourself, anywhere in the frame — so you can recaption in your own style instead of stacking text on text.",
     steps: [
       { title: "Upload the video", body: "Add the clip with the burned-in subtitles." },
-      { title: "Pick the caption area", body: "Bottom third for most videos, or anywhere to catch text wherever it appears." },
-      { title: "Remove", body: "Detected captions are blurred out for exactly as long as they're on screen, and the cleaned video saves to your library." },
+      { title: "Show where the captions are", body: "Bottom third for most videos, or drag boxes over text anywhere on screen." },
+      { title: "Remove", body: "The captions are cleaned out for as long as they are on screen, and the video saves to your library." },
     ],
     benefits: [
-      { title: "Only where the text is", body: "The blur follows the detected captions in place and time — the rest of the frame is untouched." },
+      { title: "Only where the text is", body: "Just the caption area is touched, only while captions are showing — the rest of the frame is left alone." },
+      { title: "Captions anywhere", body: "Text in the middle or at the top? Mark it yourself and it is removed for the whole video." },
       { title: "Recaption in your own style", body: "Repurpose footage that arrived captioned without ending up with two competing sets of text." },
-      { title: "Frame-accurate", body: "Applied across every frame, so the removal does not flicker in and out." },
     ],
     faqs: [
       { question: "Which plans include it?", answer: "Subtitle Remover is available on Pro and Studio." },
-      { question: "Does it work with busy backgrounds?", answer: "The captions are blurred rather than redrawn, so over busy backgrounds you'll see a soft patch where the text was. If no text is found, you get your credits back." },
+      { question: "Does it work with busy backgrounds?", answer: "The bottom-third and marked-area modes rebuild the area from the pixels around it, so over busy backgrounds you may see a soft smudge. Where the tool offers AI erase, it rebuilds what was behind the text instead. If nothing is found or a run fails, you get your credits back." },
       CREDITS_FAQ,
       COMMERCIAL_FAQ,
     ],

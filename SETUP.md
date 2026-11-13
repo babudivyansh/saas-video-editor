@@ -32,7 +32,7 @@ placeholders and should stay that way.
 | **AI Voice Changer** (`/dashboard/tools/voice-changer`) | `ELEVENLABS_API_KEY` | same as above |
 | **AI Vocal Remover** (`/dashboard/tools/vocal-remover`) | `FAL_KEY` | https://fal.ai/dashboard/keys |
 | **AI Video Generator (VEO3)** (`/dashboard/tools/video-generator`) | `FAL_KEY` | same as above |
-| **AI Subtitle Remover** (`/dashboard/tools/subtitle-remover`) | None — needs **FFmpeg** on PATH | https://ffmpeg.org/download.html |
+| **AI Subtitle Remover** (`/dashboard/tools/subtitle-remover`) | **FFmpeg** on PATH. `FAL_KEY` for "Bottom third" (OCR); `PIAPI_API_KEY` for "Anywhere · AI erase". "I'll mark them" needs neither. | https://piapi.ai/workspace |
 | **Clipiro AutoClip** (`/dashboard/create/auto-clip`) | `ELEVENLABS_API_KEY` + AWS S3* + FFmpeg | as above |
 
 \* **AWS S3** = `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_S3_BUCKET`,
