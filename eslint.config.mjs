@@ -27,6 +27,9 @@ const eslintConfig = defineConfig([
     // Local agent worktrees: full repo copies (with their own .next builds)
     // that turn a local `npm run lint` into 100k+ phantom problems.
     ".claude/**",
+    // Local one-off scripts (gitignored). A .mjs in here crashed the whole
+    // local run: "could not find plugin react-hooks".
+    "scratch/**",
   ]),
   {
     rules: {

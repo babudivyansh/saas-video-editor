@@ -18,6 +18,7 @@ import {
   runFFmpegWithProgress,
   probeMediaDuration,
   getMediaDimensions,
+  getMediaFps,
   analyzeAudio,
   encodeArgs,
   maybeUseFilterScript,
@@ -1296,10 +1297,18 @@ export function buildMultiBrollFilterComplex(
   captionsFilter: string | null,
   videoSrc = "[0:v]",
   mainCropFilter?: string | null,
+  /**
+   * Frame rate every segment is brought to. Stock clips rarely match the
+   * source's rate, and concat gives up on a frame rate when its segments
+   * disagree: ffmpeg then encodes at its 25 fps fallback, dropping or
+   * repeating frames across the whole clip. Omitted = left as they are.
+   */
+  fps?: number | null,
 ): string {
   const target = TARGET_RES[aspect];
   const scaleToTarget = `scale=${target.w}:${target.h},setsar=1`;
-  const cropChain = `${mainCropFilter ?? aspectRatioFilter(aspect)},${scaleToTarget}`;
+  const fpsFilter = fps && fps > 0 ? `,fps=${fps}` : "";
+  const cropChain = `${mainCropFilter ?? aspectRatioFilter(aspect)},${scaleToTarget}${fpsFilter}`;
 
   // Main-footage segments sit between the windows: one before the first, one
   // after the last, and one in each gap.
@@ -1336,7 +1345,7 @@ export function buildMultiBrollFilterComplex(
     // Each B-roll clip is its own input, cover-scaled to the target frame.
     parts.push(
       `[${i + 1}:v]scale=${target.w}:${target.h}:force_original_aspect_ratio=increase,` +
-      `crop=${target.w}:${target.h},setsar=1,trim=0:${dur},setpts=PTS-STARTPTS${label}`,
+      `crop=${target.w}:${target.h},setsar=1${fpsFilter},trim=0:${dur},setpts=PTS-STARTPTS${label}`,
     );
     order.push(label);
   }
@@ -1700,6 +1709,12 @@ export interface ClipFileOptions {
   onProgress?: (pct: number) => void;
 }
 
+// How long the B-roll splice may go without encoding a new frame before it is
+// killed and the clip renders without B-roll. Frames arrive many times a
+// second on a healthy render, so this is generous; the alternative was the
+// full 15-minute ffmpeg timeout, per clip, before the fallback ran.
+const BROLL_STALL_MS = Math.max(15_000, parseInt(process.env.BROLL_STALL_MS || "", 10) || 90_000);
+
 /**
  * Encodes one clip from the source video into `outPath`: crop and reframe,
  * B-roll, split screen, mood grade, captions, watermark and the lite-editor
@@ -1889,6 +1904,15 @@ export async function renderClipFile(
     }
   }
   const brollReady = readyWindows.length > 0;
+  // The source's own frame rate, for the splice to keep (see
+  // buildMultiBrollFilterComplex). Unknown = 30, never ffmpeg's 25 fallback.
+  let spliceFps = 30;
+  if (brollReady) {
+    try {
+      const probed = await getMediaFps(videoPath);
+      if (probed > 0) spliceFps = Math.min(60, Math.round(probed * 1000) / 1000);
+    } catch { /* keep the default */ }
+  }
 
   const videoSrc = isTrimmed ? "[trimmedv]" : "[0:v]";
   // Only the FIRST audio stream: a bare `0:a` maps every audio track, and
@@ -1928,6 +1952,7 @@ export async function renderClipFile(
       const complex = prepends + buildMultiBrollFilterComplex(
         finalDurationSec, shifted, aspect, moodFilter, null, videoSrc,
         brollKeyframes ? buildDynamicCropFilter(brollKeyframes, aspect) : null,
+        spliceFps,
       ) + wmComplex;
       return [
         ...baseArgs,
@@ -1959,7 +1984,13 @@ export async function renderClipFile(
   // length limit on long clips; spill it to a file when that happens.
   const renderOnce = (useBroll: boolean) => timeStage(
     "render",
-    () => runFFmpegWithProgress(maybeUseFilterScript(buildRenderArgs(useBroll), scriptPath), onRenderProgress),
+    () => runFFmpegWithProgress(maybeUseFilterScript(buildRenderArgs(useBroll), scriptPath), onRenderProgress, {
+      // Against the clip's own length, not the source's.
+      totalSec: finalDurationSec,
+      // Only the B-roll attempt: it has a fallback to give way to. Without
+      // one, a slow-but-moving render is better left to the total timeout.
+      stallMs: useBroll && brollReady ? BROLL_STALL_MS : undefined,
+    }),
     // `target` is what makes the CPU-vs-GPU comparison measurable rather
     // than assumed — see gpu-service/README.md's ROI note.
     { target, meta: { durationSec: Math.round(finalDurationSec), aspect, broll: useBroll && brollReady } },
@@ -1973,7 +2004,9 @@ export async function renderClipFile(
     // step) — a splice that ffmpeg can't render must not cost the user the
     // whole clip. Retry without it: the exact path a B-roll-less clip takes,
     // so the clip still renders (just without the stock cutaways).
-    logger.warn("auto-clip", `B-roll render failed for clip ${clip.index}, retrying without B-roll`, err);
+    // logger.error, so it reaches Sentry with ffmpeg's own last words: this
+    // fallback hid a B-roll splice that never once rendered in production.
+    logger.error("auto-clip", `B-roll render failed for clip ${clip.index}, retrying without B-roll`, err);
     await renderOnce(false);
   }
 

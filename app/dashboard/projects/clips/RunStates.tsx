@@ -33,8 +33,29 @@ export function CollectionGone() {
   );
 }
 
-/** Returns a state screen, or null when the page should list clips. */
-export function ProjectRunState({ projectId, data }: { projectId: string; data: ProjectClipsResponse }) {
+/** A run that hasn't settled: still analyzing, or still rendering its clips. */
+export function isRunInProgress(status: string | undefined): boolean {
+  return status === "analyzing" || status === "rendering";
+}
+
+/** The clips' own render progress, averaged. A failed clip counts as done. */
+export function renderPercent(clips: { status: string; progress: number }[]): number {
+  if (clips.length === 0) return 0;
+  const sum = clips.reduce(
+    (t, c) => t + (c.status === "ready" || c.status === "failed" ? 100 : Math.max(0, Math.min(100, c.progress))),
+    0,
+  );
+  return Math.round(sum / clips.length);
+}
+
+/**
+ * Returns a state screen, or null when the page should list clips.
+ *
+ * `listHref` is set while the page is holding a rendering run on this screen
+ * (it goes on to the review step when the run finishes): the link that shows
+ * the clips finished so far instead. Without it a run with clips lists them.
+ */
+export function ProjectRunState({ projectId, data, listHref }: { projectId: string; data: ProjectClipsResponse; listHref?: string }) {
   const { project, clips } = data;
   // Twenty minutes with no sign of life from the pick job. The clock ticks
   // once a minute from an effect — reading Date.now() during render is impure.
@@ -106,6 +127,38 @@ export function ProjectRunState({ projectId, data }: { projectId: string; data: 
           </div>
         )}
         <p className="text-[13px] text-fg-subtle">You can leave this page. Your clips will be here when you come back.</p>      </div>
+      </div>
+    );
+  }
+
+  if (listHref && isRunInProgress(project.status)) {
+    const ready = clips.filter((c) => c.status === "ready" && !!c.videoUrl).length;
+    const pct = renderPercent(clips);
+    return (
+      <div className={`${rs.stage} -mx-4 px-4 sm:-mx-8 sm:px-8`}>
+        <span className={rs.orb} aria-hidden="true" />
+        <div className="relative mx-auto flex max-w-3xl flex-col items-center gap-6 px-2 py-16 text-center">
+          <span className="font-mono text-xs font-semibold uppercase tracking-[0.14em] text-fg-muted">
+            Found {clips.length} moment{clips.length === 1 ? "" : "s"}
+          </span>
+          <h1 className="text-[36px] font-bold leading-[1.05] tracking-[-0.035em] text-fg sm:text-[52px]">
+            <span role="status" aria-live="polite">Cutting your clips</span>
+          </h1>
+          <div className="flex w-full max-w-md flex-col gap-2">
+            {/* Real progress: the average of the clips' own render progress. */}
+            <div className={rs.bar} role="progressbar" aria-label="Clips rendered" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
+              <i style={{ width: `${pct}%` }} />
+            </div>
+            <p className="text-[15px] text-fg-muted tabular-nums">{ready} of {clips.length} clips ready</p>
+          </div>
+          <p className="text-[15px] text-fg-muted">When they&rsquo;re all done you&rsquo;ll review them one at a time, then see them all together.</p>
+          {ready > 0 && (
+            <Link href={listHref} className={`${LINK} border border-line bg-surface-2 text-fg hover:bg-surface-3`}>
+              See the {ready === 1 ? "clip" : `${ready} clips`} ready so far
+            </Link>
+          )}
+          <p className="text-[13px] text-fg-subtle">You can leave this page. Your clips will be here when you come back.</p>
+        </div>
       </div>
     );
   }

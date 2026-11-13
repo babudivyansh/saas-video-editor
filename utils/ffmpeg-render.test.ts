@@ -18,7 +18,56 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { spawn } from "child_process";
-import { encodeArgs, ffmpegBin } from "./ffmpeg-render";
+import { encodeArgs, ffmpegBin, FfmpegStalledError, getMediaFps, runFFmpegWithProgress } from "./ffmpeg-render";
+
+// Real runs against the bundled binary: the watchdog and the progress maths
+// both hang off what ffmpeg actually prints, which a mock would only restate.
+describe("runFFmpegWithProgress", () => {
+  const tmpOut = (tag: string) => path.join(os.tmpdir(), `ffmpeg-progress-${tag}-${Date.now()}.mp4`);
+
+  it("kills a run that stops encoding, and says what ffmpeg last printed", async () => {
+    // `-re` on a 1 fps source: one frame, then nothing new for a second at a
+    // time. ffmpeg keeps printing its status line throughout, so this also
+    // proves a repeated status line is not mistaken for progress.
+    const out = tmpOut("stall");
+    const started = Date.now();
+    const run = runFFmpegWithProgress(
+      ["-y", "-re", "-f", "lavfi", "-i", "testsrc=size=160x90:rate=0.2", "-t", "60", ...encodeArgs("cpu"), "-an", out],
+      () => {},
+      { stallMs: 2500 },
+    );
+    try {
+      await expect(run).rejects.toBeInstanceOf(FfmpegStalledError);
+      await expect(run).rejects.toThrow(/encoded nothing new for 2500ms[\s\S]*testsrc/);
+      expect(Date.now() - started).toBeLessThan(15_000);
+    } finally {
+      try { fs.unlinkSync(out); } catch { /* best effort */ }
+    }
+  }, 30_000);
+
+  it("measures progress against the output length, not the input's", async () => {
+    // A 1 second cut from a 20 second file. Against the input's Duration the
+    // run never reported more than 5%.
+    const src = tmpOut("src");
+    const out = tmpOut("cut");
+    await runFFmpegWithProgress(
+      ["-y", "-f", "lavfi", "-i", "testsrc=size=160x90:rate=30", "-t", "20", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", src],
+      () => {},
+    );
+    const seen: number[] = [];
+    const legacy: number[] = [];
+    try {
+      const cut = ["-y", "-ss", "5", "-to", "6", "-i", src, ...encodeArgs("cpu"), "-an", out];
+      await runFFmpegWithProgress(cut, (p) => seen.push(p), { totalSec: 1, stallMs: 20_000 });
+      await runFFmpegWithProgress(cut, (p) => legacy.push(p));
+      expect(Math.max(0, ...seen)).toBeGreaterThan(50);
+      expect(Math.max(0, ...legacy)).toBeLessThanOrEqual(5);
+      expect(await getMediaFps(src)).toBe(30);
+    } finally {
+      for (const f of [src, out]) { try { fs.unlinkSync(f); } catch { /* best effort */ } }
+    }
+  }, 60_000);
+});
 
 describe("encodeArgs(\"cpu\") — P0-2 threads=1 fix", () => {
   it("forces single-threaded libx264, ordered ahead of -c:v", () => {

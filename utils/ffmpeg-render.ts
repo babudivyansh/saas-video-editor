@@ -431,20 +431,94 @@ export function getMediaDimensions(filePath: string, timeoutMs = 30_000): Promis
   });
 }
 
-// Like runFFmpegArgs but parses FFmpeg's stderr for the input "Duration:" and the
-// running "time=" markers to report real conversion progress (0–99).
+/**
+ * A video's frame rate, from FFmpeg's "Video: ... 29.97 fps" stderr line.
+ * Returns 0 when it can't be determined.
+ */
+export function getMediaFps(filePath: string, timeoutMs = 30_000): Promise<number> {
+  return new Promise((resolve) => {
+    const proc = spawnFfmpeg(ffmpegBin!, ["-i", filePath], { stdio: ["ignore", "ignore", "pipe"] });
+    const clearWatchdog = killAfterTimeout(proc, timeoutMs, () => resolve(0));
+    let stderrBuf = "";
+    proc.stderr.on("data", (chunk: Buffer) => { stderrBuf += chunk.toString(); });
+    proc.on("close", () => {
+      clearWatchdog();
+      const m = /Video:.*?(\d+(?:\.\d+)?) fps/.exec(stderrBuf);
+      const fps = m ? parseFloat(m[1]) : 0;
+      resolve(Number.isFinite(fps) && fps > 0 ? fps : 0);
+    });
+    proc.on("error", () => { clearWatchdog(); resolve(0); });
+  });
+}
+
+export interface FfmpegProgressOptions {
+  /** Hard ceiling on the whole run. Default 15 minutes. */
+  timeoutMs?: number;
+  /**
+   * Kill the run when ffmpeg has encoded nothing new for this long. The total
+   * timeout alone gives a render that is going nowhere the full 15 minutes:
+   * on production the B-roll splice sat on one frame for that long before its
+   * fallback ran, for every clip that had B-roll. Off unless set.
+   */
+  stallMs?: number;
+  /**
+   * Length of the OUTPUT, in seconds. Progress is measured against it. Without
+   * it the first "Duration:" ffmpeg prints is used, which is the INPUT's: a
+   * 20 second clip cut from an hour of video never got past 1%.
+   */
+  totalSec?: number;
+}
+
+/** Thrown when a run is killed for encoding nothing new (see stallMs). */
+export class FfmpegStalledError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "FfmpegStalledError";
+  }
+}
+
+// Like runFFmpegArgs but parses FFmpeg's stderr for the running "time="
+// markers to report real conversion progress (0–99), against `totalSec` when
+// given and the input "Duration:" otherwise.
 export function runFFmpegWithProgress(
   args: string[],
   onProgress: (pct: number) => void,
-  timeoutMs = DEFAULT_FFMPEG_TIMEOUT_MS,
+  options: number | FfmpegProgressOptions = {},
 ): Promise<void> {
+  const opts = typeof options === "number" ? { timeoutMs: options } : options;
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_FFMPEG_TIMEOUT_MS;
+  const stallMs = opts.stallMs && opts.stallMs > 0 ? opts.stallMs : 0;
+
   return new Promise((resolve, reject) => {
     const proc = spawnFfmpeg(ffmpegBin!, args, { stdio: ["ignore", "pipe", "pipe"] });
-    const clearWatchdog = killAfterTimeout(proc, timeoutMs, () => {
-      reject(new Error(`FFmpeg timed out after ${timeoutMs}ms and was killed`));
-    });
     let stderrBuf = "";
-    let totalMs = 0;
+    // The tail of what ffmpeg said, so a killed run can be diagnosed from the
+    // error alone. A kill used to report only that it happened.
+    const tail = () => stderrBuf.slice(-2000);
+    const clearWatchdog = killAfterTimeout(proc, timeoutMs, () => {
+      reject(new Error(`FFmpeg timed out after ${timeoutMs}ms and was killed:\n${tail()}`));
+    });
+
+    let stallTimer: ReturnType<typeof setTimeout> | null = null;
+    const armStall = () => {
+      if (!stallMs) return;
+      if (stallTimer) clearTimeout(stallTimer);
+      stallTimer = setTimeout(() => {
+        proc.kill("SIGKILL");
+        reject(new FfmpegStalledError(`FFmpeg encoded nothing new for ${stallMs}ms and was killed:\n${tail()}`));
+      }, stallMs);
+    };
+    const clearAll = () => {
+      clearWatchdog();
+      if (stallTimer) clearTimeout(stallTimer);
+    };
+    armStall();
+
+    let totalMs = opts.totalSec && opts.totalSec > 0 ? opts.totalSec * 1000 : 0;
+    // How far the encode has got: frames written, or output time for a run
+    // with no video. ffmpeg keeps printing its status line while stuck, so
+    // only a HIGHER mark counts as a sign of life.
+    let mark = 0;
 
     const hms = (h: string, m: string, s: string) =>
       (parseInt(h) * 3600 + parseInt(m) * 60 + parseFloat(s)) * 1000;
@@ -452,6 +526,8 @@ export function runFFmpegWithProgress(
     proc.stderr.on("data", (chunk: Buffer) => {
       const s = chunk.toString();
       stderrBuf += s;
+      // Only the tail is ever read once the duration is known.
+      if (totalMs > 0 && stderrBuf.length > 64_000) stderrBuf = stderrBuf.slice(-8000);
 
       if (totalMs === 0) {
         const d = /Duration:\s*(\d+):(\d+):(\d+\.\d+)/.exec(stderrBuf);
@@ -462,18 +538,24 @@ export function runFFmpegWithProgress(
       const re = /time=\s*(\d+):(\d+):(\d+\.\d+)/g;
       let last: RegExpExecArray | null = null, m: RegExpExecArray | null;
       while ((m = re.exec(s)) !== null) last = m;
-      if (last && totalMs > 0) {
-        const cur = hms(last[1], last[2], last[3]);
-        onProgress(Math.max(0, Math.min(99, (cur / totalMs) * 100)));
+      const cur = last ? hms(last[1], last[2], last[3]) : 0;
+
+      const frames = [...s.matchAll(/frame=\s*(\d+)/g)].pop();
+      const now = Math.max(frames ? parseInt(frames[1], 10) : 0, cur);
+      if (now > mark) {
+        mark = now;
+        armStall();
       }
+
+      if (last && totalMs > 0) onProgress(Math.max(0, Math.min(99, (cur / totalMs) * 100)));
     });
 
     proc.on("close", (code) => {
-      clearWatchdog();
+      clearAll();
       if (code === 0) resolve();
-      else reject(new Error(`FFmpeg exited ${code}:\n${stderrBuf.slice(-2000)}`));
+      else reject(new Error(`FFmpeg exited ${code}:\n${tail()}`));
     });
-    proc.on("error", (err) => { clearWatchdog(); reject(err); });
+    proc.on("error", (err) => { clearAll(); reject(err); });
   });
 }
 

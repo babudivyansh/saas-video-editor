@@ -286,6 +286,32 @@ d("production keyframe path — executed through ffmpeg", () => {
     expect(code, stderr.slice(-2500)).toBe(0);
   });
 
+  // Stock clips rarely share the source's frame rate. concat then reports no
+  // frame rate at all and ffmpeg encodes at its 25 fps fallback, whatever the
+  // source was. Only the real output says which rate was used.
+  it("keeps the source frame rate when a B-roll clip has a different one", () => {
+    const out = path.join(os.tmpdir(), `broll-fps-${Date.now()}.mp4`);
+    const inputs = [
+      "-hide_banner", "-y",
+      "-f", "lavfi", "-i", "testsrc2=s=640x360:r=30:d=2",
+      "-f", "lavfi", "-i", "testsrc=s=320x180:r=60:d=1",
+    ];
+    const encode = ["-map", "[video]", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", out];
+    const windows = [{ startSec: 0.5, endSec: 1 }];
+    const outputFps = (complex: string) => {
+      const { code, stderr } = run([...inputs, "-filter_complex", complex, ...encode]);
+      expect(code, stderr.slice(-2500)).toBe(0);
+      const probe = run(["-hide_banner", "-i", out]).stderr;
+      return parseFloat(/Video:.*?(\d+(?:\.\d+)?) fps/.exec(probe)?.[1] ?? "0");
+    };
+    try {
+      // Without the rate this came out at 25 on the bundled ffmpeg 6.
+      expect(outputFps(buildMultiBrollFilterComplex(2, windows, "9:16", null, null, "[0:v]", null, 30))).toBe(30);
+    } finally {
+      try { fs.unlinkSync(out); } catch { /* best effort */ }
+    }
+  }, 60_000);
+
   it("renders a B-roll window that starts at the very beginning of a clip", () => {
     // No leading main segment — the split must be sized accordingly.
     const complex = buildMultiBrollFilterComplex(2, [{ startSec: 0, endSec: 0.5 }], "9:16", null, null);
