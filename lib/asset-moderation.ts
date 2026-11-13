@@ -23,6 +23,7 @@ import { createRenderQueue } from "@/lib/render-queue";
 import { generateVideoThumbnail, generateImageThumbnail } from "@/lib/asset-thumbnail";
 import { auditAssetAction } from "@/lib/asset-audit";
 import { extensionForMime } from "@/utils/s3-upload";
+import { scanErrorReason } from "@/lib/moderation-errors";
 
 const FLAG_CONFIDENCE_THRESHOLD = 80;
 
@@ -70,13 +71,18 @@ export async function assetModerationJob(payload: AssetModerationPayload): Promi
     return;
   }
 
+  // Outside the try so a failed scan still keeps them: the thumbnail and the
+  // dimensions are made BEFORE the scan, and the failure path used to throw
+  // them away, so no upload ever got a library thumbnail while Rekognition
+  // was refusing every call.
+  let thumbnailS3Key: string | null = null;
+  // Real pixel dimensions, measured server-side. These were client-probed
+  // only, so anything that didn't volunteer them left the columns null
+  // permanently — and images were never probed at all.
+  let dimensions: { width: number | null; height: number | null } | null = null;
+
   try {
     let scanKey = s3Key;
-    let thumbnailS3Key: string | null = null;
-    // Real pixel dimensions, measured server-side. These were client-probed
-    // only, so anything that didn't volunteer them left the columns null
-    // permanently — and images were never probed at all.
-    let dimensions: { width: number | null; height: number | null } | null = null;
 
     if (kind === "image") {
       const result = await generateImageThumbnail(userId, assetId, s3Key);
@@ -117,11 +123,20 @@ export async function assetModerationJob(payload: AssetModerationPayload): Promi
   } catch (e) {
     // Never let a moderation failure (missing Rekognition permission, region
     // mismatch, transient AWS error) block the user from seeing their own
-    // upload — fall back to "skipped", logged for operator follow-up.
-    logger.warn("asset-moderation", `moderation scan failed for asset ${assetId}`, { reason: (e as Error).message });
+    // upload — fall back to "skipped". logger.error, not warn, so it reaches
+    // Sentry: as a warning, a missing IAM permission left every upload
+    // unscanned for months with nobody told. The reason is kept on the row,
+    // which is how rescanSkippedUploads tells a failed scan from a deliberate
+    // skip.
+    logger.error("asset-moderation", `moderation scan failed for asset ${assetId}`, e);
     await prisma.asset.update({
       where: { id: assetId },
-      data: { moderationStatus: "skipped", moderationLabels: { malwareScan } },
+      data: {
+        moderationStatus: "skipped",
+        moderationLabels: { malwareScan, scanError: scanErrorReason(e) },
+        ...(thumbnailS3Key ? { thumbnailS3Key } : {}),
+        ...(dimensions ?? {}),
+      },
     }).catch(() => { /* best-effort */ });
   }
 }

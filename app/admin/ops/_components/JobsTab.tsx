@@ -186,7 +186,54 @@ export function JobsTab({
       />
 
       <EmptyDraftSweep headers={headers} />
+      <ModerationRescan headers={headers} />
     </div>
+  );
+}
+
+interface RescanResult { dryRun: boolean; assets: number; attachments: number; queued: number }
+
+// Manual-only task: sends uploads whose content scan was skipped (e.g. while
+// Rekognition permission was missing) back through moderation.
+function ModerationRescan({ headers }: { headers: Headers }) {
+  const { showToast } = useToast();
+  const [result, setResult] = useState<RescanResult | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function call(dryRun: boolean) {
+    setBusy(true);
+    try {
+      const r = (await postJson("/api/admin/ops/rescan-moderation", headers, { dryRun })) as RescanResult;
+      setResult(r);
+      if (!r.dryRun) showToast(`Queued ${r.queued} upload(s) for scanning.`, "success");
+    } catch (e) {
+      showToast((e as Error).message, "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const found = result ? result.assets + result.attachments : 0;
+  return (
+    <Card shadow padding="md">
+      <h2 className="text-sm font-bold text-fg">Manual task: re-scan skipped uploads</h2>
+      <p className="text-xs text-fg-subtle mt-1 mb-3">
+        Runs content moderation again on uploads whose scan was skipped. Up to 100 at a time; scans run one after another in the background.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" variant="secondary" loading={busy} onClick={() => call(true)}>Count</Button>
+        {result?.dryRun && found > 0 && (
+          <Button size="sm" loading={busy} onClick={() => call(false)}>Re-scan {found}</Button>
+        )}
+      </div>
+      {result && (
+        <p className="mt-3 text-xs text-fg-muted">
+          {result.dryRun
+            ? `${result.assets} upload(s) and ${result.attachments} review attachment(s) were never scanned.`
+            : `Queued ${result.queued} for scanning. Check back in a few minutes; Count again to see what is left.`}
+        </p>
+      )}
+    </Card>
   );
 }
 
