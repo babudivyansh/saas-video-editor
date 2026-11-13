@@ -19,7 +19,7 @@ import { ClipDetail, type ClipHandlers } from "./ClipDetail";
 import { ClipGridCard } from "./ClipGridCard";
 import { ClipPopup } from "./ClipPopup";
 import { FilterPopover } from "./FilterPopover";
-import { CollectionGone, ProjectGone, ProjectRunState } from "./RunStates";
+import { CollectionGone, ProjectGone, ProjectRunState, isRunInProgress, renderPercent } from "./RunStates";
 import { useClipsSource } from "./useClipsSource";
 import {
   SORT_LABELS, isReady, stepClip, visibleClips,
@@ -33,6 +33,12 @@ import {
 // Everything a link should keep lives in the URL: ?layout=, ?f= and ?len=
 // (filters), ?sort=, ?preview= (the grid popup's clip) and ?clip= & ?tab= (the
 // editor). The layout is also remembered per browser.
+//
+// A run that is still going stays on the progress screen (RunStates) rather
+// than listing clips as they land, and when it finishes the page goes on to
+// the keep-or-skip review, which leads back here. ?view=all opts out of both:
+// it lists what is ready now. A project opened after its run finished lists
+// its clips straight away.
 
 const LAYOUT_KEY = "clipiro:clips-layout";
 const SORTS: ClipSort[] = ["score", "order", "duration", "added"];
@@ -119,16 +125,32 @@ export function ClipsView({ source }: { source: ClipsSource }) {
         : undefined,
   };
 
+  const projectStatus = source.kind === "project" ? (data as ProjectClipsResponse | undefined)?.project.status : undefined;
+  const running = isRunInProgress(projectStatus);
+  const listNow = params.get("view") === "all";
+  const readyCount = all.filter(isReady).length;
+
+  // Watched the run finish on this page: on to the review step, once.
+  const watchedRun = useRef(false);
+  const sentToReview = useRef(false);
   // A finished run is the "AutoClip worked" moment the review prompt asks at
   // (moved here from the old AutoClip results page). The provider rate-limits.
   const fireReviewPrompt = useReviewPromptTrigger();
   const reviewPromptFired = useRef(false);
-  const completedForPrompt = source.kind === "project" && (data as ProjectClipsResponse | undefined)?.project.status === "completed";
   useEffect(() => {
-    if (!completedForPrompt || reviewPromptFired.current) return;
+    if (source.kind !== "project") return;
+    if (running) { watchedRun.current = true; return; }
+    if (projectStatus !== "completed") return;
+    if (watchedRun.current && !listNow && readyCount > 0) {
+      if (sentToReview.current) return;
+      sentToReview.current = true;
+      router.replace(`/dashboard/projects/${source.id}/review`);
+      return;
+    }
+    if (reviewPromptFired.current) return;
     reviewPromptFired.current = true;
     fireReviewPrompt("autoclips_milestone", { featureHint: "auto_clips" }).catch(() => {});
-  }, [completedForPrompt, fireReviewPrompt]);
+  }, [source.kind, source.id, running, projectStatus, listNow, readyCount, router, fireReviewPrompt]);
 
   if (query.error instanceof ApiError && query.error.status === 404) {
     return source.kind === "project" ? <ProjectGone /> : <CollectionGone />;
@@ -138,16 +160,20 @@ export function ClipsView({ source }: { source: ClipsSource }) {
   const collection = source.kind === "collection" ? (data as CollectionClipsResponse | undefined)?.collection : undefined;
   const title = project?.title ?? collection?.name ?? "";
   const heading = source.kind === "project" ? project?.instructions?.trim() || "All clips" : collection?.name ?? "";
-  const readyCount = all.filter(isReady).length;
-  const renderPct = all.length
-    ? Math.round(all.reduce((sum, c) => sum + (c.status === "ready" || c.status === "failed" ? 100 : Math.max(0, Math.min(100, c.progress))), 0) / all.length)
-    : 0;
+  const renderPct = renderPercent(all);
   const filtering = activeFilterCount(filters) > 0;
 
   if (source.kind === "project" && data) {
-    const state = <ProjectRunState projectId={source.id} data={data as ProjectClipsResponse} />;
+    const holding = running && !listNow;
+    const state = (
+      <ProjectRunState
+        projectId={source.id}
+        data={data as ProjectClipsResponse}
+        listHref={holding ? `${pathname}?view=all` : undefined}
+      />
+    );
     // ProjectRunState renders nothing once there are clips to list.
-    if (all.length === 0 || (project?.status === "failed" && all.every((c) => c.status === "failed"))) {
+    if (all.length === 0 || holding || (project?.status === "failed" && all.every((c) => c.status === "failed"))) {
       return (
         <div className="mx-auto w-full max-w-[1400px] px-4 pt-6 sm:px-8">
           <Breadcrumbs items={[{ label: "Your projects", href: "/dashboard/projects" }, { label: title || "Project" }]} />

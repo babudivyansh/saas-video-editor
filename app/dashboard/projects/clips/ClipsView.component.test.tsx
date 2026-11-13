@@ -6,16 +6,19 @@
 // polled forever, a stalled analysis spinning silently — stay guarded.
 
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ToastProvider } from "@/app/components/ui/Toast";
 import { ClipsView } from "./ClipsView";
 import { autoClipPollIntervalMs } from "./poll";
 
+const nav = vi.hoisted(() => ({ replace: vi.fn(), search: "" }));
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
+  // One router object for the whole file: effects depend on it, and a new
+  // object every render would re-run them.
+  useRouter: () => nav,
   usePathname: () => "/dashboard/projects/p1",
-  useSearchParams: () => new URLSearchParams(""),
+  useSearchParams: () => new URLSearchParams(nav.search),
 }));
 const fireReviewPrompt = vi.fn(async () => {});
 vi.mock("@/app/components/reviews/ReviewPromptProvider", () => ({
@@ -34,6 +37,9 @@ afterEach(() => {
   activeUnmount?.();
   activeClient?.clear();
   vi.unstubAllGlobals();
+  nav.replace.mockClear();
+  nav.search = "";
+  fireReviewPrompt.mockClear();
 });
 
 const json = (body: unknown, status = 200) =>
@@ -136,5 +142,51 @@ describe("ClipsView — a project's run states", () => {
     renderView();
     expect(await screen.findByRole("heading", { name: /All clips \(1\)/ })).toBeInTheDocument();
     expect(fireReviewPrompt).toHaveBeenCalledWith("autoclips_milestone", { featureHint: "auto_clips" });
+    // Opened after the run finished: straight to the clips, no review detour.
+    expect(nav.replace).not.toHaveBeenCalled();
+  });
+});
+
+describe("ClipsView — a run watched to the end goes to review first", () => {
+  const rendering = {
+    project: project({ status: "rendering" }),
+    clips: [clip(), clip({ id: "c2", index: 1, status: "rendering", progress: 40, videoUrl: null })],
+  };
+  const done = { project: project(), clips: [clip(), clip({ id: "c2", index: 1 })] };
+
+  it("holds the progress screen while clips render, instead of listing them", async () => {
+    serve(rendering);
+    renderView();
+    expect(await screen.findByText("Cutting your clips")).toBeInTheDocument();
+    expect(screen.getByText("1 of 2 clips ready")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "70");
+    expect(screen.queryByRole("list", { name: "Clips" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "See the clip ready so far" })).toHaveAttribute("href", "/dashboard/projects/p1?view=all");
+    expect(nav.replace).not.toHaveBeenCalled();
+  });
+
+  it("goes to the review step when the run finishes, and holds the review prompt", async () => {
+    let body: unknown = rendering;
+    vi.stubGlobal("fetch", vi.fn(async () => json(body)));
+    renderView();
+    expect(await screen.findByText("Cutting your clips")).toBeInTheDocument();
+    body = done;
+    await activeClient!.refetchQueries();
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/dashboard/projects/p1/review"));
+    expect(nav.replace).toHaveBeenCalledTimes(1);
+    expect(fireReviewPrompt).not.toHaveBeenCalled();
+  });
+
+  it("lists the ready clips on ?view=all, and then stays on the list", async () => {
+    nav.search = "view=all";
+    let body: unknown = rendering;
+    vi.stubGlobal("fetch", vi.fn(async () => json(body)));
+    renderView();
+    expect(await screen.findByRole("list", { name: "Clips" })).toBeInTheDocument();
+    expect(screen.queryByText("Cutting your clips")).not.toBeInTheDocument();
+    body = done;
+    await activeClient!.refetchQueries();
+    await waitFor(() => expect(fireReviewPrompt).toHaveBeenCalled());
+    expect(nav.replace).not.toHaveBeenCalledWith("/dashboard/projects/p1/review");
   });
 });
