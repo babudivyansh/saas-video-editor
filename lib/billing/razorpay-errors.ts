@@ -22,7 +22,16 @@ export function isMissingRazorpayPlan(e: unknown): boolean {
   if (err.statusCode !== 400 && err.statusCode !== 404) return false;
   const field = err.error?.field ?? "";
   const description = err.error?.description ?? "";
-  return field === "plan_id" || /id provided does not exist|plan.*(does not exist|not found|invalid)/i.test(description);
+  if (field === "offer_id") return false;
+  // Razorpay words an unknown id two ways: "The id provided does not exist" and
+  // "The ID provided is invalid or could not be found" (CLIPIRO-WEB-S — the
+  // second never matched, so checkout 502'd instead of re-minting the plan).
+  // Callers only reach this after any offer has been ruled out, so a bare
+  // "id provided" here is the plan's.
+  return (
+    field === "plan_id" ||
+    /id provided (does not exist|is invalid|could not be found)|plan.*(does not exist|not found|invalid)/i.test(description)
+  );
 }
 
 /** Loggable one-liner for an SDK rejection. */

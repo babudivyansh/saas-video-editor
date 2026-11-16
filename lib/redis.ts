@@ -58,6 +58,10 @@ function fallbackDel(key: string) {
   fallback.delete(key);
 }
 
+// TLS handshake Hostinger -> Upstash measured ~4.5s on a cold start
+// (2026-11-13: boot 20:03:02, "connected" 20:03:06.5).
+const CONNECT_TIMEOUT_MS = 5000;
+
 const isNewClient = !globalForRedis.redis;
 const client =
   globalForRedis.redis ??
@@ -68,7 +72,7 @@ const client =
     maxRetriesPerRequest: 3,
     lazyConnect: true,
     enableOfflineQueue: false,
-    connectTimeout: 5000,
+    connectTimeout: CONNECT_TIMEOUT_MS,
     // Force IPv4 DNS resolution. ioredis defaults to `family: 0`, which lets the
     // resolver hand back an AAAA (IPv6) address for a dual-stack Upstash endpoint
     // — and this Hostinger host has no working IPv6 egress, so that connection
@@ -112,8 +116,32 @@ function logState(state: string, detail?: unknown) {
   // noise (CLIPIRO-WEB-7/-8). A real outage still reports: the "error" event
   // stays an error, and so does every command that falls back (logFallback).
   else if (state === "closed" || state === "reconnecting") logger.warn("redis", `connection ${state}`, detail);
-  else logger.error("redis", `connection ${state}`, detail);
+  else if (state === "error" && isNetworkBlip(detail)) {
+    // One connect timeout / reset that ioredis recovers from on its own is a
+    // blip, not an outage (CLIPIRO-WEB-F: a lone ETIMEDOUT, reconnected
+    // fine). Warn now; report an error only if still not back after
+    // OUTAGE_AFTER_MS — a real outage still pages, and every command that
+    // falls back reports too (logFallback). Anything else (WRONGPASS, TLS,
+    // quota) is an error straight away.
+    logger.warn("redis", "connection error", detail);
+    if (!outageTimer) {
+      outageTimer = setTimeout(() => {
+        outageTimer = null;
+        if (client.status !== "ready") logger.error("redis", `still not connected ${OUTAGE_AFTER_MS / 1000}s after a connection error`, detail);
+      }, OUTAGE_AFTER_MS);
+      outageTimer.unref?.();
+    }
+  } else logger.error("redis", `connection ${state}`, detail);
 }
+
+const OUTAGE_AFTER_MS = 30_000;
+const NETWORK_BLIP_CODES = new Set(["ETIMEDOUT", "ECONNRESET", "EPIPE", "ECONNABORTED", "EAI_AGAIN", "EHOSTUNREACH", "ENETUNREACH"]);
+function isNetworkBlip(err: unknown): boolean {
+  const e = err as { code?: unknown; message?: unknown } | null;
+  if (typeof e?.code === "string" && NETWORK_BLIP_CODES.has(e.code)) return true;
+  return typeof e?.message === "string" && /(ETIMEDOUT|ECONNRESET|EPIPE)/.test(e.message);
+}
+let outageTimer: ReturnType<typeof setTimeout> | null = null;
 
 if (isNewClient) {
   // Still swallow the event itself (an unhandled 'error' would crash the
@@ -146,7 +174,11 @@ async function ready(): Promise<void> {
   try {
     await Promise.race([
       connectSettled,
-      new Promise<void>((resolve) => setTimeout(resolve, 2000).unref?.()),
+      // The handshake itself is bounded by connectTimeout, so this cap only
+      // matters if ioredis never settles. It used to be 2s — shorter than a
+      // cold-start handshake (~4.5s), so every request in that gap failed
+      // into the fallback (CLIPIRO-WEB-5/-6/-H/-J, all at process start).
+      new Promise<void>((resolve) => setTimeout(resolve, CONNECT_TIMEOUT_MS + 1000).unref?.()),
     ]);
   } catch { /* fall through to the command, which will use the fallback */ }
   // The handshake above only covers the FIRST connection. Upstash drops idle

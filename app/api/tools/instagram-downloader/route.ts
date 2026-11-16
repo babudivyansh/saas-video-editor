@@ -1,5 +1,5 @@
 import { createDownloaderRoute, safeTitle, videoHeights } from "@/lib/downloader-route";
-import { instagramUrl, instagramFriendlyError } from "@/lib/downloader-urls";
+import { instagramUrl, instagramFriendlyError, instagramLinkFailure } from "@/lib/downloader-urls";
 
 export const maxDuration = 300;
 
@@ -27,6 +27,7 @@ const route = createDownloaderRoute({
     };
   },
   friendlyError: instagramFriendlyError,
+  isLinkFailure: instagramLinkFailure,
   downloadBaseName: (info) => safeTitle(info.title || info.description || info.uploader || "", "instagram-video"),
 });
 

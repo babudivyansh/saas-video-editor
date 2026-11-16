@@ -44,3 +44,20 @@ export function instagramFriendlyError(raw: string): string {
   }
   return "We couldn't download this post. Please try again.";
 }
+
+// Failures caused by the link itself — private, removed, age- or
+// login-gated — rather than by our server. The user is already told why
+// (friendlyError); logging them as errors paged Sentry for every private post
+// someone pasted (CLIPIRO-WEB-R: Instagram "empty media response" = the post
+// needs a logged-in session). They are logged as warnings instead.
+// Deliberately NOT here: YouTube's "Sign in to confirm you're not a bot" —
+// that is YouTube blocking our server, an outage for every user.
+export function youtubeLinkFailure(raw: string): boolean {
+  if (/sign in to confirm|not a bot/i.test(raw)) return false;
+  return /private video|members-only|age-restricted|confirm your age|video unavailable|not available|has been removed|does not exist|account .* terminated/i.test(raw);
+}
+
+export function instagramLinkFailure(raw: string): boolean {
+  return /empty media response|login required|private|not available|has been removed|does not exist/i.test(raw);
+}
+

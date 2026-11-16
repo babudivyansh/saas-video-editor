@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { instagramUrl, instagramFriendlyError, youtubeUrl, youtubeFriendlyError } from "./downloader-urls";
+import { instagramUrl, instagramFriendlyError, instagramLinkFailure, youtubeUrl, youtubeFriendlyError, youtubeLinkFailure } from "./downloader-urls";
 
 describe("youtubeUrl", () => {
   it.each([
@@ -43,4 +43,19 @@ describe("friendly errors never echo yt-dlp's text", () => {
   const raw = "ERROR: [youtube] abc: Unable to extract; /tmp/ytdl_123.mp4 python traceback";
   it("youtube", () => expect(youtubeFriendlyError(raw)).not.toContain("/tmp"));
   it("instagram", () => expect(instagramFriendlyError(raw)).not.toContain("/tmp"));
+});
+
+describe("link-caused failures (logged as warnings, not errors)", () => {
+  it("treats a private / login-gated Instagram post as the link's problem (CLIPIRO-WEB-R)", () => {
+    expect(instagramLinkFailure("[Instagram] DfzEPEno90f: Instagram sent an empty media response. Check if this post is accessible in your browser without being logged-in.")).toBe(true);
+    expect(instagramLinkFailure("[Instagram] abc: Requested content is not available, rate-limit reached or login required")).toBe(true);
+    expect(instagramLinkFailure("spawn /x/yt-dlp_linux EAGAIN")).toBe(false);
+  });
+
+  it("keeps YouTube's bot wall an error: that blocks every user", () => {
+    expect(youtubeLinkFailure("[youtube] abc: Sign in to confirm you're not a bot")).toBe(false);
+    expect(youtubeLinkFailure("[youtube] abc: Private video. Sign in if you've been granted access to this video")).toBe(true);
+    expect(youtubeLinkFailure("[youtube] abc: Video unavailable. This video has been removed by the uploader")).toBe(true);
+    expect(youtubeLinkFailure("ImportError: needs 3.10")).toBe(false);
+  });
 });

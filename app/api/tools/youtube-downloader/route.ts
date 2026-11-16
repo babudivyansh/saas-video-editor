@@ -1,5 +1,5 @@
 import { createDownloaderRoute, safeTitle, videoHeights } from "@/lib/downloader-route";
-import { youtubeUrl, youtubeFriendlyError } from "@/lib/downloader-urls";
+import { youtubeUrl, youtubeFriendlyError, youtubeLinkFailure } from "@/lib/downloader-urls";
 
 export const maxDuration = 300;
 
@@ -23,6 +23,7 @@ const route = createDownloaderRoute({
     };
   },
   friendlyError: youtubeFriendlyError,
+  isLinkFailure: youtubeLinkFailure,
   downloadBaseName: (info) => safeTitle(info.title ?? "", "video"),
 });
 

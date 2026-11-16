@@ -530,7 +530,11 @@ export function splitIntoWindows(
 // Clip picking. The fallback only runs while the primary is overloaded; it is
 // the same family on separate capacity, and cheaper, so an outage costs less.
 const GEMINI_PICK_MODEL = "gemini-2.5-flash";
-const GEMINI_PICK_FALLBACK_MODEL = "gemini-2.5-flash-lite";
+// Was gemini-2.5-flash-lite, which 404s for this account ("no longer available
+// to new users"): every time 2.5 Flash was overloaded the fallback failed too
+// and the run died (Sentry CLIPIRO-WEB-P -> -C). 3.5 Flash-Lite answered a
+// test call on the production key, 2026-11-17.
+const GEMINI_PICK_FALLBACK_MODEL = "gemini-3.5-flash-lite";
 
 async function getClipsFromGemini(
   transcriptText: string,
@@ -608,7 +612,7 @@ ${sharedRules}`;
     primary: GEMINI_PICK_MODEL,
     fallback: GEMINI_PICK_FALLBACK_MODEL,
     timeoutMs: 120_000,
-    onFallback: (err) => logger.warn("auto-clip", `${GEMINI_PICK_MODEL} overloaded, using ${GEMINI_PICK_FALLBACK_MODEL}`, {
+    onFallback: (err) => logger.warn("auto-clip", `${GEMINI_PICK_MODEL} overloaded or timed out, using ${GEMINI_PICK_FALLBACK_MODEL}`, {
       reason: err instanceof Error ? err.message.slice(0, 200) : String(err),
     }),
   });

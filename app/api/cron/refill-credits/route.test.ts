@@ -9,11 +9,20 @@ vi.mock("@/lib/env", () => ({
 // tests can assert we stop the mandate before dropping the local link.
 const cancelledSubs: string[] = [];
 let cancelShouldFail = false;
+// What subscriptions.fetch answers per id: a status, or a Razorpay SDK
+// rejection (a plain object, not an Error). Unlisted ids are "active".
+const fetchAnswers = new Map<string, { status: string } | { reject: unknown }>();
 vi.mock("razorpay", () => ({
   default: class {
     subscriptions = {
+      fetch: vi.fn(async (id: string) => {
+        const a = fetchAnswers.get(id) ?? { status: "active" };
+        if ("reject" in a) throw a.reject;
+        return { id, status: a.status };
+      }),
       cancel: vi.fn(async (id: string) => {
-        if (cancelShouldFail) throw new Error("network down");
+        // The SDK rejects with { statusCode, error }, never an Error.
+        if (cancelShouldFail) throw { statusCode: 400, error: { code: "BAD_REQUEST_ERROR", description: "network down" } };
         cancelledSubs.push(id);
         return { id, status: "cancelled" };
       }),
@@ -141,6 +150,7 @@ beforeEach(() => {
   users = [];
   cancelledSubs.length = 0;
   cancelShouldFail = false;
+  fetchAnswers.clear();
   vi.clearAllMocks();
 });
 
@@ -281,6 +291,35 @@ describe("cron refill", () => {
     // Orphaning the subscription is the exact failure this guards against.
     expect(u.razorpaySubscriptionId).toBe("sub_flaky_1");
     expect(u.subscriptionCredits).toBe(40);
+  });
+
+  it("lapses without cancelling when Razorpay already ended the subscription", async () => {
+    fetchAnswers.set("sub_done_1", { status: "cancelled" });
+    const u = user({ razorpaySubscriptionId: "sub_done_1", subscriptionCredits: 40, subscriptionEndsAt: new Date(Date.now() - 20 * DAY) });
+    const body = await (await run()).json();
+    expect(body.expired).toBe(1);
+    expect(cancelledSubs).toEqual([]);
+    expect(u.razorpaySubscriptionId).toBeNull();
+  });
+
+  it("lapses a subscription id these keys don't know (minted on test keys) — CLIPIRO-WEB-N", async () => {
+    fetchAnswers.set("sub_TnV0nmNLls19nv", {
+      reject: { statusCode: 400, error: { code: "BAD_REQUEST_ERROR", description: "The id provided does not exist" } },
+    });
+    const u = user({ razorpaySubscriptionId: "sub_TnV0nmNLls19nv", subscriptionCredits: 40, subscriptionEndsAt: new Date(Date.now() - 20 * DAY) });
+    const body = await (await run()).json();
+    expect(body.expired).toBe(1);
+    expect(u.razorpaySubscriptionId).toBeNull();
+  });
+
+  it("logs Razorpay's own description when the cancel really fails", async () => {
+    cancelShouldFail = true;
+    user({ razorpaySubscriptionId: "sub_flaky_2", subscriptionEndsAt: new Date(Date.now() - 20 * DAY) });
+    await run();
+    const { logger } = await import("@/lib/logger");
+    const msg = String(vi.mocked(logger.error).mock.calls.at(-1)?.[1]);
+    expect(msg).toContain("network down");
+    expect(msg).not.toContain("[object Object]");
   });
 
   it("nulls nextRefillAt once the next refill would pass term end", async () => {

@@ -5,6 +5,12 @@ describe("isMissingRazorpayPlan", () => {
   it("recognises Razorpay's unknown-id rejection", () => {
     expect(isMissingRazorpayPlan({ statusCode: 400, error: { code: "BAD_REQUEST_ERROR", description: "The id provided does not exist" } })).toBe(true);
     expect(isMissingRazorpayPlan({ statusCode: 400, error: { description: "Invalid", field: "plan_id" } })).toBe(true);
+    // The wording behind CLIPIRO-WEB-S.
+    expect(isMissingRazorpayPlan({ statusCode: 400, error: { code: "BAD_REQUEST_ERROR", description: "The ID provided is invalid or could not be found." } })).toBe(true);
+  });
+
+  it("never blames the plan for a refused offer", () => {
+    expect(isMissingRazorpayPlan({ statusCode: 400, error: { description: "The ID provided is invalid or could not be found.", field: "offer_id" } })).toBe(false);
   });
 
   it("ignores everything else", () => {
