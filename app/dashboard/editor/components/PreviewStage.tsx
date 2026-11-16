@@ -10,6 +10,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useEditorStore } from "../store/editorStore";
 import { usePlayback, type MediaRegistry } from "../hooks/usePlayback";
+import { recordSourceDuration } from "../store/sourceDurations";
 import { docDuration } from "@/lib/editor/doc-utils";
 import { docDimensions } from "@/lib/editor/types";
 import { useAssets } from "./panels/shared/assetData";
@@ -169,6 +170,7 @@ export default function PreviewStage() {
                 else registry.current.videos.delete(assetId);
               }}
               src={assetUrl(assetId)}
+              onLoadedMetadata={(e) => recordSourceDuration(assetId, e.currentTarget.duration)}
               preload="auto"
               playsInline
               className="absolute inset-0 h-full w-full object-cover"
@@ -185,6 +187,7 @@ export default function PreviewStage() {
                 else registry.current.audios.delete(assetId);
               }}
               src={assetUrl(assetId)}
+              onLoadedMetadata={(e) => recordSourceDuration(assetId, e.currentTarget.duration)}
               preload="auto"
             />
           ))}

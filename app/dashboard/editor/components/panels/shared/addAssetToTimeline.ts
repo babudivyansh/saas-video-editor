@@ -7,11 +7,13 @@ import { docDuration } from "@/lib/editor/doc-utils";
 import { type AssetRow, probeDuration } from "./assetData";
 import { playUiSound } from "../../../hooks/useUiSound";
 import { showPanelToast } from "../../ui/PanelToast";
+import { recordSourceDuration } from "../../../store/sourceDurations";
 
 export async function addAssetToTimeline(asset: AssetRow): Promise<void> {
   const store = useEditorStore.getState();
   if (asset.kind === "video") {
     const duration = asset.duration ?? (await probeDuration(asset.url, "video"));
+    recordSourceDuration(asset.id, duration);
     const doc = useEditorStore.getState().doc;
     const last = doc.tracks.video[doc.tracks.video.length - 1];
     store.addVideoClip({
@@ -26,6 +28,7 @@ export async function addAssetToTimeline(asset: AssetRow): Promise<void> {
     });
   } else if (asset.kind === "audio") {
     const duration = asset.duration ?? (await probeDuration(asset.url, "audio"));
+    recordSourceDuration(asset.id, duration);
     store.addAudioClip({
       type: "audio",
       id: crypto.randomUUID(),

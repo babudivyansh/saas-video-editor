@@ -69,6 +69,9 @@ export default function EditorShell() {
   const exportOpen = useEditorStore((s) => s.exportOpen);
   const undoAction = useEditorStore((s) => s.undoAction);
   const redoAction = useEditorStore((s) => s.redoAction);
+  // Greyed out when there is nothing to undo / redo (they always looked live).
+  const canUndo = useEditorStore((s) => s.history.past.length > 0);
+  const canRedo = useEditorStore((s) => s.history.future.length > 0);
   const setPaletteOpen = useEditorStore((s) => s.setPaletteOpen);
   const { user } = useAuth();
   const modKey = useModKey();
@@ -103,8 +106,8 @@ export default function EditorShell() {
         </div>
 
         <div className="flex items-center gap-0.5">
-          <button type="button" onClick={undoAction} aria-label="Undo" title="Undo (Ctrl+Z)" className="flex h-9 w-9 items-center justify-center rounded-editor-md text-editor-text-muted transition-colors hover:bg-editor-card hover:text-editor-text"><Undo2 className="h-4 w-4" /></button>
-          <button type="button" onClick={redoAction} aria-label="Redo" title="Redo (Ctrl+Y)" className="max-md:hidden flex h-9 w-9 items-center justify-center rounded-editor-md text-editor-text-muted transition-colors hover:bg-editor-card hover:text-editor-text"><Redo2 className="h-4 w-4" /></button>
+          <button type="button" onClick={undoAction} disabled={!canUndo} aria-label="Undo" title="Undo (Ctrl+Z)" className="flex h-9 w-9 items-center justify-center rounded-editor-md text-editor-text-muted transition-colors hover:bg-editor-card hover:text-editor-text disabled:pointer-events-none disabled:opacity-35"><Undo2 className="h-4 w-4" /></button>
+          <button type="button" onClick={redoAction} disabled={!canRedo} aria-label="Redo" title="Redo (Ctrl+Y)" className="max-md:hidden flex h-9 w-9 items-center justify-center rounded-editor-md text-editor-text-muted transition-colors hover:bg-editor-card hover:text-editor-text disabled:pointer-events-none disabled:opacity-35"><Redo2 className="h-4 w-4" /></button>
         </div>
 
         <div className="flex flex-1 justify-center">

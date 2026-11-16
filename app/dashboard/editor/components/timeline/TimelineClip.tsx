@@ -12,6 +12,7 @@ import { snapCandidates, snapTime } from "@/lib/editor/doc-utils";
 import { useVideoThumbnails } from "../../hooks/useVideoThumbnails";
 import type { AnyClip, TimelineDoc, TrackKind } from "@/lib/editor/types";
 import IconButton from "../ui/IconButton";
+import { sourceDuration } from "../../store/sourceDurations";
 
 const TRACK_COLORS: Record<TrackKind, { bg: string; border: string; text: string }> = {
   video: { bg: "bg-editor-track-video/70", border: "border-editor-track-video", text: "text-white" },
@@ -24,6 +25,7 @@ const TRACK_COLORS: Record<TrackKind, { bg: string; border: string; text: string
 };
 
 const SNAP_PX = 8;
+const DRAG_THRESHOLD_PX = 3;
 
 type DragMode = "move" | "trim-left" | "trim-right";
 
@@ -55,6 +57,9 @@ export default function TimelineClip({
     origStart: number;
     origDuration: number;
     before: TimelineDoc;
+    /** Set once the pointer travels past DRAG_THRESHOLD_PX — a plain click
+     *  then selects without touching the doc (no undo step, no autosave). */
+    moved: boolean;
   } | null>(null);
 
   const label =
@@ -73,6 +78,7 @@ export default function TimelineClip({
       origStart: clip.timelineStart,
       origDuration: clip.duration,
       before: structuredClone(useEditorStore.getState().doc),
+      moved: false,
     };
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
@@ -94,9 +100,15 @@ export default function TimelineClip({
     deleteSelected();
   };
 
+  const originClip = (doc: TimelineDoc) => (doc.tracks[track] as AnyClip[]).find((c) => c.id === clip.id);
+
   const onPointerMove = (e: React.PointerEvent) => {
     const d = drag.current;
     if (!d) return;
+    if (!d.moved) {
+      if (Math.abs(e.clientX - d.startX) < DRAG_THRESHOLD_PX) return;
+      d.moved = true;
+    }
     const s = useEditorStore.getState();
     const deltaSec = (e.clientX - d.startX) / zoom;
     const tolerance = s.snapEnabled ? SNAP_PX / zoom : 0;
@@ -116,22 +128,33 @@ export default function TimelineClip({
     } else if (d.mode === "trim-left") {
       let t = d.origStart + deltaSec;
       if (tolerance) t = snapTime(t, candidates, tolerance);
-      s.trimClipTransient(track, clip.id, "left", t);
+      s.trimClipTransient(track, clip.id, "left", t, originClip(d.before));
     } else {
       let t = d.origStart + d.origDuration + deltaSec;
       if (tolerance) t = snapTime(t, candidates, tolerance);
-      s.trimClipTransient(track, clip.id, "right", t);
+      s.trimClipTransient(track, clip.id, "right", t, originClip(d.before));
     }
   };
 
   const onPointerUp = () => {
-    if (drag.current) {
-      useEditorStore.getState().commitDrag(drag.current.before);
-      drag.current = null;
-    }
+    if (drag.current?.moved) useEditorStore.getState().commitDrag(drag.current.before);
+    drag.current = null;
   };
 
   const colors = TRACK_COLORS[track];
+
+  // Filmstrip: the frames are spread evenly over the whole source file, so
+  // each tile shows the frame nearest the source time it covers (a clip
+  // trimmed to the first 10 s used to cycle through frames from the whole
+  // video). Before the source length is known, fall back to cycling.
+  const tiles = Math.max(Math.ceil((clip.duration * zoom) / 44), 1);
+  const srcLen = clip.type === "video" ? sourceDuration(clip.assetId) : undefined;
+  const frameFor = (i: number) => {
+    const n = thumbnails.length;
+    if (clip.type !== "video" || !srcLen) return i % n;
+    const srcT = clip.srcIn + ((i + 0.5) / tiles) * clip.duration * (clip.speed ?? 1);
+    return Math.min(n - 1, Math.max(0, Math.floor((srcT / srcLen) * n)));
+  };
 
   return (
     <div
@@ -149,11 +172,11 @@ export default function TimelineClip({
       {/* Filmstrip thumbnails (video clips only) */}
       {track === "video" && thumbnails.length > 0 && (
         <div className="pointer-events-none absolute inset-0 flex">
-          {Array.from({ length: Math.max(Math.ceil((clip.duration * zoom) / 44), 1) }).map((_, i) => (
+          {Array.from({ length: tiles }).map((_, i) => (
             <div
               key={i}
               className="h-full flex-1 border-r border-black/20 bg-cover bg-center last:border-r-0"
-              style={{ backgroundImage: `url(${thumbnails[i % thumbnails.length]})` }}
+              style={{ backgroundImage: `url(${thumbnails[frameFor(i)]})` }}
             />
           ))}
         </div>
