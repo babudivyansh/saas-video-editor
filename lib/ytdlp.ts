@@ -144,12 +144,26 @@ export async function runYtDlp(url: string, flags: YtDlpFlags): Promise<unknown>
  * of stderr (a Python traceback ends with the exception), else the message.
  */
 export function ytDlpErrorText(err: unknown): string {
-  const e = err as { stderr?: string; message?: string };
+  const e = (err ?? {}) as {
+    stderr?: string; message?: string;
+    code?: unknown; syscall?: unknown; exitCode?: unknown; signalCode?: unknown;
+  };
   const lines = (e.stderr ?? "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   const errorLine = lines.find((l) => l.startsWith("ERROR"));
   if (errorLine) return errorLine.replace(/^ERROR:\s*/, "");
   if (lines.length) return lines[lines.length - 1];
-  return e.message ?? String(err);
+  if (e.message) return e.message;
+  // youtube-dl-exec rebuilds every failure as `new Error(stderr)` from the
+  // original's own enumerable fields — an Error's message isn't one, so a
+  // process that never started (spawn EAGAIN/ENOENT/EACCES) or was killed
+  // without writing stderr arrived with an empty message: Sentry showed
+  // "unknown yt-dlp failure" (CLIPIRO-WEB-T, 2026-11-16). The errno and exit
+  // details survive as fields; report those. (spawnargs is left out on
+  // purpose: it holds the URL and the cookies path.)
+  if (typeof e.code === "string") return [typeof e.syscall === "string" ? e.syscall : "", e.code].filter(Boolean).join(" ");
+  if (typeof e.signalCode === "string") return `yt-dlp was killed by ${e.signalCode} without output`;
+  if (typeof e.exitCode === "number") return `yt-dlp exited with code ${e.exitCode} without output`;
+  return "";
 }
 
 /** An Error carrying the yt-dlp failure text, so Sentry shows the real cause
