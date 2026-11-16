@@ -108,6 +108,13 @@ export async function refundPurchase(params: {
     subscriptionEnded = await endSubscriptionAfterRefund(result.purchase.userId, result.purchase.planId, purchaseId);
   }
 
+  // A fully refunded Pro/Studio payment stops counting toward a creator
+  // partner's free-Pro goal (lib/creator-program.ts). Non-fatal.
+  if (!result.partial) {
+    const { unqualifyRefundedPayment } = await import("@/lib/creator-program");
+    await unqualifyRefundedPayment(purchaseId);
+  }
+
   // Keep the cached balances honest after the decrement.
   const fresh = await prisma.user.findUnique({ where: { id: result.purchase.userId }, select: { credits: true, minutes: true } });
   if (fresh) {

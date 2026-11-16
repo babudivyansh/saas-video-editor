@@ -91,6 +91,8 @@ const EXACT: Record<string, Row> = {
 
   // ── Affiliates ──
   "affiliate.updated": ["Edited affiliate", "affiliates", "change", "affiliate", "Status or commission rate changed."],
+  "creator_program.updated": ["Changed creator programme settings", "affiliates", "money", "none", "Creator discount, Razorpay Offer, goal or qualifying plans changed."],
+  "creator.reward_granted": ["Granted a creator their free year of Pro", "affiliates", "money", "affiliate", "A creator partner reached the goal and was given a year of Pro."],
   "affiliate.paid": ["Paid out affiliate", "affiliates", "money", "affiliate", "Available commissions were marked paid."],
   "affiliate.payout_requested": ["Requested an affiliate payout", "affiliates", "money", "affiliate", "The affiliate asked to be paid their available balance."],
   "commission.released": ["Released commission", "affiliates", "money", "commission", "A pending commission became available for payout."],

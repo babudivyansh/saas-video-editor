@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AdminShell from "@/app/admin/AdminShell";
 import { useAuth } from "@/app/components/AuthContext";
@@ -10,6 +11,7 @@ import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
 import { Button } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
 import { MIN_PAYOUT_AMOUNT } from "@/lib/affiliate-constants";
+import { CreatorsTab } from "./CreatorsTab";
 
 interface AffiliateRow {
   id: string;
@@ -23,6 +25,8 @@ interface AffiliateRow {
   convertedReferrals: number;
   commissionTotals: { pending: number; available: number; paid: number; rejected: number; count: number };
   payoutRequestedAt: string | null;
+  isCreatorPartner: boolean;
+  creatorHandle: string | null;
 }
 
 interface CommissionRow {
@@ -54,6 +58,9 @@ const STATUS_COLORS: Record<string, string> = {
 
 const PAGE_LIMIT = 100;
 
+const TABS = ["affiliates", "creators", "commissions", "payouts"] as const;
+type Tab = (typeof TABS)[number];
+
 function timeAgo(iso: string): string {
   const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
   if (s < 60) return "just now";
@@ -67,7 +74,12 @@ function AffiliateContent() {
   const { token } = useAuth();
   const { showToast } = useToast();
   const queryClient = useQueryClient();
-  const [tab, setTab] = useState<"affiliates" | "commissions" | "payouts">("affiliates");
+  // ?tab= deep-links a tab (the "creator reached the goal" notification links
+  // to ?tab=creators), same as Admin → Ops.
+  const router = useRouter();
+  const requested = useSearchParams().get("tab");
+  const tab = (TABS as readonly string[]).includes(requested ?? "") ? (requested as Tab) : "affiliates";
+  const setTab = (t: Tab) => router.replace(`/admin/affiliate?tab=${t}`, { scroll: false });
   const [statusFilter, setStatusFilter] = useState("all");
   const [affiliateStatusFilter, setAffiliateStatusFilter] = useState("all");
   const [affiliateSearchInput, setAffiliateSearchInput] = useState("");
@@ -185,7 +197,7 @@ function AffiliateContent() {
     <>
       {/* Tabs */}
       <div className="flex gap-1 mb-6 bg-surface-3 p-1 rounded-xl w-fit">
-        {(["affiliates", "commissions", "payouts"] as const).map(t => (
+        {TABS.map(t => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-5 py-2 rounded-lg text-sm font-semibold capitalize transition-all ${tab === t ? "bg-panel text-fg shadow-sm" : "text-fg-muted hover:text-fg"}`}>
             {t}
@@ -196,7 +208,9 @@ function AffiliateContent() {
         ))}
       </div>
 
-      {loading && <p className="text-fg-subtle text-sm">Loading...</p>}
+      {loading && tab !== "creators" && <p className="text-fg-subtle text-sm">Loading...</p>}
+
+      {tab === "creators" && <CreatorsTab authHeaders={authHeaders} />}
 
       {/* Affiliates tab */}
       {tab === "affiliates" && !loading && (
@@ -237,7 +251,14 @@ function AffiliateContent() {
                 return (
                   <tr key={a.id} className="hover:bg-surface-2">
                     <td className="px-5 py-3">
-                      <p className="font-medium text-fg">{a.user.name ?? "—"}</p>
+                      <p className="font-medium text-fg">
+                        {a.user.name ?? "—"}
+                        {a.isCreatorPartner && (
+                          <span className="ml-2 rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-semibold text-primary">
+                            Creator{a.creatorHandle ? ` · ${a.creatorHandle}` : ""}
+                          </span>
+                        )}
+                      </p>
                       <p className="text-xs text-fg-subtle">{a.user.email}</p>
                     </td>
                     <td className="px-4 py-3 font-mono text-xs text-fg-muted">{a.code}</td>
@@ -265,6 +286,17 @@ function AffiliateContent() {
                         )}
                         {a.status !== "banned" && (
                           <Button variant="link" onClick={() => setConfirmBan(a.id)} className="text-error">Ban</Button>
+                        )}
+                        {!a.isCreatorPartner && a.status === "active" && (
+                          <Button
+                            variant="link"
+                            onClick={() => updateAffiliateMutation.mutate(
+                              { id: a.id, data: { isCreatorPartner: true } },
+                              { onSuccess: () => { showToast("Now a creator partner — add their handle on the Creators tab.", "success"); queryClient.invalidateQueries({ queryKey: ["admin-creator-program"] }); } },
+                            )}
+                          >
+                            Make creator
+                          </Button>
                         )}
                       </div>
                     </td>
@@ -471,7 +503,9 @@ function AffiliateContent() {
 export default function AdminAffiliatePage() {
   return (
     <AdminShell title="Affiliates">
-      <AffiliateContent />
+      <Suspense fallback={null}>
+        <AffiliateContent />
+      </Suspense>
     </AdminShell>
   );
 }

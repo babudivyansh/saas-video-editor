@@ -68,6 +68,12 @@ vi.mock("@/lib/billing/razorpay-plans", () => ({
   syncRazorpayPlan: (...a: unknown[]) => (syncRazorpayPlan as unknown as (...x: unknown[]) => unknown)(...a),
 }));
 
+const creatorDiscountFor = vi.fn(async (): Promise<unknown> => null);
+vi.mock("@/lib/creator-program", () => ({
+  creatorDiscountFor: (...a: unknown[]) => (creatorDiscountFor as unknown as (...x: unknown[]) => unknown)(...a),
+  creatorDiscountMinor: (amount: number, pct: number) => Math.round((amount * pct) / 100),
+}));
+
 const { POST } = await import("./route");
 
 function post(body: unknown): NextRequest {
@@ -86,6 +92,7 @@ beforeEach(() => {
   findUniquePlan.mockResolvedValue(SUB_PLAN);
   findUniqueUser.mockImplementation(async () => ({ trialUsedAt: new Date(), subscriptionEndsAt }));
   subscriptionsCreate.mockResolvedValue({ id: "sub_new" });
+  creatorDiscountFor.mockResolvedValue(null);
 });
 
 describe("POST /api/billing/checkout — resumeFromPeriodEnd", () => {
@@ -289,5 +296,62 @@ describe("POST /api/billing/checkout — coupon hold", () => {
     const second = await POST(post({ planId: "pack-500", couponCode: "SAVE20" }));
     expect(second.status).toBe(409);
     expect(ordersCreate).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("POST /api/billing/checkout — creator partner discount", () => {
+  const CREATOR = { affiliateId: "aff-c", creatorHandle: "@maya", discountPct: 10, razorpayOfferId: "offer_ABCDEFGHIJ1234" };
+  const PACK = { ...SUB_PLAN, slug: "pack-500", kind: "pack", priceInPaise: 50000, razorpayPlanIdInr: null };
+
+  it("attaches the creator Razorpay Offer to a referred buyer's first subscription", async () => {
+    creatorDiscountFor.mockResolvedValue(CREATOR);
+    const res = await POST(post({ planId: "pro-monthly" }));
+    expect(subscriptionsCreate).toHaveBeenLastCalledWith(expect.objectContaining({
+      offer_id: CREATOR.razorpayOfferId,
+      notes: expect.objectContaining({ campaign: "creator", creatorAffiliateId: "aff-c" }),
+    }));
+    expect((await res.json()).creatorDiscountPct).toBe(10);
+  });
+
+  it("sends no offer without a creator discount", async () => {
+    await POST(post({ planId: "pro-monthly" }));
+    expect(subscriptionsCreate).toHaveBeenLastCalledWith(expect.not.objectContaining({ offer_id: expect.anything() }));
+  });
+
+  it("sends no offer on a USD checkout (the offer is INR)", async () => {
+    creatorDiscountFor.mockResolvedValue(CREATOR);
+    findUniqueUser.mockImplementation(async () => ({ trialUsedAt: null, subscriptionEndsAt: null }));
+    findUniquePlan.mockResolvedValue({ ...SUB_PLAN, intervalMonths: 1, razorpayPlanIdUsd: "plan_usd_1" } as typeof SUB_PLAN);
+    await POST(post({ planId: "pro-monthly", currency: "USD" }));
+    expect(subscriptionsCreate).toHaveBeenLastCalledWith(expect.not.objectContaining({ offer_id: expect.anything() }));
+  });
+
+  it("still sells at full price when Razorpay refuses the offer", async () => {
+    creatorDiscountFor.mockResolvedValue(CREATOR);
+    subscriptionsCreate.mockRejectedValueOnce(new Error("offer invalid")).mockResolvedValueOnce({ id: "sub_plain" });
+    const res = await POST(post({ planId: "pro-monthly" }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.subscriptionId).toBe("sub_plain");
+    expect(body.creatorDiscountPct).toBeUndefined();
+  });
+
+  it("takes the discount off a one-time pack order", async () => {
+    findUniquePlan.mockResolvedValue(PACK);
+    creatorDiscountFor.mockResolvedValue(CREATOR);
+    await POST(post({ planId: "pack-500" }));
+    expect(ordersCreate).toHaveBeenLastCalledWith(expect.objectContaining({
+      amount: 45000,
+      notes: expect.objectContaining({ campaign: "creator", creatorAffiliateId: "aff-c", discountInPaise: "5000" }),
+    }));
+  });
+
+  it("lets a typed coupon win over the creator discount on a pack — never both", async () => {
+    findUniquePlan.mockResolvedValue(PACK);
+    creatorDiscountFor.mockResolvedValue(CREATOR);
+    validateCoupon.mockResolvedValue({ ok: true, couponId: "c1", finalPaise: 40000, discountInPaise: 10000 });
+    await POST(post({ planId: "pack-500", couponCode: "SAVE20" }));
+    expect(ordersCreate).toHaveBeenLastCalledWith(expect.objectContaining({ amount: 40000 }));
+    expect(creatorDiscountFor).not.toHaveBeenCalled();
   });
 });

@@ -159,7 +159,14 @@ describe("resolveReferralCode", () => {
       code: "JOH-N4X2",
       affiliateId: "aff-1",
       affiliateUser: { userId: "owner-1", email: "owner@test.com", name: "Owner Name" },
+      creator: null,
     });
+  });
+
+  it("marks a creator partner's code so the sign-up form can show the discount", async () => {
+    affiliateByCode.set("JOH-N4X2", { ...makeAffiliate(), isCreatorPartner: true, creatorHandle: "@maya" } as MockAffiliate);
+    const result = await resolveReferralCode({ cookieCode: null, typedCode: "JOH-N4X2", email: "new@test.com" });
+    expect(result).toMatchObject({ applied: true, creator: { handle: "@maya" } });
   });
 });
 

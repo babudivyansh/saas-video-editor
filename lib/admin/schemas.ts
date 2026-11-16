@@ -320,12 +320,34 @@ export const affiliatePatchSchema = z
   .object({
     status: z.enum(["active", "suspended", "banned"]).optional(),
     commissionRate: z.number().min(0).max(0.5).optional(),
+    // Creator partner programme (lib/creator-program.ts).
+    isCreatorPartner: z.boolean().optional(),
+    creatorHandle: z.string().trim().max(60).nullable().optional(),
     // Audit-trail only (mirrors commissionActionSchema's reason below) — never
     // persisted on the Affiliate row itself, stripped before the Prisma write.
     reason: z.string().max(500).optional(),
   })
   .strict()
-  .refine((v) => v.status !== undefined || v.commissionRate !== undefined, { message: "Nothing to update" });
+  .refine(
+    (v) => v.status !== undefined || v.commissionRate !== undefined || v.isCreatorPartner !== undefined || v.creatorHandle !== undefined,
+    { message: "Nothing to update" },
+  );
+
+// Admin → Affiliates → Creators: the creator programme settings
+// (lib/creator-program.ts normalizes; this only rejects nonsense loudly).
+export const creatorProgramSchema = z
+  .object({
+    enabled: z.boolean(),
+    discountPct: z.number().int().min(1).max(50),
+    razorpayOfferId: z
+      .string()
+      .trim()
+      .regex(/^offer_[A-Za-z0-9]{14}$/, "Must look like offer_XXXXXXXXXXXXXX")
+      .nullable(),
+    goal: z.number().int().min(1).max(1000),
+    qualifyingTiers: z.array(z.enum(["lite", "creator", "pro", "studio"])).min(1),
+  })
+  .strict();
 
 export const commissionActionSchema = z
   .object({

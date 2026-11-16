@@ -16,6 +16,8 @@ vi.mock("@/lib/email", () => ({
   sendSubscriptionRenewedEmail: vi.fn(async () => { renewalEmails++; }),
 }));
 let renewalEmails = 0;
+let referral: { id: string; affiliateId: string; status: string; affiliate: { userId: string; status: string; commissionRate: number } } | null = null;
+let commissions: Array<{ amount: number }> = [];
 
 vi.mock("@/lib/logger", () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
@@ -102,6 +104,18 @@ vi.mock("@/lib/prisma", () => {
       create: vi.fn(async ({ data }: { data: { id: string } }) => { purchases.set(data.id, data); }),
     },
     subscriptionEvent: { create: vi.fn(async () => ({})) },
+    // Affiliate commission on subscription charges (processReferralPayment).
+    referral: {
+      findUnique: vi.fn(async () => referral),
+      updateMany: vi.fn(async ({ where }: { where: { status?: string } }) => {
+        if (!referral || (where.status && referral.status !== where.status)) return { count: 0 };
+        referral.status = "converted";
+        return { count: 1 };
+      }),
+    },
+    commission: { create: vi.fn(async ({ data }: { data: { amount: number } }) => { commissions.push(data); return data; }) },
+    affiliate: { update: vi.fn(async () => ({})), findUnique: vi.fn(async () => ({ totalEarned: 0 })) },
+    config: { findUnique: vi.fn(async () => null) },
     $transaction: vi.fn(async (arg: unknown) =>
       Array.isArray(arg) ? Promise.all(arg) : (arg as (tx: unknown) => Promise<unknown>)(client)),
   };
@@ -128,6 +142,8 @@ beforeEach(() => {
   purchases = new Map();
   ledger = [];
   renewalEmails = 0;
+  referral = null;
+  commissions = [];
   vi.clearAllMocks();
 });
 
@@ -293,5 +309,20 @@ describe("fulfillSubscriptionCharge — Diwali 2026 monthly bonus", () => {
     await fulfillSubscriptionCharge({ ...monthly, notesDiwaliBonus: undefined, paymentId: "pay_1" });
     expect(user.bonusCredits).toBe(0);
     expect(ledger.some((r) => r.reason === "grant:diwali-monthly-bonus")).toBe(false);
+  });
+});
+
+describe("fulfillSubscriptionCharge — affiliate commission", () => {
+  it("pays the referring affiliate on a referred subscriber's first charge, once", async () => {
+    referral = { id: "ref-1", affiliateId: "aff-1", status: "signed_up", affiliate: { userId: "aff-user", status: "active", commissionRate: 0.2 } };
+    await fulfillSubscriptionCharge({ subscriptionId: "sub_1", paymentId: "pay_c1", amountInPaise: 99900, currency: "INR" });
+    expect(commissions).toEqual([expect.objectContaining({ amount: 199.8, baseAmount: 999, commissionRate: 0.2, referralId: "ref-1" })]);
+    await fulfillSubscriptionCharge({ subscriptionId: "sub_1", paymentId: "pay_c2", amountInPaise: 99900, currency: "INR" });
+    expect(commissions).toHaveLength(1);
+  });
+
+  it("pays nothing without a referral", async () => {
+    await fulfillSubscriptionCharge({ subscriptionId: "sub_1", paymentId: "pay_c3", amountInPaise: 99900, currency: "INR" });
+    expect(commissions).toHaveLength(0);
   });
 });

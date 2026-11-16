@@ -30,6 +30,8 @@ export type ReferralResolution =
       code: string;
       affiliateId: string;
       affiliateUser: { userId: string; email: string; name: string | null };
+      /** Set when the link belongs to a creator partner (lib/creator-program.ts). */
+      creator: { handle: string | null } | null;
     }
   | { applied: false; reason: ReferralRejectReason };
 
@@ -77,6 +79,7 @@ export async function resolveReferralCode(input: ResolveReferralInput): Promise<
       email: affiliate.user.email,
       name: affiliate.user.name,
     },
+    creator: affiliate.isCreatorPartner ? { handle: affiliate.creatorHandle } : null,
   };
 }
 

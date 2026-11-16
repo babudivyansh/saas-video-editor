@@ -39,7 +39,11 @@ export type NotificationType =
   | "social_post_published"
   | "social_post_failed"
   | "social_post_needs_reconnect"
-  | "social_post_your_turn";
+  | "social_post_your_turn"
+  // Creator partner programme (lib/creator-program.ts): a creator's referrals
+  // reached the free-Pro goal — admins grant it, the creator is told.
+  | "admin_creator_goal_reached"
+  | "creator_goal_reached";
 
 export interface NotifyInput {
   userId: string;
