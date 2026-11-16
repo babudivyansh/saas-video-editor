@@ -142,4 +142,43 @@ describe("redis reconnects (Sentry CLIPIRO-WEB-5/-6/-7/-8)", () => {
     state.handlers.error?.(new Error("WRONGPASS"));
     expect(logger.error).toHaveBeenCalledWith("redis", "connection error", expect.any(Error));
   });
+
+  it("warns on a lone connect timeout and only errors if Redis stays down (CLIPIRO-WEB-F)", async () => {
+    vi.useFakeTimers();
+    try {
+      const { logger } = await import("@/lib/logger");
+      await import("./redis");
+      vi.mocked(logger.error).mockClear();
+      vi.mocked(logger.warn).mockClear();
+      const timeout = Object.assign(new Error("connect ETIMEDOUT"), { code: "ETIMEDOUT" });
+      await vi.advanceTimersByTimeAsync(20); // let the initial (fake) handshake finish
+      state.status = "reconnecting";
+      state.handlers.error?.(timeout);
+      expect(logger.warn).toHaveBeenCalledWith("redis", "connection error", timeout);
+      expect(logger.error).not.toHaveBeenCalled();
+      // Still down 30s later: now it is an outage.
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(logger.error).toHaveBeenCalledWith("redis", expect.stringContaining("still not connected"), timeout);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("stays quiet when a connect timeout recovers", async () => {
+    vi.useFakeTimers();
+    try {
+      const { logger } = await import("@/lib/logger");
+      await import("./redis");
+      await vi.advanceTimersByTimeAsync(20);
+      vi.mocked(logger.error).mockClear();
+      state.status = "reconnecting";
+      state.handlers.error?.(Object.assign(new Error("connect ETIMEDOUT"), { code: "ETIMEDOUT" }));
+      state.status = "ready";
+      state.handlers.ready?.();
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(logger.error).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

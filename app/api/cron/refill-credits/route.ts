@@ -13,6 +13,7 @@ import { env } from "@/lib/env";
 import { cronSecretMatches } from "@/lib/cron-auth";
 import type Razorpay from "razorpay";
 import { createRazorpay } from "@/lib/billing/razorpay-client";
+import { stopLapsedMandate } from "@/lib/billing/stop-lapsed-mandate";
 import { nextRefillAfter } from "@/lib/billing/term";
 import { greetingName } from "@/lib/display-name";
 import { withCronTracking } from "@/lib/cron-tracking";
@@ -141,20 +142,19 @@ async function handleGET(req: NextRequest) {
     // orphaning the subscription — that's the exact failure this block exists
     // to prevent.
     if (u.razorpaySubscriptionId) {
-      try {
-        await getRazorpay().subscriptions.cancel(u.razorpaySubscriptionId, false);
-      } catch (e) {
-        const message = e instanceof Error ? e.message : String(e);
-        // Already cancelled/completed at Razorpay is a success for our purposes.
-        const alreadyGone = /not found|already|invalid.*state|cancelled/i.test(message);
-        if (!alreadyGone) {
-          logger.error(
-            "cron/refill-credits",
-            `could not cancel subscription ${u.razorpaySubscriptionId} for ${u.id} — leaving the link intact and retrying next run`,
-            e,
-          );
-          continue;
-        }
+      const stopped = await stopLapsedMandate(getRazorpay(), u.razorpaySubscriptionId);
+      if (!stopped.ok) {
+        logger.error(
+          "cron/refill-credits",
+          `could not cancel subscription ${u.razorpaySubscriptionId} for ${u.id} — leaving the link intact and retrying next run: ${stopped.error}`,
+        );
+        continue;
+      }
+      if (stopped.outcome !== "cancelled") {
+        logger.info(
+          "cron/refill-credits",
+          `subscription ${u.razorpaySubscriptionId} for ${u.id} had no live mandate (${stopped.outcome}${stopped.status ? `, ${stopped.status}` : ""}) — lapsing`,
+        );
       }
     }
 

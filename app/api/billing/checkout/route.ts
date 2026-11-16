@@ -268,13 +268,17 @@ async function handlePOST(req: NextRequest) {
       try {
         return await createSubscriptionRaw(planId, diwaliOffer);
       } catch (e) {
-        if (isMissingRazorpayPlan(e)) throw e;
+        // Razorpay's "ID provided is invalid" doesn't say WHICH id, so don't
+        // guess: retry without the offer. If that fails too, the plan is the
+        // problem and its error goes to the caller (which re-mints a missing
+        // plan); if it succeeds, the offer was refused.
+        const plain = await createSubscriptionRaw(planId);
         logger.error(
           "billing/checkout",
           `Diwali offer ${diwaliOffer} refused for ${basePlan.slug} — charging full price: ${describeRazorpayError(e)}`,
           e,
         );
-        return createSubscriptionRaw(planId);
+        return plain;
       }
     };
 

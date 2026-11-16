@@ -55,4 +55,25 @@ describe("generateWithOverloadFallback", () => {
     expect(call).toHaveBeenCalledTimes(2);
     expect(call.mock.calls.every(([m]) => m === "flash")).toBe(true);
   });
+
+  it("moves a timed-out pick straight to the fallback, reporting the timeout (CLIPIRO-WEB-B)", async () => {
+    // A primary that never answers: our timeout aborts it, and the SDK rejects
+    // with its own vague "Request aborted" error.
+    const call = vi.fn((model: string, signal: AbortSignal) =>
+      model === "flash"
+        ? new Promise<string>((_, reject) => signal.addEventListener("abort", () => reject(new Error("[GoogleGenerativeAI Error]: Request aborted when fetching …: This operation was aborted"))))
+        : Promise.resolve(`ok:${model}`),
+    );
+    const onFallback = vi.fn();
+    await expect(generateWithOverloadFallback({ ...base, timeoutMs: 20, call, onFallback })).resolves.toBe("ok:lite");
+    expect(call.mock.calls.filter(([m]) => m === "flash")).toHaveLength(1); // not retried on the same model
+    expect(String(onFallback.mock.calls[0][0])).toMatch(/Timed out after 20ms/);
+  });
+
+  it("reports the timeout itself when the fallback times out too", async () => {
+    const call = vi.fn((_m: string, signal: AbortSignal) =>
+      new Promise<string>((_, reject) => signal.addEventListener("abort", () => reject(new Error("This operation was aborted")))));
+    await expect(generateWithOverloadFallback({ ...base, timeoutMs: 20, call })).rejects.toThrow(/Timed out after 20ms/);
+    expect(call).toHaveBeenCalledTimes(2); // one on each model
+  });
 });

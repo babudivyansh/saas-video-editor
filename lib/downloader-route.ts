@@ -89,6 +89,8 @@ export interface DownloaderConfig {
   infoBody(info: YtInfo): Record<string, unknown>;
   /** A user-facing message for a yt-dlp failure (the raw text is only logged). */
   friendlyError(raw: string): string;
+  /** True when the failure is the link's own (private, removed…): logged as a warning, not an error. */
+  isLinkFailure?(raw: string): boolean;
   /** Filename (without extension) for a finished download. */
   downloadBaseName(info: YtInfo): string;
 }
@@ -124,6 +126,12 @@ export function createDownloaderRoute(cfg: DownloaderConfig) {
     return (await runYtDlp(url, { ...COMMON_OPTS, dumpSingleJson: true })) as YtInfo;
   }
 
+  function logFailure(what: "info fetch failed" | "download failed", raw: string) {
+    const err = new YtDlpError(`${cfg.slug} ${what}`, raw);
+    if (cfg.isLinkFailure?.(raw)) logger.warn(cfg.slug, `${what} (the link's own problem)`, err);
+    else logger.error(cfg.slug, what, err);
+  }
+
   async function handleGET(req: NextRequest) {
     sweep();
     const auth = await getAuthUser(req);
@@ -145,7 +153,7 @@ export function createDownloaderRoute(cfg: DownloaderConfig) {
       return NextResponse.json(cfg.infoBody(await fetchInfo(url)));
     } catch (err) {
       const raw = ytDlpErrorText(err);
-      logger.error(cfg.slug, "info fetch failed", new YtDlpError(`${cfg.slug} info fetch failed`, raw));
+      logFailure("info fetch failed", raw);
       return NextResponse.json({ error: cfg.friendlyError(raw) }, { status: 502 });
     }
   }
@@ -171,7 +179,7 @@ export function createDownloaderRoute(cfg: DownloaderConfig) {
       meta = await fetchInfo(url);
     } catch (err) {
       const raw = ytDlpErrorText(err);
-      logger.error(cfg.slug, "info fetch failed", new YtDlpError(`${cfg.slug} info fetch failed`, raw));
+      logFailure("info fetch failed", raw);
       return NextResponse.json({ error: cfg.friendlyError(raw) }, { status: 502 });
     }
     if ((meta.duration ?? 0) > MAX_SOURCE_DURATION_SEC) {
@@ -267,7 +275,7 @@ export function createDownloaderRoute(cfg: DownloaderConfig) {
       } catch (err) {
         if ((job.status as string) === "cancelled") { removeOutputs(); return; }
         const raw = ytDlpErrorText(err);
-        logger.error(cfg.slug, "download failed", new YtDlpError(`${cfg.slug} download failed`, raw));
+        logFailure("download failed", raw);
         job.status = "error";
         job.error = cfg.friendlyError(raw);
         if (!job.refunded) {
