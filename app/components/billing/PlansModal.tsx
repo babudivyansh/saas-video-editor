@@ -6,6 +6,8 @@ import { PURCHASABLE_TIER_ORDER } from "@/lib/plans/tiers";
 import { formatMoney, inferCurrencyFromLocale, type Currency } from "@/lib/currency-shared";
 import { PlanCard } from "@/app/components/billing/PlanCard";
 import { ConfirmPlanDialog } from "@/app/components/billing/ConfirmPlanDialog";
+import { useCreatorDiscount, creatorDiscountApplies } from "@/app/components/billing/useCreatorDiscount";
+import { diwaliOfferApplies } from "@/lib/campaigns/diwali";
 import {
   minorUnits, yearlySavePct, type DisplayPlan,
 } from "@/lib/plans/display";
@@ -52,6 +54,7 @@ export function PlansModal({ onPurchaseSuccess, resumeFromPeriodEnd = false }: P
   }, []);
 
   const [checkoutPlan, setCheckoutPlan] = useState<DbPlan | null>(null);
+  const creatorDiscount = useCreatorDiscount(!!user);
 
   useEffect(() => {
     fetch("/api/plans")
@@ -113,6 +116,16 @@ export function PlansModal({ onPurchaseSuccess, resumeFromPeriodEnd = false }: P
             onChangePlan={setCheckoutPlan}
             onClose={backToBrowse}
             onProceed={handlePay}
+            creatorDiscount={
+              creatorDiscount &&
+              creatorDiscountApplies({
+                currency,
+                trial: false,
+                otherOffer: diwaliOfferApplies({ intervalMonths: checkoutPlan.intervalMonths ?? 1, currency, trial: false }),
+              })
+                ? creatorDiscount
+                : null
+            }
           />
         )}
           <BrowseStep

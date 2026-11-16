@@ -285,7 +285,12 @@ export default function AuthForm({
   const [regStep, setRegStep] = useState<"form" | "code">("form");
   const [regDigits, setRegDigits] = useState(emptyDigits);
   const [showReferralField, setShowReferralField] = useState(false);
-  const [codeCheck, setCodeCheck] = useState<{ valid: boolean; reason?: string } | null>(null);
+  const [codeCheck, setCodeCheck] = useState<{
+    valid: boolean;
+    reason?: string;
+    /** Present when the code is a creator partner's (lib/creator-program.ts). */
+    creator?: { handle: string | null; discountPct: number };
+  } | null>(null);
   const [checkingCode, setCheckingCode] = useState(false);
 
   const [error, setError] = useState("");
@@ -784,6 +789,10 @@ export default function AuthForm({
               ) : codeCheck && !codeCheck.valid ? (
                 <p className="mt-1 text-xs text-warning">
                   {referralRejectMessages[codeCheck.reason ?? "invalid"] ?? referralRejectMessages.invalid}
+                </p>
+              ) : codeCheck?.valid && codeCheck.creator && reg.referralCode.trim() ? (
+                <p className="mt-1 text-xs text-success">
+                  {codeCheck.creator.discountPct}% off your first purchase{codeCheck.creator.handle ? ` from ${codeCheck.creator.handle}` : ""} ✓
                 </p>
               ) : codeCheck?.valid && reg.referralCode.trim() ? (
                 <p className="mt-1 text-xs text-success">Referral code applied ✓</p>

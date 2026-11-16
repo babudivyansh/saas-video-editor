@@ -27,6 +27,7 @@ import { CreditsExplainer } from "./_components/CreditsExplainer";
 import { AddonStrip } from "./_components/AddonStrip";
 import { CompareTable } from "./_components/CompareTable";
 import { CheckoutModal } from "./_components/CheckoutModal";
+import { useCreatorDiscount } from "@/app/components/billing/useCreatorDiscount";
 import PricingOfferRibbon from "@/app/components/campaign/PricingOfferRibbon";
 import type { DbPlan, ToolCost } from "./_components/types";
 import { GST_RATE_PERCENT } from "@/lib/invoice/seller";
@@ -117,6 +118,7 @@ function PricingPageInner({ initialPlans }: { initialPlans: DbPlan[] }) {
   // bundling, no coupon: both were shown here but never charged or applied
   // (see app/pricing/_components/CheckoutModal.tsx).
   const [checkoutPlan, setCheckoutPlan] = useState<DbPlan | null>(null);
+  const creatorDiscount = useCreatorDiscount(!!user);
   const [checkoutTrial, setCheckoutTrial] = useState(false);
   const [checkoutError, setCheckoutError] = useState("");
 
@@ -446,6 +448,7 @@ function PricingPageInner({ initialPlans }: { initialPlans: DbPlan[] }) {
           error={checkoutError}
           onPay={handlePay}
           onClose={() => setCheckoutPlan(null)}
+          creatorDiscount={creatorDiscount}
         />
       )}
 

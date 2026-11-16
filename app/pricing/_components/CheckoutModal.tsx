@@ -15,6 +15,7 @@ import { Modal } from "@/app/components/ui/Modal";
 import { formatMoney, type Currency } from "@/lib/currency-shared";
 import { minorUnits } from "@/lib/plans/display";
 import { DIWALI, diwaliDiscountMinor, diwaliMonthlyBonus, diwaliMonthlyBonusApplies, diwaliOfferApplies } from "@/lib/campaigns/diwali";
+import { creatorDiscountApplies } from "@/app/components/billing/useCreatorDiscount";
 import type { DbPlan } from "./types";
 
 // Modal.tsx reads useTranslations("Common") for its close-button label, and
@@ -33,8 +34,10 @@ export function CheckoutModal(props: {
   error: string;
   onPay: () => void;
   onClose: () => void;
+  /** The buyer's creator partner discount (lib/creator-program.ts), if any. */
+  creatorDiscount?: { pct: number; handle: string | null } | null;
 }) {
-  const { plan, trial, currency, activePlanEndsAt, loading, error, onPay, onClose } = props;
+  const { plan, trial, currency, activePlanEndsAt, loading, error, onPay, onClose, creatorDiscount } = props;
   const months = plan.intervalMonths ?? 1;
   const termLabel = months > 1 ? `${months} months` : "1 month";
   const priceMinor = minorUnits(plan, currency);
@@ -42,7 +45,11 @@ export function CheckoutModal(props: {
   // the total Razorpay takes on the first yearly payment.
   const diwali = diwaliOfferApplies({ intervalMonths: months, currency, trial });
   const diwaliOff = diwali ? diwaliDiscountMinor(priceMinor) : 0;
-  const dueNow = trial ? 0 : priceMinor - diwaliOff;
+  // Creator partner discount — mirrors app/api/billing/checkout: INR, not a
+  // trial, and never on top of another offer.
+  const creator = creatorDiscount && creatorDiscountApplies({ currency, trial, otherOffer: diwali }) ? creatorDiscount : null;
+  const creatorOff = creator ? Math.round((priceMinor * creator.pct) / 100) : 0;
+  const dueNow = trial ? 0 : priceMinor - diwaliOff - creatorOff;
   // Diwali 2026 monthly bonus — mirrors the checkout note + first-charge grant.
   const monthlyBonus = diwaliMonthlyBonusApplies({ intervalMonths: months })
     ? diwaliMonthlyBonus(plan.monthlyMinutes ?? 0, plan.monthlyCredits ?? 0)
@@ -107,6 +114,18 @@ export function CheckoutModal(props: {
                   <span className="block text-xs text-fg-subtle">First yearly payment · applied automatically</span>
                 </span>
                 <span className="whitespace-nowrap text-warning">−{formatMoney(diwaliOff, currency)}</span>
+              </div>
+            )}
+
+            {creator && creatorOff > 0 && (
+              <div className="flex items-start justify-between gap-2 text-sm">
+                <span className="min-w-0 text-success">
+                  Creator discount · {creator.pct}% off
+                  <span className="block text-xs text-fg-subtle">
+                    {creator.handle ? `From ${creator.handle} · ` : ""}first payment · applied automatically
+                  </span>
+                </span>
+                <span className="whitespace-nowrap text-success">−{formatMoney(creatorOff, currency)}</span>
               </div>
             )}
 

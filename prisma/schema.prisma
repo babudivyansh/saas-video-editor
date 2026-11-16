@@ -371,24 +371,45 @@ model Affiliate {
   // alongside payoutRequestedAt when an admin marks them paid, so the next
   // earning cycle can notify again.
   payoutThresholdNotifiedAt DateTime?
+  // Creator partner program (2026-11-17, lib/creator-program.ts). Set only by
+  // an admin. A partner's link gives the buyer the creator discount, and their
+  // referrals' Pro/Studio purchases count toward a free year of Pro. Every
+  // other affiliate keeps the plain commission programme.
+  isCreatorPartner          Boolean      @default(false)
+  creatorHandle             String? // e.g. "@name" on Instagram, for the admin list
+  creatorSince              DateTime?
+  // Stamped the first time the qualifying count reaches the goal (admins and
+  // the creator get one in-app notification). Not cleared if a refund drops them back —
+  // the live count is what the admin panel shows and acts on.
+  creatorGoalReachedAt      DateTime?
+  // The free year of Pro is granted by hand from the admin panel.
+  creatorRewardGrantedAt    DateTime?
+  creatorRewardGrantedBy    String?
   createdAt                 DateTime     @default(now())
   referrals                 Referral[]
   commissions               Commission[]
 }
 
 model Referral {
-  id             String       @id @default(cuid())
-  affiliateId    String
-  affiliate      Affiliate    @relation(fields: [affiliateId], references: [id])
-  referredUserId String       @unique
-  referredUser   User         @relation("ReferredByAffiliate", fields: [referredUserId], references: [id])
-  status         String       @default("signed_up") // signed_up | converted | flagged | fraudulent
-  signupIp       String?
-  signedUpAt     DateTime     @default(now())
-  convertedAt    DateTime?
-  commissions    Commission[]
+  id                  String       @id @default(cuid())
+  affiliateId         String
+  affiliate           Affiliate    @relation(fields: [affiliateId], references: [id])
+  referredUserId      String       @unique
+  referredUser        User         @relation("ReferredByAffiliate", fields: [referredUserId], references: [id])
+  status              String       @default("signed_up") // signed_up | converted | flagged | fraudulent
+  signupIp            String?
+  signedUpAt          DateTime     @default(now())
+  convertedAt         DateTime?
+  // Creator programme: set on the referred user's first Pro/Studio payment
+  // (any payment, not only their first), cleared again if that payment is
+  // fully refunded. qualifyingPaymentId is the Purchase id (Razorpay payment id).
+  qualifiedAt         DateTime?
+  qualifyingTier      String?
+  qualifyingPaymentId String?
+  commissions         Commission[]
 
   @@index([affiliateId])
+  @@index([qualifyingPaymentId])
 }
 
 model Commission {

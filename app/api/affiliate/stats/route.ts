@@ -3,6 +3,7 @@ import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { env } from "@/lib/env";
 import { maskEmail } from "@/lib/mask-email";
+import { countQualified, getCreatorProgram, planDiscountLive } from "@/lib/creator-program";
 
 // The dashboard shows the most recent referrals as cards; nine fills three
 // rows of three.
@@ -59,8 +60,26 @@ export async function GET(req: NextRequest) {
     .filter(c => c.status === "available")
     .reduce((s, c) => s + c.amount, 0);
 
+  // Creator partners also see their progress toward the free year of Pro.
+  let creator: {
+    goal: number; qualified: number; qualifyingTiers: string[];
+    discountPct: number | null; rewardGrantedAt: string | null; handle: string | null;
+  } | undefined;
+  if (affiliate.isCreatorPartner) {
+    const program = await getCreatorProgram();
+    creator = {
+      goal: program.goal,
+      qualified: await countQualified(affiliate.id),
+      qualifyingTiers: program.qualifyingTiers,
+      discountPct: planDiscountLive(program) ? program.discountPct : null,
+      rewardGrantedAt: affiliate.creatorRewardGrantedAt?.toISOString() ?? null,
+      handle: affiliate.creatorHandle,
+    };
+  }
+
   return NextResponse.json({
     enrolled: true,
+    ...(creator ? { creator } : {}),
     code: affiliate.code,
     referralLink: `${baseUrl}/register?ref=${affiliate.code}`,
     status: affiliate.status,

@@ -13,6 +13,7 @@ import { syncRazorpayPlan } from "@/lib/billing/razorpay-plans";
 import { describeRazorpayError, isMissingRazorpayPlan } from "@/lib/billing/razorpay-errors";
 import { redis } from "@/lib/redis";
 import { DIWALI, DIWALI_MONTHLY_BONUS_NOTE, diwaliMonthlyBonusApplies, diwaliOfferFor } from "@/lib/campaigns/diwali";
+import { creatorDiscountFor, creatorDiscountMinor } from "@/lib/creator-program";
 
 // How long one open coupon checkout blocks a second one for the same user.
 const COUPON_HOLD_SECONDS = 30 * 60;
@@ -64,6 +65,8 @@ async function handlePOST(req: NextRequest) {
   let amountToCharge: number;
   let appliedCouponId: string | null = null;
   let appliedDiscount = 0;
+  let creatorPackDiscount = 0;
+  let creatorAffiliateId: string | null = null;
   const couponCode: string = typeof body.couponCode === "string" ? body.couponCode.trim() : "";
 
   // A subscription is exactly its plan. It is billed at the synced Razorpay
@@ -125,6 +128,20 @@ async function handlePOST(req: NextRequest) {
       amountToCharge = result.finalPaise;
       appliedCouponId = result.couponId;
       appliedDiscount = result.discountInPaise;
+    }
+
+    // Creator partner discount (lib/creator-program.ts) on a one-time INR
+    // order: the referred buyer's first paid purchase. Never stacks with a
+    // coupon — a typed coupon wins. Subscriptions get theirs as a Razorpay
+    // Offer below instead.
+    if (basePlan.kind !== "subscription" && !appliedCouponId) {
+      const creator = await creatorDiscountFor(auth.userId);
+      if (creator) {
+        creatorPackDiscount = creatorDiscountMinor(amountToCharge, creator.discountPct);
+        amountToCharge -= creatorPackDiscount;
+        appliedDiscount = creatorPackDiscount;
+        creatorAffiliateId = creator.affiliateId;
+      }
     }
   }
 
@@ -226,6 +243,14 @@ async function handlePOST(req: NextRequest) {
       currency,
       trial: wantsTrial,
     });
+    // Creator partner discount (lib/creator-program.ts): a Razorpay Offer on
+    // the referred buyer's first subscription. INR only (the offer is set up
+    // in INR), not on a free trial (its first charge is deferred, as with
+    // Diwali), and never stacked — Razorpay takes one offer_id, and a live
+    // campaign offer wins.
+    const creator = !diwaliOffer && currency === "INR" && !wantsTrial ? await creatorDiscountFor(auth.userId) : null;
+    const creatorOffer = creator?.razorpayOfferId;
+    const offerToApply = diwaliOffer ?? creatorOffer;
     const diwaliMonthlyBonus = diwaliMonthlyBonusApplies({ intervalMonths: basePlan.intervalMonths ?? 1 });
 
     const createSubscriptionRaw = (planId: string, offerId?: string) => razorpay.subscriptions.create({
@@ -252,7 +277,8 @@ async function handlePOST(req: NextRequest) {
           // The currency this subscription bills in — copied onto the user on
           // trial start / activation so "first charge" lines quote it.
           currency,
-          ...(offerId ? { campaign: DIWALI.code, offerId } : {}),
+          ...(offerId && offerId === diwaliOffer ? { campaign: DIWALI.code, offerId } : {}),
+          ...(offerId && offerId === creatorOffer && creator ? { campaign: "creator", offerId, creatorAffiliateId: creator.affiliateId } : {}),
           // Monthly plans bought 8–15 Nov: the first charge adds a bonus
           // (lib/fulfillment.ts). Stamped here so the window is judged at
           // purchase, not whenever the first charge happens to land.
@@ -263,10 +289,13 @@ async function handlePOST(req: NextRequest) {
     // An offer Razorpay refuses for this plan (expired, wrong plan, test/live
     // mismatch) must not block the purchase: log it loudly and sell at the
     // normal price rather than 502 a customer who is trying to pay.
+    let offerApplied = false;
     const createSubscription = async (planId: string) => {
-      if (!diwaliOffer) return createSubscriptionRaw(planId);
+      if (!offerToApply) return createSubscriptionRaw(planId);
       try {
-        return await createSubscriptionRaw(planId, diwaliOffer);
+        const sub = await createSubscriptionRaw(planId, offerToApply);
+        offerApplied = true;
+        return sub;
       } catch (e) {
         // Razorpay's "ID provided is invalid" doesn't say WHICH id, so don't
         // guess: retry without the offer. If that fails too, the plan is the
@@ -275,7 +304,7 @@ async function handlePOST(req: NextRequest) {
         const plain = await createSubscriptionRaw(planId);
         logger.error(
           "billing/checkout",
-          `Diwali offer ${diwaliOffer} refused for ${basePlan.slug} — charging full price: ${describeRazorpayError(e)}`,
+          `${offerToApply === diwaliOffer ? "Diwali" : "Creator"} offer ${offerToApply} refused for ${basePlan.slug} — charging full price: ${describeRazorpayError(e)}`,
           e,
         );
         return plain;
@@ -319,6 +348,11 @@ async function handlePOST(req: NextRequest) {
       packName,
       credits: totalCredits,
       trial: wantsTrial,
+      // Set only when Razorpay accepted the creator offer, so the modal never
+      // shows a discount that isn't being charged.
+      ...(offerApplied && creatorOffer && offerToApply === creatorOffer && creator
+        ? { creatorDiscountPct: creator.discountPct }
+        : {}),
     });
   }
 
@@ -336,6 +370,9 @@ async function handlePOST(req: NextRequest) {
         credits: String(totalCredits),
         ...(appliedCouponId
           ? { couponId: appliedCouponId, couponCode: couponCode.toUpperCase(), discountInPaise: String(appliedDiscount) }
+          : {}),
+        ...(creatorAffiliateId
+          ? { campaign: "creator", creatorAffiliateId, discountInPaise: String(creatorPackDiscount) }
           : {}),
       },
     });

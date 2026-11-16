@@ -30,7 +30,7 @@ function fmtDate(iso: string): string {
 
 export function ConfirmPlanDialog({
   plan, plans, currency, hasActivePlan, subscriptionEndsAt, resumeFromPeriodEnd,
-  loading, onChangePlan, onClose, onProceed,
+  loading, onChangePlan, onClose, onProceed, creatorDiscount = null,
 }: {
   plan: DisplayPlan;
   /** Every subscription plan the picker can switch between. */
@@ -43,6 +43,9 @@ export function ConfirmPlanDialog({
   onChangePlan: (plan: DisplayPlan) => void;
   onClose: () => void;
   onProceed: () => void;
+  /** Creator partner discount on the first payment (lib/creator-program.ts),
+   *  already checked against currency/trial by the caller. */
+  creatorDiscount?: { pct: number; handle: string | null } | null;
 }) {
   const titleId = useId();
   const selectId = useId();
@@ -76,6 +79,8 @@ export function ConfirmPlanDialog({
   }, []);
 
   const price = formatMoney(minorUnits(plan, currency), currency);
+  const creatorOff = creatorDiscount ? Math.round((minorUnits(plan, currency) * creatorDiscount.pct) / 100) : 0;
+  const dueNow = formatMoney(minorUnits(plan, currency) - creatorOff, currency);
   const yearly = (plan.intervalMonths ?? 1) > 1;
   const options = [...plans].sort(
     (a, b) => (a.intervalMonths ?? 1) - (b.intervalMonths ?? 1) || minorUnits(a, currency) - minorUnits(b, currency),
@@ -142,6 +147,16 @@ export function ConfirmPlanDialog({
           <span className="flex-shrink-0 whitespace-nowrap font-semibold text-fg">{price}<span className="font-normal text-fg-subtle">{yearly ? " / year" : " / month"}</span></span>
         </div>
 
+        {creatorDiscount && creatorOff > 0 && (
+          <div className="mt-2 flex items-center justify-between gap-3 rounded-xl border border-tint-emerald-border bg-tint-emerald px-3.5 py-2.5 text-sm">
+            <span className="text-success">
+              Creator discount · {creatorDiscount.pct}% off{creatorDiscount.handle ? ` from ${creatorDiscount.handle}` : ""}
+              <span className="block text-xs text-fg-subtle">First payment · applied automatically</span>
+            </span>
+            <span className="flex-shrink-0 whitespace-nowrap font-semibold text-success">−{formatMoney(creatorOff, currency)}</span>
+          </div>
+        )}
+
         {/* Payment method */}
         <p className="mt-5 text-sm text-fg-muted">Payment method</p>
         <div className="mt-2 flex items-center justify-between gap-3 rounded-xl bg-surface-3 px-3.5 py-3">
@@ -166,7 +181,7 @@ export function ConfirmPlanDialog({
             )
           ) : (
             <p>
-              Your plan starts today. You pay <span className="font-semibold text-fg">{price}</span> now for{" "}
+              Your plan starts today. You pay <span className="font-semibold text-fg">{dueNow}</span> now for{" "}
               {yearly ? "12 months" : "1 month"}, and your new minutes and credits are added straight away.
             </p>
           )}

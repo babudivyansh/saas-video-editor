@@ -280,6 +280,21 @@ export async function fulfillSubscriptionCharge(args: SubscriptionChargeArgs): P
 
   if (result.alreadyProcessed) return { fulfilled: false, alreadyProcessed: true };
 
+  // Affiliate commission + creator programme, same as one-time payments.
+  const chargeTier = notesPlan?.tier
+    ?? (resolvedPlanId
+      ? (await prisma.plan.findUnique({ where: { id: resolvedPlanId }, select: { tier: true } }).catch(() => null))?.tier
+      : null)
+    ?? null;
+  await processReferralPayment({
+    userId: user.id,
+    paymentId,
+    orderId: subscriptionId,
+    amountMinor: amountInPaise,
+    currency,
+    tier: chargeTier,
+  });
+
   const balances = await getBalances(user.id);
   await redis.set(`credits:${user.id}`, String(balances.total), "EX", 3600).catch(() => {});
 
@@ -502,71 +517,118 @@ export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> 
     }
   }
 
-  // ── Affiliate commission (non-fatal, first payment only) ───────────────────
+  // ── Affiliate commission + creator programme (non-fatal) ──────────────────
+  await processReferralPayment({
+    userId: uid,
+    paymentId,
+    orderId: orderId ?? null,
+    amountMinor: amountInPaise,
+    currency,
+    tier: planSlug
+      ? (await prisma.plan.findUnique({ where: { slug: planSlug }, select: { tier: true } }).catch(() => null))?.tier ?? null
+      : null,
+  });
+
+  return { fulfilled: true, alreadyProcessed: false };
+}
+
+/**
+ * Referral side effects of a fulfilled payment, shared by the one-time path
+ * (fulfillPayment) and the subscription path (fulfillSubscriptionCharge).
+ * Subscription charges used to skip this entirely, so a referred customer
+ * buying a plan never earned the affiliate a commission — only packs did.
+ *
+ *  - Affiliate commission: the referral's FIRST payment only, at the
+ *    affiliate's rate, capped at ₹2,000. INR; a USD payment is converted at the
+ *    configured FX rate.
+ *  - Creator programme: a qualifying-tier purchase counts toward the creator's
+ *    free-Pro goal (lib/creator-program.ts) — any payment, not just the first.
+ *
+ * Non-fatal: logged, never thrown.
+ */
+export async function processReferralPayment(args: {
+  userId: string;
+  paymentId: string;
+  orderId: string | null;
+  amountMinor: number;
+  currency: string;
+  tier: string | null;
+}): Promise<void> {
+  const { userId: uid, paymentId, orderId, amountMinor, currency, tier } = args;
   try {
     const referral = await prisma.referral.findUnique({
       where: { referredUserId: uid },
       include: { affiliate: true },
     });
-    if (referral && referral.status === "signed_up" && referral.affiliate.status === "active") {
-      const baseAmount = amountInPaise / 100;
+    if (referral && referral.status === "signed_up" && referral.affiliate.status === "active" && amountMinor > 0) {
+      let baseAmount = amountMinor / 100;
+      if (currency === "USD") {
+        const { getFxConfig } = await import("@/lib/currency");
+        baseAmount = parseFloat((baseAmount * (await getFxConfig()).inrPerUsd).toFixed(2));
+      }
       const rate = referral.affiliate.commissionRate;
       // Cap commission at ₹2,000 per referral to protect margins on large plans.
       const commission = Math.min(parseFloat((baseAmount * rate).toFixed(2)), 2000);
-      await prisma.$transaction([
-        prisma.commission.create({
+      // Conditional on status so a racing second payment can't convert twice.
+      const converted = await prisma.$transaction(async (tx) => {
+        const { count } = await tx.referral.updateMany({
+          where: { id: referral.id, status: "signed_up" },
+          data: { status: "converted", convertedAt: new Date() },
+        });
+        if (count === 0) return false;
+        await tx.commission.create({
           data: {
             affiliateId: referral.affiliateId,
             referralId: referral.id,
-            razorpayOrderId: orderId,
+            razorpayOrderId: orderId ?? paymentId,
             baseAmount,
             commissionRate: rate,
             amount: commission,
             status: "pending",
             availableAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
           },
-        }),
-        prisma.referral.update({
-          where: { id: referral.id },
-          data: { status: "converted", convertedAt: new Date() },
-        }),
-        prisma.affiliate.update({
+        });
+        await tx.affiliate.update({
           where: { id: referral.affiliateId },
           data: { totalEarned: { increment: commission } },
-        }),
-      ]);
-
-      // A referral just converted — credit the referrer's "Refer a friend" quest.
-      void markQuestComplete(referral.affiliate.userId, "refer-friend");
-
-      // ── Notify affiliate of commission (non-fatal) ─────────────────
-      try {
-        const affiliateUser = await prisma.user.findUnique({
-          where: { id: referral.affiliate.userId },
-          select: { email: true, name: true },
         });
-        if (affiliateUser) {
-          const updatedAffiliate = await prisma.affiliate.findUnique({
-            where: { id: referral.affiliateId },
-            select: { totalEarned: true },
+        return true;
+      });
+
+      if (converted) {
+        // A referral just converted — credit the referrer's "Refer a friend" quest.
+        void markQuestComplete(referral.affiliate.userId, "refer-friend");
+
+        // ── Notify affiliate of commission (non-fatal) ─────────────────
+        try {
+          const affiliateUser = await prisma.user.findUnique({
+            where: { id: referral.affiliate.userId },
+            select: { email: true, name: true },
           });
-          const availableAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-          sendAffiliateCommissionEmail(
-            affiliateUser.email,
-            greetingName(affiliateUser.name),
-            commission,
-            baseAmount,
-            updatedAffiliate?.totalEarned ?? commission,
-            availableAt,
-          ).catch((e) => logger.error("fulfillment", "affiliate commission email error", e));
+          if (affiliateUser) {
+            const updatedAffiliate = await prisma.affiliate.findUnique({
+              where: { id: referral.affiliateId },
+              select: { totalEarned: true },
+            });
+            const availableAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+            sendAffiliateCommissionEmail(
+              affiliateUser.email,
+              greetingName(affiliateUser.name),
+              commission,
+              baseAmount,
+              updatedAffiliate?.totalEarned ?? commission,
+              availableAt,
+            ).catch((e) => logger.error("fulfillment", "affiliate commission email error", e));
+          }
+        } catch (e) {
+          logger.error("fulfillment", "affiliate commission email lookup error", e);
         }
-      } catch (e) {
-        logger.error("fulfillment", "affiliate commission email lookup error", e);
       }
     }
   } catch (err) {
     logger.error("fulfillment", "affiliate commission error", err);
   }
 
-  return { fulfilled: true, alreadyProcessed: false };
+  const { recordCreatorQualifyingSale } = await import("@/lib/creator-program");
+  await recordCreatorQualifyingSale({ userId: uid, paymentId, tier });
 }

@@ -30,6 +30,53 @@ interface AffiliateStats {
   totalEarned?: number;
   totalPaid?: number;
   recentReferrals?: RecentReferral[];
+  /** Present for creator partners (lib/creator-program.ts). */
+  creator?: {
+    goal: number;
+    qualified: number;
+    qualifyingTiers: string[];
+    discountPct: number | null;
+    rewardGrantedAt: string | null;
+    handle: string | null;
+  };
+}
+
+const TIER_NAMES: Record<string, string> = { lite: "Lite", creator: "Creator", pro: "Pro", studio: "Studio" };
+
+function CreatorProgress({ c }: { c: NonNullable<AffiliateStats["creator"]> }) {
+  const pct = Math.min(100, Math.round((c.qualified / c.goal) * 100));
+  const tiers = c.qualifyingTiers.map((t) => TIER_NAMES[t] ?? t).join(" or ");
+  const done = c.qualified >= c.goal;
+  return (
+    <section className="mt-9 rounded-2xl border border-primary/40 bg-surface-2 px-5 py-5 sm:px-6">
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <h2 className="text-base font-semibold text-fg">Creator partner{c.handle ? ` · ${c.handle}` : ""}</h2>
+        <span className="text-sm font-semibold tabular-nums text-fg">{c.qualified} / {c.goal}</span>
+      </div>
+      <div
+        className="mt-3 h-2 w-full overflow-hidden rounded-full bg-surface-3"
+        role="progressbar"
+        aria-valuenow={c.qualified}
+        aria-valuemin={0}
+        aria-valuemax={c.goal}
+        aria-label={`${c.qualified} of ${c.goal} sales toward your free year of Pro`}
+      >
+        <div className="h-full rounded-full bg-primary transition-[width]" style={{ width: `${pct}%` }} />
+      </div>
+      <p className="mt-3 text-sm text-fg-muted">
+        {c.rewardGrantedAt
+          ? `Your free year of Clipiro Pro is active — thank you for sharing Clipiro.`
+          : done
+            ? `You've reached ${c.goal} sales. We're switching on your free year of Pro.`
+            : `${c.goal - c.qualified} more ${c.goal - c.qualified === 1 ? "person buys" : "people buy"} a ${tiers} plan through your link and you get a full year of Clipiro Pro free.`}
+      </p>
+      {c.discountPct != null && (
+        <p className="mt-1.5 text-sm text-success">
+          Everyone who signs up through your link gets {c.discountPct}% off their first payment.
+        </p>
+      )}
+    </section>
+  );
 }
 
 function token() {
@@ -229,6 +276,8 @@ export default function ReferralPage() {
 
       {stats?.enrolled && (
         <>
+          {stats.creator && <CreatorProgress c={stats.creator} />}
+
           {/* ── Stats ── */}
           <div className="mt-11 grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-3.5">
             <div className="rounded-2xl border border-line bg-surface-2 px-5 py-4">
