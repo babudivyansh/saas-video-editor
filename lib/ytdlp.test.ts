@@ -182,6 +182,29 @@ describe("error text", () => {
     expect(ytDlpErrorText(new Error("spawn yt-dlp ENOENT"))).toBe("spawn yt-dlp ENOENT");
   });
 
+  it("reports the errno of a process that never started (youtube-dl-exec drops the message)", () => {
+    // What youtube-dl-exec's parse() rethrows for a spawn failure: the
+    // original's enumerable fields copied onto new Error(undefined).
+    const original = Object.assign(new Error("spawn /x/yt-dlp_linux EAGAIN"), {
+      errno: -11, code: "EAGAIN", syscall: "spawn /x/yt-dlp_linux", path: "/x/yt-dlp_linux",
+      spawnargs: ["https://youtu.be/secret", "--cookies", "/tmp/c.txt"],
+    });
+    const { stdout, stderr, ...details } = original as unknown as { stdout?: string; stderr?: string };
+    const rethrown = Object.assign(new Error(stderr), { stderr, stdout }, details);
+    expect(rethrown.message).toBe("");
+    const text = ytDlpErrorText(rethrown);
+    expect(text).toBe("spawn /x/yt-dlp_linux EAGAIN");
+    expect(text).not.toContain("youtu.be");
+    expect(new YtDlpError("ctx", text).message).toBe("ctx: spawn /x/yt-dlp_linux EAGAIN");
+  });
+
+  it("reports a kill or exit code when yt-dlp died without stderr", () => {
+    expect(ytDlpErrorText(Object.assign(new Error(""), { stderr: "", signalCode: "SIGKILL", exitCode: null })))
+      .toBe("yt-dlp was killed by SIGKILL without output");
+    expect(ytDlpErrorText(Object.assign(new Error(""), { stderr: "", exitCode: 137 })))
+      .toBe("yt-dlp exited with code 137 without output");
+  });
+
   it("YtDlpError carries the cause in its message, capped", () => {
     const e = new YtDlpError("ctx", "x".repeat(2000));
     expect(e.name).toBe("YtDlpError");
