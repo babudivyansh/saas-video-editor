@@ -76,6 +76,9 @@ export default function EditToolbar() {
         onClick={() => setActivePanel("effect")}
         size="sm"
         tooltipSide="bottom"
+        // Phones already have Effects in the bottom tool bar, and this row
+        // has no room to spare there.
+        className="max-sm:hidden"
       />
     </div>
   );

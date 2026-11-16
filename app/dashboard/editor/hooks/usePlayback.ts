@@ -18,6 +18,7 @@ import {
 } from "@/lib/editor/types";
 
 const DRIFT_TOLERANCE = 0.15; // seconds before we hard-correct a media element
+const MAX_TICK_SEC = 0.25; // largest clock step one frame may take
 
 export interface MediaRegistry {
   /** assetId → media element rendered by PreviewStage */
@@ -52,17 +53,28 @@ export function usePlayback(registry: React.RefObject<MediaRegistry>) {
       const reg = registry.current;
 
       if (s.playing) {
-        const dt = lastTick.current == null ? 0 : (now - lastTick.current) / 1000;
+        // Capped: rAF pauses in a background tab and stalls during heavy work
+        // (a long seek), and an uncapped gap made the clock leap ahead — a
+        // minute in another tab came back as a jump to the end.
+        const dt = lastTick.current == null ? 0 : Math.min((now - lastTick.current) / 1000, MAX_TICK_SEC);
         lastTick.current = now;
         const total = docDuration(s.doc);
-        let t = s.currentTime + dt;
+        const t = s.currentTime + dt;
         if (t >= total) {
-          t = total;
+          // Reached the end: stop and rewind, so the playhead is back at the
+          // start (and the next Play replays) instead of parked on a black
+          // frame past the last clip.
           s.setPlaying(false);
+          s.setCurrentTime(0);
+          lastTick.current = null;
+        } else {
+          s.setCurrentTime(t);
         }
-        s.setCurrentTime(t);
       } else {
         lastTick.current = null;
+        // A delete / trim / undo that shortens the timeline can leave the
+        // playhead past the new end; pull it back to the end.
+        if (s.currentTime > docDuration(s.doc)) s.setCurrentTime(s.currentTime);
       }
 
       if (reg) syncMedia(reg);

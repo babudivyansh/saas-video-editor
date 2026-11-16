@@ -7,11 +7,14 @@
 
 import { create } from "zustand";
 import type { AnyClip, Aspect, AudioClip, CaptionClip, ImageClip, TextClip, TimelineDoc, TrackKind, VideoClip } from "@/lib/editor/types";
-import { DEFAULT_DOC, MIN_CLIP_DURATION, normalizeDoc } from "@/lib/editor/types";
-import { placeCaptionClip, placeVideoClip, splitCaptionClip, splitVideoClip, videoClipAt } from "@/lib/editor/doc-utils";
+import { DEFAULT_DOC, MAX_CAPTION_CLIPS_PER_TRACK, MAX_CLIPS_PER_TRACK, normalizeDoc } from "@/lib/editor/types";
+import { showPanelToast } from "../components/ui/PanelToast";
+import { docDuration, placeCaptionClip, placeVideoClip, splitCaptionClip, splitVideoClip, videoClipAt } from "@/lib/editor/doc-utils";
 import { emptyHistory, pushHistory, redo, undo, type HistoryState } from "./history";
 import { realignWords } from "@/lib/editor/caption-words";
 import { rippleCut, type TimeRange } from "@/lib/editor/ripple-cut";
+import { constrainTiming, repairOverlaps, TIMING_KEYS, trimPatch } from "./trim";
+import { sourceDuration } from "./sourceDurations";
 
 // "conflict" = the server rejected our last save because a newer version (from
 // another tab/device) already landed — see app/dashboard/editor/hooks/useAutosave.ts.
@@ -40,6 +43,20 @@ export type PanelKind =
   | "ai"
   | "aiCaptions"
   | "aiVideo";
+
+/**
+ * The export refuses a track over its clip cap (validateDoc), so adding past
+ * it is stopped here with a message instead of failing at export time.
+ */
+function trackFull(doc: TimelineDoc, track: TrackKind): boolean {
+  const cap = track === "caption" ? MAX_CAPTION_CLIPS_PER_TRACK : MAX_CLIPS_PER_TRACK;
+  if (doc.tracks[track].length < cap) return false;
+  showPanelToast(`The ${track} track is full (${cap} clips). Delete or merge some first.`);
+  return true;
+}
+
+/** Within this of the end counts as "at the end" (≈ one 30 fps frame). */
+const END_EPSILON = 1 / 30;
 
 export interface Selection {
   clipId: string;
@@ -136,7 +153,8 @@ interface EditorState {
   commitDrag: (before: TimelineDoc) => void;
   moveVideoClipTransient: (clipId: string, newStart: number) => void;
   moveOverlayClipTransient: (track: "text" | "audio" | "image", clipId: string, newStart: number) => void;
-  trimClipTransient: (track: TrackKind, clipId: string, edge: "left" | "right", newTime: number) => void;
+  /** `origin` = the clip as it was at pointer-down (see trimPatch). */
+  trimClipTransient: (track: TrackKind, clipId: string, edge: "left" | "right", newTime: number, origin?: AnyClip) => void;
   splitAtPlayhead: () => void;
   deleteSelected: () => void;
   copySelected: () => void;
@@ -175,7 +193,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       // doc (e.g. one predating the caption track) — every other client
       // reader assumes all five track arrays always exist, so this is the
       // one place that guarantee has to actually be established.
-      doc: doc ? normalizeDoc(doc) : structuredClone(DEFAULT_DOC),
+      doc: doc ? repairOverlaps(normalizeDoc(doc)) : structuredClone(DEFAULT_DOC),
       history: emptyHistory(),
       editorVersion: editorVersion ?? 1,
       selection: null,
@@ -216,8 +234,20 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   requestTextFocus: (clipId) => set({ focusTextClipId: clipId }),
   clearTextFocus: () => set({ focusTextClipId: null }),
 
-  setPlaying: (p) => set({ playing: p }),
-  setCurrentTime: (t) => set({ currentTime: Math.max(0, t) }),
+  setPlaying: (p) =>
+    set((s) => {
+      if (!p) return { playing: false };
+      const total = docDuration(s.doc);
+      // Nothing to play: stay paused rather than flicker play → pause.
+      if (total <= 0) return { playing: false };
+      // Play from the end (or within a frame of it) replays from the start.
+      return s.currentTime >= total - END_EPSILON ? { playing: true, currentTime: 0 } : { playing: true };
+    }),
+  // The playhead lives inside [0, end of timeline]: seeking past the last clip
+  // (ruler click in the trailing space, → held down, a drag off the end) used
+  // to park it on a black frame that Play then stopped at immediately.
+  setCurrentTime: (t) =>
+    set((s) => ({ currentTime: Math.min(Math.max(0, Number.isFinite(t) ? t : 0), docDuration(s.doc)) })),
 
   setAspect: (a, size) =>
     set((s) => {
@@ -231,7 +261,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }),
 
   addVideoClip: (clip) =>
-    set((s) => ({
+    set((s) => trackFull(s.doc, "video") ? s : ({
       history: pushHistory(s.history, s.doc),
       doc: { ...s.doc, tracks: { ...s.doc.tracks, video: placeVideoClip(s.doc.tracks.video, clip) } },
       selection: { clipId: clip.id, track: "video" },
@@ -239,7 +269,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     })),
 
   addTextClip: (clip) =>
-    set((s) => ({
+    set((s) => trackFull(s.doc, "text") ? s : ({
       history: pushHistory(s.history, s.doc),
       doc: { ...s.doc, tracks: { ...s.doc.tracks, text: [...s.doc.tracks.text, clip] } },
       selection: { clipId: clip.id, track: "text" },
@@ -255,7 +285,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     })),
 
   addAudioClip: (clip) =>
-    set((s) => ({
+    set((s) => trackFull(s.doc, "audio") ? s : ({
       history: pushHistory(s.history, s.doc),
       doc: { ...s.doc, tracks: { ...s.doc.tracks, audio: [...s.doc.tracks.audio, clip] } },
       selection: { clipId: clip.id, track: "audio" },
@@ -263,7 +293,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     })),
 
   addImageClip: (clip) =>
-    set((s) => ({
+    set((s) => trackFull(s.doc, "image") ? s : ({
       history: pushHistory(s.history, s.doc),
       doc: { ...s.doc, tracks: { ...s.doc.tracks, image: [...s.doc.tracks.image, clip] } },
       selection: { clipId: clip.id, track: "image" },
@@ -271,7 +301,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     })),
 
   addCaptionClip: (clip) =>
-    set((s) => ({
+    set((s) => trackFull(s.doc, "caption") ? s : ({
       history: pushHistory(s.history, s.doc),
       doc: { ...s.doc, tracks: { ...s.doc.tracks, caption: placeCaptionClip(s.doc.tracks.caption, clip) } },
       selection: { clipId: clip.id, track: "caption" },
@@ -299,7 +329,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const clip = s.doc.tracks.caption.find(
         (c) => atTime >= c.timelineStart && atTime < c.timelineStart + c.duration,
       );
-      if (!clip) return s;
+      if (!clip || trackFull(s.doc, "caption")) return s;
       const parts = splitCaptionClip(clip, atTime, crypto.randomUUID());
       if (!parts) return s;
       const caption = s.doc.tracks.caption
@@ -405,9 +435,19 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   updateClip: (track, clipId, patch, undoable = true) =>
     set((s) => {
-      const list = s.doc.tracks[track] as { id: string }[];
-      if (!list.some((c) => c.id === clipId)) return s;
-      const nextTrack = list.map((c) => (c.id === clipId ? { ...c, ...patch } : c));
+      const list = s.doc.tracks[track] as AnyClip[];
+      const prev = list.find((c) => c.id === clipId);
+      if (!prev) return s;
+      let next = { ...prev, ...patch } as AnyClip;
+      let nextTrack: AnyClip[] = list.map((c) => (c.id === clipId ? next : c));
+      if (TIMING_KEYS.some((k) => k in patch)) {
+        const len = next.type === "video" || next.type === "audio" ? sourceDuration(next.assetId) : undefined;
+        next = constrainTiming(track, prev, next, list, len);
+        nextTrack =
+          track === "video" ? placeVideoClip(list as VideoClip[], next as VideoClip) :
+          track === "caption" ? placeCaptionClip(list as CaptionClip[], next as CaptionClip) :
+          list.map((c) => (c.id === clipId ? next : c));
+      }
       return {
         history: undoable ? pushHistory(s.history, s.doc) : s.history,
         doc: { ...s.doc, tracks: { ...s.doc.tracks, [track]: nextTrack } },
@@ -436,28 +476,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return { doc: { ...s.doc, tracks: { ...s.doc.tracks, [track]: nextTrack } } };
     }),
 
-  trimClipTransient: (track, clipId, edge, newTime) =>
+  trimClipTransient: (track, clipId, edge, newTime, origin) =>
     set((s) => {
-      const list = s.doc.tracks[track] as (VideoClip | TextClip | AudioClip | CaptionClip)[];
-      const clip = list.find((c) => c.id === clipId);
-      if (!clip) return s;
-      const end = clip.timelineStart + clip.duration;
-      let patch: Partial<VideoClip> = {};
-      if (edge === "left") {
-        const newStart = Math.min(Math.max(0, newTime), end - MIN_CLIP_DURATION);
-        const delta = newStart - clip.timelineStart;
-        patch = { timelineStart: newStart, duration: end - newStart };
-        // Video/audio trims also advance into the source so content stays put
-        // (scaled by playback speed for video clips). Text/image clips have
-        // no srcIn — they're just repositioned/resized on the timeline.
-        if (track === "video" || track === "audio") {
-          const speed = track === "video" ? ((clip as VideoClip).speed ?? 1) : 1;
-          (patch as VideoClip).srcIn = Math.max(0, (clip as VideoClip).srcIn + delta * speed);
-        }
-      } else {
-        const newEnd = Math.max(newTime, clip.timelineStart + MIN_CLIP_DURATION);
-        patch = { duration: newEnd - clip.timelineStart };
-      }
+      const list = s.doc.tracks[track] as AnyClip[];
+      const current = list.find((c) => c.id === clipId);
+      if (!current) return s;
+      // Computed from the clip as it was when the drag began (when given), so
+      // anything a trim drops (caption words, keyframes) comes back if the
+      // edge is dragged back within the same gesture.
+      const clip = origin && origin.id === clipId ? origin : current;
+      const len = "assetId" in clip && (clip.type === "video" || clip.type === "audio") ? sourceDuration(clip.assetId) : undefined;
+      const patch = trimPatch(track, clip, list, edge, newTime, len);
       const nextTrack = list.map((c) => (c.id === clipId ? { ...c, ...patch } : c));
       return { doc: { ...s.doc, tracks: { ...s.doc.tracks, [track]: nextTrack } } };
     }),
@@ -475,7 +504,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((s) => {
       const t = s.currentTime;
       const clip = videoClipAt(s.doc, t);
-      if (!clip) return s;
+      if (!clip || trackFull(s.doc, "video")) return s;
       const parts = splitVideoClip(clip, t, crypto.randomUUID());
       if (!parts) return s;
       const video = s.doc.tracks.video
@@ -494,8 +523,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((s) => {
       if (!s.selection) return s;
       const { clipId, track } = s.selection;
-      const list = s.doc.tracks[track] as { id: string }[];
-      if (!list.some((c) => c.id === clipId)) return s;
+      const list = s.doc.tracks[track] as AnyClip[];
+      const target = list.find((c) => c.id === clipId);
+      // Locked = protected from edits; Delete/Backspace used to remove it anyway.
+      if (!target || target.locked) return s;
       const nextTrack = list.filter((c) => c.id !== clipId);
       return {
         history: pushHistory(s.history, s.doc),
@@ -519,7 +550,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const track = s.selection.track;
       const list = s.doc.tracks[track] as AnyClip[];
       const clip = list.find((c) => c.id === s.selection!.clipId);
-      if (!clip) return s;
+      if (!clip || trackFull(s.doc, track)) return s;
       const copy = { ...structuredClone(clip), id: crypto.randomUUID(), timelineStart: clip.timelineStart + clip.duration };
       if (track === "video") {
         const video = placeVideoClip(s.doc.tracks.video, copy as VideoClip);
@@ -555,6 +586,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         s.clipboard.type === "text" ? "text" :
         s.clipboard.type === "image" ? "image" :
         s.clipboard.type === "caption" ? "caption" : "audio";
+      if (trackFull(s.doc, track)) return s;
       const copy = { ...structuredClone(s.clipboard), id: crypto.randomUUID(), timelineStart: s.currentTime };
       if (track === "video") {
         const video = placeVideoClip(s.doc.tracks.video, copy as VideoClip);

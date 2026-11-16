@@ -18,6 +18,8 @@ const SHORTCUTS: { keys: string; action: string }[] = [
   { keys: "Ctrl/Cmd + V", action: "Paste at playhead" },
   { keys: "←  /  →", action: "Nudge playhead one frame" },
   { keys: "Shift + ←  /  →", action: "Nudge playhead one second" },
+  { keys: "Home  /  End", action: "Jump to start / end" },
+  { keys: "Ctrl/Cmd + scroll", action: "Zoom the timeline" },
 ];
 
 export default function KeyboardPanel() {

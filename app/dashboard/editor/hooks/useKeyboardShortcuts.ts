@@ -4,11 +4,12 @@
 // typing in the text panel or title field never triggers timeline actions.
 // space = play/pause · S = split · Delete = remove · Ctrl+Z / Ctrl+Y = undo/redo
 // Ctrl+C = copy · Ctrl+D = duplicate · Ctrl+V = paste at playhead
-// ←/→ = nudge playhead one frame (1/30s), with shift = 1s
+// ←/→ = nudge playhead one frame (1/30s), with shift = 1s · Home/End = start/end
 // Ctrl+K = command bar (works while typing too) · ? = shortcuts sheet
 
 import { useEffect } from "react";
 import { useEditorStore } from "../store/editorStore";
+import { docDuration } from "@/lib/editor/doc-utils";
 
 const FRAME = 1 / 30;
 
@@ -33,6 +34,12 @@ export function useKeyboardShortcuts() {
       if (e.key === "?") {
         e.preventDefault();
         s.setShortcutsOpen(true);
+        return;
+      }
+
+      // Holding a key down auto-repeats; only the playhead nudges should.
+      if (e.repeat && e.key !== "ArrowLeft" && e.key !== "ArrowRight") {
+        if (e.code === "Space") e.preventDefault(); // still no page scroll
         return;
       }
 
@@ -66,6 +73,12 @@ export function useKeyboardShortcuts() {
       } else if (e.key === "ArrowRight") {
         e.preventDefault();
         s.setCurrentTime(s.currentTime + (e.shiftKey ? 1 : FRAME));
+      } else if (e.key === "Home") {
+        e.preventDefault();
+        s.setCurrentTime(0);
+      } else if (e.key === "End") {
+        e.preventDefault();
+        s.setCurrentTime(docDuration(s.doc));
       }
     }
 

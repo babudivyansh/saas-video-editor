@@ -27,7 +27,9 @@ export default function NumberField({
         step={step}
         onChange={(e) => {
           const v = parseFloat(e.target.value);
-          if (Number.isFinite(v)) onChange(v);
+          // The min/max attributes only steer the spinner; typed values got
+          // through unclamped (a 0 or negative duration broke export).
+          if (Number.isFinite(v)) onChange(Math.min(max ?? Infinity, Math.max(min ?? -Infinity, v)));
         }}
         className="w-20 rounded-editor-sm border border-editor-border bg-editor-card px-2 py-1 text-right text-xs text-editor-text outline-none transition-colors focus:border-editor-accent"
       />

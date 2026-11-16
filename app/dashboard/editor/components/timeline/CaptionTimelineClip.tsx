@@ -14,6 +14,7 @@ import { snapCandidates, snapTime } from "@/lib/editor/doc-utils";
 import type { CaptionClip, TimelineDoc } from "@/lib/editor/types";
 
 const SNAP_PX = 8;
+const DRAG_THRESHOLD_PX = 3;
 type DragMode = "move" | "trim-left" | "trim-right";
 
 export default function CaptionTimelineClip({ clip }: { clip: CaptionClip }) {
@@ -27,6 +28,9 @@ export default function CaptionTimelineClip({ clip }: { clip: CaptionClip }) {
     origStart: number;
     origDuration: number;
     before: TimelineDoc;
+    /** Set once the pointer travels past DRAG_THRESHOLD_PX — a plain click
+     *  then selects without touching the doc (no undo step, no autosave). */
+    moved: boolean;
   } | null>(null);
 
   const beginDrag = (e: React.PointerEvent, mode: DragMode) => {
@@ -40,13 +44,20 @@ export default function CaptionTimelineClip({ clip }: { clip: CaptionClip }) {
       origStart: clip.timelineStart,
       origDuration: clip.duration,
       before: structuredClone(useEditorStore.getState().doc),
+      moved: false,
     };
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
 
+  const originClip = (doc: TimelineDoc) => doc.tracks.caption.find((c) => c.id === clip.id);
+
   const onPointerMove = (e: React.PointerEvent) => {
     const d = drag.current;
     if (!d) return;
+    if (!d.moved) {
+      if (Math.abs(e.clientX - d.startX) < DRAG_THRESHOLD_PX) return;
+      d.moved = true;
+    }
     const s = useEditorStore.getState();
     const deltaSec = (e.clientX - d.startX) / zoom;
     const tolerance = s.snapEnabled ? SNAP_PX / zoom : 0;
@@ -64,19 +75,17 @@ export default function CaptionTimelineClip({ clip }: { clip: CaptionClip }) {
     } else if (d.mode === "trim-left") {
       let t = d.origStart + deltaSec;
       if (tolerance) t = snapTime(t, candidates, tolerance);
-      s.trimClipTransient("caption", clip.id, "left", t);
+      s.trimClipTransient("caption", clip.id, "left", t, originClip(d.before));
     } else {
       let t = d.origStart + d.origDuration + deltaSec;
       if (tolerance) t = snapTime(t, candidates, tolerance);
-      s.trimClipTransient("caption", clip.id, "right", t);
+      s.trimClipTransient("caption", clip.id, "right", t, originClip(d.before));
     }
   };
 
   const onPointerUp = () => {
-    if (drag.current) {
-      useEditorStore.getState().commitDrag(drag.current.before);
-      drag.current = null;
-    }
+    if (drag.current?.moved) useEditorStore.getState().commitDrag(drag.current.before);
+    drag.current = null;
   };
 
   return (
