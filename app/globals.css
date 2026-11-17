@@ -1017,3 +1017,60 @@ body {
 .blog-content h2 {
   scroll-margin-top: 6rem;
 }
+
+/* Dashboard sidebar: sparkler sweep on hover / keyboard focus (2026-11-18,
+   design option A). A soft emerald wash trails a 2px line whose white-hot head
+   throws three flickering sparks; it crosses the row once per hover. The
+   markup is inert until the pointer or focus arrives (ToolsSidebar NavLink),
+   and reduced-motion visitors get none of it. Emerald, not lime: lime is
+   reserved for the one primary action on a screen. */
+.nav-sparkle-fx { position: absolute; inset: 0; z-index: -1; pointer-events: none; display: none; }
+.nav-sparkle-wash {
+  position: absolute; inset: 0; opacity: 0; transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent 0%, color-mix(in oklab, var(--emerald-bright) 14%, transparent) 78%, transparent 100%);
+}
+.nav-sparkle-comet { position: absolute; left: 0; bottom: 0; width: 46%; height: 12px; opacity: 0; transform: translateX(-110%); }
+.nav-sparkle-line {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 2px; border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--emerald-bright) 72%, color-mix(in oklab, var(--emerald-bright) 12%, white));
+}
+.nav-sparkle-head {
+  position: absolute; right: -4px; bottom: -3px; width: 8px; height: 8px; border-radius: 50%;
+  background: color-mix(in oklab, var(--emerald-bright) 6%, white);
+  box-shadow: 0 0 6px 2px color-mix(in oklab, var(--emerald-bright) 90%, transparent),
+    0 0 16px 5px color-mix(in oklab, var(--emerald-bright) 40%, transparent);
+}
+.nav-sparkle-spark {
+  position: absolute; width: 2px; height: 2px; border-radius: 50%;
+  background: color-mix(in oklab, var(--emerald-bright) 12%, white);
+  box-shadow: 0 0 4px 1px color-mix(in oklab, var(--emerald-bright) 90%, transparent);
+}
+.nav-sparkle-s1 { right: 2px; bottom: 7px; }
+.nav-sparkle-s2 { right: -9px; bottom: 4px; }
+.nav-sparkle-s3 { right: -5px; bottom: 10px; }
+@media (prefers-reduced-motion: no-preference) {
+  .nav-sparkle .nav-sparkle-fx { display: block; }
+  .nav-sparkle:hover .nav-sparkle-wash,
+  .nav-sparkle:focus-visible .nav-sparkle-wash { animation: nav-sparkle-wash 0.9s ease-out 1 forwards; }
+  .nav-sparkle:hover .nav-sparkle-comet,
+  .nav-sparkle:focus-visible .nav-sparkle-comet { animation: nav-sparkle-sweep 0.9s cubic-bezier(0.25, 0.7, 0.3, 1) 1 forwards; }
+  .nav-sparkle:hover .nav-sparkle-s1,
+  .nav-sparkle:focus-visible .nav-sparkle-s1 { animation: nav-sparkle-f1 0.22s steps(2) infinite; }
+  .nav-sparkle:hover .nav-sparkle-s2,
+  .nav-sparkle:focus-visible .nav-sparkle-s2 { animation: nav-sparkle-f2 0.18s steps(2) infinite; }
+  .nav-sparkle:hover .nav-sparkle-s3,
+  .nav-sparkle:focus-visible .nav-sparkle-s3 { animation: nav-sparkle-f3 0.26s steps(2) infinite; }
+}
+@keyframes nav-sparkle-sweep {
+  0% { transform: translateX(-110%); opacity: 1; }
+  82% { opacity: 1; }
+  100% { transform: translateX(230%); opacity: 0; }
+}
+@keyframes nav-sparkle-wash {
+  0% { transform: translateX(-100%); opacity: 1; }
+  70% { opacity: 1; }
+  100% { transform: translateX(0); opacity: 0; }
+}
+@keyframes nav-sparkle-f1 { from { transform: translate(0, 0); opacity: 1; } to { transform: translate(-3px, -3px); opacity: 0.2; } }
+@keyframes nav-sparkle-f2 { from { transform: translate(0, 0); opacity: 0.9; } to { transform: translate(3px, -2px); opacity: 0; } }
+@keyframes nav-sparkle-f3 { from { transform: translate(0, 0); opacity: 0.6; } to { transform: translate(2px, -4px); opacity: 1; } }
