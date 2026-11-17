@@ -112,7 +112,7 @@ export async function buildReport(runId: string): Promise<BuildResult> {
             // expire in minutes and this may be read hours later, and a URL
             // granting its bearer a private analytics PDF should not live in
             // an inbox. The reports page re-checks ownership.
-            downloadUrl: `${appUrl()}/dashboard/social-tracker/reports`,
+            downloadUrl: `${appUrl()}/dashboard/social-tracker/settings#reports`,
           });
         } catch (e) {
           logger.warn("social-reports", `run ${runId} built but delivery to a recipient failed`, e);

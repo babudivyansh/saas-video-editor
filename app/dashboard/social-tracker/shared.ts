@@ -61,11 +61,9 @@ export interface ViewFilters {
   /**
    * Which account the whole surface is scoped to, from `?account=`.
    *
-   * The tracker is account-first: you land on a picker, choose one, and every
-   * tab stays on it. `?account=all` is the deliberate opt-in to the
-   * cross-account comparison, and no `?account=` at all means "show me the
-   * picker" — which is why "unset" is a distinct state and not just a default
-   * of "all".
+   * No `?account=` ("unset") shows every account at once: the old picker page
+   * that asked first cost a click on every visit. The header's switcher
+   * narrows to one.
    */
   scope: AccountScope;
 }
@@ -86,12 +84,24 @@ export function parseFilters(params: SearchParams): ViewFilters {
     // default view, not to an error page.
     range: VALID_RANGES.includes(rangeRaw) ? rangeRaw : 30,
     granularity:
-      granularityRaw === "week" || granularityRaw === "month" ? granularityRaw : "day",
+      granularityRaw === "day" || granularityRaw === "week" || granularityRaw === "month"
+        ? granularityRaw
+        : granularityFor(VALID_RANGES.includes(rangeRaw) ? rangeRaw : 30),
     compare: first(params.compare) === "previous",
     accountIds: scope.kind === "one" ? [scope.id] : legacyIds,
     sort: first(params.sort),
     scope,
   };
+}
+
+/**
+ * The bucket a range reads best in, so nobody has to pick one: daily points
+ * for a week or a month, weekly for a quarter, monthly for a year.
+ */
+export function granularityFor(range: number): "day" | "week" | "month" {
+  if (range >= 365) return "month";
+  if (range >= 90) return "week";
+  return "day";
 }
 
 export interface ViewContext {

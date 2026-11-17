@@ -124,8 +124,7 @@ export function AiInsightsPanel({
 
       {state.kind !== "working" && !summary && (
         <p className="text-sm text-fg-muted">
-          A short written read on how {accountLabel} is doing — what moved, what worked, and what to try
-          next. Every figure it quotes is one this dashboard computed; it is never asked to do arithmetic.
+          A short read on how {accountLabel} is doing: what moved, what worked, and what to post next.
         </p>
       )}
 

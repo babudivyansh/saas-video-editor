@@ -156,6 +156,12 @@ const nextConfig: NextConfig = {
       // Blog posts moved from the anonymous team byline to the founder's
       // (2026-11 SEO pass); the old hub page was indexed and linked.
       { source: "/blog/author/clipiro-team", destination: "/blog/author/divyansh-verma", permanent: true },
+      // The Social Tracker went from six tabs to two (2026-11). Old links,
+      // bookmarks and report emails land on the view that replaced each one.
+      // Not permanent: a tab could come back.
+      { source: "/dashboard/social-tracker/content", destination: "/dashboard/social-tracker/posts", permanent: false },
+      { source: "/dashboard/social-tracker/reports", destination: "/dashboard/social-tracker/settings", permanent: false },
+      { source: "/dashboard/social-tracker/:tab(audience|competitors)", destination: "/dashboard/social-tracker", permanent: false },
     ];
   },
 };

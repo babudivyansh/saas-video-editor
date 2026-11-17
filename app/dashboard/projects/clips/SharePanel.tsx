@@ -227,7 +227,11 @@ export function SharePanel({ projectId }: { projectId: string }) {
                 </p>
                 <div className="mt-1.5 flex flex-wrap justify-center gap-2.5">
                   <Link href={projectHref} className="inline-flex h-12 items-center rounded-full bg-primary px-6 font-semibold text-on-primary hover:bg-primary-hover">Go to project →</Link>
-                  <Link href={`${projectHref}?layout=list`} className="inline-flex h-12 items-center rounded-full border border-line-strong px-5 font-semibold text-fg hover:bg-surface-2">See clip details</Link>
+                  {done.kind === "post" ? (
+                    <Link href="/dashboard/social-tracker/posts?filter=scheduled" prefetch={false} className="inline-flex h-12 items-center rounded-full border border-line-strong px-5 font-semibold text-fg hover:bg-surface-2">See your schedule</Link>
+                  ) : (
+                    <Link href={`${projectHref}?layout=list`} className="inline-flex h-12 items-center rounded-full border border-line-strong px-5 font-semibold text-fg hover:bg-surface-2">See clip details</Link>
+                  )}
                   <button type="button" onClick={() => setDone(null)} className="inline-flex h-12 items-center rounded-full border border-line-strong px-5 font-semibold text-fg hover:bg-surface-2">Back</button>
                 </div>
               </section>

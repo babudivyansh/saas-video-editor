@@ -300,12 +300,11 @@ describe("KpiGrid", () => {
     expect(screen.getByRole("region", { name: /headline metrics/i })).toBeInTheDocument();
   });
 
-  it("renders growth tiles from derived figures", () => {
-    renderKpis(<KpiGrid kpis={{}} derived={{ dailyGrowth: 0.8, weeklyGrowth: 5.6, monthlyGrowth: 24 }} />);
-    expect(screen.getByText("Daily growth")).toBeInTheDocument();
-    // One decimal below 10, none above — precision where it carries information.
-    expect(screen.getByText("0.8%")).toBeInTheDocument();
-    expect(screen.getByText("24%")).toBeInTheDocument();
+  // "Collecting" tiles said nothing and pushed the real numbers down the page.
+  it("leaves out a supported metric that has no number yet", () => {
+    renderKpis(<KpiGrid kpis={{ followers: entry(), shares: entry({ current: null }), comments: entry({ current: 3 }) }} />);
+    expect(screen.queryByText("Shares")).not.toBeInTheDocument();
+    expect(screen.getByText("Comments")).toBeInTheDocument();
   });
 
   it("shows a benchmark band only on engagement rate", () => {

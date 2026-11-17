@@ -3,9 +3,9 @@
 // The Overview is a Server Component that reads Prisma directly, so Playwright's
 // page.route mocking cannot reach its data — the whole e2e suite is hermetic and
 // nothing in it touches the DB. Rendering the awaited component with the query
-// layer mocked is the only way to cover these branches, and they are exactly the
-// ones a restyle can silently break: the empty state, the account picker, the
-// single-account short-circuit, and the follower fallback.
+// layer mocked is the only way to cover these branches: the empty state, the
+// all-accounts default, "Up next" ordering, the latest-posts fallback, and the
+// follower fallback.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { METRIC_KEYS, type MetricKey, type Support } from "@/lib/social/capabilities";
@@ -20,19 +20,15 @@ vi.mock("next-intl", () => ({
 }));
 vi.mock("next-intl/server", () => ({ getTranslations: async () => (key: string) => key }));
 
-// AlertStrip is an async Server Component. Next's RSC renderer awaits such a
-// child; the client renderer used here cannot, and an unresolved promise in the
-// tree blanks the whole render. Its own copy is covered in
-// components/panels.component.test.tsx.
-vi.mock("./components/AlertStrip", () => ({
-  AlertStrip: ({ alerts }: { alerts: unknown[] }) =>
-    alerts.length > 0 ? <div data-testid="alerts">{alerts.length}</div> : null,
-}));
-
-// The page's client islands (QuickActions, KpiGrid…) reach for the auth token
-// and the toast host, which the real layout provides and a bare render does not.
+// The page's client islands (Up next, the AI panel…) reach for the auth token,
+// the router and the toast host, which the real layout provides.
 vi.mock("@/app/components/AuthContext", () => ({
   useAuth: () => ({ token: "test-token", user: { id: "u1" }, isLoading: false }),
+}));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), back: vi.fn() }),
+  usePathname: () => "/dashboard/social-tracker",
+  useSearchParams: () => new URLSearchParams(),
 }));
 vi.mock("@/app/components/ui/Toast", () => ({
   useToast: () => ({ showToast: vi.fn() }),
@@ -51,13 +47,16 @@ vi.mock("@/lib/social/queries", () => ({
   loadAccounts: vi.fn(async () => []),
   loadAccountKpis: (...a: unknown[]) => loadAccountKpis(...a),
   loadSeries: (...a: unknown[]) => loadSeries(...a),
+  loadAudience: vi.fn(async () => ({ rows: [], capturedAt: null })),
 }));
 
+const listPosts = vi.fn(async (..._a: unknown[]) => ({ posts: [] as unknown[], nextCursor: null as string | null }));
+vi.mock("@/lib/mobile/posts", () => ({ listPosts: (...a: unknown[]) => listPosts(...a) }));
+
+const socialPostFindMany = vi.fn(async (..._a: unknown[]) => [] as unknown[]);
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    socialGoal: { findMany: vi.fn(async () => []) },
-    socialAccountSnapshot: { findMany: vi.fn(async () => []) },
-    socialPost: { findMany: vi.fn(async () => []) },
+    socialPost: { findMany: (...a: unknown[]) => socialPostFindMany(...a) },
     aiInsight: { findFirst: vi.fn(async () => null), findMany: vi.fn(async () => []) },
   },
 }));
@@ -116,7 +115,18 @@ const render_ = (params: Record<string, string> = {}) =>
 beforeEach(() => {
   vi.clearAllMocks();
   loadSeries.mockResolvedValue({ points: [] });
+  listPosts.mockResolvedValue({ posts: [], nextCursor: null });
+  socialPostFindMany.mockResolvedValue([]);
 });
+
+function plannedPost(id: string, status: string, scheduledAt: string, accountId = "acc-1") {
+  return {
+    id, clipId: "c1", assetId: null, title: `Post ${id}`, thumbnailUrl: null,
+    account: { id: accountId, provider: "instagram", name: "Chan" },
+    caption: "", hashtags: [], privacy: "public", status, scheduledAt,
+    publishedAt: null, permalink: null, failureReason: null, editable: status === "scheduled",
+  };
+}
 
 describe("Social Tracker Overview", () => {
   it("shows the connect-an-account empty state when nothing is connected", async () => {
@@ -134,23 +144,26 @@ describe("Social Tracker Overview", () => {
     );
   });
 
-  it("asks which account to view when several are connected and none is chosen", async () => {
+  // The old picker page cost a click on every visit: no ?account= now shows
+  // every account at once.
+  it("opens on every account when none is chosen, with no picker step", async () => {
+    const a = account();
+    const b = account({ id: "acc-2", displayName: "Second" });
     loadViewContext.mockResolvedValue({
-      userId: "u1",
-      accounts: [],
-      allAccounts: [account(), account({ id: "acc-2", displayName: "Second" })],
+      userId: "u1", accounts: [a, b], allAccounts: [a, b],
       filters: { range: 30, granularity: "day", scope: { kind: "unset" } },
     });
+    loadAccountKpis.mockImplementation(async (acc: AccountContext) => accountKpis(acc));
 
     await render_();
 
-    expect(screen.getByText("Chan")).toBeInTheDocument();
-    expect(screen.getByText("Second")).toBeInTheDocument();
-    expect(loadAccountKpis).not.toHaveBeenCalled();
+    expect(loadAccountKpis).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("heading", { name: "Up next" })).toBeInTheDocument();
+    // An AI summary describes one account; with two in view it says how to get one.
+    expect(screen.getByText(/pick one account/i)).toBeInTheDocument();
   });
 
-  // Offering a choice of one is just an extra click.
-  it("skips the picker for a single account and renders the dashboard", async () => {
+  it("renders the single-account dashboard: up next, posts, summary, more metrics", async () => {
     const acc = account();
     loadViewContext.mockResolvedValue({
       userId: "u1", accounts: [acc], allAccounts: [acc],
@@ -160,56 +173,58 @@ describe("Social Tracker Overview", () => {
 
     await render_();
 
-    expect(loadAccountKpis).toHaveBeenCalledTimes(1);
-    // The bands, in order, are what the page promises to render.
-    for (const band of ["Headline performance", "Trends", "All metrics", "Connected accounts"]) {
-      expect(screen.getByRole("region", { name: band })).toBeInTheDocument();
-    }
+    expect(screen.getByRole("heading", { name: "Up next" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /weekly summary/i })).toBeInTheDocument();
+    expect(screen.getByText("More metrics")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /schedule a clip/i })).toHaveAttribute("href", "/dashboard/social-tracker/new");
   });
 
-  // healthScore is written by the nightly `scores` job, which had never been
-  // scheduled in production — so this gauge was handed value={null} for every
-  // account that has ever existed. Saying so beats drawing an empty dial.
-  it("explains an unscored account instead of drawing an empty gauge", async () => {
-    const acc = account({ healthScore: null });
+  it("puts posts waiting on you above scheduled ones in Up next", async () => {
+    const acc = account();
     loadViewContext.mockResolvedValue({
       userId: "u1", accounts: [acc], allAccounts: [acc],
-      filters: { range: 30, granularity: "day", scope: { kind: "one", id: acc.id } },
+      filters: { range: 30, granularity: "day", scope: { kind: "unset" } },
     });
     loadAccountKpis.mockResolvedValue(accountKpis(acc));
+    listPosts.mockResolvedValue({
+      posts: [
+        plannedPost("soon", "scheduled", "2026-11-18T10:00:00.000Z"),
+        plannedPost("mine", "your_turn", "2026-11-19T10:00:00.000Z"),
+        plannedPost("done", "posted", "2026-11-10T10:00:00.000Z"),
+      ],
+      nextCursor: null,
+    });
 
     await render_();
 
-    expect(screen.getByText(/scored nightly/i)).toBeInTheDocument();
-    expect(screen.queryByTestId("gauge")).not.toBeInTheDocument();
+    const titles = screen.getAllByText(/^Post (soon|mine|done)$/).map((el) => el.textContent);
+    expect(titles).toEqual(["Post mine", "Post soon"]);
+    expect(screen.getByRole("button", { name: "Mark as posted" })).toBeInTheDocument();
   });
 
-  it("draws the gauge once the account has a score", async () => {
-    const acc = account({ healthScore: 78 });
+  // A channel that hasn't posted this month still has posts; the card must not
+  // say "nothing synced".
+  it("falls back to the latest posts when nothing was published in the period", async () => {
+    const acc = account();
     loadViewContext.mockResolvedValue({
       userId: "u1", accounts: [acc], allAccounts: [acc],
-      filters: { range: 30, granularity: "day", scope: { kind: "one", id: acc.id } },
+      filters: { range: 30, granularity: "day", scope: { kind: "unset" } },
     });
     loadAccountKpis.mockResolvedValue(accountKpis(acc));
+    socialPostFindMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: "p1", caption: "An older upload", thumbnailUrl: null, permalink: null,
+          publishedAt: new Date("2026-09-29T00:00:00Z"), views: 393, likes: 2, comments: 0,
+          shares: 0, saves: 0, reach: null, avgViewPercentage: 81,
+        },
+      ]);
 
     await render_();
 
-    expect(screen.getByTestId("gauge")).toBeInTheDocument();
-  });
-
-  // Averaging health across accounts would describe none of them.
-  it("says why there is no single health score for a multi-account view", async () => {
-    const a = account({ id: "a" });
-    const b = account({ id: "b", displayName: "Second" });
-    loadViewContext.mockResolvedValue({
-      userId: "u1", accounts: [a, b], allAccounts: [a, b],
-      filters: { range: 30, granularity: "day", scope: { kind: "all" } },
-    });
-    loadAccountKpis.mockImplementation(async (acc: AccountContext) => accountKpis(acc));
-
-    await render_();
-
-    expect(screen.getByText(/pick a single account/i)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Latest posts" })).toBeInTheDocument();
+    expect(screen.getByText("An older upload")).toBeInTheDocument();
   });
 
   // Regression: YouTube sends snapshots but no daily follower column, so the

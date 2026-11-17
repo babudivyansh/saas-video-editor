@@ -9,7 +9,6 @@
 
 import { fmtByUnit, type ValueUnit } from "@/app/components/charts/format";
 import { Sparkline } from "@/app/components/charts";
-import { KpiExplain } from "./KpiExplain";
 
 export interface HeroMetric {
   key: string;
@@ -24,14 +23,7 @@ export interface HeroMetric {
   benchmark?: { low: number; high: number } | null;
 }
 
-/** What the free "Why?" affordance needs. Absent for a portfolio view. */
-export interface ExplainContext {
-  accountId: string | null;
-  range: number;
-  tz: string;
-}
-
-export function KpiHero({ metrics, explain }: { metrics: HeroMetric[]; explain?: ExplainContext }) {
+export function KpiHero({ metrics }: { metrics: HeroMetric[] }) {
   if (metrics.length === 0) return null;
 
   return (
@@ -69,20 +61,6 @@ export function KpiHero({ metrics, explain }: { metrics: HeroMetric[]; explain?:
               </div>
             )}
 
-            {/* Free, and only fetched when actually asked. Offered on the four
-                headline tiles because those are the numbers someone wants a
-                reason for. */}
-            {explain && (
-              <div className="mt-2">
-                <KpiExplain
-                  accountId={explain.accountId}
-                  metric={m.key}
-                  label={m.label}
-                  range={explain.range}
-                  tz={explain.tz}
-                />
-              </div>
-            )}
           </article>
         ))}
       </div>

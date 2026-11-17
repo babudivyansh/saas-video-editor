@@ -49,7 +49,7 @@ export function ShareLinkPanel({
   // metadata, which is why the list can show a link's status but not its URL.
   //
   // Fetched inside the effect behind a cancellation flag, the same shape
-  // ContentTable uses: it satisfies react-hooks/set-state-in-effect, and it
+  // PublishedTable uses: it satisfies react-hooks/set-state-in-effect, and it
   // stops a slow response from a previous render landing after a newer one.
   useEffect(() => {
     let cancelled = false;

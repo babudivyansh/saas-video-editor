@@ -95,12 +95,11 @@ export function DubPanel({ projectId, clip, embedded }: { projectId: string; cli
 export interface PublishAccount { id: string; provider: string; username: string | null; displayName: string | null }
 export interface PublishItem { id: string; permalink: string | null; status: string; socialAccount: { provider: string; username: string | null } }
 
+// Posting goes through the one composer (/dashboard/social-tracker/new), which
+// also does captions, several accounts at once and best-time slots. This panel
+// opens it with the clip chosen, and lists where the clip has already gone.
 export function PublishPanel({ projectId, clip, embedded }: { projectId: string; clip: ClipItem; embedded?: boolean }) {
   const [open, setOpen] = useState(!!embedded);
-  const [accountId, setAccountId] = useState("");
-  const [permalink, setPermalink] = useState("");
-  const [scheduledFor, setScheduledFor] = useState("");
-  const [minSchedule] = useState(() => new Date(Date.now() + 5 * 60_000).toISOString().slice(0, 16));
 
   const publishQuery = useQuery({
     queryKey: ["auto-clip-publish", projectId, clip.id],
@@ -110,73 +109,25 @@ export function PublishPanel({ projectId, clip, embedded }: { projectId: string;
   const accounts = publishQuery.data?.accounts ?? NO_ACCOUNTS;
   const publishes = publishQuery.data?.publishes ?? NO_PUBLISHES;
 
-  useEffect(() => {
-    if (!accountId && accounts[0]) setAccountId(accounts[0].id);
-  }, [accounts, accountId]);
-
-  const selectedAccount = accounts.find((a) => a.id === accountId);
-  const isYoutube = selectedAccount?.provider === "youtube";
-
-  const publishMutation = useMutation({
-    mutationFn: (body: { permalink?: string; scheduledFor?: string }) =>
-      apiFetch(`/api/projects/${projectId}/clips/${clip.id}/publish`, {
-        method: "POST",
-        body: JSON.stringify({ socialAccountId: accountId, ...body }),
-      }),
-    onSuccess: () => {
-      setPermalink("");
-      publishQuery.refetch();
-    },
-  });
-  const err = publishMutation.error instanceof Error ? publishMutation.error.message : null;
-  const needsReauth = !!err && /reconnect/i.test(err);
-  function submit(body: { permalink?: string; scheduledFor?: string }) {
-    if (!accountId) return;
-    publishMutation.mutate(body);
-  }
-
   if (!open) {
     return <button onClick={() => setOpen(true)} className="w-full text-left text-[13px] font-medium py-2 px-3 rounded-lg text-ink-soft hover:bg-tint-blue hover:text-ink transition-colors">Publish or schedule</button>;
   }
   return (
     <div className="w-full space-y-3">
-      {accounts.length === 0 ? (
+      {publishQuery.isSuccess && accounts.length === 0 ? (
         <div className="rounded-xl border border-card-border p-3">
-          <p className="text-xs text-ink-soft">Connect a social account in <a href="/dashboard/social-tracker" className="text-brand font-semibold">Social Tracker</a> first to publish directly.</p>
+          <p className="text-xs text-ink-soft">Connect a social account in <a href="/dashboard/social-tracker/settings" className="text-brand font-semibold">Social settings</a> first to publish directly.</p>
         </div>
       ) : (
-        <>
-          <div>
-            <h4 className="text-[12px] font-bold text-ink-soft uppercase tracking-wider mb-2">Publish directly</h4>
-            <div className="rounded-xl border border-card-border p-3 space-y-2.5">
-              <select aria-label="Account to publish to" value={accountId} onChange={(e) => setAccountId(e.target.value)} className="w-full rounded-lg border border-card-border px-2 py-1.5 text-xs bg-panel">
-                {accounts.map((a) => <option key={a.id} value={a.id}>{a.provider} — {a.displayName ?? a.username ?? a.id.slice(0, 6)}</option>)}
-              </select>
-              {isYoutube ? (
-                <>
-                  <p className="text-[10px] text-ink-soft/70">Uploads this clip directly to YouTube as Unlisted — change visibility on YouTube afterward if you want it Public.</p>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-semibold text-ink-soft block">Schedule for later (optional)</label>
-                    <input type="datetime-local" value={scheduledFor} min={minSchedule} onChange={(e) => setScheduledFor(e.target.value)} className="w-full rounded-lg border border-card-border px-2 py-1.5 text-xs" />
-                  </div>
-                  {err && <p className="text-[11px] text-error">{err} {needsReauth && <a href="/dashboard/social-tracker" className="underline font-semibold">Reconnect →</a>}</p>}
-                  <button onClick={() => submit(scheduledFor ? { scheduledFor: new Date(scheduledFor).toISOString() } : {})} disabled={publishMutation.isPending} className="w-full min-h-[40px] text-xs font-bold rounded-lg grad-brand text-on-primary shadow-glow disabled:opacity-50">
-                    {publishMutation.isPending ? "Working…" : scheduledFor ? "Schedule upload" : "Publish to YouTube"}
-                  </button>
-                </>
-              ) : (
-                <>
-                  <p className="text-[10px] text-ink-soft/70">Instagram/Facebook auto-publish needs a Meta app review this app hasn&apos;t completed — post it yourself, then paste the link here to track its performance.</p>
-                  <input value={permalink} onChange={(e) => setPermalink(e.target.value)} placeholder="Paste the live post URL after posting manually" className="w-full rounded-lg border border-card-border px-2 py-1.5 text-xs" />
-                  {err && <p className="text-[11px] text-error">{err}</p>}
-                  {/* Needs the link: with an empty field this saved a "Pending" row
-                      with nothing to track. */}
-                  <button onClick={() => submit({ permalink: permalink.trim() })} disabled={publishMutation.isPending || !permalink.trim()} className="w-full min-h-[40px] text-xs font-bold rounded-lg grad-brand text-on-primary shadow-glow disabled:opacity-50">{publishMutation.isPending ? "…" : "Save link"}</button>
-                </>
-              )}
-            </div>
-          </div>
-        </>
+        <div className="space-y-1.5">
+          <a
+            href={`/dashboard/social-tracker/new?clip=${encodeURIComponent(clip.id)}`}
+            className="flex w-full min-h-[40px] items-center justify-center text-xs font-bold rounded-lg grad-brand text-on-primary shadow-glow"
+          >
+            Post or schedule this clip
+          </a>
+          <p className="text-[10px] text-ink-soft/70">YouTube uploads for you. Instagram and Facebook land in your Posts with the video and caption ready to share.</p>
+        </div>
       )}
       {publishes.length > 0 && (
         <ul className="space-y-1 pt-1 border-t border-card-border">
@@ -186,6 +137,9 @@ export function PublishPanel({ projectId, clip, embedded }: { projectId: string;
               {p.permalink ? <a href={p.permalink} target="_blank" rel="noreferrer" className="text-brand font-semibold shrink-0">View</a> : <span className="text-ink-soft/60 shrink-0">{publishStatusLabel(p.status)}</span>}
             </li>
           ))}
+          <li>
+            <a href="/dashboard/social-tracker/posts?filter=scheduled" className="text-[11px] font-semibold text-brand">See all posts →</a>
+          </li>
         </ul>
       )}
       {!embedded && <button onClick={() => setOpen(false)} className="text-xs font-semibold text-ink-soft/70">Close</button>}

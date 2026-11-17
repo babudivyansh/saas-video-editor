@@ -14,7 +14,7 @@
 import type { MetricKey, Support } from "@/lib/social/capabilities";
 import type { ValueUnit } from "@/app/components/charts/format";
 import { KpiCard } from "./KpiCard";
-import { KpiHero, type ExplainContext } from "./KpiHero";
+import { KpiHero } from "./KpiHero";
 
 export interface KpiEntry {
   current: number | null;
@@ -31,9 +31,6 @@ export interface KpiGridProps {
   /** Growth figures that are not provider metrics in their own right. */
   derived?: {
     averageViews?: { current: number | null; previous: number | null; deltaPct: number | null };
-    dailyGrowth?: number | null;
-    weeklyGrowth?: number | null;
-    monthlyGrowth?: number | null;
   };
   sparklines?: Partial<Record<MetricKey, Array<{ date: string; value: number }>>>;
   benchmark?: { low: number; high: number } | null;
@@ -112,11 +109,9 @@ export function KpiHeroRow({
   kpis,
   sparklines,
   benchmark,
-  explain,
-}: Pick<KpiGridProps, "kpis" | "sparklines" | "benchmark"> & { explain?: ExplainContext }) {
+}: Pick<KpiGridProps, "kpis" | "sparklines" | "benchmark">) {
   return (
     <KpiHero
-      explain={explain}
       metrics={heroMetrics(kpis).map((metric) => ({
         key: metric,
         label: labelOf(metric),
@@ -152,7 +147,9 @@ export function KpiGrid({ kpis, derived, sparklines, benchmark }: KpiGridProps) 
           const kpi = kpis[metric];
           // Promoted into the hero, or not reported at all — either way it does
           // not belong in this grid.
-          if (!kpi || heroSet.has(metric) || kpi.available === "unavailable") return null;
+          // A tile with no number yet ("Collecting") is left out rather than
+          // drawn as a dash: it said nothing and pushed the real ones down.
+          if (!kpi || heroSet.has(metric) || kpi.available === "unavailable" || kpi.current === null) return null;
           return (
             <KpiCard
               key={metric}
@@ -174,7 +171,7 @@ export function KpiGrid({ kpis, derived, sparklines, benchmark }: KpiGridProps) 
 
         {/* Derived tiles. Not MetricKeys — computed for presentation, and marked
             available since they are always computable from the follower series. */}
-        {derived?.averageViews && (
+        {derived?.averageViews && derived.averageViews.current !== null && (
           <KpiCard
             metric="views"
             label="Average views / post"
@@ -184,13 +181,6 @@ export function KpiGrid({ kpis, derived, sparklines, benchmark }: KpiGridProps) 
             previous={derived.averageViews.previous}
             deltaPct={derived.averageViews.deltaPct}
           />
-        )}
-        {derived && (
-          <>
-            <GrowthTile label="Daily growth" pct={derived.dailyGrowth} />
-            <GrowthTile label="Weekly growth" pct={derived.weeklyGrowth} />
-            <GrowthTile label="Monthly growth" pct={derived.monthlyGrowth} />
-          </>
         )}
         </div>
 
@@ -204,18 +194,5 @@ export function KpiGrid({ kpis, derived, sparklines, benchmark }: KpiGridProps) 
         )}
       </div>
     </div>
-  );
-}
-
-/** A growth rate has no previous-period comparison — it IS the comparison. */
-function GrowthTile({ label, pct }: { label: string; pct: number | null | undefined }) {
-  return (
-    <KpiCard
-      metric="followerGrowthRate"
-      label={label}
-      available="derived"
-      unit="percent"
-      value={pct ?? null}
-    />
   );
 }

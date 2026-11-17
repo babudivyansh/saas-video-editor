@@ -3,7 +3,7 @@ import { EmptyState } from "@/app/components/ui/EmptyState";
 /** Shared "nothing connected yet" state, so every sub-route says the same thing. */
 export function EmptyAccounts({
   title = "No connected accounts yet",
-  subtitle = "Connect YouTube, Instagram or Facebook to see followers, reach and engagement in one place.",
+  subtitle = "Connect an account to track your posts, schedule clips and see what's working.",
 }: {
   title?: string;
   subtitle?: string;

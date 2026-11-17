@@ -26,6 +26,8 @@ interface ButtonProps {
    * (e.g. a Cancel action next to a submit button).
    */
   type?: "button" | "submit" | "reset";
+  /** Forwarded to next/link when `href` is set. Omitted keeps Next's default. */
+  prefetch?: boolean;
 }
 
 const VARIANT: Record<ButtonVariant, string> = {
@@ -79,7 +81,7 @@ function Spinner() {
   );
 }
 
-export function Button({ variant = "primary", size = "md", href, icon, onClick, disabled, loading, className = "", children, type }: ButtonProps) {
+export function Button({ variant = "primary", size = "md", href, icon, onClick, disabled, loading, className = "", children, type, prefetch }: ButtonProps) {
   const inert = disabled || loading;
   const cls = variant === "link"
     ? `inline-flex items-center font-semibold whitespace-nowrap text-xs rounded-sm ${FOCUS} ${VARIANT.link} ${inert ? "opacity-50 pointer-events-none" : ""} ${className}`
@@ -90,7 +92,7 @@ export function Button({ variant = "primary", size = "md", href, icon, onClick, 
     // and simply never fired its handler. Passing onClick from a *server*
     // component is still a build error, as it should be.
     return (
-      <Link href={href} className={cls} onClick={onClick}>
+      <Link href={href} className={cls} onClick={onClick} prefetch={prefetch}>
         {children}
         {icon}
       </Link>

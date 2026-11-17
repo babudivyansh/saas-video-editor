@@ -13,14 +13,8 @@ import { Checkbox } from "@/app/components/ui/Checkbox";
 import { clientAuthToken } from "@/lib/client-session";
 import { downloadFile } from "@/lib/download-file";
 
-const SECTIONS = [
-  { id: "kpis", label: "Metrics" },
-  { id: "trends", label: "Trends" },
-  { id: "content", label: "Top posts" },
-  { id: "audience", label: "Audience" },
-  { id: "competitors", label: "Competitors" },
-  { id: "ai", label: "Written summary" },
-] as const;
+/** Every report carries the same sections; picking them was a step nobody needed. */
+const SECTIONS = ["kpis", "trends", "content", "ai"];
 
 const PERIODS = ["weekly", "monthly", "quarterly", "annual"] as const;
 const FORMATS = ["pdf", "xlsx", "csv"] as const;
@@ -46,7 +40,6 @@ export interface ReportBuilderProps {
 
 export function ReportBuilder({ accounts, initialRuns }: ReportBuilderProps) {
   const [selected, setSelected] = useState<string[]>(accounts.map((a) => a.id));
-  const [sections, setSections] = useState<string[]>(["kpis", "trends", "content", "ai"]);
   const [period, setPeriod] = useState<(typeof PERIODS)[number]>("monthly");
   const [format, setFormat] = useState<(typeof FORMATS)[number]>("pdf");
   // Scheduling was impossible until now: the API stripped these two fields and
@@ -119,7 +112,7 @@ export function ReportBuilder({ accounts, initialRuns }: ReportBuilderProps) {
           config: {
             accountIds: selected,
             period,
-            sections,
+            sections: SECTIONS,
             format,
             schedule,
             deliverToOwner: schedule !== "none" && emailMe,
@@ -161,13 +154,14 @@ export function ReportBuilder({ accounts, initialRuns }: ReportBuilderProps) {
     list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
 
   return (
-    <section aria-labelledby="report-builder-heading" className="space-y-4">
+    <section id="reports" aria-labelledby="report-builder-heading" className="space-y-4">
       <div>
         <h2 id="report-builder-heading" className="text-sm font-semibold text-fg">
-          Build a report
+          Reports
         </h2>
         <p className="text-sm text-fg-muted">
-          Generated in the background — you can leave this page and come back to it.
+          For a one-off, use Download on the Overview. Here you can get one emailed every week or month, and find
+          the ones you&apos;ve built.
         </p>
       </div>
 
@@ -180,18 +174,6 @@ export function ReportBuilder({ accounts, initialRuns }: ReportBuilderProps) {
               showLabel
               checked={selected.includes(a.id)}
               onChange={() => setSelected((s) => toggle(s, a.id))}
-            />
-          ))}
-        </Fieldset>
-
-        <Fieldset legend="Include">
-          {SECTIONS.map((s) => (
-            <Checkbox
-              key={s.id}
-              label={s.label}
-              showLabel
-              checked={sections.includes(s.id)}
-              onChange={() => setSections((current) => toggle(current, s.id))}
             />
           ))}
         </Fieldset>
@@ -227,7 +209,7 @@ export function ReportBuilder({ accounts, initialRuns }: ReportBuilderProps) {
 
         <Button
           onClick={() => void create()}
-          disabled={busy || selected.length === 0 || sections.length === 0}
+          disabled={busy || selected.length === 0}
         >
           {busy ? "Starting…" : "Generate"}
         </Button>

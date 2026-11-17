@@ -1,79 +1,66 @@
-// Social Tracker shell.
+// Social shell: one header bar (account, period, sync, Download, New post,
+// settings) and two tabs (Overview, Posts).
 //
-// A Server Component: it reads the session cookie directly, so the KPI grid is
-// in the first HTML response. The page this replaced was a Client Component
-// that rendered nothing until JavaScript hydrated, read a token out of
-// localStorage, then fetched — four sequential hops before a single number
-// appeared.
+// A Server Component: it reads the session cookie directly, so the first HTML
+// response already carries the accounts and their sync state.
 
 import { Suspense } from "react";
 import { loadAccounts } from "@/lib/social/queries";
+import { countNeedsYou } from "@/lib/social/posts-web";
 import { ToastProvider } from "@/app/components/ui/Toast";
-import { FilterBar } from "./components/FilterBar";
-import { requireSubscriberOrRedirect } from "./shared";
+import { accountLabel, requireSubscriberOrRedirect } from "./shared";
+import { TrackerHeader } from "./components/TrackerHeader";
 import { TabsNav } from "./components/TabsNav";
+import { TimezoneAutoSet } from "./components/TimezoneAutoSet";
 
 export const dynamic = "force-dynamic";
 
-export default async function SocialTrackerV2Layout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  // No feature flag any more: this IS the Social Tracker. A visitor who can't
-  // be let in is routed by WHY — billing overlay if their subscription lapsed,
-  // login if their session no longer resolves. See requireSubscriberOrRedirect.
-  const auth = await requireSubscriberOrRedirect();
+/** Coarse relative time; a sync age only needs to be roughly right. */
+function ago(at: Date | null, now: Date): string | null {
+  if (!at) return null;
+  const hours = Math.floor((now.getTime() - at.getTime()) / 3_600_000);
+  if (hours < 1) return "just now";
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return days === 1 ? "yesterday" : `${days} days ago`;
+}
 
-  const accounts = await loadAccounts(auth.userId);
+export default async function SocialLayout({ children }: { children: React.ReactNode }) {
+  // A visitor who can't be let in is routed by WHY: billing overlay if their
+  // subscription lapsed, login if their session no longer resolves.
+  const auth = await requireSubscriberOrRedirect();
+  const now = new Date();
+  const [accounts, needsYou] = await Promise.all([loadAccounts(auth.userId), countNeedsYou(auth.userId, now)]);
+
+  // Oldest sync first, so the header's "Synced Xh ago" is the stalest in view.
+  const header = [...accounts]
+    .sort((a, b) => (a.lastSyncedAt?.getTime() ?? 0) - (b.lastSyncedAt?.getTime() ?? 0))
+    .map((a) => ({
+      id: a.id,
+      label: accountLabel(a),
+      provider: a.provider,
+      status: a.status,
+      lastSyncStatus: a.lastSyncStatus,
+      syncedAgo: ago(a.lastSyncedAt, now),
+    }));
 
   return (
-    // ToastProvider is not mounted globally in this app (assets/page.tsx wraps
-    // itself the same way), and useToast throws without it. Server-rendered
-    // children pass straight through as a prop.
+    // ToastProvider is not mounted globally in this app, and useToast throws
+    // without it.
     <ToastProvider>
-    <div className="mx-auto w-full max-w-[1600px] flex-1 px-4 py-5 sm:px-6">
-      <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <span
-            aria-hidden="true"
-            className="grad-brand flex h-11 w-11 items-center justify-center rounded-2xl text-on-primary"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M3 3v18h18" strokeLinecap="round" />
-              <path d="m7 14 4-4 3 3 5-6" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </span>
-          <div>
-            <h1 className="text-xl font-bold text-fg">Social Tracker</h1>
-            <p className="text-[11px] text-fg-subtle">
-              {accounts.length === 0
-                ? "Connect an account to start tracking"
-                : `${accounts.length} connected ${accounts.length === 1 ? "account" : "accounts"}`}
-            </p>
-          </div>
-        </div>
-      </header>
-
-      {/* useSearchParams needs a Suspense boundary in a server-rendered tree. */}
-      <Suspense fallback={<div className="mb-6 h-12 animate-pulse rounded-xl bg-surface-3" aria-label="Loading" />}>
-        <TabsNav />
-      </Suspense>
-
-      {accounts.length > 0 && (
-        <Suspense fallback={<div className="mb-6 h-14 animate-pulse rounded-xl bg-surface-3" aria-label="Loading" />}>
-          <FilterBar
-            accounts={accounts.map((a) => ({
-              id: a.id,
-              provider: a.provider,
-              label: a.displayName ?? a.username ?? a.provider,
-            }))}
-          />
+      <div className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-5 sm:px-6">
+        {/* useSearchParams needs a Suspense boundary in a server-rendered tree. */}
+        <Suspense fallback={<div className="mb-4 h-10 animate-pulse rounded-xl bg-surface-3" aria-label="Loading" />}>
+          <TrackerHeader accounts={header} />
         </Suspense>
-      )}
-
-      {children}
-    </div>
+        {accounts.length > 0 && (
+          <Suspense fallback={<div className="mb-5 h-10 animate-pulse rounded-xl bg-surface-3" aria-label="Loading" />}>
+            <TabsNav needsYou={needsYou} />
+          </Suspense>
+        )}
+        <TimezoneAutoSet accountIds={accounts.filter((a) => !a.timezone).map((a) => a.id)} />
+        {children}
+      </div>
     </ToastProvider>
   );
 }
