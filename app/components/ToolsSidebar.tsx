@@ -84,7 +84,7 @@ export function useDashboardNavItems(): { groups: ToolsSidebarNavGroup[]; bottom
     // Settings is an overlay over the current page, like billing.
     { id: "settings", icon: <IcSettings />, label: t("settings"), onSelect: () => openSettings() },
     // Drawer only: on desktop the plan card below is the billing entry point.
-    { id: "billing", icon: null, label: t("upgradePlan"), onSelect: () => openBilling() },
+    { id: "billing", icon: null, label: t("upgradePlan"), onSelect: () => openBilling({ view: "plans" }) },
   ];
 
   return { groups, bottomNav };
@@ -92,7 +92,7 @@ export function useDashboardNavItems(): { groups: ToolsSidebarNavGroup[]; bottom
 
 function NavLink({ id, icon, label, href, onSelect, active, collapsed = false }: ToolsSidebarNavItem & { active: string; collapsed?: boolean }) {
   const isActive = active === id;
-  const className = `relative w-full h-10 flex items-center gap-3 rounded-xl text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/70 ${
+  const className = `relative isolate overflow-hidden w-full h-10 flex items-center gap-3 rounded-xl text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/70 ${collapsed ? "" : "nav-sparkle"} ${
     collapsed ? "justify-center px-0" : "px-3"
   } ${
     isActive
@@ -101,6 +101,20 @@ function NavLink({ id, icon, label, href, onSelect, active, collapsed = false }:
   }`;
   const inner = (
     <>
+      {/* Hover/focus sparkler sweep (globals.css .nav-sparkle). Expanded rows
+          only — the icon rail is too narrow for a sweep to read. */}
+      {!collapsed && (
+        <span className="nav-sparkle-fx" aria-hidden="true">
+          <span className="nav-sparkle-wash" />
+          <span className="nav-sparkle-comet">
+            <span className="nav-sparkle-line" />
+            <span className="nav-sparkle-head" />
+            <span className="nav-sparkle-spark nav-sparkle-s1" />
+            <span className="nav-sparkle-spark nav-sparkle-s2" />
+            <span className="nav-sparkle-spark nav-sparkle-s3" />
+          </span>
+        </span>
+      )}
       <span className={`flex-shrink-0 ${isActive ? "text-primary" : ""}`}>{icon}</span>
       {collapsed ? <span className="sr-only">{label}</span> : <span className="truncate">{label}</span>}
     </>
@@ -126,7 +140,7 @@ function PlanCard({ collapsed = false }: { collapsed?: boolean }) {
     return (
       <button
         type="button"
-        onClick={() => openBilling({ tab: hasActivePlan ? "topup" : "overview" })}
+        onClick={() => (hasActivePlan ? openBilling({ tab: "topup" }) : openBilling({ view: "plans" }))}
         title={`${planName} · ${t("planCard.clipMinutes")}: ${t("planCard.minutesValue", { count: minutes })} · ${t("planCard.aiCredits")}: ${credits.toLocaleString()}`}
         data-tour="credits-pill"
         className="relative mx-auto w-11 h-11 flex items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
@@ -158,12 +172,14 @@ function PlanCard({ collapsed = false }: { collapsed?: boolean }) {
         >
           {planName}
         </button>
+        {/* One click to the plans page. A subscriber used to go Manage →
+            Manage plan → Change plan (three screens) to switch tiers. */}
         <button
           type="button"
-          onClick={() => openBilling()}
+          onClick={() => openBilling({ view: "plans" })}
           className="text-xs font-semibold text-primary hover:text-primary-hover cursor-pointer flex-shrink-0"
         >
-          {t("planCard.manage")}
+          {hasActivePlan ? t("planCard.changePlan") : t("planCard.seePlans")}
         </button>
       </div>
       <div data-tour="credits-pill" className="space-y-2.5">
@@ -188,7 +204,7 @@ function PlanCard({ collapsed = false }: { collapsed?: boolean }) {
         variant={hasActivePlan ? "secondary" : "primary"}
         size="sm"
         className="w-full"
-        onClick={() => openBilling({ tab: hasActivePlan ? "topup" : "overview" })}
+        onClick={() => (hasActivePlan ? openBilling({ tab: "topup" }) : openBilling({ view: "plans" }))}
       >
         {hasActivePlan ? t("topUp") : t("upgrade")}
       </Button>
@@ -197,13 +213,15 @@ function PlanCard({ collapsed = false }: { collapsed?: boolean }) {
 }
 
 // Per-browser preference — a convenience, so storage failures (private
-// windows, blocked site data) just mean "expanded".
+// windows, blocked site data) just mean "expanded". "1" = collapsed,
+// "0" = expanded (what toggle() below writes).
 const COLLAPSED_KEY = "clipiro:sidebarCollapsed";
 
 function useCollapsed(): [boolean, () => void, boolean] {
-  // An icon rail until the user expands it (the Opus-style default); the
-  // choice is remembered once made.
-  const [collapsed, setCollapsed] = useState(true);
+  // Open by default (2026-11-18): the full sidebar until the user collapses it
+  // to the icon rail, and that choice is remembered. It used to start as the
+  // rail and stay there unless someone had expanded it once.
+  const [collapsed, setCollapsed] = useState(false);
   // Only animate a toggle the user made — restoring the saved state on load
   // should snap, not slide shut on every page view.
   const [animate, setAnimate] = useState(false);
@@ -212,7 +230,7 @@ function useCollapsed(): [boolean, () => void, boolean] {
   useEffect(() => {
     try {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time sync from storage
-      setCollapsed(localStorage.getItem(COLLAPSED_KEY) !== "0");
+      setCollapsed(localStorage.getItem(COLLAPSED_KEY) === "1");
     } catch { /* stays expanded */ }
   }, []);
   const toggle = () => {

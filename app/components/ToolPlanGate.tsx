@@ -1,6 +1,7 @@
 "use client";
 import { useAuth } from "@/app/components/AuthContext";
 import { Button } from "@/app/components/ui/Button";
+import { useOpenPlans } from "@/app/components/billing/BillingOverlayContext";
 import { tierAtLeast, TIER_LABEL, type TierId } from "@/lib/plans/tiers";
 
 /**
@@ -16,11 +17,13 @@ export function useToolAccess(minTier: Exclude<TierId, "free">): boolean {
 }
 
 export function ToolPlanGate({ toolName, minTier }: { toolName: string; minTier: Exclude<TierId, "free"> }) {
+  // The in-app plans page, not the marketing /pricing page this used to link.
+  const openPlans = useOpenPlans();
   return (
     <div className="mt-5 rounded-xl border border-warning/30 bg-warning/10 px-4 py-4">
       <p className="text-sm font-semibold text-fg">{toolName} is on the {TIER_LABEL[minTier]} plan and up</p>
       <p className="text-[13px] text-fg-muted mt-1">Upgrade to use it — your current plan doesn&apos;t include it.</p>
-      <Button href="/pricing" size="sm" className="mt-3">See plans</Button>
+      <Button size="sm" className="mt-3" onClick={openPlans}>See plans</Button>
     </div>
   );
 }

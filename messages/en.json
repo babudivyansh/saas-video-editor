@@ -51,7 +51,7 @@
       "aiTools": "AI Tools",
       "yourProjects": "Your projects"
     },
-    "planCard": { "manage": "Manage", "clipMinutes": "Clip minutes", "aiCredits": "AI credits", "minutesValue": "{count} min" },
+    "planCard": { "changePlan": "Change plan", "seePlans": "See plans", "clipMinutes": "Clip minutes", "aiCredits": "AI credits", "minutesValue": "{count} min" },
     "corePages": {
       "dashboardHome": { "title": "Dashboard Home", "desc": "Overview, quests & quick start" },
       "myClips": { "title": "Your projects", "desc": "All your AutoClip projects" },
@@ -317,7 +317,8 @@
     "uid": "UID",
     "copyUid": "Copy UID",
     "nickname": "Name",
-    "nicknamePlaceholder": "Your name",    "saving": "Saving…",
+    "nicknamePlaceholder": "Your name",
+    "saving": "Saving…",
     "saveChanges": "Save Changes",
     "gender": "Gender",
     "genders": { "male": "Male", "female": "Female", "unspecified": "Prefer not to say" },

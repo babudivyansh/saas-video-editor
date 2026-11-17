@@ -71,14 +71,14 @@ async function signIn(page: Page, baseURL: string | undefined, user: typeof SUBS
   }]);
 }
 
-test("Manage plan swaps views in place without changing route", async ({ page, baseURL }) => {
+test("Manage subscription swaps views in place without changing route", async ({ page, baseURL }) => {
   await signIn(page, baseURL, SUBSCRIBED_USER);
   await page.goto("/dashboard?billing=1");
 
   const billing = page.getByRole("dialog", { name: "Billing" });
   await expect(billing).toBeVisible();
 
-  await page.getByRole("button", { name: "Manage plan" }).click();
+  await page.getByRole("dialog", { name: "Billing" }).getByRole("button", { name: "Manage subscription" }).click();
 
   const panel = page.getByRole("dialog", { name: "Manage subscription" });
   await expect(panel).toBeVisible();
@@ -146,7 +146,7 @@ test("a cancelled subscription offers resume, and explains when it can't", async
     }));
 
   await page.goto("/dashboard?billing=1");
-  await page.getByRole("button", { name: "Manage plan" }).click();
+  await page.getByRole("dialog", { name: "Billing" }).getByRole("button", { name: "Manage subscription" }).click();
 
   const panel = page.getByRole("dialog", { name: "Manage subscription" });
   await expect(panel.getByText("Cancelling")).toBeVisible();

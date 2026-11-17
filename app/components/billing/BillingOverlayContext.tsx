@@ -53,6 +53,26 @@ export function useBillingOverlay(): BillingOverlayApi {
   return ctx;
 }
 
+/** Where an "Upgrade" link points when it can't open the overlay in place. */
+export const PLANS_HREF = "/dashboard?billing=1&view=plans";
+
+/**
+ * Open the plans page in one click, from anywhere. Inside the dashboard it
+ * swaps the overlay straight onto the plans view; outside it (a tool page
+ * rendered without the shell) it navigates to the dashboard deep link, which
+ * opens the same view (a full navigation, so this works without the app
+ * router mounted — component tests render these buttons bare). Every Upgrade / See plans / Change plan button uses
+ * this, so none of them stops at the billing overview first, and none of them
+ * sends a signed-in customer out to the marketing /pricing page.
+ */
+export function useOpenPlans(): () => void {
+  const ctx = useContext(Ctx);
+  return useCallback(() => {
+    if (ctx) ctx.openBilling({ view: "plans" });
+    else window.location.assign(PLANS_HREF);
+  }, [ctx]);
+}
+
 export function BillingOverlayProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<BillingOverlayState>({ open: false });
 

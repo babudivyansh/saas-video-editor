@@ -2,8 +2,11 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/app/components/AuthContext";
 import { useRazorpayCheckout } from "@/app/components/useRazorpayCheckout";
-import { PURCHASABLE_TIER_ORDER } from "@/lib/plans/tiers";
+import { PURCHASABLE_TIER_ORDER, TIER_LABEL } from "@/lib/plans/tiers";
+import { planCta } from "@/lib/plans/plan-cta";
 import { formatMoney, inferCurrencyFromLocale, type Currency } from "@/lib/currency-shared";
+import { formatDate } from "@/lib/format";
+import { trialStatus } from "@/lib/billing/trial-status";
 import { PlanCard } from "@/app/components/billing/PlanCard";
 import { ConfirmPlanDialog } from "@/app/components/billing/ConfirmPlanDialog";
 import { useCreatorDiscount, creatorDiscountApplies } from "@/app/components/billing/useCreatorDiscount";
@@ -29,6 +32,8 @@ interface PlansModalProps {
    *  current period's end instead of today, since the customer already paid
    *  for time still remaining — see /api/billing/checkout. */
   resumeFromPeriodEnd?: boolean;
+  /** Opens Manage subscription (cancel, resume, receipts) from the plan strip. */
+  onManage?: () => void;
 }
 
 // "Browse all plans + top-ups", rendered as one of BillingOverlay's views so
@@ -41,7 +46,7 @@ interface PlansModalProps {
 // add-on packs and take a coupon at plan checkout, but a subscription is billed
 // at its synced Razorpay plan amount, so neither was ever charged or applied.
 // Packs now have their own Buy buttons (2026-09-25).
-export function PlansModal({ onPurchaseSuccess, resumeFromPeriodEnd = false }: PlansModalProps) {
+export function PlansModal({ onPurchaseSuccess, resumeFromPeriodEnd = false, onManage }: PlansModalProps) {
   const { user } = useAuth();
   const { startCheckout, activeId } = useRazorpayCheckout();
 
@@ -49,9 +54,12 @@ export function PlansModal({ onPurchaseSuccess, resumeFromPeriodEnd = false }: P
   const [plansLoading, setPlansLoading] = useState(true);
   const [term, setTerm] = useState(1);
   const [currency, setCurrency] = useState<Currency>("INR");
+  // A subscriber sees prices in the currency they already pay in; everyone
+  // else gets the browser-locale guess /pricing uses.
+  const subscriptionCurrency = user?.subscriptionCurrency ?? null;
   useEffect(() => {
-    setCurrency(inferCurrencyFromLocale(typeof navigator !== "undefined" ? navigator.language : null));
-  }, []);
+    setCurrency(subscriptionCurrency ?? inferCurrencyFromLocale(typeof navigator !== "undefined" ? navigator.language : null));
+  }, [subscriptionCurrency]);
 
   const [checkoutPlan, setCheckoutPlan] = useState<DbPlan | null>(null);
   const creatorDiscount = useCreatorDiscount(!!user);
@@ -69,7 +77,15 @@ export function PlansModal({ onPurchaseSuccess, resumeFromPeriodEnd = false }: P
   const minutePacks = plans.filter(p => p.kind === "minute_pack");
 
   const hasActivePlan = !!user?.subscriptionEndsAt && new Date(user.subscriptionEndsAt) > new Date();
+  const currentPlan = subs.find(p => p.slug === user?.plan?.slug) ?? null;
+  const currentInterval = currentPlan?.intervalMonths ?? null;
   const checkoutLoading = checkoutPlan != null && activeId === checkoutPlan.slug;
+
+  // Open on the billing period the subscriber is on, so their own plan is
+  // among the cards rather than hidden behind the other toggle.
+  useEffect(() => {
+    if (currentInterval) setTerm(currentInterval);
+  }, [currentInterval]);
 
   function openCheckout(plan: DbPlan) {
     setCheckoutPlan(plan);
@@ -95,6 +111,8 @@ export function PlansModal({ onPurchaseSuccess, resumeFromPeriodEnd = false }: P
   function handleBuyPack(pack: DbPlan) {
     startCheckout({ planId: pack.slug, currency, onSuccess: () => { onPurchaseSuccess(); } });
   }
+
+  const trial = trialStatus(user);
 
   // Renders bare — BillingOverlay supplies the dialog, backdrop and close
   // button. This used to be a hand-rolled `fixed inset-0` overlay with no focus
@@ -140,14 +158,25 @@ export function PlansModal({ onPurchaseSuccess, resumeFromPeriodEnd = false }: P
             buyingPack={activeId}
             onBuyPack={handleBuyPack}
             onSelectPlan={openCheckout}
-            currentPlanSlug={user?.plan?.slug ?? null}
+            currentPlan={currentPlan}
+            hasActivePlan={hasActivePlan}
+            planStrip={hasActivePlan && currentPlan ? (
+              <CurrentPlanStrip
+                plan={currentPlan}
+                currency={currency}
+                endsAt={user?.subscriptionEndsAt ?? null}
+                cancelled={!!user?.subscriptionCancelledAt}
+                trialEndsAt={trial?.endsAt ?? null}
+                onManage={onManage}
+              />
+            ) : null}
           />
     </div>
   );
 }
 
 // ── Browse step ──────────────────────────────────────────────────────────────
-function BrowseStep({ plansLoading, subs, packs, minutePacks, term, onTermChange, currency, onCurrencyChange, buyingPack, onBuyPack, onSelectPlan, currentPlanSlug }: {
+function BrowseStep({ plansLoading, subs, packs, minutePacks, term, onTermChange, currency, onCurrencyChange, buyingPack, onBuyPack, onSelectPlan, currentPlan, hasActivePlan, planStrip }: {
   plansLoading: boolean;
   subs: DbPlan[];
   packs: DbPlan[];
@@ -159,7 +188,9 @@ function BrowseStep({ plansLoading, subs, packs, minutePacks, term, onTermChange
   buyingPack: string | null;
   onBuyPack: (pack: DbPlan) => void;
   onSelectPlan: (plan: DbPlan) => void;
-  currentPlanSlug: string | null;
+  currentPlan: DbPlan | null;
+  hasActivePlan: boolean;
+  planStrip: React.ReactNode;
 }) {
   const cards = PURCHASABLE_TIER_ORDER
     .map(tier => subs.find(p => p.tier === tier && p.intervalMonths === term))
@@ -171,7 +202,8 @@ function BrowseStep({ plansLoading, subs, packs, minutePacks, term, onTermChange
   return (
     // The overlay renders this full screen under its "Upgrade your plan"
     // heading, so the page supplies no title of its own.
-    <div className="mx-auto w-full max-w-[1180px] px-4 sm:px-8 pt-6 pb-16">
+    <div className="mx-auto w-full max-w-6xl px-4 sm:px-8 pt-6 pb-16">
+      {planStrip}
       <div className="flex justify-center items-center gap-3 mb-10 flex-wrap">
         <div className="inline-flex rounded-full border border-line bg-surface-2 p-1" role="group" aria-label="Billing period">
           {TERMS.map(t => (
@@ -195,6 +227,7 @@ function BrowseStep({ plansLoading, subs, packs, minutePacks, term, onTermChange
             <button
               key={c}
               onClick={() => onCurrencyChange(c)}
+              aria-pressed={currency === c}
               className={`px-4 py-2 rounded-full text-xs font-bold transition-all ${
                 currency === c ? "bg-fg text-bg shadow" : "text-fg-muted hover:text-fg"
               }`}
@@ -206,27 +239,55 @@ function BrowseStep({ plansLoading, subs, packs, minutePacks, term, onTermChange
       </div>
 
       {plansLoading ? (
-        <div className="grid md:grid-cols-3 gap-6">
-          {[0, 1, 2].map(i => <div key={i} className="rounded-2xl border-2 border-line bg-panel animate-pulse h-80" />)}
+        <div className="grid items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {[0, 1, 2, 3].map(i => <div key={i} className="h-[480px] animate-pulse rounded-[var(--radius-card)] border border-line bg-surface-2" />)}
         </div>
       ) : cards.length === 0 ? (
         <p className="text-center text-fg-subtle text-sm py-12">Pricing is being updated. Please check back shortly.</p>
       ) : (
-        <div className="grid md:grid-cols-3 gap-6 items-stretch">
-          {cards.map((plan, idx) => (
-            <PlanCard
-              key={plan.id}
-              plan={plan}
-              subs={subs}
-              currency={currency}
-              highlighted={idx === 1}
-              isCurrent={currentPlanSlug === plan.slug}
-              onSelect={onSelectPlan}
-              size="compact"
-              look="upgrade"
-            />
-          ))}
+        // Same card, same look and same four-across row as /pricing. This was
+        // a three-column grid with its own white-outline styling, so the fourth
+        // tier (Lite, 2026-10-30) pushed Studio onto a row of its own, and the
+        // "Most popular" badge sat on Creator here but on Pro on /pricing.
+        <div className="grid items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {cards.map(plan => {
+            const cta = planCta(plan, currentPlan, hasActivePlan);
+            const isCurrent = currentPlan?.slug === plan.slug;
+            return (
+              <PlanCard
+                key={plan.id}
+                plan={plan}
+                subs={subs}
+                currency={currency}
+                highlighted={plan.tier === "pro"}
+                // Recommended plan first on phones, where only one card is on screen.
+                className={plan.tier === "pro" ? "max-sm:order-first" : ""}
+                isCurrent={isCurrent}
+                onSelect={onSelectPlan}
+                size="compact"
+                ctaLabel={cta.label}
+                ctaDisabled={cta.disabled}
+                footer={
+                  <p className="text-center text-xs text-fg-subtle">
+                    {isCurrent && hasActivePlan ? "You're on this plan" : "Cancel anytime"}
+                  </p>
+                }
+              />
+            );
+          })}
         </div>
+      )}
+      {!plansLoading && cards.length > 0 && (
+        <p className="mt-5 text-center text-xs">
+          <a
+            href="/pricing#compare"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-fg-muted underline-offset-2 hover:text-fg hover:underline"
+          >
+            Compare every feature
+          </a>
+        </p>
       )}
 
       {!plansLoading && (
@@ -255,6 +316,42 @@ function BrowseStep({ plansLoading, subs, packs, minutePacks, term, onTermChange
   );
 }
 
+// ── Current plan strip ───────────────────────────────────────────────────────
+// A subscriber opening this page wants to switch tiers, so their own plan, its
+// renewal and Manage subscription sit in one line above the cards instead of
+// on a separate screen.
+function CurrentPlanStrip({ plan, currency, endsAt, cancelled, trialEndsAt, onManage }: {
+  plan: DbPlan;
+  currency: Currency;
+  endsAt: string | null;
+  cancelled: boolean;
+  trialEndsAt: Date | null;
+  onManage?: () => void;
+}) {
+  const months = plan.intervalMonths ?? 1;
+  const price = formatMoney(minorUnits(plan, currency), currency);
+  const when = trialEndsAt
+    ? `free trial until ${formatDate(trialEndsAt.toISOString())}`
+    : endsAt
+      ? `${cancelled ? "access until" : "renews"} ${formatDate(endsAt)}`
+      : null;
+  return (
+    <div className="mb-8 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-[var(--radius-card)] border border-line bg-surface-2 px-5 py-3.5">
+      <p className="text-sm text-fg-muted">
+        <span className="font-semibold text-success">{plan.tier ? TIER_LABEL[plan.tier] : plan.name}</span>
+        {" · your plan"}
+        {when && <> · {when}</>}
+        {` · ${price}/${months > 1 ? "yr" : "mo"}`}
+      </p>
+      {onManage && (
+        <button type="button" onClick={onManage} className="text-sm font-semibold text-primary hover:text-primary-hover">
+          Manage subscription
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ── Pack grid (credit packs and Clip Minute packs) ──────────────────────────
 function PackGrid({ title, blurb, packs, amount, currency, buyingPack, onBuyPack }: {
   title: string;
@@ -277,10 +374,14 @@ function PackGrid({ title, blurb, packs, amount, currency, buyingPack, onBuyPack
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {packs.map(pack => {
           const price = formatMoney(minorUnits(pack, currency), currency);
+          const detail = amount(pack);
           return (
-            <div key={pack.id} className="flex flex-col p-4 bg-panel rounded-xl border-2 border-line">
+            <div key={pack.id} className="flex flex-col p-4 bg-surface-2 rounded-xl border border-line">
               <p className="font-semibold text-fg text-sm">{pack.name}</p>
-              <p className="text-xs text-fg-muted mt-0.5">{amount(pack)}</p>
+              {/* "100 Clip Minutes / 100 Clip Minutes" — skip a line that only repeats the name. */}
+              {detail.toLowerCase() !== pack.name.toLowerCase() && (
+                <p className="text-xs text-fg-muted mt-0.5">{detail}</p>
+              )}
               <p className="font-bold text-fg mt-1.5">{price}</p>
               <button
                 type="button"

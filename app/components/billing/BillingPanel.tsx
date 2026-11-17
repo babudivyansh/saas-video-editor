@@ -51,9 +51,11 @@ interface LaunchCoupon {
 
 interface GenerationSummary {
   totalCreditsUsed: number;
-  byModel: { modelId: string | null; toolSlug: string; displayName: string; count: number; creditsCost: number }[];
-  byDay: { date: string; credits: number }[];
-  byTool: { toolSlug: string; count: number; creditsCost: number }[];
+  /** Clip Minutes spent (Auto Clip, editor captions), net of refunds. */
+  totalMinutesUsed?: number;
+  byModel: { modelId: string | null; toolSlug: string; displayName: string; count: number; creditsCost: number; minutesCost?: number; listCreditCost?: number | null }[];
+  byDay: { date: string; credits: number; minutes?: number }[];
+  byTool: { toolSlug: string; count: number; creditsCost: number; minutesCost?: number }[];
 }
 
 interface GenerationRow {
@@ -63,8 +65,23 @@ interface GenerationRow {
   displayName: string;
   generationType: string;
   creditsCost: number;
+  minutesCost?: number;
+  listCreditCost?: number | null;
   status: string;
   createdAt: string;
+}
+
+/** What one usage row cost, in the unit it was actually paid in. A row with
+ *  nothing charged reads "Free" for a free tool and "Included" for a paid tool
+ *  that a plan covers (Cut and Crop renders on a paid plan) — never "−0". */
+function costLabel(row: { creditsCost: number; minutesCost?: number; listCreditCost?: number | null }): { text: string; spent: boolean } {
+  const parts: string[] = [];
+  if (row.minutesCost) parts.push(`${row.minutesCost} min`);
+  if (row.creditsCost) parts.push(`${row.creditsCost} cr`);
+  if (parts.length > 0) return { text: parts.join(" + "), spent: true };
+  // "Included" only for a tool with a real list price; a tool with no flat
+  // price (Photo Edit's free daily edits) or a 0-credit one is simply free.
+  return { text: row.listCreditCost != null && row.listCreditCost > 0 ? "Included" : "Free", spent: false };
 }
 
 interface Purchase {
@@ -596,12 +613,12 @@ function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used, 
                 {trial ? `Free trial · ${trialDaysLeftLabel(trial.daysLeft)}` : renewalLabel(daysLeft, cancelled)}
               </p>
               <p className="text-xs text-ink-soft mt-1">Member since {memberSince}</p>
-              <div className="flex items-center gap-4 mt-2">
-                <button onClick={onManagePlan} className="inline-flex items-center gap-1 text-xs text-brand hover:text-brand-dark font-medium transition-colors cursor-pointer">
-                  Manage plan
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
-                    <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
+              {/* Change plan goes straight to the plans page. It used to sit
+                  behind Manage plan → Change plan, three screens deep. */}
+              <div className="flex items-center gap-4 mt-3 flex-wrap">
+                <Button variant="primary" size="sm" onClick={() => onViewPlans()}>Change plan</Button>
+                <button onClick={onManagePlan} className="text-xs text-brand hover:text-brand-dark font-medium transition-colors cursor-pointer">
+                  Manage subscription
                 </button>
                 {!cancelled && (
                   <button onClick={onCancelClick} className="text-xs text-ink-soft hover:text-error font-medium transition-colors cursor-pointer">
@@ -720,31 +737,49 @@ function UsageTab({ summary, history, historyCursor, historyLoadingMore, onLoadM
   historyLoadingMore: boolean;
   onLoadMore: () => void;
 }) {
+  const minutesUsed = summary?.totalMinutesUsed ?? 0;
+  const creditsUsed = summary?.totalCreditsUsed ?? 0;
+  const runs = summary?.byTool.reduce((s, t) => s + t.count, 0) ?? 0;
+  // Chart whichever meter was actually used; Clip Minutes win a tie, since
+  // Auto Clip is what most plans are bought for.
+  const chartMinutes = minutesUsed > 0 || creditsUsed === 0;
+  const chartData = (summary?.byDay ?? []).map(d => ({ date: d.date, value: chartMinutes ? d.minutes ?? 0 : d.credits }));
+
   return (
     <div className="space-y-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <StatTile label="Clip Minutes used" value={`${minutesUsed.toLocaleString()} min`} accent="emerald" />
+        <StatTile label="AI credits used" value={creditsUsed.toLocaleString()} accent="blue" />
+        <StatTile label="Runs" value={runs.toLocaleString()} accent="violet" />
+      </div>
+
       <Card className="p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-extrabold text-ink">Usage (last 30 days)</h2>
-          <p className="text-sm font-bold grad-text inline-block">{summary?.totalCreditsUsed ?? 0} credits</p>
+          <h2 className="text-base font-extrabold text-ink">
+            {chartMinutes ? "Clip Minutes" : "AI credits"} · last 30 days
+          </h2>
         </div>
-        <UsageBarChart data={summary?.byDay ?? []} />
+        <UsageBarChart data={chartData} unit={chartMinutes ? { one: "min", many: "min" } : { one: "credit", many: "credits" }} />
       </Card>
 
       <Card className="p-6">
-        <h2 className="text-base font-extrabold text-ink mb-4">Top models</h2>
+        <h2 className="text-base font-extrabold text-ink mb-4">By tool</h2>
         {!summary || summary.byModel.length === 0 ? (
           <p className="text-sm text-ink-soft py-4 text-center">No usage yet — generate something to see a breakdown here.</p>
         ) : (
           <div className="space-y-2">
-            {summary.byModel.slice(0, 8).map(m => (
-              <div key={`${m.toolSlug}-${m.modelId ?? "none"}`} className="flex items-center justify-between py-2 px-3 bg-surface rounded-lg">
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-ink truncate">{m.displayName}</p>
-                  <p className="text-xs text-ink-soft">{m.count} generation{m.count === 1 ? "" : "s"}</p>
+            {summary.byModel.slice(0, 8).map(m => {
+              const cost = costLabel(m);
+              return (
+                <div key={`${m.toolSlug}-${m.modelId ?? "none"}`} className="flex items-center justify-between py-2 px-3 bg-surface rounded-lg">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-ink truncate">{m.displayName}</p>
+                    <p className="text-xs text-ink-soft">{m.count} run{m.count === 1 ? "" : "s"}</p>
+                  </div>
+                  <p className={`text-sm font-bold flex-shrink-0 ${cost.spent ? "text-ink" : "text-ink-soft"}`}>{cost.text}</p>
                 </div>
-                <p className="text-sm font-bold text-ink flex-shrink-0">{m.creditsCost} cr</p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </Card>
@@ -756,18 +791,23 @@ function UsageTab({ summary, history, historyCursor, historyLoadingMore, onLoadM
         ) : (
           <>
             <div className="space-y-2 max-h-96 overflow-y-auto">
-              {history.map(g => (
-                <div key={g.id} className="flex items-center justify-between py-2.5 px-4 bg-surface rounded-xl">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-ink truncate">{g.displayName}</p>
-                    <p className="text-xs text-ink-soft">{formatDate(g.createdAt)}</p>
+              {history.map(g => {
+                const cost = costLabel(g);
+                return (
+                  <div key={g.id} className="flex items-center justify-between py-2.5 px-4 bg-surface rounded-xl">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-ink truncate">{g.displayName}</p>
+                      <p className="text-xs text-ink-soft">{formatDate(g.createdAt)}</p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <StatusBadge status={g.status} />
+                      <span className={`text-xs font-bold ${cost.spent ? "text-ink" : "text-ink-soft"}`}>
+                        {cost.spent ? `−${cost.text}` : cost.text}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <StatusBadge status={g.status} />
-                    <span className="text-xs font-bold text-ink">−{g.creditsCost}</span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
             {historyCursor && (
               <div className="text-center mt-4">

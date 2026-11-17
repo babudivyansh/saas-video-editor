@@ -44,7 +44,7 @@
       "aiTools": "Outils IA",
       "yourProjects": "Vos projets"
     },
-    "planCard": { "manage": "Gérer", "clipMinutes": "Minutes de clip", "aiCredits": "Crédits IA", "minutesValue": "{count} min" },
+    "planCard": { "changePlan": "Changer de plan", "seePlans": "Voir les plans", "clipMinutes": "Minutes de clip", "aiCredits": "Crédits IA", "minutesValue": "{count} min" },
     "corePages": {
       "dashboardHome": { "title": "Accueil du tableau de bord", "desc": "Aperçu, quêtes et démarrage rapide" },
       "myClips": { "title": "Vos projets", "desc": "Tous vos projets AutoClip" },
@@ -170,7 +170,8 @@
     "uid": "UID",
     "copyUid": "Copier l'UID",
     "nickname": "Pseudonyme",
-    "nicknamePlaceholder": "Votre nom",    "saving": "Enregistrement…",
+    "nicknamePlaceholder": "Votre nom",
+    "saving": "Enregistrement…",
     "saveChanges": "Enregistrer les modifications",
     "gender": "Genre",
     "genders": { "male": "Homme", "female": "Femme", "unspecified": "Je préfère ne pas dire" },

@@ -44,7 +44,7 @@
       "aiTools": "AI கருவிகள்",
       "yourProjects": "உங்கள் ப்ராஜெக்ட்கள்"
     },
-    "planCard": { "manage": "நிர்வகி", "clipMinutes": "கிளிப் நிமிடங்கள்", "aiCredits": "AI கிரெடிட்கள்", "minutesValue": "{count} நிமி" },
+    "planCard": { "changePlan": "திட்டத்தை மாற்று", "seePlans": "திட்டங்களைப் பார்", "clipMinutes": "கிளிப் நிமிடங்கள்", "aiCredits": "AI கிரெடிட்கள்", "minutesValue": "{count} நிமி" },
     "corePages": {
       "dashboardHome": { "title": "டாஷ்போர்டு முகப்பு", "desc": "மேலோட்டம், க்வெஸ்ட்கள் & விரைவு தொடக்கம்" },
       "myClips": { "title": "உங்கள் ப்ராஜெக்ட்கள்", "desc": "உங்கள் அனைத்து AutoClip திட்டங்கள்" },
@@ -170,7 +170,8 @@
     "uid": "UID",
     "copyUid": "UID ஐ நகலெடுக்கவும்",
     "nickname": "புனைப்பெயர்",
-    "nicknamePlaceholder": "உங்கள் பெயர்",    "saving": "சேமிக்கப்படுகிறது…",
+    "nicknamePlaceholder": "உங்கள் பெயர்",
+    "saving": "சேமிக்கப்படுகிறது…",
     "saveChanges": "மாற்றங்களைச் சேமிக்கவும்",
     "gender": "பாலினம்",
     "genders": { "male": "ஆண்", "female": "பெண்", "unspecified": "கூற விரும்பவில்லை" },

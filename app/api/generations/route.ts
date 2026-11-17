@@ -1,15 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { IMAGE_MODELS } from "@/lib/models/imageModels";
-
-function resolveDisplayName(modelId: string | null, toolSlug: string): string {
-  if (modelId) {
-    const found = IMAGE_MODELS.find(m => m.id === modelId);
-    if (found) return found.displayName;
-  }
-  return toolSlug.split("-").map(w => w[0].toUpperCase() + w.slice(1)).join(" ");
-}
+import { usageDisplayName, listCreditCost, netMinutesByRefId } from "@/lib/billing/usage";
 
 // Cursor-paginated generation history — this is what fixes the old "−1 credit"
 // display bug (the credits page hardcoded that string regardless of the
@@ -35,15 +27,27 @@ export async function GET(req: NextRequest) {
       creditsCost: true,
       status: true,
       createdAt: true,
+      // Only read to match minute-billed rows to their ledger refId (see
+      // logToolGeneration) — never returned, since it can hold a user prompt.
+      prompt: true,
     },
   });
 
   const hasMore = rows.length > limit;
   const page = hasMore ? rows.slice(0, limit) : rows;
 
-  const generations = page.map(g => ({
+  // A minute-billed run (Auto Clip) logs creditsCost 0 and its ledger refId,
+  // "<toolSlug>:<id>", in `prompt`. Look up what it actually spent in minutes.
+  const refIds = page
+    .map(g => g.prompt)
+    .filter((p, i): p is string => !!p && p.startsWith(`${page[i].toolSlug}:`));
+  const minutes = await netMinutesByRefId(auth.userId, refIds);
+
+  const generations = page.map(({ prompt, ...g }) => ({
     ...g,
-    displayName: resolveDisplayName(g.modelId, g.toolSlug),
+    displayName: usageDisplayName(g.modelId, g.toolSlug),
+    minutesCost: prompt ? minutes.get(prompt) ?? 0 : 0,
+    listCreditCost: listCreditCost(g.toolSlug),
   }));
 
   return NextResponse.json({

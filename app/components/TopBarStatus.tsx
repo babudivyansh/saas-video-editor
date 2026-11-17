@@ -22,7 +22,7 @@ export function TopBarStatus({ before }: { before?: React.ReactNode }) {
       <CreditsPill credits={credits} minutes={minutes} minutesLow={minutesLow} />
       <button
         type="button"
-        onClick={() => openBilling({ tab: hasActivePlan ? "topup" : "overview" })}
+        onClick={() => openBilling(hasActivePlan ? { tab: "topup" } : { view: "plans" })}
         className="h-10 whitespace-nowrap rounded-[10px] border border-line bg-surface-3 px-4 text-sm font-semibold text-fg hover:bg-surface-2 hover:border-fg/20 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
       >
         {t("home.addCredits")}
