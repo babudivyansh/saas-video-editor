@@ -711,7 +711,15 @@ async function selectClips(
   instructions: string,
 ): Promise<GeminiSegment[]> {
   if (durationSec <= MAP_REDUCE_THRESHOLD_SEC || words.length === 0) {
-    return getClipsFromGemini(formatTranscriptForPrompt(words), durationSec, clipCount, minDuration, maxDuration, instructions);
+    const transcript = formatTranscriptForPrompt(words);
+    const first = await getClipsFromGemini(transcript, durationSec, clipCount, minDuration, maxDuration, instructions);
+    if (first.length > 0) return first;
+    // Gemini sometimes answers with nothing usable (an empty array, or only
+    // clips shorter than minDuration) on sparse transcripts such as a music
+    // trailer. A second ask usually works; letting the job retry instead
+    // re-ran transcription as well (CLIPIRO-WEB-10 completed on attempt 2).
+    logger.warn("auto-clip", "Gemini returned no usable clips, asking once more");
+    return getClipsFromGemini(transcript, durationSec, clipCount, minDuration, maxDuration, instructions);
   }
 
   const windows = splitIntoWindows(words, durationSec, MAP_WINDOW_SEC);
@@ -1094,8 +1102,13 @@ export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATT
     // told failed (and refunded for).
     if (aborted) return;
 
-    await prisma.$transaction([
-      ...segments.map((seg, i) => {
+    // One multi-row INSERT, not one create() per clip: every clip row carries
+    // its full transcript + signal track, and N sequential round trips from
+    // Hostinger (Mumbai) to Supabase (Tokyo) ran past Prisma's 5s transaction
+    // timeout on bigger picks, failing the run after all the paid work was
+    // done (Sentry CLIPIRO-WEB-Z). The timeout is raised as well, since a
+    // large pick's payload is still several MB.
+    const clipRows: Prisma.ClipCreateManyInput[] = segments.map((seg, i) => {
         const words = sliceWordsForClip(wordTimings, seg.start, seg.end);
         const hasCaptions = captionStyleIndex >= 0 && words.length > 0;
         const broll = brollPicks[i];
@@ -1116,8 +1129,7 @@ export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATT
         const sub: SubScores = { hook: seg.hook, pacing: seg.pacing, payoff: seg.payoff, engagement: seg.engagement };
         const initialComposite = Math.round((seg.hook + seg.pacing + seg.payoff + seg.engagement) / 4);
 
-        return prisma.clip.create({
-          data: {
+        return {
             projectId,
             index: i,
             title: seg.title,
@@ -1183,9 +1195,11 @@ export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATT
               brollQuery: broll[0].query, brollUrl: broll[0].url,
               brollStartSec: broll[0].startSec, brollEndSec: broll[0].endSec,
             } : {}),
-          },
-        });
-      }),
+        };
+      });
+
+    await prisma.$transaction([
+      prisma.clip.createMany({ data: clipRows }),
       prisma.project.update({
         where: { id: projectId },
         data: {
@@ -1195,8 +1209,8 @@ export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATT
           // A retry that succeeds must not keep showing the previous attempt's error.
           failureReason: null,
         },
-      })
-    ]);
+      }),
+    ], { timeout: 30_000 });
 
     // ── Settle up, then render ────────────────────────────────────────────
     // The create route charged a WORST-CASE estimate before analysis, because
@@ -1235,7 +1249,10 @@ export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATT
     // NonRetryable so no queue retries a job the user was told had failed and
     // been refunded for — a retry would render on money already given back.
     if (aborted) throw new NonRetryableError(err instanceof Error ? err.message : "Analysis stopped");
-    logger.error("auto-clip", `pick failed for ${projectId} (attempt ${ctx.attempt})`, err);
+    const final = ctx.isFinal || err instanceof NonRetryableError;
+    // A non-final attempt is retried by the queue; it pages only if the last
+    // one fails too (see lib/job-queue.ts).
+    (final ? logger.error : logger.warn)("auto-clip", `pick failed for ${projectId} (attempt ${ctx.attempt})`, err);
     // A failed analysis is never billed. Safe on every attempt: the next one
     // takes the analysis charge again before doing any work.
     await refundAnalysis("refund:auto-clip-analysis-failed");
@@ -1243,7 +1260,6 @@ export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATT
     // doesn't accumulate duplicates alongside the ones about to be re-picked.
     await prisma.clip.deleteMany({ where: { projectId, status: "queued" } }).catch(() => {});
 
-    const final = ctx.isFinal || err instanceof NonRetryableError;
     if (final) {
       // The run charge only on the LAST attempt. Refunding it before a retry
       // that then succeeds would render every clip for free.

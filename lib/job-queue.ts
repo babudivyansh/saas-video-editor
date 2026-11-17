@@ -112,7 +112,11 @@ export class InProcessQueue<T> {
         });
         this.completedTotal++;
       } catch (err) {
-        logger.error(this.name, `Job ${job.id} failed`, err);
+        // Only the attempt that ends the job pages. An attempt the retry below
+        // recovers from is a warning — CLIPIRO-WEB-10/-Z were both runs that
+        // completed on attempt 2 but reported an error for attempt 1.
+        const willRetry = !(err instanceof NonRetryableError) && job.retries < this.MAX_RETRIES;
+        (willRetry ? logger.warn : logger.error)(this.name, `Job ${job.id} failed`, err);
         // A video that is too short (or a plan limit, or missing credits) will
         // still be so on attempt two. Retrying costs a full source re-download
         // per attempt and reaches the identical verdict.

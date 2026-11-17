@@ -1,4 +1,5 @@
 import { userMessage, rawErrorText, UserFacingError } from "@/lib/user-facing-error";
+import { postGeminiImage } from "@/lib/gemini-image";
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { getAuthUser } from "@/lib/auth";
@@ -195,42 +196,19 @@ async function handlePOST(req: NextRequest) {
         const key = `generated-images/${auth.userId}/${randomUUID()}.png`;
         imageUrl = await uploadBufferToS3(buffer, key, "image/png", "generated-image.png");
       } else {
-        // gemini-2.5-flash-image occasionally returns 503 "high demand" — retry a
-        // few times with a short backoff before giving up and refunding the credit.
+        // 503s and short rate limits are retried; a daily/free-tier quota is
+        // reported once and refused (lib/gemini-image.ts, CLIPIRO-WEB-W/-V).
         job.progress = 15;
-        let geminiRes: Response | null = null;
-        for (let attempt = 0; attempt < 3; attempt++) {
-          geminiRes = await fetch(
-            // Key in a header, not the URL — URLs end up in proxy and APM logs.
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent",
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY ?? "" },
-              // Image generation is slow but not this slow; a stall fails into the refund path.
-              signal: AbortSignal.timeout(120_000),
-              body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                ...(aspectRatio ? { generationConfig: { imageConfig: { aspectRatio } } } : {}),
-              }),
-            },
-          );
-          if (geminiRes.status !== 503) break;
-          logger.warn("image-generator", `gemini-2.5-flash-image 503 (attempt ${attempt + 1}/3), retrying...`);
-          job.progress = Math.min(70, job.progress + 15);
-          await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
-        }
+        const geminiRes = await postGeminiImage(
+          {
+            contents: [{ parts: [{ text: prompt }] }],
+            ...(aspectRatio ? { generationConfig: { imageConfig: { aspectRatio } } } : {}),
+          },
+          { tag: "image-generator", onRetry: () => { job.progress = Math.min(70, job.progress + 15); } },
+        );
 
         if ((job.status as string) === "cancelled") return;
         job.finalizing = true;
-
-        if (!geminiRes || !geminiRes.ok) {
-          const err = geminiRes ? await geminiRes.text() : "no response";
-          logger.error("image-generator", `gemini-2.5-flash-image error ${geminiRes?.status}`, err);
-          const msg = geminiRes?.status === 503
-            ? "Image service is busy right now. Please try again in a moment."
-            : "Image generation failed. Your credits were refunded — please try again.";
-          throw new UserFacingError(msg);
-        }
 
         job.progress = 75;
         const json = (await geminiRes.json()) as {
@@ -268,7 +246,11 @@ async function handlePOST(req: NextRequest) {
       }
     } catch (err) {
       if ((job.status as string) === "cancelled") return;
-      logger.error("image-generator", "job failed", err);
+      // A UserFacingError is an outcome the user was told about (busy model,
+      // safety refusal, quota) and, where it is ours to fix, was already
+      // reported as an error where it happened — one Sentry issue, not two
+      // (CLIPIRO-WEB-V/-Y duplicated -W/-X).
+      (err instanceof UserFacingError ? logger.warn : logger.error)("image-generator", "job failed", err);
       job.status = "error";
       job.error = userMessage(err, "Image generation failed. Your credits were refunded — please try again.");
       if (!job.refunded) {

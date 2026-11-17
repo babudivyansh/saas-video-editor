@@ -127,3 +127,29 @@ describe("NonRetryableError", () => {
     expect(new NonRetryableError("Video is too short (3.0s)").message).toBe("Video is too short (3.0s)");
   });
 });
+
+describe("InProcessQueue failure logging", () => {
+  it("warns on an attempt that will be retried and errors only on the last (CLIPIRO-WEB-10/-Z)", async () => {
+    const { logger } = await import("@/lib/logger");
+    vi.mocked(logger.warn).mockClear();
+    vi.mocked(logger.error).mockClear();
+    const handler = vi.fn(async () => { throw new Error("transient"); });
+    new InProcessQueue<{ projectId: string }>("test", handler).enqueue("log1", { projectId: "p" });
+    await settle();
+    const failedWarns = vi.mocked(logger.warn).mock.calls.filter((c) => c[1] === "Job log1 failed");
+    const failedErrors = vi.mocked(logger.error).mock.calls.filter((c) => c[1] === "Job log1 failed");
+    expect(failedWarns).toHaveLength(2);
+    expect(failedErrors).toHaveLength(1);
+  });
+
+  it("does not page for an attempt that then succeeds", async () => {
+    const { logger } = await import("@/lib/logger");
+    vi.mocked(logger.error).mockClear();
+    let calls = 0;
+    const handler = vi.fn(async () => { if (++calls === 1) throw new Error("transient"); });
+    new InProcessQueue<{ projectId: string }>("test", handler).enqueue("log2", { projectId: "p" });
+    await settle();
+    expect(handler).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(logger.error).mock.calls.filter((c) => String(c[1]).includes("log2"))).toHaveLength(0);
+  });
+});

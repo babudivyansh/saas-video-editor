@@ -226,7 +226,30 @@ function logFallback(op: string, err: unknown) {
   const last = lastFallbackLog.get(op) ?? 0;
   if (now - last < 60_000) return;
   lastFallbackLog.set(op, now);
+  // Startup grace. Each bundle that imports this module (the proxy has its own)
+  // opens its own connection, and a boot-time handshake can outlast ready()'s
+  // cap: CLIPIRO-WEB-5 regressed 21s after the 2026-11-16 deploy, from the
+  // proxy's maintenance check, which then fell back harmlessly. Before the
+  // first connection ever succeeds, a fallback is a warning; an error is
+  // reported only if Redis is still not connected STARTUP_GRACE_MS after load.
+  if (!everReady && now - moduleLoadedAt < STARTUP_GRACE_MS) {
+    logger.warn("redis", `${op} fell back to memory before the first connection`, err);
+    armStartupCheck();
+    return;
+  }
   logger.error("redis", `${op} failed, using in-memory fallback (throttled: at most one log/min per op)`, err);
+}
+
+const moduleLoadedAt = Date.now();
+const STARTUP_GRACE_MS = 30_000;
+let startupCheckArmed = false;
+function armStartupCheck() {
+  if (startupCheckArmed) return;
+  startupCheckArmed = true;
+  const t = setTimeout(() => {
+    if (!everReady) logger.error("redis", `not connected ${STARTUP_GRACE_MS / 1000}s after start (status: ${client.status}); commands are using the in-memory fallback`);
+  }, Math.max(0, moduleLoadedAt + STARTUP_GRACE_MS - Date.now()));
+  t.unref?.();
 }
 
 // Revoking a session (logout, password reset, admin suspend) must not
