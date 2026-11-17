@@ -10,8 +10,16 @@ vi.mock("@/lib/env", () => ({
   env: { AWS_REGION: "us-east-1", AWS_ACCESS_KEY_ID: "t", AWS_SECRET_ACCESS_KEY: "t", AWS_S3_BUCKET: "b" },
 }));
 
+// A real little key/value store: the "queued behind a running render" slot
+// lives in Redis, and the tests read it back.
+const store = vi.hoisted(() => new Map<string, string>());
 vi.mock("@/lib/redis", () => ({
-  redis: { get: vi.fn(async () => null), set: vi.fn(async () => {}), del: vi.fn(async () => {}) },
+  redis: {
+    get: vi.fn(async (k: string) => store.get(k) ?? null),
+    set: vi.fn(async (k: string, v: string) => { store.set(k, v); }),
+    del: vi.fn(async (k: string) => { store.delete(k); }),
+    getdel: vi.fn(async (k: string) => { const v = store.get(k) ?? null; store.delete(k); return v; }),
+  },
 }));
 
 const enqueue = vi.fn(async () => {});
@@ -91,6 +99,7 @@ const base = () => ({ userId: "user-1", projectId: "project-1", clipId: "clip-1"
 
 beforeEach(() => {
   vi.clearAllMocks();
+  store.clear();
   spendCredits.mockResolvedValue({ ok: true as const, balances: { total: 9 } });
   lastUpdate = null;
   clip = {
@@ -111,6 +120,14 @@ describe("sanitizeCaptionWord", () => {
 });
 
 describe("validation", () => {
+  // The style is merged into the row, so leaving a tweak out kept the old one:
+  // "Reset" on the accent, or the size slider back at 100%, never reached the
+  // render. null is how the panel clears them now.
+  it("accepts null to clear the accent and position back to the template's", async () => {
+    const { subtitleStyleOverrideSchema } = await import("./autoclip-rerender");
+    expect(subtitleStyleOverrideSchema.safeParse({ accent: null, positionY: null, sizeScale: 1 }).success).toBe(true);
+  });
+
   it("bounds the size multiplier", async () => {
     const { subtitleStyleOverrideSchema } = await import("./autoclip-rerender");
     expect(subtitleStyleOverrideSchema.safeParse({ sizeScale: 1e9 }).success).toBe(false);
@@ -208,6 +225,85 @@ describe("requestRerender billing", () => {
     expect(res).toMatchObject({ ok: false, status: 402 });
     expect(enqueue).not.toHaveBeenCalled();
     expect(clip.status).toBe("ready");
+  });
+});
+
+// The clip panel saves every change with one click, so a second change can
+// arrive while the first is still rendering. It used to be refused (409) and
+// silently lost; now it renders right after the current render.
+describe("changes made while the clip is rendering", () => {
+  it("still refuses a concurrent request from a caller that didn't opt in", async () => {
+    const { requestRerender } = await import("./autoclip-rerender");
+    clip.status = "rendering";
+    const res = await requestRerender({ ...base(), patch: {} });
+    expect(res).toMatchObject({ ok: false, status: 409 });
+  });
+
+  it("queues the change instead, without charging or enqueueing anything yet", async () => {
+    const { requestRerender, pendingRerenderKey } = await import("./autoclip-rerender");
+    clip.status = "rendering";
+    clip.rerenderCount = 2;
+    const res = await requestRerender({ ...base(), patch: { subtitleStyleOverride: { templateId: "clean" } }, queueIfBusy: true });
+    expect(res).toMatchObject({ ok: true, deferred: true, creditsCharged: 0 });
+    expect(spendCredits).not.toHaveBeenCalled();
+    expect(enqueue).not.toHaveBeenCalled();
+    expect(JSON.parse(store.get(pendingRerenderKey("clip-1"))!)).toEqual({ subtitleStyleOverride: { templateId: "clean" } });
+    // The pick is on the row straight away, so the panel and a reload show it.
+    expect(lastUpdate).toMatchObject({ subtitleStyleOverride: { templateId: "clean" } });
+    expect(clip.status).toBe("rendering");
+  });
+
+  it("keeps only the newest values when several changes queue up, merging the settings blobs", async () => {
+    const { requestRerender, pendingRerenderKey } = await import("./autoclip-rerender");
+    clip.status = "rendering";
+    await requestRerender({ ...base(), patch: { subtitleStyleOverride: { templateId: "clean", sizeScale: 1.2 } }, queueIfBusy: true });
+    await requestRerender({ ...base(), patch: { silenceSettings: { removeFillers: true } }, queueIfBusy: true });
+    await requestRerender({ ...base(), patch: { subtitleStyleOverride: { templateId: "clean", accent: "#FF0000" } }, queueIfBusy: true });
+    expect(JSON.parse(store.get(pendingRerenderKey("clip-1"))!)).toEqual({
+      subtitleStyleOverride: { templateId: "clean", sizeScale: 1.2, accent: "#FF0000" },
+      silenceSettings: { removeFillers: true },
+    });
+  });
+
+  it("renders the queued change when the running render ends, billed like any other", async () => {
+    const { requestRerender, runPendingRerender, pendingRerenderKey } = await import("./autoclip-rerender");
+    clip.status = "rendering";
+    clip.rerenderCount = 1;
+    await requestRerender({ ...base(), patch: { subtitleStyleOverride: { templateId: "clean" } }, queueIfBusy: true });
+    clip.status = "ready"; // the worker finished
+    const res = await runPendingRerender({ userId: "user-1", projectId: "project-1", clipId: "clip-1" });
+    expect(res).toMatchObject({ ok: true, creditsCharged: 1 });
+    expect(res && "deferred" in res ? res.deferred : undefined).toBeUndefined();
+    expect(enqueue).toHaveBeenCalledTimes(1);
+    expect(store.has(pendingRerenderKey("clip-1"))).toBe(false);
+    // Nothing waiting → nothing to do.
+    expect(await runPendingRerender({ userId: "user-1", projectId: "project-1", clipId: "clip-1" })).toBeNull();
+  });
+
+  it("renders at once if the running render ended before the change was stored", async () => {
+    const { requestRerender } = await import("./autoclip-rerender");
+    const { prisma } = await import("@/lib/prisma");
+    // The claim sees "rendering"; by the re-check the worker has finished.
+    clip.status = "rendering";
+    vi.mocked(prisma.clip.findFirst)
+      .mockImplementationOnce(async () => clip as never)
+      .mockImplementationOnce(async () => { clip.status = "ready"; return clip as never; });
+    const res = await requestRerender({ ...base(), patch: { subtitleStyleOverride: { templateId: "clean" } }, queueIfBusy: true });
+    expect(res).toMatchObject({ ok: true });
+    expect(enqueue).toHaveBeenCalledTimes(1);
+  });
+
+  it("merges two waiting changes key by key, later winning", async () => {
+    const { mergeRerenderPatches } = await import("./autoclip-rerender");
+    expect(mergeRerenderPatches(
+      { startSec: 1, subtitleStyleOverride: { templateId: "a", sizeScale: 1.2 }, liteEdits: { v: 1, speed: 2 } },
+      { startSec: 3, subtitleStyleOverride: { templateId: "b" }, silenceSettings: { removeSilence: true } },
+    )).toEqual({
+      startSec: 3,
+      subtitleStyleOverride: { templateId: "b", sizeScale: 1.2 },
+      silenceSettings: { removeSilence: true },
+      liteEdits: { v: 1, speed: 2 },
+    });
   });
 });
 

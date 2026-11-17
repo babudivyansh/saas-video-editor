@@ -1,13 +1,18 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/app/components/ui/Button";
 import { Switch } from "@/app/components/ui/Switch";
 import { ClipScrubber } from "./ClipScrubber";
 import { clientAuthToken } from "@/lib/client-session";
 
-// The "Edit" tab of the Clip Studio drawer: trim, speed, music bed, fades —
-// and, importantly, a preview of what the render will actually look like
-// BEFORE it is paid for.
+// The "Edit" tab of the clip panel: trim, speed, music bed, fades — and a
+// preview of what the render will actually look like.
+//
+// Every control here takes effect on its own: a click (or letting go of a
+// slider) saves the change and re-renders the clip. There used to be an
+// "Apply Edits" button at the bottom, so every change was set → scroll → apply.
+// Changes made in quick succession are still sent as one request (the parent
+// debounces), so dragging a slider is one render, not twenty.
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
 
@@ -18,33 +23,72 @@ export interface LiteEdits {
   transition?: { fadeInSec?: number; fadeOutSec?: number };
 }
 
-interface StockAudioItem { id: string; title?: string; previewUrl?: string; downloadUrl: string; attribution?: string }
+// The stock search (Jamendo) returns `name`; this read `title`, so every
+// result was listed as "Untitled" and saved as "Selected track".
+interface StockAudioItem { id: string; name?: string; title?: string; previewUrl?: string; downloadUrl: string; durationSec?: number; attribution?: string }
+const trackName = (r: StockAudioItem) => r.name ?? r.title ?? "Untitled";
 export interface PreviewFrame { atSec: number; dataUrl: string }
+
+/** How long to wait after a change before saving it: a click saves fast, a drag waits for the user to settle. */
+export const COMMIT_DELAY = { click: 500, drag: 900 } as const;
 
 export interface LiteEditTabProps {
   projectId: string;
   clipId: string;
-  durationSec: number;
+  /** Length of the clip's window in the SOURCE, seconds (endSec - startSec). Trim works in this. */
+  windowSec: number;
   peaks: number[];
   initial: LiteEdits | null;
-  busy: boolean;
-  isFirstRerenderFree: boolean;
-  onApply: (edits: LiteEdits, trim: { startSec: number; endSec: number } | null) => Promise<void>;
+  /** Price of the next re-render, e.g. "free" or "1 credit". */
+  priceLabel: string;
+  /** Save state of this tab's changes, shown under the controls. */
+  statusText: string | null;
+  error: string | null;
+  /** Called on every change; the parent saves it and re-renders. */
+  onCommit: (edits: LiteEdits, trim: { startSec: number; endSec: number } | null, delayMs: number) => void;
+}
+
+interface State {
+  speed: number;
+  fadeIn: number;
+  fadeOut: number;
+  music: LiteEdits["music"] | undefined;
+  trimStart: number;
+  trimEnd: number;
+}
+
+export function toLiteEdits(s: Pick<State, "speed" | "fadeIn" | "fadeOut" | "music">): LiteEdits {
+  return {
+    v: 1,
+    ...(s.speed !== 1 ? { speed: s.speed } : {}),
+    ...(s.music ? { music: s.music } : {}),
+    ...(s.fadeIn > 0 || s.fadeOut > 0
+      ? { transition: { ...(s.fadeIn > 0 ? { fadeInSec: s.fadeIn } : {}), ...(s.fadeOut > 0 ? { fadeOutSec: s.fadeOut } : {}) } }
+      : {}),
+  };
 }
 
 export function LiteEditTab({
-  projectId, clipId, durationSec, peaks, initial, busy, isFirstRerenderFree, onApply,
+  projectId, clipId, windowSec, peaks, initial, priceLabel, statusText, error: commitError, onCommit,
 }: LiteEditTabProps) {
-  const [speed, setSpeed] = useState(initial?.speed ?? 1);
-  const [fadeIn, setFadeIn] = useState(initial?.transition?.fadeInSec ?? 0);
-  const [fadeOut, setFadeOut] = useState(initial?.transition?.fadeOutSec ?? 0);
-  const [music, setMusic] = useState<LiteEdits["music"] | undefined>(initial?.music);
+  const [s, setS] = useState<State>(() => ({
+    speed: initial?.speed ?? 1,
+    fadeIn: initial?.transition?.fadeInSec ?? 0,
+    fadeOut: initial?.transition?.fadeOutSec ?? 0,
+    music: initial?.music,
+    trimStart: 0,
+    trimEnd: windowSec,
+  }));
 
-  // Trim is expressed against the clip's own timeline, so it always starts at
-  // the full range and is converted back to absolute source time on Apply.
-  const [trimStart, setTrimStart] = useState(0);
-  const [trimEnd, setTrimEnd] = useState(durationSec);
-  const trimmed = trimStart > 0.05 || trimEnd < durationSec - 0.05;
+  // Trim is relative to the clip's window. Once a trim has rendered, the
+  // window itself has moved, so the handles go back to "the whole clip".
+  // (Only the end used to reset, so the start handle stayed where it was and
+  // the next change trimmed the already-trimmed clip again.)
+  const [seenWindow, setSeenWindow] = useState(windowSec);
+  if (seenWindow !== windowSec) {
+    setSeenWindow(windowSec);
+    setS((p) => ({ ...p, trimStart: 0, trimEnd: windowSec }));
+  }
 
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<StockAudioItem[]>([]);
@@ -52,13 +96,34 @@ export function LiteEditTab({
   const [frames, setFrames] = useState<PreviewFrame[] | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => { setTrimEnd(durationSec); }, [durationSec]);
+  // One click to hear a track before using it; there was no way to listen.
+  const [playingId, setPlayingId] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  useEffect(() => () => { audioRef.current?.pause(); }, []);
+  function togglePlay(r: StockAudioItem) {
+    if (!audioRef.current) audioRef.current = new Audio();
+    const a = audioRef.current;
+    if (playingId === r.id) { a.pause(); setPlayingId(null); return; }
+    a.src = r.previewUrl ?? r.downloadUrl;
+    a.onended = () => setPlayingId(null);
+    void a.play().then(() => setPlayingId(r.id)).catch(() => setError("Couldn't play that track."));
+  }
 
   const authHeaders = useCallback((): Record<string, string> => {
     const token = clientAuthToken();
     return token ? { Authorization: `Bearer ${token}` } : {};
   }, []);
+
+  const trimOf = (n: State) =>
+    n.trimStart > 0.05 || n.trimEnd < windowSec - 0.05 ? { startSec: n.trimStart, endSec: n.trimEnd } : null;
+
+  /** Apply a change locally and hand it to the parent to save. */
+  function change(patch: Partial<State>, delayMs: number) {
+    const next = { ...s, ...patch };
+    setS(next);
+    onCommit(toLiteEdits(next), trimOf(next), delayMs);
+    setFrames(null);
+  }
 
   async function searchMusic() {
     if (!query.trim()) return;
@@ -69,6 +134,7 @@ export function LiteEditTab({
       const data = await res.json();
       setResults(Array.isArray(data.items) ? data.items.slice(0, 6) : []);
       if (!res.ok) setError(data.error ?? "Music search is unavailable right now.");
+      else if (!data.items?.length) setError("No tracks matched — try another word.");
     } catch {
       setError("Music search is unavailable right now.");
     } finally {
@@ -80,25 +146,11 @@ export function LiteEditTab({
     setPreviewing(true);
     setError(null);
     try {
-      // The whole point of this button is "see it before you pay for it", but
-      // it used to POST an empty body — so the server rendered from the SAVED
-      // clip and the user previewed the state they already had, not the edits
-      // they were about to buy. Send the pending values.
-      const pending: LiteEdits = {
-        v: 1,
-        ...(speed !== 1 ? { speed } : {}),
-        ...(music ? { music } : {}),
-        ...(fadeIn > 0 || fadeOut > 0
-          ? { transition: { ...(fadeIn > 0 ? { fadeInSec: fadeIn } : {}), ...(fadeOut > 0 ? { fadeOutSec: fadeOut } : {}) } }
-          : {}),
-      };
+      const trim = trimOf(s);
       const res = await fetch(`/api/projects/${projectId}/clips/${clipId}/preview-frames`, {
         method: "POST",
         headers: { ...authHeaders(), "Content-Type": "application/json" },
-        body: JSON.stringify({
-          liteEdits: pending,
-          ...(trimmed ? { startSec: trimStart, endSec: trimEnd } : {}),
-        }),
+        body: JSON.stringify({ liteEdits: toLiteEdits(s), ...(trim ?? {}) }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Preview failed");
@@ -110,71 +162,66 @@ export function LiteEditTab({
     }
   }
 
-  function apply() {
-    const edits: LiteEdits = {
-      v: 1,
-      ...(speed !== 1 ? { speed } : {}),
-      ...(music ? { music } : {}),
-      ...(fadeIn > 0 || fadeOut > 0
-        ? { transition: { ...(fadeIn > 0 ? { fadeInSec: fadeIn } : {}), ...(fadeOut > 0 ? { fadeOutSec: fadeOut } : {}) } }
-        : {}),
-    };
-    return onApply(edits, trimmed ? { startSec: trimStart, endSec: trimEnd } : null);
-  }
+  const shown = error ?? commitError;
 
   return (
     <div className="space-y-6">
+      <p className="rounded-lg bg-surface px-3 py-2 text-[11px] text-ink-soft">
+        Changes apply as you make them and re-render the clip — <span className="font-semibold text-ink">{priceLabel}</span>.
+      </p>
+
       <div>
         <h4 className="text-xs font-bold text-ink uppercase tracking-wider mb-2">Trim</h4>
         <ClipScrubber
           peaks={peaks}
-          durationSec={durationSec}
-          startSec={trimStart}
-          endSec={trimEnd}
-          onChange={({ startSec, endSec }) => { setTrimStart(startSec); setTrimEnd(endSec); }}
-          disabled={busy}
+          durationSec={windowSec}
+          startSec={s.trimStart}
+          endSec={s.trimEnd}
+          onChange={({ startSec, endSec }) => change({ trimStart: startSec, trimEnd: endSec }, COMMIT_DELAY.drag)}
         />
       </div>
 
       <div>
         <h4 className="text-xs font-bold text-ink uppercase tracking-wider mb-2">Speed</h4>
-        <div className="grid grid-cols-6 gap-1.5">
-          {SPEEDS.map((s) => (
+        <div className="grid grid-cols-6 gap-1.5" role="radiogroup" aria-label="Speed">
+          {SPEEDS.map((v) => (
             <button
-              key={s}
+              key={v}
               type="button"
-              disabled={busy}
-              onClick={() => setSpeed(s)}
-              className={`rounded-lg border py-1.5 text-[11px] font-semibold transition-colors disabled:opacity-40 ${
-                speed === s ? "grad-brand text-on-primary shadow-glow border-transparent" : "bg-panel border-card-border text-ink-soft hover:bg-tint-blue"
+              role="radio"
+              aria-checked={s.speed === v}
+              onClick={() => { if (s.speed !== v) change({ speed: v }, COMMIT_DELAY.click); }}
+              className={`rounded-lg border py-1.5 text-[11px] font-semibold transition-colors ${
+                s.speed === v ? "grad-brand text-on-primary shadow-glow border-transparent" : "bg-panel border-card-border text-ink-soft hover:bg-tint-blue"
               }`}
             >
-              {s}×
+              {v}×
             </button>
           ))}
         </div>
-        {speed !== 1 && (
+        {s.speed !== 1 && (
           <p className="text-[10px] text-ink-soft mt-1.5">
-            Clip becomes {(durationSec / speed).toFixed(1)}s. Captions and framing follow automatically.
+            Clip becomes {((s.trimEnd - s.trimStart) / s.speed).toFixed(1)}s. Captions and framing follow automatically.
           </p>
         )}
       </div>
 
       <div>
         <h4 className="text-xs font-bold text-ink uppercase tracking-wider mb-2">Music bed</h4>
-        {music ? (
+        {s.music ? (
           <div className="rounded-lg border border-card-border p-3 space-y-2 bg-panel">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-semibold text-ink truncate">{music.title ?? "Selected track"}</p>
-              <button type="button" onClick={() => setMusic(undefined)} className="text-[11px] text-ink-soft hover:text-ink">Remove</button>
+              <p className="text-xs font-semibold text-ink truncate">{s.music.title ?? "Selected track"}</p>
+              <button type="button" onClick={() => change({ music: undefined }, COMMIT_DELAY.click)} className="text-[11px] text-ink-soft hover:text-ink">Remove</button>
             </div>
             <div className="space-y-1">
               <div className="flex justify-between text-[10px] text-ink-soft">
-                <span>Volume</span><span>{Math.round(music.volume * 100)}%</span>
+                <span>Volume</span><span>{Math.round(s.music.volume * 100)}%</span>
               </div>
               <input
-                type="range" min={0} max={0.6} step={0.02} value={music.volume} disabled={busy}
-                onChange={(e) => setMusic({ ...music, volume: Number(e.target.value) })}
+                type="range" min={0} max={0.6} step={0.02} value={s.music.volume}
+                aria-label="Music volume"
+                onChange={(e) => change({ music: { ...s.music!, volume: Number(e.target.value) } }, COMMIT_DELAY.drag)}
                 className="w-full h-1 bg-surface-3 rounded-lg appearance-none cursor-pointer accent-brand"
               />
             </div>
@@ -183,10 +230,10 @@ export function LiteEditTab({
                 <label className="text-[11px] font-semibold text-ink block">Duck under speech</label>
                 <span className="text-[10px] text-ink-soft">Music drops while someone is talking.</span>
               </div>
-              <Switch checked={music.duck} onChange={(v) => setMusic({ ...music, duck: v })} label="Duck under speech" />
+              <Switch checked={s.music.duck} onChange={(v) => change({ music: { ...s.music!, duck: v } }, COMMIT_DELAY.click)} label="Duck under speech" />
             </div>
             {/* Jamendo's licence requires the artist to be credited. */}
-            {music.attribution && <p className="text-[9px] text-ink-soft/80 leading-tight">{music.attribution}</p>}
+            {s.music.attribution && <p className="text-[9px] text-ink-soft/80 leading-tight">{s.music.attribution}</p>}
           </div>
         ) : (
           <div className="space-y-2">
@@ -196,10 +243,10 @@ export function LiteEditTab({
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") void searchMusic(); }}
                 placeholder="Search music — e.g. upbeat, lo-fi, cinematic"
+                aria-label="Search music"
                 className="flex-1 rounded-lg border border-card-border px-3 py-2 text-xs"
-                disabled={busy}
               />
-              <Button size="sm" onClick={() => void searchMusic()} disabled={busy || searching || !query.trim()}>
+              <Button size="sm" onClick={() => void searchMusic()} disabled={searching || !query.trim()}>
                 {searching ? "…" : "Search"}
               </Button>
             </div>
@@ -207,14 +254,26 @@ export function LiteEditTab({
               <ul className="space-y-1 max-h-40 overflow-y-auto">
                 {results.map((r) => (
                   <li key={r.id} className="flex items-center justify-between gap-2 text-xs border border-card-border rounded-lg px-2 py-1.5 bg-panel">
-                    <span className="truncate">{r.title ?? "Untitled"}</span>
+                    <button
+                      type="button"
+                      onClick={() => togglePlay(r)}
+                      aria-label={`${playingId === r.id ? "Stop" : "Play"} ${trackName(r)}`}
+                      className="w-6 h-6 shrink-0 rounded-full bg-surface-3 text-ink flex items-center justify-center hover:bg-tint-blue"
+                    >
+                      {playingId === r.id ? "■" : "▶"}
+                    </button>
+                    <span className="flex-1 truncate">{trackName(r)}</span>
+                    {r.durationSec ? <span className="text-[10px] text-ink-soft shrink-0">{Math.floor(r.durationSec / 60)}:{String(Math.round(r.durationSec % 60)).padStart(2, "0")}</span> : null}
                     <button
                       type="button"
                       className="text-brand font-semibold shrink-0"
-                      onClick={() => setMusic({
-                        url: r.downloadUrl, title: r.title, attribution: r.attribution,
-                        volume: 0.18, startSec: 0, duck: true,
-                      })}
+                      onClick={() => {
+                        audioRef.current?.pause();
+                        setPlayingId(null);
+                        change({
+                          music: { url: r.downloadUrl, title: trackName(r), attribution: r.attribution, volume: 0.18, startSec: 0, duck: true },
+                        }, COMMIT_DELAY.click);
+                      }}
                     >
                       Use
                     </button>
@@ -229,14 +288,15 @@ export function LiteEditTab({
       <div>
         <h4 className="text-xs font-bold text-ink uppercase tracking-wider mb-2">Fades</h4>
         <div className="grid grid-cols-2 gap-3">
-          {([["In", fadeIn, setFadeIn], ["Out", fadeOut, setFadeOut]] as const).map(([label, value, set]) => (
+          {([["In", "fadeIn"], ["Out", "fadeOut"]] as const).map(([label, key]) => (
             <div key={label} className="space-y-1">
               <div className="flex justify-between text-[10px] text-ink-soft">
-                <span>Fade {label.toLowerCase()}</span><span>{value.toFixed(1)}s</span>
+                <span>Fade {label.toLowerCase()}</span><span>{s[key].toFixed(1)}s</span>
               </div>
               <input
-                type="range" min={0} max={1.5} step={0.1} value={value} disabled={busy}
-                onChange={(e) => set(Number(e.target.value))}
+                type="range" min={0} max={1.5} step={0.1} value={s[key]}
+                aria-label={`Fade ${label.toLowerCase()}`}
+                onChange={(e) => change({ [key]: Number(e.target.value) } as Partial<State>, COMMIT_DELAY.drag)}
                 className="w-full h-1 bg-surface-3 rounded-lg appearance-none cursor-pointer accent-brand"
               />
             </div>
@@ -244,12 +304,11 @@ export function LiteEditTab({
         </div>
       </div>
 
-      {/* Ground-truth preview: the same filter graph the render uses, so the
-          user is not approving something they cannot see. */}
+      {/* Ground-truth preview: the same filter graph the render uses. */}
       <div className="rounded-xl border border-dashed border-card-border p-3 space-y-2">
         <div className="flex items-center justify-between">
           <h4 className="text-xs font-bold text-ink uppercase tracking-wider">Preview</h4>
-          <button type="button" onClick={() => void loadPreview()} disabled={previewing || busy} className="text-xs font-bold text-brand hover:underline disabled:opacity-50">
+          <button type="button" onClick={() => void loadPreview()} disabled={previewing} className="text-xs font-bold text-brand hover:underline disabled:opacity-50">
             {previewing ? "Rendering…" : frames ? "Refresh" : "Show me"}
           </button>
         </div>
@@ -267,18 +326,8 @@ export function LiteEditTab({
         )}
       </div>
 
-      {error && <p className="text-xs text-error">{error}</p>}
-
-      <div className="space-y-1.5">
-        <Button onClick={() => void apply()} disabled={busy} className="w-full">
-          {busy ? "Saving & Rendering..." : "Apply Edits"}
-        </Button>
-        <p className="text-[11px] text-ink-soft text-center">
-          {isFirstRerenderFree
-            ? "Your first re-render of this clip is free."
-            : "Applying re-renders this clip (1 credit). All changes above are applied together."}
-        </p>
-      </div>
+      {shown && <p role="alert" className="text-xs text-error">{shown}</p>}
+      {statusText && <p role="status" aria-live="polite" className="text-[11px] text-ink-soft text-center">{statusText}</p>}
     </div>
   );
 }

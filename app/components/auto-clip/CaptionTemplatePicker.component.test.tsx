@@ -50,8 +50,6 @@ describe("CaptionTweakControls", () => {
     onSizeScaleChange: vi.fn(),
     positionY: 50,
     onPositionYChange: vi.fn(),
-    applyToAll: false,
-    onApplyToAllChange: vi.fn(),
   };
 
   it("shows the template's accent until the user picks their own, and can reset it", async () => {
@@ -79,8 +77,18 @@ describe("CaptionTweakControls", () => {
     expect(screen.getByLabelText("Position")).toHaveAttribute("max", "80");
   });
 
-  it("states that apply-to-all does not render anything", () => {
-    render(<CaptionTweakControls {...base} />);
-    expect(screen.getByText(/without re-rendering them, so it costs nothing now/)).toBeInTheDocument();
+  it("copies the style to the other clips in ONE click, and says it renders nothing", async () => {
+    const onApplyToAll = vi.fn();
+    const { rerender } = render(<CaptionTweakControls {...base} otherClipCount={4} onApplyToAll={onApplyToAll} />);
+    expect(screen.getByText(/without re-rendering, so it costs nothing now/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Use this style on the other 4 clips" }));
+    expect(onApplyToAll).toHaveBeenCalledTimes(1);
+    rerender(<CaptionTweakControls {...base} otherClipCount={4} onApplyToAll={onApplyToAll} applyToAllState="done" />);
+    expect(screen.getByRole("button", { name: /Style copied to 4 other clips/ })).toBeInTheDocument();
+  });
+
+  it("hides apply-to-all for a clip with no siblings", () => {
+    render(<CaptionTweakControls {...base} otherClipCount={0} onApplyToAll={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: /Use this style/ })).not.toBeInTheDocument();
   });
 });

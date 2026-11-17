@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Button } from "@/app/components/ui/Button";
-import { Switch } from "@/app/components/ui/Switch";
 import CaptionTemplateGallery from "@/app/components/captions/CaptionTemplateGallery";
 import { useUpgradePrompt } from "@/app/components/captions/useUpgradePrompt";
 import { clientAuthToken } from "@/lib/client-session";
@@ -48,8 +47,11 @@ export interface CaptionTweakControlsProps {
   /** Block centre, % of frame height (15–85). */
   positionY: number;
   onPositionYChange: (y: number) => void;
-  applyToAll: boolean;
-  onApplyToAllChange: (on: boolean) => void;
+  /** How many other clips in the run "Use on all" would copy to (0 hides it). */
+  otherClipCount?: number;
+  /** One click: copy this style to the run's other clips. */
+  onApplyToAll?: () => void;
+  applyToAllState?: "idle" | "saving" | "done" | "error";
   disabled?: boolean;
 }
 
@@ -58,7 +60,7 @@ export function CaptionTweakControls({
   accent, templateAccent, onAccentChange,
   sizeScale, onSizeScaleChange,
   positionY, onPositionYChange,
-  applyToAll, onApplyToAllChange,
+  otherClipCount = 0, onApplyToAll, applyToAllState = "idle",
   disabled,
 }: CaptionTweakControlsProps) {
   const shown = (accent ?? templateAccent).slice(0, 7);
@@ -129,18 +131,29 @@ export function CaptionTweakControls({
         </div>
       </div>
 
-      <div className="border-t border-card-border pt-3">
-        <Switch
-          checked={applyToAll}
-          onChange={onApplyToAllChange}
-          label="Apply this style to every clip in this run"
-          disabled={disabled}
-        />
-        <p className="text-[10px] text-ink-soft mt-1">
-          Saves this style on the other clips without re-rendering them, so it costs nothing now.
-          Each one shows the new style after its next re-render.
-        </p>
-      </div>
+      {onApplyToAll && otherClipCount > 0 && (
+        <div className="border-t border-card-border pt-3">
+          {/* One click. This was a switch that did nothing until a separate
+              "Apply caption style" button was pressed. */}
+          <button
+            type="button"
+            onClick={onApplyToAll}
+            disabled={disabled || applyToAllState === "saving"}
+            className="w-full rounded-lg border border-card-border bg-panel px-3 py-2 text-xs font-semibold text-ink hover:bg-tint-blue disabled:opacity-50"
+          >
+            {applyToAllState === "saving"
+              ? "Copying…"
+              : applyToAllState === "done"
+                ? `✓ Style copied to ${otherClipCount} other clip${otherClipCount === 1 ? "" : "s"}`
+                : `Use this style on the other ${otherClipCount} clip${otherClipCount === 1 ? "" : "s"}`}
+          </button>
+          <p className="text-[10px] text-ink-soft mt-1">
+            {applyToAllState === "error"
+              ? "Couldn't copy the style to every clip — try again."
+              : "Saves the style on them without re-rendering, so it costs nothing now. Each shows it after its next re-render."}
+          </p>
+        </div>
+      )}
     </div>
   );
 }

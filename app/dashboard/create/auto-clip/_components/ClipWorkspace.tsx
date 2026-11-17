@@ -1,9 +1,12 @@
 "use client";
 // Split out of ../page.tsx (stage 7 of the AutoClip audit) — moved, not rewritten.
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useReducer, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { ReframeAndCutsControls } from "@/app/components/auto-clip/ReframeAndCutsControls";
 import { LiteEditTab, type LiteEdits } from "@/app/components/auto-clip/LiteEditTab";
+import { ClipCaptionPreview } from "@/app/components/auto-clip/ClipCaptionPreview";
+import { mediaPath, renderWaitReducer, rerenderPriceLabel, type CropKeyframe } from "@/app/components/auto-clip/clipPanelLogic";
+import { useCommitQueue, type CommitQueueHandle } from "@/app/components/auto-clip/useCommitQueue";
 import { CaptionTemplatePicker, CaptionTweakControls, TranslateCaptions } from "@/app/components/auto-clip/CaptionTemplatePicker";
 import { resolveCaptionTemplate, resolveTemplateId } from "@clipiro/shared/caption-templates";
 import { templateIdForIndex } from "@/lib/captions/legacyStyleIndex";
@@ -12,7 +15,7 @@ import { Button } from "@/app/components/ui/Button";
 import { hexToASS, assToHex } from "@/lib/ass-color";
 import { RelatedSection, RelatedRail, RelatedList, RelatedEmpty, RelatedLoading, SourceWindowBar, fmtDuration } from "@/app/components/related/RelatedContent";
 import type { ClipRelated } from "@/lib/related-content";
-import { IcChevronLeft, IcChevronRight, IcPlay, apiFetch, ClipItem, ScoreBreakdownWithInsights, InsightRow, RerenderCostNote, scoreBand, arCss, ASPECTS } from "./shared";
+import { IcChevronLeft, IcChevronRight, IcPlay, ApiError, apiFetch, ClipItem, ScoreBreakdownWithInsights, InsightRow, scoreBand, arCss, ASPECTS } from "./shared";
 import { EditInEditorButton, DubPanel, PublishPanel } from "./ClipActions";
 
 export type WorkspaceTab = "edit" | "captions" | "reframe" | "insights" | "transcript" | "publish" | "related";
@@ -105,6 +108,22 @@ export function RelatedForClip({
   );
 }
 
+/**
+ * Download, one click — except while the clip is re-rendering with a change
+ * the user just made, when the file on the server is still the OLD version.
+ * It said "Download" throughout and handed over the previous render.
+ */
+function DownloadLink({ href, pending, className, children }: { href: string; pending: boolean; className: string; children: React.ReactNode }) {
+  if (pending) {
+    return (
+      <span role="link" aria-disabled="true" title="Your latest change is still rendering" className={`${className} opacity-60 cursor-wait`}>
+        Rendering…
+      </span>
+    );
+  }
+  return <a href={href} download className={className}>{children}</a>;
+}
+
 // ── Clip Workspace (ready clips) — full-screen, video hero + contextual tools ─
 export function ClipWorkspace({
   projectId, clip, transcriptionFailed, initialTab, expandOrigin,
@@ -123,7 +142,7 @@ export function ClipWorkspace({
   const [tab, setTab] = useState<WorkspaceTab>(initialTab);
   const [panelOpen, setPanelOpen] = useState(true);
   const [playing, setPlaying] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<"idle" | "copied" | "failed">("idle");
   const [detailOpen, setDetailOpen] = useState(false);
 
   // A modal dialog in behaviour, not just in looks. It covered the whole
@@ -174,8 +193,30 @@ export function ClipWorkspace({
     queryFn: () => apiFetch<{ kits: BrandKit[] }>("/api/brand-kits"),
   });
   const brandKits = brandKitsQuery.data?.kits ?? [];
-  const [namingKit, setNamingKit] = useState(false);
-  const [newKitName, setNewKitName] = useState("");
+
+  // ── One-click editing ────────────────────────────────────────────────────
+  // Every control in this panel takes effect on its own: it saves and starts
+  // the re-render. There used to be an Apply button at the foot of the
+  // Captions, Reframe and Edit tabs, and a caption template did nothing
+  // visible until it was pressed. Three queues (one per tab) debounce bursts
+  // and send in order; a change that lands while the clip is rendering is
+  // queued server-side and renders right after (lib/autoclip-rerender.ts).
+  const [renderWait, dispatchRenderWait] = useReducer(renderWaitReducer, { left: 0, path: null });
+  const onCommitted = useCallback((r: { deferred: boolean }) => {
+    dispatchRenderWait({ type: "committed", deferred: r.deferred });
+    onChanged();
+  }, [onChanged]);
+  const captionQ = useCommitQueue(onCommitted);
+  const reframeQ = useCommitQueue(onCommitted);
+  const editQ = useCommitQueue(onCommitted);
+  const clipPath = mediaPath(clip.videoUrl);
+  useEffect(() => {
+    dispatchRenderWait({ type: "clip", path: clipPath, status: clip.status });
+  }, [clipPath, clip.status]);
+  const sendRender = async (url: string, method: "PUT" | "POST", body: unknown) => {
+    const r = await apiFetch<{ status?: string }>(url, { method, body: JSON.stringify(body) });
+    return { deferred: r.status === "queued_next" };
+  };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const override = (clip.subtitleStyleOverride as any) ?? {};
@@ -192,46 +233,110 @@ export function ClipWorkspace({
   const [positionY, setPositionY] = useState<number | null>(typeof override.positionY === "number" ? override.positionY : null);
   const faceY = typeof override.captionPositionY === "number" ? override.captionPositionY : null;
   const shownPositionY = positionY ?? (template.placement.y === "low" ? 68 : template.placement.y === "high" ? 25 : Math.round(faceY ?? 50));
+  // What the render will use: an explicit position, else face-aware for centred templates (clip-captions.ts).
+  const renderPositionY = positionY ?? (template.placement.y === "mid" ? faceY : null);
   const [captionsOn, setCaptionsOn] = useState(clip.hasCaptions);
-  const [applyToAll, setApplyToAll] = useState(false);
+  // Set by any caption change; the stage shows the live preview until the
+  // render carrying it lands.
+  const [captionTouched, setCaptionTouched] = useState(false);
+
+  interface CaptionValues { templateId: string; accent: string | null; sizeScale: number; positionY: number | null; captionsOn: boolean }
+  const captionValues = (): CaptionValues => ({ templateId, accent, sizeScale, positionY, captionsOn });
+  /** The whole caption style, explicitly — null clears a tweak (the server merges). */
+  const styleBody = (v: CaptionValues) => ({ templateId: v.templateId, accent: v.accent, sizeScale: v.sizeScale, positionY: v.positionY });
+  function commitCaptions(patch: Partial<CaptionValues>, delayMs: number) {
+    const v = { ...captionValues(), ...patch };
+    if (patch.templateId !== undefined) setTemplateId(v.templateId);
+    if ("accent" in patch) setAccent(v.accent);
+    if (patch.sizeScale !== undefined) setSizeScale(v.sizeScale);
+    if ("positionY" in patch) setPositionY(v.positionY);
+    if (patch.captionsOn !== undefined) setCaptionsOn(v.captionsOn);
+    setCaptionTouched(true);
+    setCopiedToAll("idle");
+    const idx = v.captionsOn ? (clip.captionStyleIndex != null && clip.captionStyleIndex >= 0 ? clip.captionStyleIndex : 0) : -1;
+    const url = `/api/projects/${projectId}/clips/${clip.id}/style`;
+    captionQ.schedule(async () => {
+      try {
+        return await sendRender(url, "PUT", { captionStyleIndex: idx, subtitleStyleOverride: styleBody(v) });
+      } catch (e) {
+        // The daily fair-use cap on free re-renders: keep the pick anyway
+        // (saving a style never renders or charges) and say what that means.
+        if (e instanceof ApiError && e.status === 429 && /re-rendered this clip/i.test(e.message)) {
+          await apiFetch(url, { method: "PUT", body: JSON.stringify({ subtitleStyleOverride: styleBody(v), render: false }) });
+          throw new Error(`Style saved but not rendered: ${e.message} Downloads keep the previous version until it re-renders.`);
+        }
+        throw e;
+      }
+    }, delayMs);
+  }
+
+  // "Use on all": copies the STYLE to the sibling clips and nothing more. It
+  // deliberately does not render them — re-rendering twenty clips nobody asked
+  // to re-render would be a surprise; each picks the style up on its next
+  // re-render. One click (it was a switch that waited for "Apply").
+  const [copiedToAll, setCopiedToAll] = useState<"idle" | "saving" | "done" | "error">("idle");
+  async function applyStyleToAll() {
+    setCopiedToAll("saving");
+    const results = await Promise.allSettled(
+      siblingClipIds.map((id) =>
+        apiFetch(`/api/projects/${projectId}/clips/${id}/style`, {
+          method: "PUT",
+          body: JSON.stringify({ subtitleStyleOverride: styleBody(captionValues()), render: false }),
+        }),
+      ),
+    );
+    setCopiedToAll(results.every((r) => r.status === "fulfilled") ? "done" : "error");
+    onChanged();
+  }
 
   function applyBrandKit(kit: BrandKit) {
-    if (kit.captionTemplateId) setTemplateId(resolveTemplateId(kit.captionTemplateId));
-    if (kit.highlightColor) setAccent(assToHex(kit.highlightColor).toUpperCase());
+    commitCaptions({
+      ...(kit.captionTemplateId ? { templateId: resolveTemplateId(kit.captionTemplateId) } : {}),
+      ...(kit.highlightColor ? { accent: assToHex(kit.highlightColor).toUpperCase() } : {}),
+    }, 300);
   }
+  // One click, named after what it holds; it used to open a name field with
+  // its own Save and Cancel.
+  const kitName = `${template.name}${accent ? ` · ${accent}` : ""}`;
   const saveBrandKitMutation = useMutation({
     mutationFn: () =>
       apiFetch<{ kit: BrandKit }>("/api/brand-kits", {
         method: "POST",
         body: JSON.stringify({
-          name: newKitName.trim(),
+          name: kitName.slice(0, 60),
           captionTemplateId: templateId,
           highlightColor: hexToASS(accent ?? template.colors.accent.slice(0, 7)),
         }),
       }),
-    onSuccess: () => {
-      setNamingKit(false);
-      setNewKitName("");
-      brandKitsQuery.refetch();
-    },
+    onSuccess: () => { brandKitsQuery.refetch(); },
   });
-  function handleSaveBrandKit() {
-    if (!newKitName.trim()) return;
-    saveBrandKitMutation.mutate();
-  }
 
   // Audio cuts / reframe.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const silence = (clip.silenceSettings as any) ?? {};
-  const [removeSilence, setRemoveSilence] = useState((silence.removeSilence as boolean) ?? false);
-  const [silenceThresholdMs, setSilenceThresholdMs] = useState((silence.silenceThresholdMs as number) ?? 400);
-  const [removeFillers, setRemoveFillers] = useState((silence.removeFillers as boolean) ?? false);
-  const [reframingPreset, setReframingPreset] = useState((silence.reframingPreset as string) ?? "balanced");
-  const [smartAutoReframe, setSmartAutoReframe] = useState((silence.smartAutoReframe as boolean) ?? true);
-  const [zoomStrength, setZoomStrength] = useState((silence.zoomStrength as string) ?? "medium");
-  const [speakerMode, setSpeakerMode] = useState((silence.speakerMode as string) ?? "auto");
-  const [smoothness, setSmoothness] = useState((silence.smoothness as number) ?? 50);
-  const [trackingSpeed, setTrackingSpeed] = useState((silence.trackingSpeed as number) ?? 50);
+  const [reframe, setReframe] = useState(() => ({
+    removeSilence: (silence.removeSilence as boolean) ?? false,
+    silenceThresholdMs: (silence.silenceThresholdMs as number) ?? 400,
+    removeFillers: (silence.removeFillers as boolean) ?? false,
+    reframingPreset: (silence.reframingPreset as string) ?? "balanced",
+    smartAutoReframe: (silence.smartAutoReframe as boolean) ?? true,
+    zoomStrength: (silence.zoomStrength as string) ?? "medium",
+    speakerMode: (silence.speakerMode as string) ?? "auto",
+    smoothness: (silence.smoothness as number) ?? 50,
+    trackingSpeed: (silence.trackingSpeed as number) ?? 50,
+  }));
+  type ReframeState = typeof reframe;
+  /** A reframe/audio setter that also saves and re-renders. Sliders wait for the drag to settle. */
+  function reframeSetter<K extends keyof ReframeState>(key: K, delayMs = 500) {
+    return (value: ReframeState[K]) => {
+      const next = { ...reframe, [key]: value };
+      setReframe(next);
+      reframeQ.schedule(
+        () => sendRender(`/api/projects/${projectId}/clips/${clip.id}/style`, "PUT", { silenceSettings: next }),
+        delayMs,
+      );
+    };
+  }
 
   // Transcript (fetched on open — clips list omits transcriptJson).
   // `speaker` is carried even though nothing here renders it: the save
@@ -241,8 +346,14 @@ export function ClipWorkspace({
   interface WordTimingInfo { word: string; start: number; end: number; speaker?: string }
   const transcriptQuery = useQuery({
     queryKey: ["auto-clip-transcript", projectId, clip.id],
-    queryFn: () => apiFetch<{ detail?: { transcriptJson: WordTimingInfo[] | null } }>(`/api/projects/${projectId}/clips?clipId=${encodeURIComponent(clip.id)}`),
+    queryFn: () => apiFetch<{
+      project?: { uploadedVideoUrl: string | null };
+      detail?: { transcriptJson: WordTimingInfo[] | null; cropKeyframes: CropKeyframe[] | null; rerenderCost: number };
+    }>(`/api/projects/${projectId}/clips?clipId=${encodeURIComponent(clip.id)}`),
   });
+  const detail = transcriptQuery.data?.detail;
+  const sourceUrl = transcriptQuery.data?.project?.uploadedVideoUrl ?? null;
+  const priceLabel = rerenderPriceLabel(clip.rerenderCount, detail ? detail.rerenderCost : null);
   const [localWords, setLocalWords] = useState<WordTimingInfo[]>([]);
   // Seed the editable draft once the fetch lands, then leave it alone — a
   // background refetch (e.g. window refocus) must not clobber in-progress
@@ -267,56 +378,20 @@ export function ClipWorkspace({
   const [saving, setSaving] = useState(false);
   const [saveErr, setSaveErr] = useState<string | null>(null);
 
-  async function handleSaveStyleOrCuts() {
-    setSaving(true); setSaveErr(null);
-    try {
-      const subtitleStyleOverride = {
-        templateId,
-        ...(accent ? { accent } : {}),
-        ...(sizeScale !== 1 ? { sizeScale } : {}),
-        ...(positionY != null ? { positionY } : {}),
-      };
-
-      await apiFetch(`/api/projects/${projectId}/clips/${clip.id}/style`, {
-        method: "PUT",
-        body: JSON.stringify({
-          captionStyleIndex: captionsOn ? (clip.captionStyleIndex != null && clip.captionStyleIndex >= 0 ? clip.captionStyleIndex : 0) : -1,
-          subtitleStyleOverride,
-          silenceSettings: { removeSilence, silenceThresholdMs, removeFillers, reframingPreset, smartAutoReframe, zoomStrength, speakerMode, smoothness, trackingSpeed },
-        }),
-      });
-
-      // "Apply to all" copies the STYLE to the sibling clips and nothing more.
-      // It deliberately does not trigger a render on any of them: re-rendering
-      // twenty clips nobody asked to re-render would be a surprise. The
-      // siblings pick the style up on their next re-render.
-      if (applyToAll && siblingClipIds.length > 0) {
-        await Promise.allSettled(
-          siblingClipIds.map((id) =>
-            apiFetch(`/api/projects/${projectId}/clips/${id}/style`, {
-              method: "PUT",
-              // render:false — the server now honours what this comment always
-              // promised. Without it every sibling was a charged re-render.
-              body: JSON.stringify({ subtitleStyleOverride, render: false }),
-            }),
-          ),
-        );
-      }
-
-      onChanged();
-    } catch (e: unknown) {
-      setSaveErr(e instanceof Error ? e.message : "An error occurred");
-    } finally { setSaving(false); }
+  /** Edit tab: absolute trim points are fixed NOW, against the window the user was looking at. */
+  function commitLiteEdits(edits: LiteEdits, trim: { startSec: number; endSec: number } | null, delayMs: number) {
+    const window = trim ? { startSec: clip.startSec + trim.startSec, endSec: clip.startSec + trim.endSec } : {};
+    editQ.schedule(
+      () => sendRender(`/api/projects/${projectId}/clips/${clip.id}/lite`, "PUT", { liteEdits: edits, ...window }),
+      delayMs,
+    );
   }
 
-  async function handleApplyLiteEdits(edits: LiteEdits, trim: { startSec: number; endSec: number } | null) {
+  /** Aspect ratio, transcript: already one click each; same wait-for-render bookkeeping. */
+  async function oneShot(url: string, method: "PUT" | "POST", body: unknown) {
     setSaving(true); setSaveErr(null);
     try {
-      await apiFetch(`/api/projects/${projectId}/clips/${clip.id}/lite`, {
-        method: "PUT",
-        body: JSON.stringify({ liteEdits: edits, ...(trim ? { startSec: clip.startSec + trim.startSec, endSec: clip.startSec + trim.endSec } : {}) }),
-      });
-      onChanged();
+      onCommitted(await sendRender(url, method, body));
     } catch (e: unknown) {
       setSaveErr(e instanceof Error ? e.message : "An error occurred");
     } finally { setSaving(false); }
@@ -324,26 +399,13 @@ export function ClipWorkspace({
 
   async function handleChangeAspect(aspectRatio: "9:16" | "16:9" | "1:1") {
     if (aspectRatio === clip.aspectRatio) return;
-    setSaving(true); setSaveErr(null);
-    try {
-      await apiFetch(`/api/projects/${projectId}/clips/${clip.id}/rerender`, {
-        method: "POST",
-        body: JSON.stringify({ aspectRatio }),
-      });
-      onChanged();
-    } catch (e: unknown) {
-      setSaveErr(e instanceof Error ? e.message : "An error occurred");
-    } finally { setSaving(false); }
+    await oneShot(`/api/projects/${projectId}/clips/${clip.id}/rerender`, "POST", { aspectRatio });
   }
 
   async function handleSaveTranscript() {
-    setSaving(true); setSaveErr(null);
-    try {
-      await apiFetch(`/api/projects/${projectId}/clips/${clip.id}/transcript`, { method: "PUT", body: JSON.stringify({ transcript: localWords }) });
-      onChanged();
-    } catch (e: unknown) {
-      setSaveErr(e instanceof Error ? e.message : "An error occurred");
-    } finally { setSaving(false); }
+    // Corrected words show on the clip at once while the render runs.
+    if (captionsOn) setCaptionTouched(true);
+    await oneShot(`/api/projects/${projectId}/clips/${clip.id}/transcript`, "PUT", { transcript: localWords });
   }
 
   const bd = clip.scoreBreakdown as unknown as ScoreBreakdownWithInsights | null;
@@ -353,10 +415,15 @@ export function ClipWorkspace({
   const caption = bd?.suggestedCaption ?? null;
   const hashtags = Array.isArray(bd?.hashtags) ? bd.hashtags.join(" ") : "";
   const hasPostCopy = !!caption || !!hashtags;
-  function copySocial() {
-    navigator.clipboard.writeText([caption, hashtags].filter(Boolean).join("\n\n"));
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  // Awaited: it said "Copied!" even when the browser refused the write.
+  async function copySocial() {
+    try {
+      await navigator.clipboard.writeText([caption, hashtags].filter(Boolean).join("\n\n"));
+      setCopied("copied");
+    } catch {
+      setCopied("failed");
+    }
+    setTimeout(() => setCopied("idle"), 2000);
   }
 
   // Every sub-score the pipeline actually stores, including the three measured
@@ -370,6 +437,23 @@ export function ClipWorkspace({
 
   const band = scoreBand(clip.score);
   const isRendering = clip.status === "rendering" || clip.status === "queued";
+  // The file on screen (and the one Download gives) doesn't have the latest
+  // change yet.
+  const renderPending = captionQ.busy || reframeQ.busy || editQ.busy || saving || renderWait.left > 0 || isRendering;
+  const livePreview = captionTouched && (captionQ.busy || renderWait.left > 0 || isRendering);
+  if (captionTouched && !livePreview) {
+    // The render with the new style has landed: play it.
+    setCaptionTouched(false);
+    setPlaying(true);
+  }
+  const renderProgress = clip.status === "rendering" ? `Rendering… ${clip.progress}%` : "Queued to render…";
+  /** One status line per tab: saving, then rendering, then nothing. */
+  function statusFor(q: CommitQueueHandle): string | null {
+    if (q.status === "waiting" || q.status === "saving") return "Saving…";
+    if (isRendering || renderWait.left > 0) return renderProgress;
+    return null;
+  }
+  const previewStatus = captionQ.busy ? "Live preview · saving…" : `Live preview · ${renderProgress.toLowerCase()}`;
   const TABS: { id: WorkspaceTab; label: string }[] = [
     { id: "edit", label: "Edit" }, { id: "captions", label: "Captions" }, { id: "reframe", label: "Reframe" },
     { id: "insights", label: "Insights" }, { id: "transcript", label: "Transcript" },
@@ -395,12 +479,18 @@ export function ClipWorkspace({
           <span className="hidden md:block text-xs text-ink-soft/70">Esc to close</span>
           {/* Hidden on phones: the tools panel's footer has the same button,
               and two crowded a 375px header. */}
-          <a href={`/api/projects/${projectId}/clips/${clip.id}/download`} download className="hidden md:inline-block text-[13px] font-semibold px-3.5 py-2 rounded-lg border border-card-border bg-panel text-ink hover:bg-tint-blue transition-colors">Download</a>
+          <DownloadLink href={`/api/projects/${projectId}/clips/${clip.id}/download`} pending={renderPending} className="hidden md:inline-block text-[13px] font-semibold px-3.5 py-2 rounded-lg border border-card-border bg-panel text-ink hover:bg-tint-blue transition-colors">Download</DownloadLink>
         </div>
 
         {/* Body: stage + tools panel */}
         <div className="flex-1 relative overflow-hidden" style={{ background: "var(--bg)" }}>
-          {isRendering && (
+          {clip.status === "failed" && (
+            <div role="alert" className="absolute left-4 right-4 top-4 z-30 rounded-xl border border-error/40 bg-panel/95 px-4 py-3 text-[12.5px] text-fg">
+              <span className="font-semibold text-error">Your last change didn&apos;t render.</span>{" "}
+              {clip.failureReason ?? "Try it again."} The video shown is the previous version.
+            </div>
+          )}
+          {isRendering && !livePreview && (
             <div role="status" aria-live="polite" className="absolute inset-0 z-30 bg-black/50 backdrop-blur-[1px] flex flex-col items-center justify-center gap-3">
               <div className="w-10 h-10 border-[3.5px] border-white/25 border-t-white rounded-full animate-spin" />
               <p className="text-sm font-semibold text-white">Applying changes…</p>
@@ -410,7 +500,23 @@ export function ClipWorkspace({
           <div className={panelOpen ? "ac-stage ac-stage-open" : "ac-stage"} style={{ padding: "20px 24px" }}>
             <div className="flex-1 min-h-0 flex items-center justify-center">
               <div className="ac-pop relative h-full flex items-center justify-center">
-                {playing && clip.videoUrl ? (
+                {livePreview ? (
+                  <ClipCaptionPreview
+                    sourceUrl={sourceUrl}
+                    renderedUrl={clip.videoUrl}
+                    startSec={clip.startSec}
+                    endSec={clip.endSec}
+                    aspectCss={arCss(clip.aspectRatio)}
+                    cropKeyframes={detail?.cropKeyframes ?? null}
+                    words={localWords}
+                    template={template}
+                    captionsOn={captionsOn}
+                    accent={accent}
+                    sizeScale={sizeScale}
+                    positionY={renderPositionY}
+                    status={previewStatus}
+                  />
+                ) : playing && clip.videoUrl ? (
                   <video src={clip.videoUrl} controls autoPlay className="h-full max-h-full rounded-2xl bg-black" style={{ aspectRatio: arCss(clip.aspectRatio) }} />
                 ) : (
                   <button
@@ -478,50 +584,63 @@ export function ClipWorkspace({
                     <LiteEditTab
                       projectId={projectId}
                       clipId={clip.id}
-                      durationSec={clip.durationSec}
+                      windowSec={clip.endSec - clip.startSec}
                       peaks={clip.audioPeaks ?? []}
                       initial={clip.liteEdits}
-                      busy={saving}
-                      isFirstRerenderFree={clip.rerenderCount === 0}
-                      onApply={handleApplyLiteEdits}
+                      priceLabel={priceLabel}
+                      statusText={statusFor(editQ)}
+                      error={editQ.error}
+                      onCommit={commitLiteEdits}
                     />
                   </div>
                 )}
 
                 {tab === "captions" && (
                   <div className="ac-panel-in space-y-5">
-                    <CaptionTemplatePicker value={templateId} onChange={setTemplateId} disabled={saving} />
+                    <p className="rounded-lg bg-surface px-3 py-2 text-[11px] text-ink-soft">
+                      Click a style to see it on the clip straight away. It saves and re-renders by itself — <span className="font-semibold text-ink">{priceLabel}</span>.
+                    </p>
+                    {(captionQ.error || statusFor(captionQ)) && (
+                      <p role={captionQ.error ? "alert" : "status"} aria-live="polite" className={`text-[11.5px] font-semibold ${captionQ.error ? "text-error" : "text-brand"}`}>
+                        {captionQ.error ?? statusFor(captionQ)}
+                      </p>
+                    )}
+                    <CaptionTemplatePicker value={templateId} onChange={(id) => commitCaptions({ templateId: id }, 600)} />
 
                     <CaptionTweakControls
                       accent={accent}
                       templateAccent={template.colors.accent}
-                      onAccentChange={setAccent}
+                      onAccentChange={(hex) => commitCaptions({ accent: hex }, 900)}
                       sizeScale={sizeScale}
-                      onSizeScaleChange={setSizeScale}
+                      onSizeScaleChange={(v) => commitCaptions({ sizeScale: v }, 900)}
                       positionY={shownPositionY}
-                      onPositionYChange={setPositionY}
-                      applyToAll={applyToAll}
-                      onApplyToAllChange={setApplyToAll}
-                      disabled={saving}
+                      onPositionYChange={(y) => commitCaptions({ positionY: y }, 900)}
+                      otherClipCount={siblingClipIds.length}
+                      onApplyToAll={() => void applyStyleToAll()}
+                      applyToAllState={copiedToAll}
                     />
 
                     <div className="space-y-2 rounded-xl border border-card-border p-3">
                       <p className="text-[12px] font-bold text-ink-soft uppercase tracking-wider">Brand kit</p>
                       {brandKits.length > 0 && (
                         <select aria-label="Load a brand kit" defaultValue="" onChange={(e) => { const kit = brandKits.find((k) => k.id === e.target.value); if (kit) applyBrandKit(kit); e.target.value = ""; }} className="w-full rounded-lg border border-card-border px-3 py-2 text-sm bg-panel">
-                          <option value="" disabled>Load a saved style…</option>
+                          <option value="" disabled>Use a saved style…</option>
                           {brandKits.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}
                         </select>
                       )}
-                      {namingKit ? (
-                        <div className="flex items-center gap-2">
-                          <input value={newKitName} onChange={(e) => setNewKitName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleSaveBrandKit(); }} placeholder="Name this style…" aria-label="Brand kit name" autoFocus className="flex-1 rounded-lg border border-card-border px-3 py-2 text-sm" />
-                          <Button onClick={handleSaveBrandKit} disabled={saveBrandKitMutation.isPending || !newKitName.trim()} size="sm">{saveBrandKitMutation.isPending ? "Saving…" : "Save"}</Button>
-                          <button type="button" onClick={() => { setNamingKit(false); setNewKitName(""); }} className="text-xs text-ink-soft/70 px-1">Cancel</button>
-                        </div>
-                      ) : (
-                        <button type="button" onClick={() => setNamingKit(true)} className="w-full text-center text-xs font-semibold text-brand hover:underline py-1">Save this template and colour as a Brand Kit</button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => saveBrandKitMutation.mutate()}
+                        disabled={saveBrandKitMutation.isPending}
+                        className="w-full text-center text-xs font-semibold text-brand hover:underline py-1 disabled:opacity-50"
+                      >
+                        {saveBrandKitMutation.isPending
+                          ? "Saving…"
+                          : saveBrandKitMutation.isSuccess
+                            ? `✓ Saved as “${saveBrandKitMutation.data.kit.name}”`
+                            : `Save this style as a Brand Kit (“${kitName}”)`}
+                      </button>
+                      {saveBrandKitMutation.isError && <p className="text-[11px] text-error">{saveBrandKitMutation.error instanceof Error ? saveBrandKitMutation.error.message : "Couldn't save the brand kit"}</p>}
                     </div>
 
                     <div className="flex items-center justify-between rounded-xl border border-card-border p-3">
@@ -529,12 +648,9 @@ export function ClipWorkspace({
                         <p className="text-[12.5px] font-semibold text-ink">Burn captions in</p>
                         <p className="text-[11px] text-ink-soft">{captionsOn ? "Baked into the exported file." : "This clip renders without subtitles."}</p>
                       </div>
-                      <Switch checked={captionsOn} onChange={setCaptionsOn} label="Burn in captions" disabled={saving} />
+                      <Switch checked={captionsOn} onChange={(on) => commitCaptions({ captionsOn: on }, 400)} label="Burn in captions" />
                     </div>
-                    <TranslateCaptions projectId={projectId} clipId={clip.id} disabled={saving} onQueued={onChanged} />
-                    {saveErr && <p className="text-xs text-error">{saveErr}</p>}
-                    <Button onClick={handleSaveStyleOrCuts} disabled={saving} className="w-full">{saving ? "Saving & Rendering…" : "Apply caption style"}</Button>
-                    <RerenderCostNote clip={clip} />
+                    <TranslateCaptions projectId={projectId} clipId={clip.id} disabled={renderPending} onQueued={() => onCommitted({ deferred: false })} />
                   </div>
                 )}
 
@@ -561,23 +677,25 @@ export function ClipWorkspace({
                           </button>
                         ))}
                       </div>
-                      <RerenderCostNote clip={clip} />
+                      <p className="mt-2 text-[11px] text-ink-soft text-center">One click re-frames and re-renders — {priceLabel}.</p>
                     </div>
                     <div className="h-px bg-card-border" />
+                    <p className="rounded-lg bg-surface px-3 py-2 text-[11px] text-ink-soft">
+                      Each setting below applies as you change it and re-renders the clip — <span className="font-semibold text-ink">{priceLabel}</span>.
+                    </p>
                     <ReframeAndCutsControls
-                      smartAutoReframe={smartAutoReframe} setSmartAutoReframe={setSmartAutoReframe}
-                      reframingPreset={reframingPreset} setReframingPreset={setReframingPreset}
-                      zoomStrength={zoomStrength as "low" | "medium" | "high"} setZoomStrength={setZoomStrength}
-                      speakerMode={speakerMode as "auto" | "single" | "split" | "active"} setSpeakerMode={setSpeakerMode}
-                      smoothness={smoothness} setSmoothness={setSmoothness}
-                      trackingSpeed={trackingSpeed} setTrackingSpeed={setTrackingSpeed}
-                      removeSilence={removeSilence} setRemoveSilence={setRemoveSilence}
-                      silenceThresholdMs={silenceThresholdMs} setSilenceThresholdMs={setSilenceThresholdMs}
-                      removeFillers={removeFillers} setRemoveFillers={setRemoveFillers}
+                      smartAutoReframe={reframe.smartAutoReframe} setSmartAutoReframe={reframeSetter("smartAutoReframe")}
+                      reframingPreset={reframe.reframingPreset} setReframingPreset={reframeSetter("reframingPreset")}
+                      zoomStrength={reframe.zoomStrength as "low" | "medium" | "high"} setZoomStrength={reframeSetter("zoomStrength")}
+                      speakerMode={reframe.speakerMode as "auto" | "single" | "split" | "active"} setSpeakerMode={reframeSetter("speakerMode")}
+                      smoothness={reframe.smoothness} setSmoothness={reframeSetter("smoothness", 900)}
+                      trackingSpeed={reframe.trackingSpeed} setTrackingSpeed={reframeSetter("trackingSpeed", 900)}
+                      removeSilence={reframe.removeSilence} setRemoveSilence={reframeSetter("removeSilence")}
+                      silenceThresholdMs={reframe.silenceThresholdMs} setSilenceThresholdMs={reframeSetter("silenceThresholdMs", 900)}
+                      removeFillers={reframe.removeFillers} setRemoveFillers={reframeSetter("removeFillers")}
                     />
-                    {saveErr && <p className="text-xs text-error">{saveErr}</p>}
-                    <Button onClick={handleSaveStyleOrCuts} disabled={saving} className="w-full">{saving ? "Saving & Rendering…" : "Apply reframe & audio"}</Button>
-                    <RerenderCostNote clip={clip} />
+                    {(saveErr || reframeQ.error) && <p role="alert" className="text-xs text-error">{reframeQ.error ?? saveErr}</p>}
+                    {statusFor(reframeQ) && <p role="status" aria-live="polite" className="text-[11px] text-ink-soft text-center">{statusFor(reframeQ)}</p>}
                   </div>
                 )}
 
@@ -651,7 +769,7 @@ export function ClipWorkspace({
                           <div className="rounded-xl border border-dashed border-card-border p-3 space-y-2">
                             <div className="flex items-center justify-between">
                               <span className="text-[11px] font-bold text-ink-soft uppercase tracking-wider">Suggested post copy</span>
-                              <button onClick={copySocial} className="text-[12px] font-bold text-brand hover:underline">{copied ? "✓ Copied!" : "Copy"}</button>
+                              <button onClick={() => void copySocial()} className="text-[12px] font-bold text-brand hover:underline">{copied === "copied" ? "✓ Copied!" : copied === "failed" ? "Couldn't copy" : "Copy"}</button>
                             </div>
                             {caption && <p className="text-[12.5px] text-ink italic">&quot;{caption}&quot;</p>}
                             {bd?.hashtags && bd.hashtags.length > 0 && (
@@ -692,8 +810,8 @@ export function ClipWorkspace({
                       ))}
                     </div>
                     {saveErr && <p className="text-xs text-error">{saveErr}</p>}
-                    <Button onClick={handleSaveTranscript} disabled={saving || transcriptLoading || localWords.length === 0} className="w-full">{saving ? "Saving & Rendering…" : "Save transcript changes"}</Button>
-                    <RerenderCostNote clip={clip} />
+                    <Button onClick={handleSaveTranscript} disabled={saving || transcriptLoading || localWords.length === 0} className="w-full">{saving ? "Saving…" : `Save transcript changes (re-renders — ${priceLabel})`}</Button>
+                    {(isRendering || renderWait.left > 0) && <p role="status" aria-live="polite" className="text-[11px] text-ink-soft text-center">{renderProgress}</p>}
                   </div>
                 )}
 
@@ -716,7 +834,9 @@ export function ClipWorkspace({
                   <div className="ac-panel-in space-y-4">
                     <PublishPanel projectId={projectId} clip={clip} embedded />
                     <div className="pt-1 border-t border-card-border">
-                      <DubPanel projectId={projectId} clip={clip} />
+                      {/* Open straight away: it was a "Dub into another language" button
+                          that only revealed the language picker. */}
+                      <DubPanel projectId={projectId} clip={clip} embedded />
                     </div>
                   </div>
                 )}
@@ -724,7 +844,7 @@ export function ClipWorkspace({
 
               <div className="border-t border-card-border px-5 py-3.5 flex items-center gap-2.5">
                 <EditInEditorButton projectId={projectId} clip={clip} className="min-h-[44px] px-4 rounded-xl border border-card-border bg-panel text-ink text-[12.5px] font-semibold hover:bg-tint-blue transition-colors disabled:opacity-50" />
-                <a href={`/api/projects/${projectId}/clips/${clip.id}/download`} download className="flex-1 min-h-[44px] rounded-xl grad-brand text-on-primary text-[13.5px] font-bold shadow-glow flex items-center justify-center">Download clip</a>
+                <DownloadLink href={`/api/projects/${projectId}/clips/${clip.id}/download`} pending={renderPending} className="flex-1 min-h-[44px] rounded-xl grad-brand text-on-primary text-[13.5px] font-bold shadow-glow flex items-center justify-center">Download clip</DownloadLink>
               </div>
             </aside>
           )}

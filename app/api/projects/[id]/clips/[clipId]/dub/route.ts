@@ -26,13 +26,15 @@ async function handleGET(req: NextRequest, { params }: { params: Promise<{ id: s
   // Scope the clip to this project before reading its dubs — otherwise any
   // project owner could pass a foreign clipId and read that tenant's dub
   // video URLs. The POST below already does this.
-  const clip = await prisma.clip.findFirst({ where: { id: clipId, projectId }, select: { id: true } });
+  const clip = await prisma.clip.findFirst({ where: { id: clipId, projectId }, select: { id: true, durationSec: true } });
   if (!clip) return NextResponse.json({ error: "Clip not found" }, { status: 404 });
 
   const rows = await prisma.clipDub.findMany({ where: { clipId }, orderBy: { createdAt: "desc" } });
   // Dub renders are stored unsigned and the bucket is private.
   const dubs = await Promise.all(rows.map(async (d) => ({ ...d, videoUrl: await resignMediaUrl(d.videoUrl) })));
-  return NextResponse.json({ dubs, languages: DUB_LANGUAGES });
+  // The price, so the Dub button can state it before the click.
+  const pricing = await getAutoClipPricing();
+  return NextResponse.json({ dubs, languages: DUB_LANGUAGES, creditCost: computeDubCost(clip.durationSec, pricing.dubPerMinute) });
 }
 
 // POST /api/projects/[id]/clips/[clipId]/dub { targetLang }
