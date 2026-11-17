@@ -40,6 +40,8 @@ export async function translateTranscript(words: WordTiming[], targetLang: strin
   const targetLangName = captionLanguageName(targetLang);
 
   const out: WordTiming[] = [];
+  let translatedBatches = 0;
+  let lastError: unknown = null;
   for (let i = 0; i < words.length; i += BATCH_SIZE) {
     const batch = words.slice(i, i + BATCH_SIZE);
     const spanStart = batch[0].start;
@@ -62,13 +64,21 @@ ${JSON.stringify(batch.map((w) => ({ word: w.word, start: w.start, end: w.end })
       if (!match) throw new Error("no JSON array in translation response");
       const parsed = JSON.parse(match[0]) as WordTiming[];
       out.push(...normaliseSpan(parsed, spanStart, spanEnd));
+      translatedBatches++;
     } catch (err) {
+      lastError = err;
       // A failed batch keeps the ORIGINAL words rather than dropping that
       // stretch of the clip: partially-translated captions are far better than
       // a silent gap where the speaker is clearly talking.
       logger.warn("caption-translate", `batch ${i}-${i + batch.length} failed, keeping source text`, err);
       out.push(...batch);
     }
+  }
+  // Not one batch came back: the "translation" is the source text. Returning
+  // it re-rendered the clip with the same captions and reported success (seen
+  // locally with a key the model 404s for), so the caller fails instead.
+  if (translatedBatches === 0) {
+    throw new Error(`Translation failed for every part of the transcript: ${lastError instanceof Error ? lastError.message.slice(0, 200) : String(lastError)}`);
   }
   return out;
 }

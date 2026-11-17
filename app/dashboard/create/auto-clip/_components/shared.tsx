@@ -116,17 +116,9 @@ export function InsightRow({ label, value }: { label: string; value?: string | n
   );
 }
 
-// Every "Apply" in the workspace re-renders the clip. The first re-render of
-// each clip is free; after that it costs a credit.
-export function RerenderCostNote({ clip }: { clip: ClipItem }) {
-  return (
-    <p className="text-[11px] text-ink-soft text-center">
-      {clip.rerenderCount === 0
-        ? "Your first re-render of this clip is free."
-        : "Applying changes re-renders this clip (1 credit)."}
-    </p>
-  );
-}
+// The re-render price line lives in app/components/auto-clip/clipPanelLogic.ts
+// (rerenderPriceLabel), fed the admin-set price; this said "1 credit" while
+// re-renders were free.
 export interface ProjectMeta { status: string; warnings: string[] | null; failureReason: string | null; captionStyleIndex: number | null; uploadedVideoUrl: string | null; updatedAt?: string }
 
 export function fmtTime(sec: number): string {

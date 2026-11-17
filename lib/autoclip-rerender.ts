@@ -65,12 +65,16 @@ export const rerenderRefId = (clipId: string, attempt: number) => `auto-clip-rer
  */
 export const subtitleStyleOverrideSchema = z.object({
   templateId: z.string().min(1).max(64).refine(isKnownTemplateId, "unknown caption template").optional(),
-  /** Replaces the template's accent colour. */
-  accent: z.string().regex(/^#[0-9a-fA-F]{6}$/, "expected a colour like #FFD60A").optional(),
+  /**
+   * Replaces the template's accent colour. null clears it back to the
+   * template's own: the style is MERGED into the row, so leaving the key out
+   * kept the old colour and the panel's "Reset" never reached the render.
+   */
+  accent: z.string().regex(/^#[0-9a-fA-F]{6}$/, "expected a colour like #FFD60A").nullable().optional(),
   /** Multiplier on the template's text size. */
   sizeScale: z.number().min(0.7).max(1.4).optional(),
-  /** Caption block centre as a percentage of frame height. */
-  positionY: z.number().min(15).max(85).optional(),
+  /** Caption block centre as a percentage of frame height; null = the template's placement. */
+  positionY: z.number().min(15).max(85).nullable().optional(),
   // Written by the pipeline (face-aware default position) and by older
   // clients; accepted so a round-trip of the stored blob still validates.
   captionPositionY: z.number().min(0).max(100).optional(),
@@ -135,7 +139,8 @@ export const rerenderPatchSchema = z.object({
 export type RerenderPatch = z.infer<typeof rerenderPatchSchema>;
 
 export type RerenderOutcome =
-  | { ok: true; creditsCharged: number; creditsRemaining: number }
+  /** deferred: the clip was already rendering, so this change renders right after it. */
+  | { ok: true; creditsCharged: number; creditsRemaining: number; deferred?: boolean }
   | { ok: false; status: number; error: string };
 
 interface RequestRerenderArgs {
@@ -145,6 +150,105 @@ interface RequestRerenderArgs {
   patch: RerenderPatch;
   /** Free-text tag for logs/ledger context, e.g. "style" | "transcript" | "trim". */
   reason: string;
+  /**
+   * The clip panel saves every change with one click, so a second change can
+   * arrive while the first is still rendering. With this set, that change is
+   * kept (merged with any other waiting change) and rendered as soon as the
+   * current render ends, instead of being refused with a 409 and lost.
+   */
+  queueIfBusy?: boolean;
+}
+
+// ── Changes made while a clip is rendering ──────────────────────────────────
+// Kept in Redis, one slot per clip: the newest values win, and the worker
+// (rerenderJob) picks the slot up when the render in flight ends. Six hours is
+// far longer than any render; it only bounds a slot whose worker died.
+export const pendingRerenderKey = (clipId: string) => `autoclip-rerender-next:${clipId}`;
+const PENDING_TTL_SEC = 6 * 60 * 60;
+
+/**
+ * Two waiting changes folded into one. Later values win; the caption and
+ * camera settings merge key by key, the way applyPatch merges them into the
+ * row, so a caption pick followed by a reframe change keeps both.
+ */
+export function mergeRerenderPatches(earlier: RerenderPatch, later: RerenderPatch): RerenderPatch {
+  const out: RerenderPatch = { ...earlier, ...later };
+  if (earlier.subtitleStyleOverride || later.subtitleStyleOverride) {
+    out.subtitleStyleOverride = { ...earlier.subtitleStyleOverride, ...later.subtitleStyleOverride };
+  }
+  if (earlier.silenceSettings || later.silenceSettings) {
+    out.silenceSettings = { ...earlier.silenceSettings, ...later.silenceSettings };
+  }
+  return out;
+}
+
+async function readPendingPatch(clipId: string): Promise<RerenderPatch | null> {
+  const raw = await redis.get(pendingRerenderKey(clipId)).catch(() => null);
+  if (!raw) return null;
+  try {
+    const parsed = rerenderPatchSchema.safeParse(JSON.parse(raw));
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Render the change that arrived while this clip was busy, if there is one.
+ * Called by the worker when a re-render ends (whether it worked or not), and
+ * by requestRerender itself when the render it queued behind finished in the
+ * meantime. Goes through requestRerender, so it is billed and fair-use capped
+ * exactly like any other re-render.
+ */
+export async function runPendingRerender(args: { userId: string; projectId: string; clipId: string }): Promise<RerenderOutcome | null> {
+  const raw = await redis.getdel(pendingRerenderKey(args.clipId)).catch(() => null);
+  if (!raw) return null;
+  let patch: RerenderPatch;
+  try {
+    const parsed = rerenderPatchSchema.safeParse(JSON.parse(raw));
+    if (!parsed.success) return null;
+    patch = parsed.data;
+  } catch {
+    return null;
+  }
+  const outcome = await requestRerender({ ...args, patch, reason: "queued-change", queueIfBusy: true });
+  if (!outcome.ok) logger.warn("auto-clip", `queued change for clip ${args.clipId} was not rendered: ${outcome.error}`);
+  return outcome;
+}
+
+async function deferRerender(args: RequestRerenderArgs, clip: Clip): Promise<RerenderOutcome> {
+  const { userId, projectId, clipId, patch } = args;
+  const waiting = await readPendingPatch(clipId);
+  const merged = waiting ? mergeRerenderPatches(waiting, patch) : patch;
+  await redis.set(pendingRerenderKey(clipId), JSON.stringify(merged), "EX", PENDING_TTL_SEC);
+
+  // The caption look is saved on the row now as well, so the panel, a reload
+  // and "Apply to all" see the pick straight away. Harmless to the render in
+  // flight: it read its row when it started, and its final write never
+  // touches subtitleStyleOverride. Trim, speed and the rest wait in the slot —
+  // the render in flight still writes durationSec when it ends.
+  if (patch.subtitleStyleOverride) {
+    await prisma.clip.update({
+      where: { id: clipId },
+      data: {
+        subtitleStyleOverride: {
+          ...((clip.subtitleStyleOverride as Record<string, unknown>) ?? {}),
+          ...patch.subtitleStyleOverride,
+        } as Prisma.InputJsonValue,
+      },
+    });
+  }
+
+  // The render this was queued behind may have ended between the refused
+  // claim and the write above, in which case nothing would ever pick the slot
+  // up. Check once more and run it now if so.
+  const fresh = await prisma.clip.findFirst({ where: { id: clipId, projectId }, select: { status: true } });
+  if (fresh && fresh.status !== "rendering" && fresh.status !== "queued") {
+    const now = await runPendingRerender({ userId, projectId, clipId });
+    if (now) return now;
+  }
+  const balances = await getBalances(userId);
+  return { ok: true, deferred: true, creditsCharged: 0, creditsRemaining: balances.total };
 }
 
 /**
@@ -189,6 +293,7 @@ export async function requestRerender(args: RequestRerenderArgs): Promise<Rerend
     data: { status: "queued", progress: 0 },
   });
   if (claimed.count === 0) {
+    if (args.queueIfBusy) return deferRerender(args, clip);
     return { ok: false, status: 409, error: "This clip is already rendering or queued" };
   }
   const releaseClaim = async () => {

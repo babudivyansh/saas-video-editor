@@ -75,3 +75,11 @@ export function stepClip(list: { id: string }[], id: string, delta: 1 | -1): str
 }
 
 export const isReady = (c: ClipItem) => c.status === "ready" && !!c.videoUrl;
+
+/**
+ * A clip the workspace can stay open on: it has a rendered video, even while a
+ * change re-renders it (or after that re-render failed, when the previous
+ * video is still there). The workspace used to require "ready", so every
+ * change made in it closed it the moment the clip went to "rendering".
+ */
+export const isEditable = (c: ClipItem) => !!c.videoUrl;

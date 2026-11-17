@@ -4,6 +4,17 @@ import { withRateLimit } from "@/lib/with-rate-limit";
 import { prisma } from "@/lib/prisma";
 import { clipViewSelect, toClipView } from "@/lib/clip-view-query";
 import { resignOwnedMediaUrl } from "@/lib/source-url";
+import { parseAutoClipPricing } from "@/lib/autoclip-pricing";
+
+/** What a re-render costs after a clip's free first one (the admin-set price; 0 by default). */
+async function rerenderPrice(): Promise<number> {
+  const row = await prisma.config.findUnique({ where: { key: "autoclip_pricing" } }).catch(() => null);
+  try {
+    return parseAutoClipPricing(row ? JSON.parse(row.value) : null).rerender;
+  } catch {
+    return parseAutoClipPricing(null).rerender;
+  }
+}
 
 // Poll target for the Auto Clip results grid: the project status + every clip
 // with its live status/progress, sorted by virality score (highest first).
@@ -42,7 +53,9 @@ async function handleGET(req: NextRequest, { params }: { params: Promise<{ id: s
   const detail = clipId
     ? await prisma.clip.findFirst({
         where: { id: clipId, projectId: id },
-        select: { id: true, transcriptJson: true },
+        // cropKeyframes: the clip panel's live caption preview frames the
+        // source the way the render does.
+        select: { id: true, transcriptJson: true, cropKeyframes: true },
       })
     : null;
 
@@ -62,7 +75,9 @@ async function handleGET(req: NextRequest, { params }: { params: Promise<{ id: s
       progress: project.progress,
     },
     clips,
-    ...(detail ? { detail } : {}),
+    // The panel states the real price on every control that re-renders; it
+    // said "1 credit" while re-renders were free.
+    ...(detail ? { detail: { ...detail, rerenderCost: await rerenderPrice() } } : {}),
   });
 }
 

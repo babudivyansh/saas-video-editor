@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clipName, clipWindow, sortClips, stepClip, visibleClips, type ViewClip } from "./model";
+import { clipName, clipWindow, isEditable, sortClips, stepClip, visibleClips, type ViewClip } from "./model";
 
 const clip = (id: string, over: Partial<ViewClip> = {}): ViewClip =>
   ({
@@ -51,5 +51,18 @@ describe("labels", () => {
   it("clipName falls back to the clip number", () => {
     expect(clipName({ title: "  ", index: 2 })).toBe("Clip 3");
     expect(clipName({ title: "Hook", index: 2 })).toBe("Hook");
+  });
+});
+
+// The clip workspace closed itself on every change, because a re-rendering
+// clip is not "ready". It stays open on any clip that has a video.
+describe("isEditable", () => {
+  it("keeps a re-rendering or failed-re-render clip open", () => {
+    expect(isEditable(clip("a", { status: "rendering" }))).toBe(true);
+    expect(isEditable(clip("a", { status: "queued" }))).toBe(true);
+    expect(isEditable(clip("a", { status: "failed" }))).toBe(true);
+  });
+  it("never opens a clip that was never rendered", () => {
+    expect(isEditable(clip("a", { status: "queued", videoUrl: null }))).toBe(false);
   });
 });
