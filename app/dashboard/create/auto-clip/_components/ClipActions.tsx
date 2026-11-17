@@ -32,6 +32,11 @@ export function EditInEditorButton({ projectId, clip, className }: { projectId: 
   return <button onClick={go} disabled={busy} className={className ?? "text-sm font-semibold text-ink-soft hover:text-ink disabled:opacity-50"}>{busy ? "Opening…" : "Advanced editor →"}</button>;
 }
 
+/** The real price of a dub: per started minute of clip. It said "1 credit" while a 25s clip cost 20. */
+function dubLabel(cost: number | undefined): string {
+  return cost == null ? "Dub" : `Dub (${cost} credit${cost === 1 ? "" : "s"})`;
+}
+
 export interface DubItem { id: string; targetLang: string; status: string; videoUrl: string | null }
 export interface DubLang { code: string; label: string }
 
@@ -41,7 +46,7 @@ export function DubPanel({ projectId, clip, embedded }: { projectId: string; cli
 
   const dubQuery = useQuery({
     queryKey: ["auto-clip-dubs", projectId, clip.id],
-    queryFn: () => apiFetch<{ dubs: DubItem[]; languages: DubLang[] }>(`/api/projects/${projectId}/clips/${clip.id}/dub`),
+    queryFn: () => apiFetch<{ dubs: DubItem[]; languages: DubLang[]; creditCost?: number }>(`/api/projects/${projectId}/clips/${clip.id}/dub`),
     enabled: open,
     // Only keep polling while a dub is actually in flight — re-evaluated on
     // every fetch, so it starts/stops itself as statuses change, rather than
@@ -69,7 +74,7 @@ export function DubPanel({ projectId, clip, embedded }: { projectId: string; cli
         <select aria-label="Dub language" value={selected} onChange={(e) => setSelected(e.target.value)} className="flex-1 rounded-lg border border-card-border px-2 py-1.5 text-xs bg-panel">
           {langs.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
         </select>
-        <button onClick={() => startDubMutation.mutate()} disabled={startDubMutation.isPending} className="text-xs font-semibold py-1.5 px-3 rounded-lg grad-brand text-on-primary shadow-glow disabled:opacity-50">{startDubMutation.isPending ? "…" : "Dub (1 credit)"}</button>
+        <button onClick={() => startDubMutation.mutate()} disabled={startDubMutation.isPending} className="text-xs font-semibold py-1.5 px-3 rounded-lg grad-brand text-on-primary shadow-glow disabled:opacity-50">{startDubMutation.isPending ? "…" : dubLabel(dubQuery.data?.creditCost)}</button>
       </div>
       {startDubMutation.isError && <p className="text-[11px] text-error">{startDubMutation.error instanceof Error ? startDubMutation.error.message : "Failed"}</p>}
       {dubs.length > 0 && (

@@ -73,6 +73,9 @@ const nextConfig: NextConfig = {
     // upload. Match /api/upload's own 500MB cap (utils intentionally reject
     // anything larger there already) rather than raising this without bound.
     proxyClientMaxBodySize: "500mb",
+    // Record that this app takes security-only Next.js upgrades from the
+    // automated agent upgrade flow.
+    agentUpgrade: "security",
     // Run Turbopack's Node-side work (PostCSS/Tailwind for globals.css, the
     // webpack loaders Sentry adds) on worker threads inside the build process
     // instead of spawned child processes. On Hostinger the spawned processes

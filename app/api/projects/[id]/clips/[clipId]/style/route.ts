@@ -82,11 +82,14 @@ async function handlePUT(req: NextRequest, { params }: { params: Promise<{ id: s
     clipId,
     patch,
     reason: "style",
+    // A change made while the clip is still rendering renders right after it.
+    queueIfBusy: true,
   });
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
 
   return NextResponse.json({
-    status: "queued",
+    // "queued_next": the clip was already rendering; this change renders after it.
+    status: result.deferred ? "queued_next" : "queued",
     creditsCharged: result.creditsCharged,
     creditsRemaining: result.creditsRemaining,
   });

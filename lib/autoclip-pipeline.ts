@@ -2390,5 +2390,15 @@ export async function rerenderJob(payload: RerenderPayload): Promise<void> {
     throw new NonRetryableError(err instanceof Error ? err.message : String(err));
   } finally {
     try { if (fs.existsSync(videoPath)) fs.unlinkSync(videoPath); } catch {}
+    // A change the user made while this render ran (a second caption pick, a
+    // speed change) was queued behind it rather than refused — render it now,
+    // so the clip always ends on the newest settings. Never masks the result
+    // of this render.
+    try {
+      const { runPendingRerender } = await import("@/lib/autoclip-rerender");
+      await runPendingRerender({ userId: project.userId, projectId, clipId });
+    } catch (e) {
+      logger.error("auto-clip", `could not start the queued change for clip ${clipId}`, e);
+    }
   }
 }

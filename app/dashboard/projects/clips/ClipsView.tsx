@@ -22,7 +22,7 @@ import { FilterPopover } from "./FilterPopover";
 import { CollectionGone, ProjectGone, ProjectRunState, isRunInProgress, renderPercent } from "./RunStates";
 import { useClipsSource } from "./useClipsSource";
 import {
-  SORT_LABELS, isReady, stepClip, visibleClips,
+  SORT_LABELS, isEditable, isReady, stepClip, visibleClips,
   type ClipLayout, type ClipSort, type ClipsSource, type CollectionClipsResponse, type ProjectClipsResponse, type ViewClip,
 } from "./model";
 
@@ -103,7 +103,7 @@ export function ClipsView({ source }: { source: ClipsSource }) {
   // The editor. Only a rendered clip can be opened in it.
   const workspaceId = params.get("clip");
   const workspaceTab = (params.get("tab") as WorkspaceTab | null) ?? "edit";
-  const readyShown = shown.filter(isReady);
+  const readyShown = shown.filter(isEditable);
   const workspaceIdx = workspaceId ? readyShown.findIndex((c) => c.id === workspaceId) : -1;
   const workspaceClip = workspaceIdx >= 0 ? readyShown[workspaceIdx] : null;
 

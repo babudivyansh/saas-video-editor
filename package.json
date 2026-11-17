@@ -74,7 +74,7 @@
     "jsonwebtoken": "^9.0.3",
     "lexical": "^0.47.0",
     "lucide-react": "^1.24.0",
-    "next": "16.4.3",
+    "next": "16.4.6",
     "next-intl": "^4.13.2",
     "nodemailer": "^10.2.1",
     "pdfkit": "^0.19.1",
@@ -100,7 +100,7 @@
     "@testing-library/user-event": "^14.6.1",
     "@vitest/coverage-v8": "^4.1.12",
     "eslint": "^9",
-    "eslint-config-next": "16.4.3",
+    "eslint-config-next": "16.4.6",
     "jsdom": "^29.1.1",
     "prettier": "^3.8.4",
     "vitest": "^4.1.12"

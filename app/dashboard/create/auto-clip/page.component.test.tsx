@@ -49,6 +49,14 @@ describe("DubPanel", () => {
     await waitFor(() => expect(screen.getByRole("option", { name: "Spanish" })).toBeInTheDocument());
   });
 
+  // The button states the price the server quotes (it said "1 credit" while a
+  // dub costs per started minute — 20 for a 25s clip at default pricing).
+  it("states the dub price the server quotes", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ dubs: [], languages: [{ code: "es", label: "Spanish" }], creditCost: 20 }));
+    renderWithClient(<DubPanel projectId="proj-1" clip={CLIP} embedded />);
+    expect(await screen.findByRole("button", { name: "Dub (20 credits)" })).toBeInTheDocument();
+  });
+
   it("refetches after starting a dub", async () => {
     fetchMock.mockResolvedValue(jsonResponse({ dubs: [], languages: [{ code: "es", label: "Spanish" }] }));
     renderWithClient(<DubPanel projectId="proj-1" clip={CLIP} embedded />);
@@ -58,7 +66,7 @@ describe("DubPanel", () => {
     // Dub needs a selected language, and clicking before the list arrives was
     // a race that failed under a loaded parallel run.
     await waitFor(() => expect(screen.getByRole("option", { name: "Spanish" })).toBeInTheDocument());
-    await userEvent.click(screen.getByRole("button", { name: "Dub (1 credit)" }));
+    await userEvent.click(screen.getByRole("button", { name: "Dub" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3)); // 1 GET + 1 POST + 1 refetch GET
     const postCall = fetchMock.mock.calls.find((c) => (c[1] as RequestInit)?.method === "POST");
@@ -74,7 +82,7 @@ describe("DubPanel", () => {
     renderWithClient(<DubPanel projectId="proj-1" clip={CLIP} embedded />);
 
     await waitFor(() => expect(screen.getByRole("option", { name: "Spanish" })).toBeInTheDocument());
-    await userEvent.click(screen.getByRole("button", { name: "Dub (1 credit)" }));
+    await userEvent.click(screen.getByRole("button", { name: "Dub" }));
 
     expect(await screen.findByText("Dubbing is not configured")).toBeInTheDocument();
   });
