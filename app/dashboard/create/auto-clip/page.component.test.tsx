@@ -83,11 +83,13 @@ describe("DubPanel", () => {
 describe("PublishPanel", () => {
   const ACCOUNT = { id: "acct-1", provider: "youtube", username: "creator", displayName: null };
 
-  it("auto-selects the first account once accounts load", async () => {
+  // Posting moved to the one composer; this panel hands the clip over to it.
+  it("opens the composer with this clip chosen", async () => {
     fetchMock.mockResolvedValue(jsonResponse({ accounts: [ACCOUNT], publishes: [] }));
     renderWithClient(<PublishPanel projectId="proj-1" clip={CLIP} embedded />);
 
-    expect(await screen.findByText(/Publish to YouTube/)).toBeInTheDocument();
+    const link = await screen.findByRole("link", { name: "Post or schedule this clip" });
+    expect(link).toHaveAttribute("href", "/dashboard/social-tracker/new?clip=clip-1");
   });
 
   it("shows the connect-an-account message when there are none", async () => {
@@ -97,30 +99,16 @@ describe("PublishPanel", () => {
     expect(await screen.findByText(/Connect a social account/)).toBeInTheDocument();
   });
 
-  it("clears the permalink field and refetches after a successful publish", async () => {
-    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
-      if (init?.method === "POST") return jsonResponse({ ok: true });
-      return jsonResponse({ accounts: [{ ...ACCOUNT, provider: "instagram" }], publishes: [] });
-    });
+  it("lists where the clip has already gone, with a link to the live post", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        accounts: [ACCOUNT],
+        publishes: [{ id: "pub-1", permalink: "https://youtu.be/x", status: "linked", socialAccount: { provider: "youtube", username: "creator" } }],
+      }),
+    );
     renderWithClient(<PublishPanel projectId="proj-1" clip={CLIP} embedded />);
 
-    const input = await screen.findByPlaceholderText("Paste the live post URL after posting manually");
-    await userEvent.type(input, "https://instagram.com/p/xyz");
-    await userEvent.click(screen.getByRole("button", { name: "Save link" }));
-
-    await waitFor(() => expect(input).toHaveValue(""));
-  });
-
-  it("surfaces a reconnect link when the publish error mentions reconnecting", async () => {
-    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
-      if (init?.method === "POST") return new Response(JSON.stringify({ error: "Please reconnect your account" }), { status: 401 });
-      return jsonResponse({ accounts: [ACCOUNT], publishes: [] });
-    });
-    renderWithClient(<PublishPanel projectId="proj-1" clip={CLIP} embedded />);
-
-    await screen.findByText(/Publish to YouTube/);
-    await userEvent.click(screen.getByRole("button", { name: "Publish to YouTube" }));
-
-    expect(await screen.findByText("Reconnect →")).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "View" })).toHaveAttribute("href", "https://youtu.be/x");
+    expect(screen.getByRole("link", { name: "See all posts →" })).toBeInTheDocument();
   });
 });

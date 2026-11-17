@@ -135,6 +135,11 @@ export function AccountSettingsList({
     }
   }, [api, pendingDisconnect, router, showToast]);
 
+  // Platforms this deployment can't connect yet are left out rather than shown
+  // as dead cards; one line says they're coming.
+  const connectable = providers.filter((p) => p.configured);
+  const comingSoon = providers.filter((p) => !p.configured).map((p) => PLATFORM[p.id]?.name ?? p.id);
+
   return (
     <div className="space-y-6">
       <section aria-labelledby="connect-heading">
@@ -142,7 +147,7 @@ export function AccountSettingsList({
           Connect an account
         </h2>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {providers.map(({ id: p, configured }) => {
+          {connectable.map(({ id: p, configured }) => {
             const meta = PLATFORM[p] ?? { name: p, color: "var(--fg-muted)", bg: "var(--surface-3)" };
             const already = accounts.some((a) => a.provider === p);
             return (
@@ -180,21 +185,18 @@ export function AccountSettingsList({
                     onClick={() => void connect(p)}
                     disabled={busy === p}
                   >
-                    {busy === p ? "Connecting…" : already ? `Reconnect ${meta.name}` : `Connect ${meta.name}`}
+                    {busy === p ? "Connecting…" : already ? `Add another ${meta.name} account` : `Connect ${meta.name}`}
                   </Button>
                 ) : (
-                  // Deliberately not a disabled button: there is nothing to
-                  // click and nothing to wait for, and a greyed button invites
-                  // the user to keep trying. State the reason instead.
-                  <p className="text-xs text-fg-muted">
-                    Not enabled on this deployment yet — {meta.name} needs its API credentials
-                    configured before accounts can be connected.
-                  </p>
+                  null
                 )}
               </div>
             );
           })}
         </div>
+        {comingSoon.length > 0 && (
+          <p className="mt-2 text-xs text-fg-muted">{comingSoon.join(" and ")} coming soon.</p>
+        )}
       </section>
 
       {accounts.length > 0 && (
@@ -217,6 +219,11 @@ export function AccountSettingsList({
                     </p>
                   </div>
                   <div className="flex flex-shrink-0 items-center gap-2">
+                    {(a.status === "needs_reauth" || a.status === "revoked") && (
+                      <Button size="sm" onClick={() => void connect(a.provider)} disabled={busy === a.provider}>
+                        Reconnect
+                      </Button>
+                    )}
                     <Button
                       variant="secondary"
                       size="sm"
@@ -291,7 +298,7 @@ function TimezoneField({
   return (
     <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
       <label htmlFor={selectId} className="text-xs font-semibold text-fg-muted">
-        Report times in
+        Timezone
       </label>
       <select
         id={selectId}
@@ -307,22 +314,10 @@ function TimezoneField({
         ))}
       </select>
 
-      {!account.timezone && (
-        <>
-          <span className="text-xs text-fg-muted">
-            Not set — best-time-to-post is being shown in UTC.
-          </span>
-          {browserZone && browserZone !== "UTC" && (
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={disabled}
-              onClick={() => onChange(browserZone)}
-            >
-              Use {browserZone}
-            </Button>
-          )}
-        </>
+      {!account.timezone && browserZone && browserZone !== "UTC" && (
+        <Button variant="secondary" size="sm" disabled={disabled} onClick={() => onChange(browserZone)}>
+          Use {browserZone}
+        </Button>
       )}
     </div>
   );

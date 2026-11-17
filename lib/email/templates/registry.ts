@@ -671,7 +671,7 @@ export const EMAIL_REGISTRY: Record<string, TemplateEntry<never>> = {
         name: "Divyansh",
         reportName: "Monthly performance",
         period: "monthly",
-        downloadUrl: "https://clipiro.com/dashboard/social-tracker/reports",
+        downloadUrl: "https://clipiro.com/dashboard/social-tracker/settings#reports",
       },
     },
   }),

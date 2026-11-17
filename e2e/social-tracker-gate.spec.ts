@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { signToken, SESSION_COOKIE_NAME } from "@/lib/auth";
 
-// The Social Tracker's access gate, which every one of its six routes shares
+// The Social Tracker's access gate, which every one of its routes shares
 // through requireSubscriberOrRedirect.
 //
 // Only the denial paths are covered here, and deliberately so: the granted path
@@ -19,7 +19,7 @@ import { signToken, SESSION_COOKIE_NAME } from "@/lib/auth";
 // someone whose session was revoked that they have no subscription is both
 // wrong and unactionable.
 
-const TRACKER_TABS = ["", "/content", "/audience", "/competitors", "/reports", "/settings"];
+const TRACKER_TABS = ["", "/posts", "/new", "/settings"];
 
 test("a signed-out visitor never reaches the tracker", async ({ page }) => {
   await page.goto("/dashboard/social-tracker");

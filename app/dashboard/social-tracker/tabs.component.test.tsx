@@ -1,11 +1,10 @@
 // @vitest-environment jsdom
 //
-// Structural cover for the five non-Overview tabs. They are being restyled, not
-// restructured, so this asserts what a restyle must not change: each tab renders
-// its own content, and each falls back to the shared empty state rather than
-// crashing when no account is connected. Same reason as page.component.test.tsx
-// — these are Server Components reading Prisma, which the hermetic Playwright
-// suite cannot reach.
+// Structural cover for the views beside the Overview: Posts, Settings and the
+// composer. Each renders its own content, and Posts falls back to the shared
+// empty state rather than crashing when no account is connected. Same reason as
+// page.component.test.tsx — these are Server Components reading Prisma, which
+// the hermetic Playwright suite cannot reach.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import type { AccountContext } from "@/lib/social/queries";
@@ -49,20 +48,20 @@ vi.mock("@/lib/tool-config", () => ({
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     socialPost: { findMany: vi.fn(async () => []) },
-    socialGoal: { findMany: vi.fn(async () => []) },
     aiInsight: { findFirst: vi.fn(async () => null), findMany: vi.fn(async () => []) },
-    competitorProfile: { findMany: vi.fn(async () => []) },
     socialReportRun: { findMany: vi.fn(async () => []) },
     socialReportConfig: { findMany: vi.fn(async () => []) },
     socialReportLink: { findMany: vi.fn(async () => []) },
+    clipPublish: { findMany: vi.fn(async () => [{ id: "turn", clip: { videoUrl: "https://cdn.example/v.mp4" }, asset: null }]) },
+    clip: { findMany: vi.fn(async () => []), findFirst: vi.fn(async () => null) },
+    asset: { findMany: vi.fn(async () => []) },
   },
 }));
 
-vi.mock("@/app/components/charts", () => ({
-  Heatmap: () => <div data-testid="heatmap" />,
-  BLOCK_LABELS: [] as string[],
-  WEEKDAY_LABELS: [] as string[],
-}));
+const listPosts = vi.fn(async (..._a: unknown[]) => ({ posts: [] as unknown[], nextCursor: null as string | null }));
+vi.mock("@/lib/mobile/posts", () => ({ listPosts: (...a: unknown[]) => listPosts(...a) }));
+vi.mock("@/lib/signed-media", () => ({ resignMediaUrl: async (u: string | null) => u }));
+vi.mock("@/utils/s3-upload", () => ({ getAssetReadUrl: async (k: string) => `https://cdn.example/${k}` }));
 
 const account = (over: Partial<AccountContext> = {}): AccountContext => ({
   id: "acc-1", provider: "youtube", username: "chan", displayName: "Chan",
@@ -73,21 +72,22 @@ const account = (over: Partial<AccountContext> = {}): AccountContext => ({
 });
 
 const TABS = [
-  { name: "content", load: () => import("./content/page") },
-  { name: "audience", load: () => import("./audience/page") },
-  { name: "competitors", load: () => import("./competitors/page") },
-  { name: "reports", load: () => import("./reports/page") },
+  { name: "posts", load: () => import("./posts/page") },
   { name: "settings", load: () => import("./settings/page") },
+  { name: "new", load: () => import("./new/page") },
 ] as const;
 
 const withParams = { searchParams: Promise.resolve({}) };
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  listPosts.mockResolvedValue({ posts: [], nextCursor: null });
+});
 
-describe("Social Tracker tabs", () => {
-  // Settings is deliberately excluded: it's where you go to connect your first
-  // account, so it must render with none.
-  it.each(TABS.filter((t) => t.name !== "settings"))(
+// The first import of each page pulls the provider and publishing modules in
+// cold, which alone can pass the 5s default on a slow machine.
+describe("Social Tracker tabs", { timeout: 30_000 }, () => {
+  it.each(TABS.filter((t) => t.name === "posts"))(
     "$name falls back to the empty state with no connected accounts",
     async ({ load }) => {
       loadViewContext.mockResolvedValue({
@@ -110,9 +110,54 @@ describe("Social Tracker tabs", () => {
     });
 
     const Page = (await load()).default;
-    const { container } = render(await Page(withParams));
+    render(await Page(withParams));
 
-    expect(container).not.toBeEmptyDOMElement();
+    // The composer is a full-screen dialog portalled to <body>, so look there.
+    expect(document.body.textContent?.trim().length).toBeGreaterThan(0);
     expect(screen.queryByText(/no connected accounts yet/i)).not.toBeInTheDocument();
+  });
+
+  // The schedule used to exist only in the mobile app: an Instagram post that
+  // came due had nowhere on the web to be finished.
+  it("lists a due Instagram post under Needs you with the video and caption to hand over", async () => {
+    const acc = account();
+    loadViewContext.mockResolvedValue({
+      userId: "u1", accounts: [acc], allAccounts: [acc],
+      filters: { range: 30, granularity: "day", scope: { kind: "unset" } },
+    });
+    listPosts.mockResolvedValue({
+      posts: [{
+        id: "turn", clipId: "c1", assetId: null, title: "Podcast hook", thumbnailUrl: null,
+        account: { id: "ig", provider: "instagram", name: "Chan" }, caption: "Hello", hashtags: ["#hi"],
+        privacy: "public", status: "your_turn", scheduledAt: "2026-11-17T10:00:00.000Z",
+        publishedAt: null, permalink: null, failureReason: null, editable: false,
+      }],
+      nextCursor: null,
+    });
+
+    const Page = (await import("./posts/page")).default;
+    render(await Page({ searchParams: Promise.resolve({ view: "needs-you" }) }));
+
+    expect(screen.getByText("Podcast hook")).toBeInTheDocument();
+    for (const name of ["Download video", "Copy caption", "Mark as posted"]) {
+      expect(screen.getByRole("button", { name })).toBeInTheDocument();
+    }
+  });
+
+  it("opens the composer at its four steps", async () => {
+    const acc = account();
+    loadViewContext.mockResolvedValue({
+      userId: "u1", accounts: [acc], allAccounts: [acc],
+      filters: { range: 30, granularity: "day", scope: { kind: "unset" } },
+    });
+
+    const Page = (await import("./new/page")).default;
+    render(await Page(withParams));
+
+    for (const step of ["Video", "Where", "Caption", "When"]) {
+      expect(screen.getByRole("heading", { name: new RegExp(step) })).toBeInTheDocument();
+    }
+    // Nothing chosen yet, so nothing can be submitted.
+    expect(screen.getByRole("button", { name: "Post now" })).toBeDisabled();
   });
 });

@@ -72,6 +72,15 @@ describe("parseFilters — the rest of the query string", () => {
     expect(parseFilters({ granularity: "hourly" }).granularity).toBe("day");
   });
 
+  // Nobody should have to pick a bucket: the range decides it.
+  it("picks the grouping from the range when none is given", () => {
+    expect(parseFilters({}).granularity).toBe("day");
+    expect(parseFilters({ range: "7" }).granularity).toBe("day");
+    expect(parseFilters({ range: "90" }).granularity).toBe("week");
+    expect(parseFilters({ range: "365" }).granularity).toBe("month");
+    expect(parseFilters({ range: "365", granularity: "day" }).granularity).toBe("day");
+  });
+
   it("reads the compare flag as an explicit opt-in", () => {
     expect(parseFilters({ compare: "previous" }).compare).toBe(true);
     expect(parseFilters({ compare: "yes" }).compare).toBe(false);
