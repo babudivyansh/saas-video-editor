@@ -54,7 +54,7 @@ export const TOOL_COSTS: Record<string, ToolCost> = {
   // display value and the route's cost formula are both placeholders.
   // Gated pro+ until the real OCR cost is confirmed: pro-tier credit revenue
   // (~₹15.7/cr) gives enough margin buffer for an unknown per-frame cost.
-  "subtitle-remover": { creditCost: 4, costUsd: null, costBasis: "fal-ai/florence-2-large OCR per sampled frame + FFmpeg render, cost not yet confirmed", generationType: "video", requiredTier: "pro" },
+  "subtitle-remover": { creditCost: 4, costUsd: null, costBasis: "Priced by length and mode (lib/subtitle-remover-pricing.ts): bottom = fal-ai/florence-2-large OCR per sampled frame + FFmpeg, OCR cost not yet confirmed; region = FFmpeg only; anywhere = PiAPI remove-subtitle $0.006/s", generationType: "video", requiredTier: "pro" },
   // Audio tools are priced by LENGTH since 2026-09-26 (lib/audio-pricing.ts);
   // creditCost/costUsd here are per UNIT — the "from" price the tools page and
   // cost table show — and the route charges units x rate.

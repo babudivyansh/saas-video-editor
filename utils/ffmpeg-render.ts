@@ -431,6 +431,43 @@ export function getMediaDimensions(filePath: string, timeoutMs = 30_000): Promis
   });
 }
 
+export interface VideoStreamInfo {
+  /** First video stream's codec, e.g. "h264"; null when there is none. */
+  codec: string | null;
+  /** e.g. "yuv420p"; null when ffmpeg didn't print one. */
+  pixFmt: string | null;
+  /** True when the stream carries rotation metadata (phone footage). */
+  rotated: boolean;
+  hasAudio: boolean;
+}
+
+/** Reads the first video stream's codec, pixel format and rotation from `ffmpeg -i` output. */
+export function parseVideoStreamInfo(stderr: string): VideoStreamInfo {
+  const video = /Stream #[^\n]*?Video: ([a-z0-9_]+)[^\n]*/i.exec(stderr);
+  const pix = video ? /,\s*(yuv[a-z0-9]+|nv12|gray[a-z0-9]*|rgb[a-z0-9]*|bgr[a-z0-9]*)[\s(,]/i.exec(video[0]) : null;
+  // "displaymatrix: rotation of" (ffmpeg 5/6.0), "Display Matrix: rotation of" (6.1+), "rotate :" (older).
+  const rot = /display ?matrix: rotation of (-?[\d.]+)|rotate\s*:\s*(-?\d+)/i.exec(stderr);
+  const angle = rot ? Number(rot[1] ?? rot[2]) : 0;
+  return {
+    codec: video ? video[1].toLowerCase() : null,
+    pixFmt: pix ? pix[1].toLowerCase() : null,
+    rotated: Number.isFinite(angle) && Math.round(angle) % 360 !== 0,
+    hasAudio: /Stream #[^\n]*Audio:/.test(stderr),
+  };
+}
+
+export function probeVideoStream(filePath: string, timeoutMs = 30_000): Promise<VideoStreamInfo> {
+  return new Promise((resolve) => {
+    const proc = spawnFfmpeg(ffmpegBin!, ["-i", filePath], { stdio: ["ignore", "ignore", "pipe"] });
+    let stderrBuf = "";
+    const empty: VideoStreamInfo = { codec: null, pixFmt: null, rotated: false, hasAudio: false };
+    const clearWatchdog = killAfterTimeout(proc, timeoutMs, () => resolve(empty));
+    proc.stderr.on("data", (chunk: Buffer) => { stderrBuf += chunk.toString(); });
+    proc.on("close", () => { clearWatchdog(); resolve(parseVideoStreamInfo(stderrBuf)); });
+    proc.on("error", () => { clearWatchdog(); resolve(empty); });
+  });
+}
+
 /**
  * A video's frame rate, from FFmpeg's "Video: ... 29.97 fps" stderr line.
  * Returns 0 when it can't be determined.
