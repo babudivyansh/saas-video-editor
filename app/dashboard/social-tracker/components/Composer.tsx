@@ -192,8 +192,10 @@ export function Composer({
         [at ? `Scheduled for ${fmtTime(at)}.` : manual.length && !hasYouTube ? "Added to Posts. It's your turn to post it." : "Posting now.", ...notes].join(" "),
         "success",
       );
-      router.push(`${TRACKER}/posts?view=${at ? "scheduled" : manual.length && !hasYouTube ? "needs-you" : "scheduled"}`);
-      router.refresh();
+      // replace, not push: Back from the list shouldn't reopen a sent composer.
+      // No refresh() after it — that raced the navigation and landed on the
+      // default view; the destination is force-dynamic and loads fresh anyway.
+      router.replace(`${TRACKER}/posts?filter=${!at && manual.length && !hasYouTube ? "needs-you" : "scheduled"}`);
     } catch (e) {
       setError(e instanceof SocialApiError ? e.message : "Couldn't save this post. Try again.");
       setSubmitting(false);

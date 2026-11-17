@@ -19,7 +19,7 @@ const ROOT = "/dashboard/social-tracker";
 export function TabsNav({ needsYou = 0 }: { needsYou?: number }) {
   const pathname = usePathname();
   const params = useSearchParams();
-  // The account and range carry across tabs; the Posts view filter does not.
+  // The account and range carry across tabs; the Posts filter does not.
   const carry = new URLSearchParams();
   for (const key of ["account", "range"]) {
     const v = params.get(key);

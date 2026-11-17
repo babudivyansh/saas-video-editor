@@ -121,7 +121,7 @@ export default async function OverviewPage({
             <h2 id="up-next-heading" className="text-sm font-semibold text-fg">
               Up next
             </h2>
-            <Link href="/dashboard/social-tracker/posts?view=scheduled" prefetch={false} className="text-xs font-semibold text-brand hover:underline">
+            <Link href="/dashboard/social-tracker/posts?filter=scheduled" prefetch={false} className="text-xs font-semibold text-brand hover:underline">
               All →
             </Link>
           </div>

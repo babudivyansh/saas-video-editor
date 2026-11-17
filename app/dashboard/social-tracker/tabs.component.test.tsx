@@ -136,7 +136,7 @@ describe("Social Tracker tabs", { timeout: 30_000 }, () => {
     });
 
     const Page = (await import("./posts/page")).default;
-    render(await Page({ searchParams: Promise.resolve({ view: "needs-you" }) }));
+    render(await Page({ searchParams: Promise.resolve({ filter: "needs-you" }) }));
 
     expect(screen.getByText("Podcast hook")).toBeInTheDocument();
     for (const name of ["Download video", "Copy caption", "Mark as posted"]) {

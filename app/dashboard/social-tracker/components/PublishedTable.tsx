@@ -176,7 +176,7 @@ export function PublishedTable({
       <div role="status" aria-live="polite" aria-busy="true" className="space-y-2">
         <span className="sr-only">Loading posts…</span>
         {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="h-14 animate-pulse rounded-xl bg-bg" />
+          <div key={i} className="h-14 animate-pulse rounded-xl bg-surface-3" />
         ))}
       </div>
     );

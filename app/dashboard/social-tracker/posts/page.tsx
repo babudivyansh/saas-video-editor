@@ -28,7 +28,9 @@ export default async function PostsPage({ searchParams }: { searchParams: Promis
   const { userId, accounts, filters } = await loadViewContext(params);
   if (accounts.length === 0) return <EmptyAccounts />;
 
-  const raw = first(params.view);
+  // ?filter=, not ?view=: the billing overlay owns ?view= and strips it from
+  // every dashboard URL whenever the overlay is closed.
+  const raw = first(params.filter);
   const view: View = (VIEWS as readonly string[]).includes(raw ?? "") ? (raw as View) : "published";
 
   // The plan: 30 days back to 90 ahead (the service's window), for the
@@ -68,7 +70,7 @@ export default async function PostsPage({ searchParams }: { searchParams: Promis
   if (account) carry.set("account", account);
   const href = (v: View) => {
     const q = new URLSearchParams(carry);
-    if (v !== "published") q.set("view", v);
+    if (v !== "published") q.set("filter", v);
     const s = q.toString();
     return `/dashboard/social-tracker/posts${s ? `?${s}` : ""}`;
   };

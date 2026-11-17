@@ -133,7 +133,7 @@ export function PublishPanel({ projectId, clip, embedded }: { projectId: string;
             </li>
           ))}
           <li>
-            <a href="/dashboard/social-tracker/posts?view=scheduled" className="text-[11px] font-semibold text-brand">See all posts →</a>
+            <a href="/dashboard/social-tracker/posts?filter=scheduled" className="text-[11px] font-semibold text-brand">See all posts →</a>
           </li>
         </ul>
       )}
