@@ -108,17 +108,21 @@ export function PlannedPosts({
           const name = PROVIDER[p.account.provider] ?? p.account.provider;
           const row = busy === p.id;
           return (
-            <li key={p.id} className="flex flex-wrap items-center gap-3 py-3 first:pt-0 last:pb-0">
+            <li key={p.id} className="flex gap-3 py-3 first:pt-0 last:pb-0">
               {p.thumbnailUrl ? (
                 // Plain img: signed S3/CDN URLs aren't in next/image's remotePatterns.
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={p.thumbnailUrl} alt="" className="h-12 w-9 flex-shrink-0 rounded-md bg-surface-3 object-cover" />
+                <img src={p.thumbnailUrl} alt="" className="h-14 w-10 flex-shrink-0 rounded-md bg-surface-3 object-cover" />
               ) : (
-                <span aria-hidden="true" className="h-12 w-9 flex-shrink-0 rounded-md bg-surface-3" />
+                <span aria-hidden="true" className="h-14 w-10 flex-shrink-0 rounded-md bg-surface-3" />
               )}
+              <div className={`flex min-w-0 flex-1 gap-x-3 gap-y-2 ${compact ? "flex-col" : "flex-wrap items-center"}`}>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-fg">{p.title}</p>
-                <p className="text-xs text-fg-muted">
+                <p className="flex items-center gap-2">
+                  <span className="truncate text-sm font-semibold text-fg">{p.title}</span>
+                  <span className={`flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${s.cls}`}>{s.label}</span>
+                </p>
+                <p className="truncate text-xs text-fg-muted">
                   {name} · {p.account.name}
                   {when(p) && (
                     <>
@@ -131,7 +135,6 @@ export function PlannedPosts({
                 </p>
                 {p.failureReason && <p className="mt-0.5 text-xs text-error">{p.failureReason}</p>}
               </div>
-              <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${s.cls}`}>{s.label}</span>
 
               <div className="flex flex-wrap items-center gap-1.5">
                 {p.status === "your_turn" && (
@@ -204,6 +207,7 @@ export function PlannedPosts({
                     View
                   </a>
                 )}
+              </div>
               </div>
             </li>
           );

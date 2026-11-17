@@ -2,6 +2,8 @@
 // uses (lib/mobile/posts.ts), with its PostError mapped onto the web API's
 // HttpError so withSocial answers { error, code } with the right status.
 
+import type { NextRequest } from "next/server";
+import type { ZodType } from "zod";
 import { HttpError } from "@/lib/social/api";
 import { PostError } from "@/lib/mobile/posts";
 import { prisma } from "@/lib/prisma";
@@ -16,6 +18,20 @@ export async function asHttp<T>(fn: () => Promise<T>): Promise<T> {
     if (e instanceof PostError) throw new HttpError(e.status, e.message, e.code);
     throw e;
   }
+}
+
+/**
+ * The JSON body, validated, with the first problem as the error message.
+ * The composer and the post rows show `error` as-is, so "Paste the post's
+ * link" beats the generic "Validation failed".
+ */
+export async function parsePostBody<T>(req: NextRequest, schema: ZodType<T>): Promise<T> {
+  const raw = await req.json().catch(() => {
+    throw new HttpError(400, "Invalid request", "invalid_request");
+  });
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) throw new HttpError(400, parsed.error.issues[0]?.message ?? "Invalid request", "invalid_request");
+  return parsed.data;
 }
 
 const DAY = 86_400_000;

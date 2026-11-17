@@ -46,10 +46,10 @@ export default async function OverviewPage({
   const ids = accounts.map((a) => a.id);
 
   // Everything this page reads, in one round of parallel queries.
-  const [perAccount, followerSeries, viewsSeries, plan, periodPosts, audience, execReportCost, storedInsight] = await Promise.all([
+  const [perAccount, followerSeriesList, viewsSeriesList, plan, periodPosts, audience, execReportCost, storedInsight] = await Promise.all([
     Promise.all(accounts.map((a) => loadAccountKpis(a, from, to, a.timezone ?? tz))),
-    loadSeries(accounts[0], "followers", from, to, granularity, tz),
-    loadSeries(accounts[0], "views", from, to, granularity, tz),
+    Promise.all(accounts.map((a) => loadSeries(a, "followers", from, to, granularity, tz))),
+    Promise.all(accounts.map((a) => loadSeries(a, "views", from, to, granularity, tz))),
     listPosts(userId, { limit: 100 }),
     prisma.socialPost.findMany({
       where: { accountId: { in: ids }, publishedAt: { gte: from, lte: to } },
@@ -65,6 +65,11 @@ export default async function OverviewPage({
         })
       : Promise.resolve(null),
   ]);
+
+  // The trend covers every account in view, not just the first one: views add
+  // per day, and a follower count carries forward until its next reading.
+  const followerSeries = { points: sumSeries(followerSeriesList.map((s) => s.points), true) };
+  const viewsSeries = { points: sumSeries(viewsSeriesList.map((s) => s.points), false) };
 
   const capabilities = mergeCapabilities(accounts.map((a) => capabilityMap(a.provider, a.observed)));
   const totals = aggregate(perAccount, capabilities);
@@ -190,6 +195,27 @@ export default async function OverviewPage({
       </details>
     </div>
   );
+}
+
+/**
+ * Several accounts' series as one. A flow (views) sums what each reported on
+ * a date; a level (followers) carries each account's last reading forward, so
+ * a day one account didn't report doesn't read as a drop.
+ */
+function sumSeries(list: Array<Array<{ date: string; value: number }>>, carryForward: boolean) {
+  if (list.length === 1) return list[0];
+  const dates = [...new Set(list.flatMap((points) => points.map((p) => p.date)))].sort();
+  const last = list.map(() => null as number | null);
+  const byDate = list.map((points) => new Map(points.map((p) => [p.date, p.value])));
+  return dates.map((date) => {
+    let value = 0;
+    byDate.forEach((m, i) => {
+      const v = m.get(date);
+      if (v !== undefined) last[i] = v;
+      value += v ?? (carryForward ? (last[i] ?? 0) : 0);
+    });
+    return { date, value };
+  });
 }
 
 /** Things waiting on the person sort above things that will happen anyway. */

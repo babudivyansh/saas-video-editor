@@ -7,7 +7,7 @@
 // API access without Meta App Review, so their posts become "your turn" when
 // due: the Posts tab hands over the video and caption and takes the link back.
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { Modal } from "@/app/components/ui/Modal";
 import { Button } from "@/app/components/ui/Button";
@@ -66,6 +66,8 @@ function tomorrowAtSix() {
 const fmtTime = (iso: string) =>
   new Date(iso).toLocaleString(undefined, { weekday: "long", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 
+const noop = () => () => {};
+
 const fmtDuration = (s: number | null) => (s == null ? "" : `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`);
 
 export function Composer({
@@ -86,6 +88,10 @@ export function Composer({
   const router = useRouter();
   const api = useSocialApi();
   const { showToast } = useToast();
+  // The dialog is open from the first paint, but Modal portals to <body> and
+  // renders nothing on the server, so mounting it during hydration is a
+  // mismatch that blanked the page. Mount it once the client has taken over.
+  const client = useSyncExternalStore(noop, () => true, () => false);
 
   const [video, setVideo] = useState<ComposerVideo | null>(
     () => (initialVideo && videos.find((v) => v.kind === initialVideo.kind && v.id === initialVideo.id)) || null,
@@ -196,6 +202,10 @@ export function Composer({
 
   const ready = video !== null && chosen.length > 0 && caption.length <= captionMax && (when !== "custom" || Boolean(custom));
   const label = submitting ? "Saving…" : at ? "Schedule" : hasYouTube ? "Post now" : "Add to Posts";
+
+  if (!client) {
+    return <div className="mx-auto h-[60vh] max-w-3xl animate-pulse rounded-[var(--radius-card)] bg-surface-3" aria-label="Opening the composer" />;
+  }
 
   return (
     <Modal open onClose={close} title="New post" variant="fullscreen">

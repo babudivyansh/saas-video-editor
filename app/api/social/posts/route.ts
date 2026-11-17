@@ -1,8 +1,8 @@
 import type { NextRequest } from "next/server";
 import { createPostsRequest } from "@clipiro/shared";
-import { ok, parseBody, withSocial } from "@/lib/social/api";
+import { ok, withSocial } from "@/lib/social/api";
 import { createPosts, listPosts } from "@/lib/mobile/posts";
-import { asHttp } from "@/lib/social/posts-web";
+import { asHttp, parsePostBody } from "@/lib/social/posts-web";
 
 // Posts the person has made or planned from Clipiro (ClipPublish rows): the
 // web twin of /api/mobile/v1/social/posts. Published-post METRICS live on
@@ -22,7 +22,7 @@ export const GET = withSocial(async (req: NextRequest, { auth }) => {
 // → 201 { data: { posts, warnings } }: one post per account.
 export const POST = withSocial(
   async (req: NextRequest, { auth }) => {
-    const body = await parseBody(req, createPostsRequest);
+    const body = await parsePostBody(req, createPostsRequest);
     return ok(await asHttp(() => createPosts(auth.userId, body)), { status: 201 });
   },
   { rateLimit: { key: (auth) => `social:posts:create:${auth.userId}`, max: 30, windowSec: 60 } },
