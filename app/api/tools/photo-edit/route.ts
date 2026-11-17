@@ -360,7 +360,11 @@ async function handlePOST(req: NextRequest) {
       }
     } catch (err) {
       if (cancelled()) return;
-      logger.error("photo-edit", "job failed", err);
+      // A UserFacingError is an outcome the user was told about (busy model,
+      // safety refusal, quota) and, where it is ours to fix, was already
+      // reported as an error where it happened — one Sentry issue, not two
+      // (CLIPIRO-WEB-V/-Y duplicated -W/-X).
+      (err instanceof UserFacingError ? logger.warn : logger.error)("photo-edit", "job failed", err);
       job.status = "error";
       job.error = userMessage(err, FAILED);
       if (err instanceof UserFacingError && err.message === POLICY_MESSAGES.router) {

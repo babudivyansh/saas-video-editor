@@ -1,5 +1,4 @@
-import { env } from "@/lib/env";
-import { logger } from "@/lib/logger";
+import { postGeminiImage } from "@/lib/gemini-image";
 import { FETCH_TIMEOUT } from "@/lib/fetch-timeout";
 import { UserFacingError } from "@/lib/user-facing-error";
 import { falSubmit, falPollUntilDone, falCancel, type FalRequest } from "@/lib/fal";
@@ -8,8 +7,6 @@ import { POLICY_MESSAGES } from "@/lib/photo-edit/policy";
 // The two ways an edit reaches a model: Google's API directly for Gemini
 // Flash Image (the key we already use for the generator), and fal's queue for
 // everything else.
-
-const GEMINI_IMAGE_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent";
 
 const NO_IMAGE = "The model didn't return an image for this instruction. Try describing the change differently.";
 
@@ -24,8 +21,7 @@ export async function geminiEdit(
   prompt: string,
   signal?: AbortSignal,
 ): Promise<Buffer> {
-  if (!env.GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not set");
-  const body = JSON.stringify({
+  const body = {
     contents: [{
       parts: [
         ...images.map((img) => ({ inlineData: { mimeType: img.mimeType, data: img.buffer.toString("base64") } })),
@@ -33,32 +29,10 @@ export async function geminiEdit(
       ],
     }],
     generationConfig: { responseModalities: ["IMAGE", "TEXT"] },
-  });
-
-  // gemini-2.5-flash-image answers 503 "high demand" now and then: a short
-  // backoff usually clears it (same policy as the generator).
-  let res: Response | null = null;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const timeout = AbortSignal.timeout(120_000);
-    res = await fetch(GEMINI_IMAGE_URL, {
-      method: "POST",
-      // Key in a header, not the URL: URLs end up in proxy and APM logs.
-      headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY },
-      signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
-      body,
-    });
-    if (res.status !== 503) break;
-    logger.warn("photo-edit", `gemini-2.5-flash-image 503 (attempt ${attempt + 1}/3)`);
-    await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
-  }
-  if (!res || !res.ok) {
-    const text = res ? await res.text().catch(() => "") : "no response";
-    logger.error("photo-edit", `gemini edit failed ${res?.status}`, text.slice(0, 500));
-    if (res?.status === 503 || res?.status === 429) {
-      throw new UserFacingError("The image service is busy right now. Your credits were refunded. Try again in a moment, or pick another model.");
-    }
-    throw new Error(`Gemini edit failed ${res?.status}: ${text.slice(0, 300)}`);
-  }
+  };
+  // Retries 503s and short rate limits; a daily/free-tier quota is reported
+  // once and refused (lib/gemini-image.ts).
+  const res = await postGeminiImage(body, { tag: "photo-edit", signal });
 
   const json = (await res.json()) as GeminiResponse;
   if (json.promptFeedback?.blockReason) throw new UserFacingError(POLICY_MESSAGES.router);

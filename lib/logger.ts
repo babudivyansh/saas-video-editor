@@ -17,7 +17,7 @@ export const logger = {
     write("info", tag, message, meta);
   },
   warn(tag: string, message: string, meta?: unknown) {
-    write("warn", tag, message, meta);
+    write("warn", tag, message, meta instanceof Error ? serializeError(meta) : meta);
   },
   error(tag: string, message: string, error?: unknown) {
     write("error", tag, message, error instanceof Error ? serializeError(error) : error);

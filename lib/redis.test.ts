@@ -181,4 +181,46 @@ describe("redis reconnects (Sentry CLIPIRO-WEB-5/-6/-7/-8)", () => {
       vi.useRealTimers();
     }
   });
+
+  it("warns on a fallback before the first connection, errors only if still down 30s after start (CLIPIRO-WEB-5)", async () => {
+    vi.useFakeTimers();
+    try {
+      const { logger } = await import("@/lib/logger");
+      const { redis } = await import("./redis");
+      await vi.advanceTimersByTimeAsync(20);
+      vi.mocked(logger.error).mockClear();
+      vi.mocked(logger.warn).mockClear();
+      // The handshake has not produced a "ready" yet (a second bundle's client
+      // at boot): the command falls back.
+      state.connected = false;
+      state.status = "connecting";
+      expect(await redis.get("maint")).toBeNull();
+      expect(logger.warn).toHaveBeenCalledWith("redis", expect.stringContaining("before the first connection"), expect.any(Error));
+      expect(logger.error).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(logger.error).toHaveBeenCalledWith("redis", expect.stringContaining("not connected 30s after start"));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("stays quiet when the first connection arrives within the grace period", async () => {
+    vi.useFakeTimers();
+    try {
+      const { logger } = await import("@/lib/logger");
+      const { redis } = await import("./redis");
+      await vi.advanceTimersByTimeAsync(20);
+      vi.mocked(logger.error).mockClear();
+      state.connected = false;
+      state.status = "connecting";
+      await redis.get("maint");
+      state.connected = true;
+      state.status = "ready";
+      state.handlers.ready?.();
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(logger.error).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
