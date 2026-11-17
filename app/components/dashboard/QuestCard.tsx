@@ -103,7 +103,7 @@ function useQuests() {
       { id: "hear-yourself-out", icon: <IcMic />, title: t("hearYourselfOut.title"), desc: t("hearYourselfOut.desc"), color: "var(--emerald-brand)", href: "/dashboard/tools/voiceover" },
       { id: "picture-this", icon: <IcImage />, title: t("pictureThis.title"), desc: t("pictureThis.desc"), color: "var(--primary)", href: "/dashboard/tools/image-generator" },
       { id: "first-export", icon: <IcDownload />, title: t("firstExport.title"), desc: t("firstExport.desc"), color: "var(--warning)", href: "/dashboard/editor" },
-      { id: "upgraded-plan", icon: <IcCrown />, title: t("upgradedPlan.title"), desc: t("upgradedPlan.desc"), color: "var(--warning)", href: "/dashboard?billing=1" },
+      { id: "upgraded-plan", icon: <IcCrown />, title: t("upgradedPlan.title"), desc: t("upgradedPlan.desc"), color: "var(--warning)", href: "/dashboard?billing=1&view=plans" },
       { id: "explore-toolbox", icon: <IcEraser />, title: t("exploreToolbox.title"), desc: t("exploreToolbox.desc"), color: "var(--info)", href: "/dashboard/tools" },
       { id: "complete-profile", icon: <IcUser />, title: t("completeProfile.title"), desc: t("completeProfile.desc"), color: "var(--primary)", href: "/dashboard/settings" },
       { id: "track-account", icon: <IcChart />, title: t("trackAccount.title"), desc: t("trackAccount.desc"), color: "var(--info)", href: "/dashboard/social-tracker" },

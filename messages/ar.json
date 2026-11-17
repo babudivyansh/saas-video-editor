@@ -44,7 +44,7 @@
       "aiTools": "أدوات الذكاء الاصطناعي",
       "yourProjects": "مشاريعك"
     },
-    "planCard": { "manage": "إدارة", "clipMinutes": "دقائق المقاطع", "aiCredits": "أرصدة الذكاء الاصطناعي", "minutesValue": "{count} دقيقة" },
+    "planCard": { "changePlan": "تغيير الخطة", "seePlans": "عرض الخطط", "clipMinutes": "دقائق المقاطع", "aiCredits": "أرصدة الذكاء الاصطناعي", "minutesValue": "{count} دقيقة" },
     "corePages": {
       "dashboardHome": { "title": "الصفحة الرئيسية للوحة التحكم", "desc": "نظرة عامة، المهام، والبدء السريع" },
       "myClips": { "title": "مشاريعك", "desc": "جميع مشاريع AutoClip الخاصة بك" },
@@ -170,7 +170,8 @@
     "uid": "معرّف المستخدم",
     "copyUid": "نسخ معرّف المستخدم",
     "nickname": "الاسم المستعار",
-    "nicknamePlaceholder": "اسمك",    "saving": "جارٍ الحفظ…",
+    "nicknamePlaceholder": "اسمك",
+    "saving": "جارٍ الحفظ…",
     "saveChanges": "حفظ التغييرات",
     "gender": "الجنس",
     "genders": { "male": "ذكر", "female": "أنثى", "unspecified": "أفضّل عدم الإفصاح" },

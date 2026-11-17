@@ -44,7 +44,7 @@
       "aiTools": "AI टूल्स",
       "yourProjects": "आपके प्रोजेक्ट"
     },
-    "planCard": { "manage": "प्रबंधित करें", "clipMinutes": "क्लिप मिनट", "aiCredits": "AI क्रेडिट", "minutesValue": "{count} मिनट" },
+    "planCard": { "changePlan": "प्लान बदलें", "seePlans": "प्लान देखें", "clipMinutes": "क्लिप मिनट", "aiCredits": "AI क्रेडिट", "minutesValue": "{count} मिनट" },
     "corePages": {
       "dashboardHome": { "title": "डैशबोर्ड होम", "desc": "ओवरव्यू, क्वेस्ट और क्विक स्टार्ट" },
       "myClips": { "title": "आपके प्रोजेक्ट", "desc": "आपके सभी AutoClip प्रोजेक्ट्स" },
@@ -170,7 +170,8 @@
     "uid": "UID",
     "copyUid": "UID कॉपी करें",
     "nickname": "उपनाम",
-    "nicknamePlaceholder": "आपका नाम",    "saving": "सेव हो रहा है…",
+    "nicknamePlaceholder": "आपका नाम",
+    "saving": "सेव हो रहा है…",
     "saveChanges": "बदलाव सेव करें",
     "gender": "लिंग",
     "genders": { "male": "पुरुष", "female": "महिला", "unspecified": "बताना नहीं चाहते" },

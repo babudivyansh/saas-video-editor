@@ -1,5 +1,6 @@
 "use client";
 
+import { useRefreshBalanceOnChange } from "@/app/components/useRefreshBalanceOnChange";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/app/components/AuthContext";
@@ -47,6 +48,9 @@ function ProjectsPageInner() {
     refetchInterval: (q) => (q.state.data?.some((p) => RUNNING.has(p.status)) ? 5_000 : false),
   });
   const projects = projectsQuery.data;
+  // Runs are charged and refunded in Clip Minutes server-side; refresh the
+  // balance whenever any card's status moves.
+  useRefreshBalanceOnChange(projects?.map((p) => `${p.id}:${p.status}`).join(","));
   const collectionsQuery = useCollections();
   const collectionActions = useCollectionActions();
 

@@ -132,7 +132,8 @@ export function BillingOverlay({ state, onClose }: { state: BillingOverlayState;
     <Modal
       open={state.open}
       onClose={onClose}
-      title={TITLES[view]}
+      // A subscriber is switching, not upgrading — Studio's only move is down.
+      title={view === "plans" && user?.subscriptionEndsAt && new Date(user.subscriptionEndsAt) > new Date() ? "Change your plan" : TITLES[view]}
       // Every view is a full-screen page (centered heading, round Close
       // top-right, Back where there is a view behind it), matching the
       // upgrade page.
@@ -168,7 +169,7 @@ export function BillingOverlay({ state, onClose }: { state: BillingOverlayState;
       )}
 
       {view === "plans" && (
-        <PlansModal onPurchaseSuccess={handlePurchaseSuccess} resumeFromPeriodEnd={resumeFromPeriodEnd} />
+        <PlansModal onPurchaseSuccess={handlePurchaseSuccess} resumeFromPeriodEnd={resumeFromPeriodEnd} onManage={() => setView("manage")} />
       )}
     </Modal>
   );

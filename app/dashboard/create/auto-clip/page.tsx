@@ -502,7 +502,7 @@ function AutoClipFlow() {
                       // Minute packs sell on the billing overlay's Top Up tab.
                       <Button size="sm" onClick={() => openBilling({ tab: "topup" })}>Top up minutes</Button>
                     ) : paymentBlock.kind === "free_limit" ? (
-                      <a href={paymentBlock.upgradeUrl} className="font-bold text-brand hover:underline">See plans</a>
+                      <Button size="sm" onClick={() => openBilling({ view: "plans" })}>See plans</Button>
                     ) : (
                       <Button size="sm" onClick={() => creditModal.open({ required: paymentBlock.required, balance: paymentBlock.balance, action: "Auto Clips" })}>Top up</Button>
                     )}

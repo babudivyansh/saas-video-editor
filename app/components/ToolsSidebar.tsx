@@ -84,7 +84,7 @@ export function useDashboardNavItems(): { groups: ToolsSidebarNavGroup[]; bottom
     // Settings is an overlay over the current page, like billing.
     { id: "settings", icon: <IcSettings />, label: t("settings"), onSelect: () => openSettings() },
     // Drawer only: on desktop the plan card below is the billing entry point.
-    { id: "billing", icon: null, label: t("upgradePlan"), onSelect: () => openBilling() },
+    { id: "billing", icon: null, label: t("upgradePlan"), onSelect: () => openBilling({ view: "plans" }) },
   ];
 
   return { groups, bottomNav };
@@ -126,7 +126,7 @@ function PlanCard({ collapsed = false }: { collapsed?: boolean }) {
     return (
       <button
         type="button"
-        onClick={() => openBilling({ tab: hasActivePlan ? "topup" : "overview" })}
+        onClick={() => (hasActivePlan ? openBilling({ tab: "topup" }) : openBilling({ view: "plans" }))}
         title={`${planName} · ${t("planCard.clipMinutes")}: ${t("planCard.minutesValue", { count: minutes })} · ${t("planCard.aiCredits")}: ${credits.toLocaleString()}`}
         data-tour="credits-pill"
         className="relative mx-auto w-11 h-11 flex items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
@@ -158,12 +158,14 @@ function PlanCard({ collapsed = false }: { collapsed?: boolean }) {
         >
           {planName}
         </button>
+        {/* One click to the plans page. A subscriber used to go Manage →
+            Manage plan → Change plan (three screens) to switch tiers. */}
         <button
           type="button"
-          onClick={() => openBilling()}
+          onClick={() => openBilling({ view: "plans" })}
           className="text-xs font-semibold text-primary hover:text-primary-hover cursor-pointer flex-shrink-0"
         >
-          {t("planCard.manage")}
+          {hasActivePlan ? t("planCard.changePlan") : t("planCard.seePlans")}
         </button>
       </div>
       <div data-tour="credits-pill" className="space-y-2.5">
@@ -188,7 +190,7 @@ function PlanCard({ collapsed = false }: { collapsed?: boolean }) {
         variant={hasActivePlan ? "secondary" : "primary"}
         size="sm"
         className="w-full"
-        onClick={() => openBilling({ tab: hasActivePlan ? "topup" : "overview" })}
+        onClick={() => (hasActivePlan ? openBilling({ tab: "topup" }) : openBilling({ view: "plans" }))}
       >
         {hasActivePlan ? t("topUp") : t("upgrade")}
       </Button>

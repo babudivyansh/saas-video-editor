@@ -44,7 +44,7 @@
       "aiTools": "AI 工具",
       "yourProjects": "你的项目"
     },
-    "planCard": { "manage": "管理", "clipMinutes": "剪辑分钟数", "aiCredits": "AI 积分", "minutesValue": "{count} 分钟" },
+    "planCard": { "changePlan": "更改套餐", "seePlans": "查看套餐", "clipMinutes": "剪辑分钟数", "aiCredits": "AI 积分", "minutesValue": "{count} 分钟" },
     "corePages": {
       "dashboardHome": { "title": "仪表盘主页", "desc": "概览、任务与快速开始" },
       "myClips": { "title": "你的项目", "desc": "您所有的AutoClip项目" },
@@ -170,7 +170,8 @@
     "uid": "用户ID",
     "copyUid": "复制用户ID",
     "nickname": "昵称",
-    "nicknamePlaceholder": "您的姓名",    "saving": "保存中…",
+    "nicknamePlaceholder": "您的姓名",
+    "saving": "保存中…",
     "saveChanges": "保存更改",
     "gender": "性别",
     "genders": { "male": "男", "female": "女", "unspecified": "不愿透露" },

@@ -71,15 +71,15 @@ test("the billing plans modal shows the same corrected cards as /pricing", async
   }]);
 
   await page.goto("/dashboard?billing=1");
-  await page.getByRole("button", { name: "Manage plan" }).click();
 
-  // Wait for each view to settle before driving the next. Chaining the clicks
-  // straight through passed in isolation but raced under full-suite load, where
-  // the dev server compiles the plans view lazily.
-  await expect(page.getByRole("dialog", { name: "Manage subscription" })).toBeVisible();
-  await page.getByRole("button", { name: "Change plan" }).click();
+  // One click from the billing overview to the plans page — it used to be
+  // Manage plan → Change plan, via the Manage subscription screen.
+  const billing = page.getByRole("dialog", { name: "Billing" });
+  await expect(billing).toBeVisible();
+  await billing.getByRole("button", { name: "Change plan" }).click();
 
-  const modal = page.getByRole("dialog", { name: "Upgrade your plan" });
+  // A subscriber is switching plans, so the page says so.
+  const modal = page.getByRole("dialog", { name: "Change your plan" });
   await expect(modal).toBeVisible();
 
   // The cumulative framing from /pricing, which the modal never had. Generous
@@ -98,8 +98,14 @@ test("the billing plans modal shows the same corrected cards as /pricing", async
   // The credits line is rendered once by the card, not repeated as a bullet.
   await expect(modal.getByText("160 credits / month")).toHaveCount(0);
 
-  // The viewer is on Pro (Monthly) — the card says so.
-  await expect(modal.getByText("Current")).toBeVisible();
+  // The viewer is on Pro (Monthly) — the card says so, and its button is a
+  // label rather than "Renew Pro"; the other tiers read as up or down moves.
+  await expect(modal.getByText("Current", { exact: true })).toBeVisible();
+  await expect(modal.getByRole("button", { name: "Your current plan" })).toBeDisabled();
+  await expect(modal.getByRole("button", { name: "Upgrade to Studio" })).toBeVisible();
+  await expect(modal.getByRole("button", { name: "Switch to Creator" })).toBeVisible();
+  // The current-plan strip links to Manage subscription without a detour.
+  await expect(modal.getByRole("button", { name: "Manage subscription" })).toBeVisible();
 
   // Badge on one line, as on /pricing.
   const badge = modal.getByText("Most Popular");

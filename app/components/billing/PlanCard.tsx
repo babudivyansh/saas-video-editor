@@ -55,6 +55,8 @@ interface PlanCardProps {
   /** "compact" trims padding for the modal, where vertical space is tighter. */
   size?: "default" | "compact";
   ctaLabel?: string;
+  /** The viewer's live plan: the button reads as a label, not an action. */
+  ctaDisabled?: boolean;
   /** Extra classes for the card root (e.g. grid order on /pricing). */
   className?: string;
   /** One short line under the CTA (the trial terms on Pro, "Cancel anytime"). */
@@ -65,7 +67,7 @@ interface PlanCardProps {
 }
 
 export function PlanCard({
-  plan, subs, currency, highlighted, isCurrent, onSelect, size = "default", ctaLabel, footer, className = "", look = "default",
+  plan, subs, currency, highlighted, isCurrent, onSelect, size = "default", ctaLabel, ctaDisabled = false, footer, className = "", look = "default",
 }: PlanCardProps) {
   const upgrade = look === "upgrade";
   const total = minorUnits(plan, currency);
@@ -144,7 +146,8 @@ export function PlanCard({
         <button
           type="button"
           onClick={() => onSelect(plan)}
-          className={`min-h-12 w-full ${upgrade ? "rounded-lg" : "rounded-full"} text-[15px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg ${
+          disabled={ctaDisabled}
+          className={`min-h-12 w-full disabled:cursor-default disabled:!bg-transparent disabled:!text-fg-muted disabled:ring-1 disabled:ring-inset disabled:ring-line ${upgrade ? "rounded-lg" : "rounded-full"} text-[15px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg ${
             upgrade
               ? highlighted ? "bg-fg text-bg hover:bg-fg/90" : "bg-surface-3 text-fg hover:bg-panel-raised"
               : highlighted

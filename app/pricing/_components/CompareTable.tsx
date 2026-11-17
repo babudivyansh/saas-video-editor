@@ -122,7 +122,7 @@ export function CompareTable({ subs, term }: { subs: DbPlan[]; term: number }) {
   const tierName = (t: TierId) => (t === "free" ? "Free" : TIER_LABEL[t]);
 
   return (
-    <section className="mx-auto max-w-6xl px-4 py-20 sm:px-6 sm:py-28 lg:px-8">
+    <section id="compare" className="mx-auto max-w-6xl scroll-mt-24 px-4 py-20 sm:px-6 sm:py-28 lg:px-8">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <h2 className="text-3xl font-semibold tracking-[-0.025em] text-fg sm:text-4xl">Compare plans</h2>
         <button

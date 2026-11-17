@@ -10,7 +10,6 @@
 // until they arrive the preview plays the picked template's sample line.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import CaptionTemplateGallery from "@/app/components/captions/CaptionTemplateGallery";
 import { useCaptionTemplates } from "@/app/components/captions/useCaptionTemplates";
 import { useUpgradePrompt } from "@/app/components/captions/useUpgradePrompt";
@@ -252,7 +251,7 @@ export function TemplateEditStep({ project, transcribe, save, startTranscription
             </p>
             {transcribe.status === "error" && (
               transcribe.code === "insufficient_minutes"
-                ? <Link href="/dashboard/upgrade" className="rounded-xl border border-line-strong px-4 py-2 text-sm font-semibold hover:bg-surface-3">Get more minutes</Link>
+                ? <button type="button" onClick={upgrade} className="rounded-xl border border-line-strong px-4 py-2 text-sm font-semibold hover:bg-surface-3">Get more minutes</button>
                 : <button type="button" onClick={() => void startTranscription(() => pickedRef.current)} className="rounded-xl border border-line-strong px-4 py-2 text-sm font-semibold hover:bg-surface-3">Try again</button>
             )}
           </div>

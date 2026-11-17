@@ -44,7 +44,7 @@
       "aiTools": "AI టూల్స్",
       "yourProjects": "మీ ప్రాజెక్ట్‌లు"
     },
-    "planCard": { "manage": "నిర్వహించు", "clipMinutes": "క్లిప్ నిమిషాలు", "aiCredits": "AI క్రెడిట్‌లు", "minutesValue": "{count} నిమి" },
+    "planCard": { "changePlan": "ప్లాన్ మార్చండి", "seePlans": "ప్లాన్‌లు చూడండి", "clipMinutes": "క్లిప్ నిమిషాలు", "aiCredits": "AI క్రెడిట్‌లు", "minutesValue": "{count} నిమి" },
     "corePages": {
       "dashboardHome": { "title": "డాష్‌బోర్డ్ హోమ్", "desc": "అవలోకనం, క్వెస్ట్‌లు & త్వరిత ప్రారంభం" },
       "myClips": { "title": "మీ ప్రాజెక్ట్‌లు", "desc": "మీ అన్ని AutoClip ప్రాజెక్ట్‌లు" },
@@ -170,7 +170,8 @@
     "uid": "UID",
     "copyUid": "UID కాపీ చేయండి",
     "nickname": "మారుపేరు",
-    "nicknamePlaceholder": "మీ పేరు",    "saving": "సేవ్ చేస్తోంది…",
+    "nicknamePlaceholder": "మీ పేరు",
+    "saving": "సేవ్ చేస్తోంది…",
     "saveChanges": "మార్పులను సేవ్ చేయండి",
     "gender": "లింగం",
     "genders": { "male": "పురుషుడు", "female": "స్త్రీ", "unspecified": "చెప్పదలచుకోలేదు" },

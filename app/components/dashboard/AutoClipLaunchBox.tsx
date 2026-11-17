@@ -13,6 +13,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { AssetPicker } from "@/app/components/assets/AssetPicker";
+import { useOpenPlans } from "@/app/components/billing/BillingOverlayContext";
 import { DEFAULT_TEMPLATE_ID, indexForTemplateId } from "@/lib/captions/legacyStyleIndex";
 import { ACCEPTED_VIDEO_TYPES } from "@/lib/autoclip-source";
 import { useLaunchSource, type LaunchSourceView } from "./useLaunchSource";
@@ -137,6 +138,7 @@ function HeroTitle() {
 
 export function AutoClipLaunchBox() {
   const t = useTranslations("Dashboard");
+  const openPlans = useOpenPlans();
   const router = useRouter();
   const [url, setUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -235,7 +237,7 @@ export function AutoClipLaunchBox() {
             {block.kind === "free_limit" ? (
               <>
                 {block.message}{" "}
-                <Link href={block.upgradeUrl} className="font-semibold text-primary hover:underline">{t("home.upgrade")}</Link>
+                <button type="button" onClick={openPlans} className="font-semibold text-primary hover:underline">{t("home.upgrade")}</button>
               </>
             ) : block.kind === "minutes" ? (
               <>

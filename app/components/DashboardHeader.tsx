@@ -514,7 +514,7 @@ export default function DashboardHeader() {
                   variant={hasActivePlan ? "secondary" : "primary"}
                   size="sm"
                   className="w-full"
-                  onClick={() => { closeMobile(); openBilling({ tab: hasActivePlan ? "topup" : "overview" }); }}
+                  onClick={() => { closeMobile(); openBilling(hasActivePlan ? { tab: "topup" } : { view: "plans" }); }}
                 >
                   {hasActivePlan ? t("topUp") : t("upgrade")}
                 </Button>

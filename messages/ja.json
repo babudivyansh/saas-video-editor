@@ -44,7 +44,7 @@
       "aiTools": "AIツール",
       "yourProjects": "プロジェクト"
     },
-    "planCard": { "manage": "管理", "clipMinutes": "クリップ分数", "aiCredits": "AIクレジット", "minutesValue": "{count}分" },
+    "planCard": { "changePlan": "プランを変更", "seePlans": "プランを見る", "clipMinutes": "クリップ分数", "aiCredits": "AIクレジット", "minutesValue": "{count}分" },
     "corePages": {
       "dashboardHome": { "title": "ダッシュボードホーム", "desc": "概要、クエスト、クイックスタート" },
       "myClips": { "title": "プロジェクト", "desc": "すべてのAutoClipプロジェクト" },
@@ -170,7 +170,8 @@
     "uid": "UID",
     "copyUid": "UIDをコピー",
     "nickname": "ニックネーム",
-    "nicknamePlaceholder": "お名前",    "saving": "保存中…",
+    "nicknamePlaceholder": "お名前",
+    "saving": "保存中…",
     "saveChanges": "変更を保存",
     "gender": "性別",
     "genders": { "male": "男性", "female": "女性", "unspecified": "回答しない" },

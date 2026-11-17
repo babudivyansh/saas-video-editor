@@ -44,7 +44,7 @@
       "aiTools": "KI-Tools",
       "yourProjects": "Deine Projekte"
     },
-    "planCard": { "manage": "Verwalten", "clipMinutes": "Clip-Minuten", "aiCredits": "KI-Credits", "minutesValue": "{count} Min." },
+    "planCard": { "changePlan": "Plan ändern", "seePlans": "Pläne ansehen", "clipMinutes": "Clip-Minuten", "aiCredits": "KI-Credits", "minutesValue": "{count} Min." },
     "corePages": {
       "dashboardHome": { "title": "Dashboard-Startseite", "desc": "Überblick, Quests & Schnellstart" },
       "myClips": { "title": "Deine Projekte", "desc": "Alle Ihre AutoClip-Projekte" },
@@ -170,7 +170,8 @@
     "uid": "UID",
     "copyUid": "UID kopieren",
     "nickname": "Spitzname",
-    "nicknamePlaceholder": "Ihr Name",    "saving": "Wird gespeichert…",
+    "nicknamePlaceholder": "Ihr Name",
+    "saving": "Wird gespeichert…",
     "saveChanges": "Änderungen speichern",
     "gender": "Geschlecht",
     "genders": { "male": "Männlich", "female": "Weiblich", "unspecified": "Möchte ich nicht angeben" },

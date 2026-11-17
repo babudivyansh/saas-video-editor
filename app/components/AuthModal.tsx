@@ -23,7 +23,7 @@ export default function AuthModal() {
     // "open the pricing modal" flow below. Full page load, so it cannot open
     // the overlay directly — the ?billing=1 param is what BillingOverlayProvider
     // reads on mount.
-    const dest = feature && !isFree ? "/dashboard?billing=1" : (next ?? "/dashboard");
+    const dest = feature && !isFree ? "/dashboard?billing=1&view=plans" : (next ?? "/dashboard");
     window.location.href = dest;
   };
 

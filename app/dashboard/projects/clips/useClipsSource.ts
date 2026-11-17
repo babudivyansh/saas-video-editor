@@ -3,6 +3,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, apiFetch } from "@/app/dashboard/create/auto-clip/_components/shared";
 import { autoClipPollIntervalMs } from "./poll";
+import { useRefreshBalanceOnChange } from "@/app/components/useRefreshBalanceOnChange";
 import { COLLECTIONS_KEY } from "../hooks/useCollections";
 import type { ClipsSource, CollectionClipsResponse, ProjectClipsResponse, ViewClip } from "./model";
 
@@ -35,6 +36,12 @@ export function useClipsSource(source: ClipsSource) {
     // A 404 (deleted project or collection) won't appear by asking again.
     retry: (count, err) => !(err instanceof ApiError && err.status < 500) && count < 2,
   });
+
+  // The run's Clip Minutes are charged (or refunded) server-side as it moves
+  // through its statuses — keep the sidebar balance in step.
+  useRefreshBalanceOnChange(
+    source.kind === "project" ? (query.data as ProjectClipsResponse | undefined)?.project.status : null,
+  );
 
   const patchLocal = (clipId: string, patch: Partial<ViewClip>) =>
     qc.setQueryData<Data>(key, (d) => (d ? { ...d, clips: d.clips.map((c) => (c.id === clipId ? { ...c, ...patch } : c)) } : d));
