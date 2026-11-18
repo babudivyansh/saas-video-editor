@@ -16,8 +16,16 @@ import {
   buildDynamicCropFilter,
   buildZoomEnvelope,
   buildSplitScreenFilterComplex,
+  computeGamingKeyframes,
+  splitHalfCropFrac,
+  SPLIT_HALF,
+  type CropKeyframe,
   type FaceBox,
 } from "./reframe";
+
+/** Rendered shape of a crop window on a srcW x srcH source. */
+const shape = (k: CropKeyframe, srcW: number, srcH: number) => (k.w * srcW) / (k.h * srcH);
+const HALF_SHAPE = SPLIT_HALF.w / SPLIT_HALF.h;
 
 describe("parseS3Url", () => {
   it("extracts bucket and key from a standard S3 URL", () => {
@@ -199,6 +207,14 @@ describe("buildSplitScreenFilterComplex", () => {
     expect(fc).toContain("[video]");
   });
 
+  // A filter output label can be read only once; "[trimmedv]" (the pipeline's
+  // source after silence/filler removal) used to be read by both halves.
+  it("reads the source once and splits it, so a trimmed source works", () => {
+    const fc = buildSplitScreenFilterComplex(kfA, kfB, null, null, "[trimmedv]");
+    expect(fc.match(/\[trimmedv\]/g)).toHaveLength(1);
+    expect(fc).toMatch(/^\[trimmedv\]split=2\[splitA\]\[splitB\];\[splitA\].*\[top\];\[splitB\].*\[bot\]/);
+  });
+
   it("chains mood and caption filters after the stack, not before", () => {
     const fc = buildSplitScreenFilterComplex(kfA, kfB, "eq=saturation=1.5", "subtitles='x.ass'");
     const stackIdx = fc.indexOf("vstack");
@@ -206,5 +222,107 @@ describe("buildSplitScreenFilterComplex", () => {
     const capIdx = fc.indexOf("subtitles=");
     expect(moodIdx).toBeGreaterThan(stackIdx);
     expect(capIdx).toBeGreaterThan(moodIdx);
+  });
+});
+
+describe("split-screen crop shape", () => {
+  // Each stacked half renders at 1080x960. The crop used to be a 9:16 slice,
+  // which the scale stretched to almost twice its width.
+  it("crops each speaker at the half's own 9:8 shape, so faces are not stretched", () => {
+    const faces: FaceBox[] = [];
+    for (let i = 0; i < 20; i++) {
+      const t = i / 2;
+      faces.push({ tSec: t, x: 0.05, y: 0.2, w: 0.1, h: 0.3, confidence: 95 });
+      faces.push({ tSec: t, x: 0.75, y: 0.2, w: 0.1, h: 0.3, confidence: 95 });
+    }
+    const result = computeMultiSpeakerKeyframes(faces, 0, 10, 1920, 1080)!;
+    for (const k of [...result.a, ...result.b]) expect(shape(k, 1920, 1080)).toBeCloseTo(HALF_SHAPE, 5);
+  });
+
+  it("is full height for a wide source and full width for a narrow one", () => {
+    expect(splitHalfCropFrac(1920, 1080)).toEqual({ w: (1080 * 9) / 8 / 1920, h: 1 });
+    const narrow = splitHalfCropFrac(1000, 1000);
+    expect(narrow.w).toBe(1);
+    expect((narrow.w * 1000) / (narrow.h * 1000)).toBeCloseTo(HALF_SHAPE, 5);
+  });
+});
+
+describe("computeGamingKeyframes", () => {
+  // A 1080p stream with a webcam overlay in the bottom-left corner.
+  function facecamStream(seconds: number, opts: { x?: number; y?: number; every?: number } = {}): FaceBox[] {
+    const { x = 0.06, y = 0.68, every = 0.5 } = opts;
+    const faces: FaceBox[] = [];
+    for (let t = 0; t < seconds; t += every) faces.push({ tSec: t, x, y, w: 0.06, h: 0.1, confidence: 97 });
+    return faces;
+  }
+
+  it("puts the webcam on top and the centre of the gameplay below, both 9:8", () => {
+    const g = computeGamingKeyframes(facecamStream(30), 0, 30, 1920, 1080)!;
+    expect(g).not.toBeNull();
+    const [top] = g.a;
+    const [bottom] = g.b;
+    // Top frames the face: its centre sits inside the crop.
+    const faceCx = 0.06 + 0.03;
+    const faceCy = 0.68 + 0.05;
+    expect(faceCx).toBeGreaterThan(top.x);
+    expect(faceCx).toBeLessThan(top.x + top.w);
+    expect(faceCy).toBeGreaterThan(top.y);
+    expect(faceCy).toBeLessThan(top.y + top.h);
+    // Bottom is the full-height centre of the frame.
+    expect(bottom.h).toBe(1);
+    expect(bottom.x + bottom.w / 2).toBeCloseTo(0.5, 5);
+    for (const k of [top, bottom]) expect(shape(k, 1920, 1080)).toBeCloseTo(HALF_SHAPE, 5);
+  });
+
+  it("keeps both crops inside the frame when the webcam is in a corner", () => {
+    const g = computeGamingKeyframes(facecamStream(10, { x: 0.94, y: 0.0 }), 0, 10, 1920, 1080)!;
+    for (const k of [...g.a, ...g.b]) {
+      expect(k.x).toBeGreaterThanOrEqual(0);
+      expect(k.y).toBeGreaterThanOrEqual(0);
+      expect(k.x + k.w).toBeLessThanOrEqual(1 + 1e-9);
+      expect(k.y + k.h).toBeLessThanOrEqual(1 + 1e-9);
+    }
+  });
+
+  it("holds both crops still for the whole clip (a webcam overlay doesn't move)", () => {
+    const g = computeGamingKeyframes(facecamStream(20), 5, 15, 1920, 1080)!;
+    expect(g.a[0]).toMatchObject({ tSec: 0 });
+    expect(g.a[g.a.length - 1].tSec).toBe(10);
+    for (const k of g.a) expect(k).toMatchObject({ x: g.a[0].x, y: g.a[0].y });
+    for (const k of g.b) expect(k).toMatchObject({ x: g.b[0].x, y: g.b[0].y });
+  });
+
+  // Silence removal drops keyframes inside cut stretches; with only a start and
+  // an end keyframe, trimming either end would lose the layout.
+  it("keeps a keyframe every second so a trimmed clip still has a split", () => {
+    const g = computeGamingKeyframes(facecamStream(30), 0, 30, 1920, 1080)!;
+    expect(g.a.length).toBeGreaterThanOrEqual(30);
+    const keptMiddle = g.a.filter((k) => k.tSec >= 2 && k.tSec <= 5);
+    expect(keptMiddle.length).toBeGreaterThan(1);
+  });
+
+  it("renders a held crop as constants rather than an interpolation", () => {
+    const g = computeGamingKeyframes(facecamStream(30), 0, 30, 1920, 1080)!;
+    const fc = buildSplitScreenFilterComplex(g.a, g.b, null, null);
+    expect(fc).not.toContain("if(");
+    expect(fc.length).toBeLessThan(600);
+  });
+
+  it("returns null without a steady face, so the clip keeps a plain gameplay crop", () => {
+    expect(computeGamingKeyframes([], 0, 10, 1920, 1080)).toBeNull();
+    // A face in only a few frames is an in-game character, not a webcam.
+    const brief = facecamStream(2);
+    expect(computeGamingKeyframes(brief, 0, 30, 1920, 1080)).toBeNull();
+  });
+
+  it("returns null for a portrait source, which has no wide gameplay to show", () => {
+    expect(computeGamingKeyframes(facecamStream(10), 0, 10, 1080, 1920)).toBeNull();
+  });
+
+  it("follows the webcam track, not a passing face, when track ids are present", () => {
+    const cam = facecamStream(10).map((f) => ({ ...f, trackId: "cam" }));
+    const npc: FaceBox[] = [{ tSec: 3, x: 0.5, y: 0.3, w: 0.08, h: 0.14, confidence: 99, trackId: "npc" }];
+    const g = computeGamingKeyframes([...cam, ...npc], 0, 10, 1920, 1080)!;
+    expect(g.a[0].x).toBeLessThan(0.2);
   });
 });

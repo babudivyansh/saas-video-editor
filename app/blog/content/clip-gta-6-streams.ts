@@ -53,6 +53,10 @@ export const clipGta6Streams: BlogPost = {
       text: "YouTube Shorts and Instagram Reels both allow up to three minutes now, but a gameplay clip almost always holds attention better short: one moment, set up fast, payoff before the thumb moves. Set the length range before the run and AutoClip keeps to it.",
     },
     {
+      lead: "Choose the Gaming stream preset.",
+      text: "It stacks your webcam over the centre of the gameplay in each vertical clip. Without it, a vertical crop follows the only face in the frame, which is your webcam, and the game falls out of the shot.",
+    },
+    {
       lead: "Pick a caption style that reads over chaos.",
       text: `Gameplay is busy, so captions need weight and contrast. The ${familyNames} families were made for this: pixel, glitch, neon and scoreboard looks that stay readable over explosions and HUDs.`,
     },

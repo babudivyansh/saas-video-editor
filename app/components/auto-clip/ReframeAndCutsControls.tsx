@@ -3,9 +3,9 @@
 // Cuts tab — previously two ~150-line copy-pasted JSX blocks with duplicated
 // state, kept here as one component so the two surfaces can't drift again.
 import { Switch } from "@/app/components/ui/Switch";
+import type { SpeakerMode } from "@/lib/speaker-modes";
 
 type ZoomStrength = "low" | "medium" | "high";
-type SpeakerMode = "auto" | "single" | "split" | "active";
 
 const REFRAME_PRESETS = [
   { value: "balanced", label: "Balanced" },
@@ -21,6 +21,7 @@ const ZOOM_STRENGTHS: { value: ZoomStrength; label: string }[] = [
 const SPEAKER_MODES: { value: SpeakerMode; label: string }[] = [
   { value: "auto", label: "Auto" }, { value: "single", label: "Single" },
   { value: "split", label: "Split" }, { value: "active", label: "Active" },
+  { value: "gaming", label: "Gaming" },
 ];
 
 function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
@@ -121,7 +122,7 @@ export function ReframeAndCutsControls(props: ReframeAndCutsValues & ReframeAndC
 
             <div className="space-y-2">
               <label className="text-xs font-bold text-ink-soft uppercase tracking-wider block">Speaker Mode</label>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
                 {SPEAKER_MODES.map((s) => (
                   <Chip key={s.value} active={speakerMode === s.value} onClick={() => setSpeakerMode(s.value)}>{s.label}</Chip>
                 ))}

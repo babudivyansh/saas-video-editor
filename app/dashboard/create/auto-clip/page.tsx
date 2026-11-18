@@ -23,6 +23,7 @@ import { IcFilm, IcCloud, IcFile, IcX, IcSparkle, apiFetch, ASPECTS } from "./_c
 import { clipEditorHref, projectHref } from "@/lib/project-links";
 import { sourceDurationError, sourceFileError, sourceLimitsHint } from "@/lib/autoclip-source";
 import { FlowHeader, PresetCards, QuestionHeading, StepFooter, flowStyles as fs, type FlowStep, type Preset, type PresetId } from "./_components/FlowParts";
+import type { SpeakerMode } from "@/lib/speaker-modes";
 
 // Mirrors the limits printed on the drop zone (and enforced server-side).
 
@@ -104,7 +105,7 @@ function AutoClipFlow() {
   const [removeFillers, setRemoveFillers] = useState(false);
   const [smartAutoReframe, setSmartAutoReframe] = useState(true);
   const [zoomStrength, setZoomStrength] = useState<"low" | "medium" | "high">("medium");
-  const [speakerMode, setSpeakerMode] = useState<"auto" | "single" | "split" | "active">("auto");
+  const [speakerMode, setSpeakerMode] = useState<SpeakerMode>("auto");
   const [smoothness, setSmoothness] = useState(50);
   const [trackingSpeed, setTrackingSpeed] = useState(50);
   // Motion is part of each caption template now; kept on the wire for older clients.
