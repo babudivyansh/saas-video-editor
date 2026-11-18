@@ -23,6 +23,7 @@ const COLUMNS: { title: string; links: LinkItem[] }[] = [
       { label: "How it works", href: "/#how-it-works" },
       { label: "Help Center", href: "/help" },
       { label: "Caption templates", href: "/caption-templates" },
+      { label: "GTA 6 clip maker", href: "/gta-6-clip-maker" },
       { label: "Compare", href: "/compare" },
       { label: "Updates", href: "/blog" },
     ],

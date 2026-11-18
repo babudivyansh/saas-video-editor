@@ -3,6 +3,7 @@ import { ALL_TOOLS, CATEGORY_LABELS } from "@/app/components/featureLinks";
 import { HOME_FAQS } from "@/app/components/landing/faqs";
 import { HELP_ARTICLES } from "@/app/help/articles";
 import { getToolContent } from "@/app/tools/content";
+import { GTA6_CONTENT } from "@/app/gta-6-clip-maker/content";
 import { COMPETITORS } from "@/app/compare/data";
 import { CAPTION_FAMILIES, CAPTION_TEMPLATES } from "@clipiro/shared/caption-templates";
 import { FREE_TIER_MONTHLY_BONUS_MINUTES, TIER_LABEL, PURCHASABLE_TIER_ORDER } from "@/lib/plans/tiers";
@@ -39,6 +40,10 @@ export function GET() {
     "## Tools",
     "",
     ...tools,
+    "",
+    "## Use cases",
+    "",
+    `- [GTA 6 clip maker](${BASE}/gta-6-clip-maker): ${GTA6_CONTENT.metaDescription}`,
     "",
     "## Frequently asked questions",
     "",
