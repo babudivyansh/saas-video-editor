@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getAuthUser, getUserTier } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { withRateLimit } from "@/lib/with-rate-limit";
-import { importSourceFromUrl, UrlImportError, probeSourceUrl, isAllowedSourceUrl } from "@/lib/url-import";
+import { importSourceFromUrl, UrlImportError, probeSourceUrl, isAllowedSourceUrl, UNSUPPORTED_LINK_MESSAGE } from "@/lib/url-import";
 import { adoptExistingS3Object } from "@/lib/asset-service";
 import { logger } from "@/lib/logger";
 
@@ -25,7 +25,7 @@ async function handleGET(req: NextRequest) {
   const url = new URL(req.url).searchParams.get("url") ?? "";
   if (!isAllowedSourceUrl(url)) {
     return NextResponse.json(
-      { error: "That link isn't supported. Paste a YouTube, Vimeo, Loom, Drive or Dropbox URL." },
+      { error: UNSUPPORTED_LINK_MESSAGE },
       { status: 400 },
     );
   }

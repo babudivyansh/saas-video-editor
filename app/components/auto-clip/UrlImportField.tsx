@@ -2,6 +2,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/app/components/ui/Button";
 import { clientAuthToken } from "@/lib/client-session";
+import { SOURCE_HOSTS_LABEL } from "@clipiro/shared/sources";
+import { useAuth } from "@/app/components/AuthContext";
+import { sourceDurationError } from "@/lib/autoclip-source";
 
 // Paste-a-link import, as an alternative to uploading.
 //
@@ -33,6 +36,7 @@ export function UrlImportField({ onImported, disabled, initialUrl }: UrlImportFi
   const [checking, setChecking] = useState(false);
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const tier = useAuth().user?.tier;
 
   const authHeaders = (): Record<string, string> => {
     const token = clientAuthToken();
@@ -53,7 +57,12 @@ export function UrlImportField({ onImported, disabled, initialUrl }: UrlImportFi
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Couldn't read that link");
-      if (data.isLive) throw new Error("That's a live stream — wait until it has finished.");
+      if (data.isLive) throw new Error("That stream is still live. Import it once the broadcast has ended and the VOD is up.");
+      // Same length rules as an upload, checked before the download rather
+      // than after it: a Twitch clip is always under AutoClip's 1-minute
+      // minimum, and an over-plan stream would only fail once imported.
+      const lengthError = sourceDurationError(data.durationSec || null, tier);
+      if (lengthError) throw new Error(lengthError);
       setProbe(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't read that link");
@@ -82,7 +91,7 @@ export function UrlImportField({ onImported, disabled, initialUrl }: UrlImportFi
     <div className="rounded-xl border border-card-border bg-panel p-4 space-y-3">
       <div>
         <p className="text-sm font-semibold text-ink">Or paste a link</p>
-        <p className="text-xs text-ink-soft mt-0.5">YouTube, Vimeo, Loom, Google Drive or Dropbox.</p>
+        <p className="text-xs text-ink-soft mt-0.5">{SOURCE_HOSTS_LABEL}.</p>
       </div>
 
       <div className="flex gap-2">
@@ -90,7 +99,7 @@ export function UrlImportField({ onImported, disabled, initialUrl }: UrlImportFi
           value={url}
           onChange={(e) => { setUrl(e.target.value); setProbe(null); }}
           onKeyDown={(e) => { if (e.key === "Enter") void check(); }}
-          placeholder="https://youtube.com/watch?v=…"
+          placeholder="https://twitch.tv/videos/… or youtube.com/watch?v=…"
           disabled={disabled || importing}
           className="flex-1 min-w-0 rounded-lg border border-card-border px-3 py-2 text-sm"
         />

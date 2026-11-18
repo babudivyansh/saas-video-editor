@@ -12,6 +12,7 @@
 // 20-minute limit.
 
 import { uploadFileToS3 } from "@/utils/s3-upload";
+import { SOURCE_HOSTS, SOURCE_HOSTS_LABEL } from "@clipiro/shared/sources";
 import { TIER_MAX_AUTOCLIP_SOURCE_SECONDS, maxUploadBytesForTier, formatBytes } from "@/lib/plans/tiers";
 import { logger } from "@/lib/logger";
 import { runYtDlp, ytDlpErrorText, YtDlpError } from "@/lib/ytdlp";
@@ -54,14 +55,11 @@ export interface UrlImportResult {
  * Hosts we accept. An allowlist rather than a blocklist: this fetches a
  * server-side URL, so anything unconstrained here is an SSRF primitive
  * (`http://169.254.169.254/…` reaching cloud metadata, for instance).
+ * The list lives in @clipiro/shared so the phone app and the server agree.
  */
-const ALLOWED_HOSTS = [
-  "youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be", "music.youtube.com",
-  "vimeo.com", "player.vimeo.com",
-  "drive.google.com", "docs.google.com",
-  "dropbox.com", "www.dropbox.com",
-  "loom.com", "www.loom.com",
-];
+const ALLOWED_HOSTS: readonly string[] = SOURCE_HOSTS;
+
+export const UNSUPPORTED_LINK_MESSAGE = `That link isn't supported. Paste a ${SOURCE_HOSTS_LABEL} URL.`;
 
 export function isAllowedSourceUrl(raw: string): boolean {
   try {
@@ -107,7 +105,7 @@ export async function importSourceFromUrl(args: {
   const { url, userId, projectId, tier } = args;
 
   if (!isAllowedSourceUrl(url)) {
-    throw new UrlImportError("That link isn't supported. Paste a YouTube, Vimeo, Loom, Drive or Dropbox URL.");
+    throw new UrlImportError(UNSUPPORTED_LINK_MESSAGE);
   }
 
   let probe;
@@ -120,7 +118,7 @@ export async function importSourceFromUrl(args: {
     throw new UrlImportError("We couldn't read that link. It may be private, region-locked, or removed.");
   }
 
-  if (probe.isLive) throw new UrlImportError("That's a live stream — wait until it has finished, then import it.");
+  if (probe.isLive) throw new UrlImportError("That stream is still live. Import it once the broadcast has ended and the VOD is up.");
 
   const cap = TIER_MAX_AUTOCLIP_SOURCE_SECONDS[tier];
   if (probe.durationSec > cap) {

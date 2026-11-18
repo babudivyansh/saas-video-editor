@@ -247,7 +247,7 @@ export function AutoClipScreen() {
                   </Text>
                 </Pressable>
                 <View style={styles.col}>
-                  <SourceTile icon="link" title="Paste link" body="YouTube, Vimeo, Loom…" onPress={() => setSheet("link")} />
+                  <SourceTile icon="link" title="Paste link" body="YouTube, Twitch, Vimeo…" onPress={() => setSheet("link")} />
                   <SourceTile
                     icon="folder"
                     title="From Assets"

@@ -37,6 +37,7 @@ vi.mock("@/lib/url-import", () => ({
   UrlImportError: class UrlImportError extends Error {},
   probeSourceUrl: vi.fn(),
   isAllowedSourceUrl: vi.fn(() => true),
+  UNSUPPORTED_LINK_MESSAGE: "That link isn't supported.",
 }));
 
 const adoptExistingS3Object = vi.fn(async () => ({ asset: {}, url: "x", key: "x", duplicate: false }));

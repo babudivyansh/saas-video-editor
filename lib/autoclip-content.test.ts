@@ -200,6 +200,10 @@ describe("URL import allowlist", () => {
       "https://vimeo.com/123",
       "https://drive.google.com/file/d/x/view",
       "https://www.loom.com/share/x",
+      "https://www.twitch.tv/videos/2245678901",
+      "https://twitch.tv/somestreamer/clip/FunnyClipSlug",
+      "https://clips.twitch.tv/FunnyClipSlug",
+      "https://m.twitch.tv/videos/2245678901",
     ]) {
       expect(isAllowedSourceUrl(url), url).toBe(true);
     }
@@ -226,6 +230,8 @@ describe("URL import allowlist", () => {
   it("rejects a lookalike host", () => {
     expect(isAllowedSourceUrl("https://youtube.com.evil.test/watch?v=a")).toBe(false);
     expect(isAllowedSourceUrl("https://notyoutube.com/watch?v=a")).toBe(false);
+    expect(isAllowedSourceUrl("https://twitch.tv.evil.test/videos/1")).toBe(false);
+    expect(isAllowedSourceUrl("https://eviltwitch.tv/videos/1")).toBe(false);
   });
 
   it("rejects malformed input rather than throwing", () => {

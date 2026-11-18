@@ -2,25 +2,62 @@
 // upload starts — the server only said no after the whole file had gone up.
 // Shared by the AutoClip page and Home's launch box so they can't drift.
 
+import {
+  TIER_LABEL,
+  TIER_MAX_AUTOCLIP_SOURCE_SECONDS,
+  formatBytes,
+  maxUploadBytesForTier,
+  type TierId,
+} from "@/lib/plans/tiers";
+
 export const ACCEPTED_VIDEO_TYPES = ["video/mp4", "video/quicktime", "video/mov", "video/webm"];
 export const ACCEPTED_VIDEO_EXTENSIONS = [".mp4", ".mov", ".webm"];
-export const MAX_SOURCE_BYTES = 500 * 1024 * 1024;
 export const MIN_SOURCE_SEC = 60;
-export const MAX_SOURCE_SEC = 90 * 60;
+
+// The limits are the plan's own (lib/plans/tiers.ts), the same numbers the
+// server enforces and /pricing advertises. These used to be a flat 500 MB and
+// 90 minutes, which blocked Creator, Pro and Studio users from the 1-5 GB,
+// 2-6 hour sources their plan includes. When the plan isn't known yet (auth
+// still loading) the check defers to the server rather than guess low.
+const UNKNOWN_PLAN: TierId = "studio";
+
+const planLabel = (tier: TierId) => (tier === "free" ? "Free" : TIER_LABEL[tier]);
+
+/** "30 min" / "1 h" / "2 h 30 min". */
+function formatLength(sec: number): string {
+  const h = Math.floor(sec / 3600);
+  const m = Math.round((sec % 3600) / 60);
+  if (h === 0) return `${m} min`;
+  return m === 0 ? `${h} h` : `${h} h ${m} min`;
+}
+
+/** "MP4, MOV or WebM · up to 2 GB · 1 min to 4 h", for the drop zone's hint. */
+export function sourceLimitsHint(tier: TierId | null | undefined): string {
+  const plan = tier ?? UNKNOWN_PLAN;
+  return `MP4, MOV or WebM · up to ${formatBytes(maxUploadBytesForTier(plan))} · 1 min to ${formatLength(TIER_MAX_AUTOCLIP_SOURCE_SECONDS[plan])}`;
+}
 
 /** Type and size, which are known the moment a file is chosen. */
-export function sourceFileError(f: { type: string; name: string; size: number }): string | null {
+export function sourceFileError(f: { type: string; name: string; size: number }, tier: TierId | null | undefined): string | null {
   const typeOk = ACCEPTED_VIDEO_TYPES.includes(f.type) || ACCEPTED_VIDEO_EXTENSIONS.some((ext) => f.name.toLowerCase().endsWith(ext));
   if (!typeOk) return "That file isn't a supported video. Use MP4, MOV or WebM.";
-  if (f.size > MAX_SOURCE_BYTES) return "That video is over 500 MB. Trim or compress it, then try again.";
+  const plan = tier ?? UNKNOWN_PLAN;
+  const maxBytes = maxUploadBytesForTier(plan);
+  if (f.size > maxBytes) {
+    return `That video is over ${formatBytes(maxBytes)}, the ${planLabel(plan)} plan's limit. Trim or compress it, or upgrade for larger files.`;
+  }
   return null;
 }
 
 /** Length, once the file's metadata (or a library asset's record) has it. */
-export function sourceDurationError(sec: number | null | undefined): string | null {
+export function sourceDurationError(sec: number | null | undefined, tier: TierId | null | undefined): string | null {
   if (sec == null || !Number.isFinite(sec)) return null;
   if (sec < MIN_SOURCE_SEC) return "That video is under a minute — AutoClip needs at least 1 minute of footage.";
-  if (sec > MAX_SOURCE_SEC) return "That video is over 1 h 30 m. Trim it and try again.";
+  const plan = tier ?? UNKNOWN_PLAN;
+  const maxSec = TIER_MAX_AUTOCLIP_SOURCE_SECONDS[plan];
+  if (sec > maxSec) {
+    return `That video is over ${formatLength(maxSec)}, the ${planLabel(plan)} plan's limit. Trim it, or upgrade for longer videos.`;
+  }
   return null;
 }
 
