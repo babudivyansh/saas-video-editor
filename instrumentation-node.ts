@@ -46,4 +46,12 @@ export async function registerNode() {
     const n = await reconcileOrphanedToolJobs();
     if (n > 0) logger.warn("boot", `reconciled ${n} tool job(s) orphaned by a restart`);
   } catch { /* never block boot on reconciliation */ }
+
+  // Temp files the previous process's dead jobs left in /tmp (lib/tmp-sweep.ts).
+  // Off the boot path: a large backlog takes a while to delete.
+  setTimeout(() => {
+    import("./lib/tmp-sweep")
+      .then(({ sweepAppTempFiles }) => sweepAppTempFiles())
+      .catch(() => { /* best-effort */ });
+  }, 30_000).unref?.();
 }

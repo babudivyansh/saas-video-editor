@@ -96,6 +96,25 @@ export async function probeSourceUrl(url: string): Promise<{ title: string; dura
  * Download a source URL and store it as a project's source video.
  * Throws UrlImportError with a message written for the user.
  */
+/**
+ * Deletes the download and every sidecar yt-dlp wrote next to it. With
+ * separate video and audio formats yt-dlp downloads `<name>.f399.mp4.part`,
+ * `<name>.f140.m4a`, … and merges them into `<name>`; a download that failed
+ * or hit the size cap left those behind, because only `<name>` itself was
+ * deleted. One such leftover on the Hostinger disk was 2 GB (2026-11-19).
+ */
+export function removeDownloadArtifacts(tmpPath: string): void {
+  const dir = path.dirname(tmpPath);
+  const stem = path.basename(tmpPath, path.extname(tmpPath));
+  try {
+    for (const name of fs.readdirSync(dir)) {
+      if (name === stem || name.startsWith(`${stem}.`)) {
+        try { fs.rmSync(path.join(dir, name), { force: true }); } catch { /* best-effort */ }
+      }
+    }
+  } catch { /* tmp unreadable: the sweep (lib/tmp-sweep.ts) gets it later */ }
+}
+
 export async function importSourceFromUrl(args: {
   url: string;
   userId: string;
@@ -168,6 +187,6 @@ export async function importSourceFromUrl(args: {
     logger.error("url-import", `download failed for ${url}`, new YtDlpError("url-import download failed", ytDlpErrorText(err)));
     throw new UrlImportError("We couldn't download that video. It may be private or restricted.");
   } finally {
-    try { if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath); } catch {}
+    removeDownloadArtifacts(tmpPath);
   }
 }
