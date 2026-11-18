@@ -42,6 +42,7 @@ import {
   computeMultiSpeakerKeyframes,
   buildDynamicCropFilter,
   buildSplitScreenFilterComplex,
+  computeGamingKeyframes,
   buildZoomEnvelope,
   cropSizeFrac,
   type FaceBox,
@@ -49,6 +50,7 @@ import {
   type StoredCrop,
   type ReframeOptions,
 } from "@/lib/reframe";
+import type { SpeakerMode } from "@/lib/speaker-modes";
 import {
   classifyScene, buildCutKeyframes, buildGroupKeyframes, buildDriftKeyframes,
 } from "@/lib/scene-layout";
@@ -807,6 +809,15 @@ function computeStoredCrop(
   const { w: sceneCropW, h: sceneCropH } = cropSizeFrac(aspectRatio, srcW, srcH);
   const speakerMode0 = options.speakerMode ?? "auto";
 
+  if (speakerMode0 === "gaming") {
+    // Facecam on top, gameplay below. Without a steady webcam face (or in a
+    // wide/square clip) null falls through to the static centre crop, which
+    // keeps the gameplay: following a stray face would lose it.
+    if (aspectRatio !== "9:16") return null;
+    const gaming = computeGamingKeyframes(allFaces, seg.start, seg.end, srcW, srcH);
+    return gaming ? { mode: "split", a: gaming.a, b: gaming.b } : null;
+  }
+
   if (speakerMode0 === "auto") {
     if (scene.type === "dialogue" && aspectRatio === "9:16") {
       // Alternating conversation reads better as cuts than as a permanent
@@ -866,7 +877,7 @@ export interface PickPayload {
   removeFillers?: boolean;
   smartAutoReframe?: boolean;
   zoomStrength?: "low" | "medium" | "high";
-  speakerMode?: "auto" | "single" | "split" | "active";
+  speakerMode?: SpeakerMode;
   smoothness?: number;
   trackingSpeed?: number;
   animatedCaptions?: boolean;

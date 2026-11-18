@@ -88,6 +88,7 @@ const POLL_INTERVAL_MS = 3000;
 // keep working.
 import { parseS3Url } from "@/lib/s3-url";
 export { parseS3Url };
+import { SPEAKER_MODES, type SpeakerMode } from "@/lib/speaker-modes";
 
 // Runs AWS Rekognition Video face detection for the whole source video and
 // returns every detected face sample. Requires the IAM credentials already
@@ -282,7 +283,7 @@ export interface ReframeOptions {
   preset?: string;
   smartAutoReframe?: boolean;
   zoomStrength?: "low" | "medium" | "high";
-  speakerMode?: "auto" | "single" | "split" | "active";
+  speakerMode?: SpeakerMode;
   smoothness?: number; // 0..100
   trackingSpeed?: number; // 0..100
   words?: { word: string; start: number; end: number }[] | null;
@@ -290,7 +291,7 @@ export interface ReframeOptions {
 
 export const REFRAME_PRESETS = ["balanced", "minimal", "dynamic", "cinematic"] as const;
 export const ZOOM_STRENGTHS = ["low", "medium", "high"] as const;
-export const SPEAKER_MODES = ["auto", "single", "split", "active"] as const;
+export { SPEAKER_MODES };
 
 // Validates untrusted request-body values against the enums/ranges reframe
 // options are actually constrained to, returning undefined (so the caller's
@@ -711,10 +712,12 @@ export function computeMultiSpeakerKeyframes(
 ): MultiSpeakerResult | null {
   const options = typeof optionsOrPreset === "string" ? { preset: optionsOrPreset } : (optionsOrPreset ?? {});
   const preset = options.preset ?? "balanced";
-  // Split-screen halves are each a 9:16-shaped window sized to half the
-  // canvas height once stacked — reuse the same single-speaker crop width
-  // (a 9:16 slice of the source), just applied twice.
-  const { w: cropW, h: cropH } = cropSizeFrac("9:16", srcW, srcH);
+  // Each stacked half renders at 1080x960 (buildSplitScreenFilterComplex), so
+  // the crop window has to be that shape too: a full-height 9:8 slice. This
+  // used to reuse the single-speaker 9:16 slice, which the scale then
+  // stretched to nearly twice its width, so every split-screen face came out
+  // wide.
+  const { w: cropW, h: cropH } = splitHalfCropFrac(srcW, srcH);
   if (cropW >= 0.999) return null; // source is already narrow enough that there's no room to split
 
   const inWindow = allFaces
@@ -942,6 +945,96 @@ export function buildZoomEnvelope(clipDurationSec: number, aspect: "9:16" | "16:
 // vertical split-screen, mirroring the static vstack technique already used
 // by utils/ffmpeg-render.ts's runSplitScreenFFmpeg — same shape, just with
 // per-input dynamic crop expressions instead of one static crop.
+/** Output size of one stacked half in the split-screen render. */
+export const SPLIT_HALF = { w: 1080, h: 960 } as const;
+
+/**
+ * A full-height crop window with the split half's 9:8 shape, as fractions of
+ * the source frame. w is 1 (and h shrinks) only for a source narrower than 9:8.
+ */
+export function splitHalfCropFrac(srcW: number, srcH: number): { w: number; h: number } {
+  const aspect = SPLIT_HALF.w / SPLIT_HALF.h;
+  const w = (srcH * aspect) / srcW;
+  return w <= 1 ? { w, h: 1 } : { w: 1, h: srcW / aspect / srcH };
+}
+
+// ── Gaming layout: facecam on top, gameplay below ───────────────────────────
+// A stream with a webcam overlay has one small, fixed face in a corner. The
+// single-speaker path follows that face, so the vertical clip shows only the
+// webcam and none of the game. This layout stacks a crop around the webcam
+// over a centre crop of the gameplay, reusing the split-screen render.
+
+// The webcam crop is this many face-heights tall: enough for head, shoulders
+// and the overlay's frame without pulling in much of the game around it.
+const FACECAM_HEIGHT_IN_FACES = 2.6;
+// A facecam is on screen for the whole stream; a face seen in under this share
+// of the clip is a character in the game or a passer-by, not a webcam.
+const MIN_FACECAM_COVERAGE = 0.5;
+const HOLD_KEYFRAME_SEC = 1;
+
+export function computeGamingKeyframes(
+  allFaces: FaceBox[],
+  clipStartSec: number,
+  clipEndSec: number,
+  srcW: number,
+  srcH: number,
+): MultiSpeakerResult | null {
+  if (srcW <= 0 || srcH <= 0 || clipEndSec <= clipStartSec) return null;
+  const duration = clipEndSec - clipStartSec;
+  const half = splitHalfCropFrac(srcW, srcH);
+  // A portrait or square source has no wide gameplay to put under the webcam.
+  if (half.w >= 0.999) return null;
+
+  const inWindow = allFaces.filter(
+    (f) => f.tSec >= clipStartSec && f.tSec <= clipEndSec && f.confidence >= MIN_CONFIDENCE,
+  );
+  if (inWindow.length === 0) return null;
+
+  // The webcam is the face that stays put, so take the most consistently
+  // present track (or, without track ids, everything, since a facecam stream
+  // has one face) and use its median box: robust to a few stray detections.
+  const byTrack = new Map<string, FaceBox[]>();
+  for (const f of inWindow) {
+    const key = f.trackId ?? "_";
+    const arr = byTrack.get(key);
+    if (arr) arr.push(f); else byTrack.set(key, [f]);
+  }
+  const cam = [...byTrack.values()].sort((p, q) => q.length - p.length)[0];
+  const bucketCount = Math.max(1, Math.ceil(duration / BUCKET_SEC));
+  const covered = new Set(cam.map((f) => Math.floor((f.tSec - clipStartSec) / BUCKET_SEC))).size;
+  if (covered / bucketCount < MIN_FACECAM_COVERAGE) return null;
+
+  const median = (xs: number[]) => {
+    const s = [...xs].sort((a, b) => a - b);
+    return s[Math.floor(s.length / 2)];
+  };
+  const cx = median(cam.map((f) => f.x + f.w / 2));
+  const cy = median(cam.map((f) => f.y + f.h / 2));
+  const faceH = median(cam.map((f) => f.h));
+
+  // Top: a 9:8 window around the webcam, at most the full split-half window.
+  const camH = Math.min(half.h, faceH * FACECAM_HEIGHT_IN_FACES);
+  const camW = camH * (half.w / half.h);
+  const camX = Math.min(1 - camW, Math.max(0, cx - camW / 2));
+  const camY = Math.min(1 - camH, Math.max(0, cy - camH / 2));
+  const top = { x: camX, y: camY, w: camW, h: camH };
+
+  // Bottom: the centre of the frame at full height, where the game's action
+  // and crosshair are. Static: gameplay has no subject to follow.
+  const bottom = { x: (1 - half.w) / 2, y: (1 - half.h) / 2, w: half.w, h: half.h };
+
+  // A held crop, one keyframe a second. Not just start and end: silence and
+  // filler removal drop the keyframes that fall in cut stretches, and a split
+  // needs more than one left or the clip falls back to a single crop.
+  const hold = (box: Omit<CropKeyframe, "tSec">): CropKeyframe[] => {
+    const kf: CropKeyframe[] = [];
+    for (let t = 0; t < duration; t += HOLD_KEYFRAME_SEC) kf.push({ tSec: t, ...box });
+    kf.push({ tSec: duration, ...box });
+    return kf;
+  };
+  return { a: hold(top), b: hold(bottom) };
+}
+
 export function buildSplitScreenFilterComplex(
   a: CropKeyframe[],
   b: CropKeyframe[],
@@ -949,22 +1042,32 @@ export function buildSplitScreenFilterComplex(
   captionsFilter: string | null,
   videoSrc = "[0:v]"
 ): string {
-  const half = { w: 1080, h: 960 };
+  const half = SPLIT_HALF;
   const cropAndScale = (kf: CropKeyframe[]) => {
     const varying = kf.some((k) => k.w !== kf[0].w || k.h !== kf[0].h);
     // Same crop-can't-zoom constraint as buildDynamicCropFilter: a varying
     // window has to go through zoompan, which also pins the half's output size.
     if (varying) return buildPanZoomChain(kf, half.w, half.h);
+    // A crop that never moves (the gaming layout) needs no interpolation.
+    if (kf.every((k) => k.x === kf[0].x && k.y === kf[0].y)) {
+      return `crop=w='(${kf[0].w}*in_w)':h='(${kf[0].h}*in_h)':x='(${kf[0].x}*in_w)':y='(${kf[0].y}*in_h)',scale=${half.w}:${half.h}`;
+    }
     const xExpr = lerpExpr("in_w", kf, "x");
     const yExpr = lerpExpr("in_h", kf, "y");
     return `crop=w='(${kf[0].w}*in_w)':h='(${kf[0].h}*in_h)':x='${xExpr}':y='${yExpr}',scale=${half.w}:${half.h}`;
   };
-  const top = `${videoSrc}${cropAndScale(a)}[top]`;
-  const bot = `${videoSrc}${cropAndScale(b)}[bot]`;
+  // Split the source explicitly. Reading videoSrc twice works for an input
+  // stream ("[0:v]"), but the pipeline passes "[trimmedv]" whenever silence or
+  // filler removal trims the clip, and a filter output can be consumed only
+  // once: ffmpeg 6 rejects the graph ("matches no streams") and ffmpeg 8
+  // silently feeds the untrimmed input to the second half, out of sync.
+  const split = `${videoSrc}split=2[splitA][splitB]`;
+  const top = `[splitA]${cropAndScale(a)}[top]`;
+  const bot = `[splitB]${cropAndScale(b)}[bot]`;
 
   const postStack = [moodFilter, captionsFilter].filter((f): f is string => !!f);
   const stacked = postStack.length > 0
     ? `[top][bot]vstack=inputs=2[stackedraw];[stackedraw]${postStack.join(",")}[video]`
     : `[top][bot]vstack=inputs=2[video]`;
-  return `${top};${bot};${stacked}`;
+  return `${split};${top};${bot};${stacked}`;
 }

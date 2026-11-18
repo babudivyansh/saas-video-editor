@@ -2,6 +2,7 @@
 import { useState, useCallback } from "react";
 import { discardDraftProject } from "@/lib/discard-draft-project";
 import { clientAuthToken } from "@/lib/client-session";
+import type { SpeakerMode } from "@/lib/speaker-modes";
 
 // Starts AutoClip runs. The only product left on this hook — the other
 // create products it served were deleted, and with them the project-polling
@@ -118,7 +119,7 @@ export interface RunSettings {
   removeFillers?: boolean;
   smartAutoReframe?: boolean;
   zoomStrength?: "low" | "medium" | "high";
-  speakerMode?: "auto" | "single" | "split" | "active";
+  speakerMode?: SpeakerMode;
   smoothness?: number;
   trackingSpeed?: number;
   animatedCaptions?: boolean;

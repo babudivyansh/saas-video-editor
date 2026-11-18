@@ -17,6 +17,7 @@ import { RelatedSection, RelatedRail, RelatedList, RelatedEmpty, RelatedLoading,
 import type { ClipRelated } from "@/lib/related-content";
 import { IcChevronLeft, IcChevronRight, IcPlay, ApiError, apiFetch, ClipItem, ScoreBreakdownWithInsights, InsightRow, scoreBand, arCss, ASPECTS } from "./shared";
 import { EditInEditorButton, DubPanel, PublishPanel } from "./ClipActions";
+import type { SpeakerMode } from "@/lib/speaker-modes";
 
 export type WorkspaceTab = "edit" | "captions" | "reframe" | "insights" | "transcript" | "publish" | "related";
 
@@ -687,7 +688,7 @@ export function ClipWorkspace({
                       smartAutoReframe={reframe.smartAutoReframe} setSmartAutoReframe={reframeSetter("smartAutoReframe")}
                       reframingPreset={reframe.reframingPreset} setReframingPreset={reframeSetter("reframingPreset")}
                       zoomStrength={reframe.zoomStrength as "low" | "medium" | "high"} setZoomStrength={reframeSetter("zoomStrength")}
-                      speakerMode={reframe.speakerMode as "auto" | "single" | "split" | "active"} setSpeakerMode={reframeSetter("speakerMode")}
+                      speakerMode={reframe.speakerMode as SpeakerMode} setSpeakerMode={reframeSetter("speakerMode")}
                       smoothness={reframe.smoothness} setSmoothness={reframeSetter("smoothness", 900)}
                       trackingSpeed={reframe.trackingSpeed} setTrackingSpeed={reframeSetter("trackingSpeed", 900)}
                       removeSilence={reframe.removeSilence} setRemoveSilence={reframeSetter("removeSilence")}

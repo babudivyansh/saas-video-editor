@@ -92,8 +92,8 @@ export const GTA6_CONTENT: UseCaseContent = {
       body: `The free plan includes ${FREE_TIER_MONTHLY_BONUS_MINUTES} AutoClip minutes a month, watermarked, with no card needed.`,
     },
     {
-      title: "Edit anything after",
-      body: "Every clip opens in the editor: move the cut, fix a word in the captions, change the crop or the caption style before you export.",
+      title: "Facecam on top, gameplay below",
+      body: "Pick the Gaming stream preset and each vertical clip stacks your webcam over the centre of the gameplay, instead of zooming in on your face and losing the game.",
     },
   ],
   bestFor: {
@@ -120,6 +120,11 @@ export const GTA6_CONTENT: UseCaseContent = {
     {
       question: "How long can my stream be?",
       answer: `The free plan takes recordings up to ${hours("free")}, Lite up to ${hours("lite")}, Creator up to ${hours("creator")}, Pro up to ${hours("pro")} and Studio up to ${hours("studio")}. For a longer session, trim it into parts first.`,
+    },
+    {
+      question: "Will my facecam and the gameplay both show?",
+      answer:
+        "Yes, with the Gaming stream preset (or the Gaming speaker mode): the top half of each vertical clip frames your webcam and the bottom half shows the centre of the gameplay. Without a webcam in the stream, clips show a centre crop of the gameplay.",
     },
     {
       question: "What clip length works best?",
