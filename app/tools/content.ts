@@ -115,13 +115,13 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
 
   "auto-clip": {
     h1: "Turn one long video into a week of clips",
-    updatedAt: "2026-11-04",
+    updatedAt: "2026-11-18",
     metaTitle: "AutoClip — Long Video to Short Clips with AI",
     metaDescription:
       `Drop in a podcast, stream, or interview and AutoClip finds the strongest moments, captions them, and cuts them to vertical. ${FREE_TIER_MONTHLY_BONUS_MINUTES} free minutes a month.`,
     lede: "Drop in a podcast, stream, or interview. AutoClip finds the moments worth posting, captions them, reframes them vertical, and hands back a set of ready-to-upload shorts.",
     steps: [
-      { title: "Add your video", body: `Upload a file or paste a link. Paid plans take sources from ${sourceCap("lite")} up to ${sourceCap("studio")}, depending on your plan.` },
+      { title: "Add your video", body: `Upload a file or paste a link from YouTube, Twitch, Vimeo, Loom, Google Drive or Dropbox. Paid plans take sources from ${sourceCap("lite")} up to ${sourceCap("studio")}, depending on your plan.` },
       { title: "AutoClip finds the moments", body: "It scans the transcript and the audio for self-contained, high-energy segments rather than slicing on a fixed timer." },
       { title: "Review and export", body: "Each clip arrives captioned and reframed to vertical. Keep what works, adjust anything in the editor, and export." },
     ],
@@ -136,6 +136,7 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
       { question: "How is AutoClip priced?", answer: `In Clip Minutes: one minute per minute of source video, however many clips it produces. Lite includes 60 minutes a month, Creator 200, Pro 400, and Studio 1,000. The free plan gets ${FREE_TIER_MONTHLY_BONUS_MINUTES} watermarked minutes a month.` },
       { question: "Can I edit the clips afterwards?", answer: "Yes. Every clip opens in the editor, so you can retime the cut, change the caption style, or swap the crop before exporting." },
       { question: "What source videos work best?", answer: "Anything with clear speech — podcasts, interviews, streams, lectures, reaction videos. Clean audio matters more than resolution." },
+      { question: "Can I clip a Twitch stream?", answer: "Yes. Paste the link to a past broadcast or highlight and AutoClip imports it; a channel that is still live can be imported once the VOD is up. Streaming GTA 6? See the GTA 6 clip maker page at clipiro.com/gta-6-clip-maker." },
       COMMERCIAL_FAQ,
     ],
   },

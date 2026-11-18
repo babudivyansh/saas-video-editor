@@ -6,6 +6,7 @@ import { HELP_ARTICLES } from "./help/articles";
 import { LEGAL_DOCS } from "./legal/documents";
 import { ALL_TOOLS } from "./components/featureLinks";
 import { getToolContent } from "./tools/content";
+import { GTA6_CONTENT } from "./gta-6-clip-maker/content";
 import { COMPETITORS, COMPETITORS_CHECKED_ON } from "./compare/data";
 import { CAPTION_FAMILIES, CAPTION_TEMPLATES } from "@clipiro/shared/caption-templates";
 import { prisma } from "@/lib/prisma";
@@ -102,6 +103,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/pricing`, changeFrequency: "weekly", priority: 0.9 },
     { url: `${base}/tools`, changeFrequency: "weekly", priority: 0.9 },
     ...toolEntries,
+    // Use-case landing page; same weight as a tool page.
+    { url: `${base}/gta-6-clip-maker`, lastModified: GTA6_CONTENT.updatedAt, changeFrequency: "weekly", priority: 0.8 },
     { url: `${base}/caption-templates`, changeFrequency: "weekly", priority: 0.7 },
     ...CAPTION_FAMILIES.filter((f) => CAPTION_TEMPLATES.some((t) => t.family === f.id)).map((f) => ({
       url: `${base}/caption-templates/${f.id}`,

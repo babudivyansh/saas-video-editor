@@ -13,6 +13,7 @@ import { aiClippingCost } from "./content/ai-clipping-cost";
 import { hindiCaptionsShortsReels } from "./content/hindi-captions-shorts-reels";
 import { podcastToYoutubeShorts, videoToFacebookReels, videoToInstagramReels } from "./content/platform-guides";
 import { aiClippingIndianCreators } from "./content/ai-clipping-indian-creators";
+import { clipGta6Streams } from "./content/clip-gta-6-streams";
 
 export const BLOG_POSTS: BlogPost[] = [
   podcastToViralClips,
@@ -27,6 +28,7 @@ export const BLOG_POSTS: BlogPost[] = [
   videoToInstagramReels,
   videoToFacebookReels,
   aiClippingIndianCreators,
+  clipGta6Streams,
 ];
 
 export function getBlogPost(slug: string): BlogPost | undefined {
