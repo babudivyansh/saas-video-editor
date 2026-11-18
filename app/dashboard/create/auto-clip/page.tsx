@@ -7,6 +7,7 @@ import { ReframeAndCutsControls } from "@/app/components/auto-clip/ReframeAndCut
 import { discardDraftProject } from "@/lib/discard-draft-project";
 import { useInsufficientCredits } from "@/app/components/billing/CreditModalContext";
 import { useBillingOverlay } from "@/app/components/billing/BillingOverlayContext";
+import { useAuth } from "@/app/components/AuthContext";
 import { UrlImportField } from "@/app/components/auto-clip/UrlImportField";
 import { Switch } from "@/app/components/ui/Switch";
 import { Checkbox } from "@/app/components/ui/Checkbox";
@@ -20,7 +21,7 @@ import { OVERFLOW_MINUTES_PER_CREDIT, overflowCreditsFor } from "@/lib/plans/tie
 import { MAX_INSTRUCTIONS_CHARS } from "@/lib/autoclip-create-input";
 import { IcFilm, IcCloud, IcFile, IcX, IcSparkle, apiFetch, ASPECTS } from "./_components/shared";
 import { clipEditorHref, projectHref } from "@/lib/project-links";
-import { sourceDurationError, sourceFileError } from "@/lib/autoclip-source";
+import { sourceDurationError, sourceFileError, sourceLimitsHint } from "@/lib/autoclip-source";
 import { FlowHeader, PresetCards, QuestionHeading, StepFooter, flowStyles as fs, type FlowStep, type Preset, type PresetId } from "./_components/FlowParts";
 
 // Mirrors the limits printed on the drop zone (and enforced server-side).
@@ -36,6 +37,8 @@ const LENGTH_PRESETS: { id: LengthPreset; label: string; min: number; max: numbe
 function AutoClipFlow() {
   const router = useRouter();
   const params = useSearchParams();
+  // Plan limits for the source checks below; the server enforces the same ones.
+  const tier = useAuth().user?.tier;
   const resumeProjectId = params.get("project");
   // Set by Related Content links from the Assets library.
   const deepLinkClipId = params.get("clip");
@@ -187,13 +190,13 @@ function AutoClipFlow() {
   const handleFile = useCallback((f: File) => {
     // Checked here because a drop bypasses the input's `accept`, and the
     // server only said no after the whole upload had finished.
-    const fileError = sourceFileError(f);
+    const fileError = sourceFileError(f, tier);
     if (fileError) { setImportError(fileError); return; }
     setImportError(null);
     if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
     setFile(f);
     setVideoPreviewUrl(URL.createObjectURL(f));
-  }, [videoPreviewUrl]);
+  }, [videoPreviewUrl, tier]);
 
   const handleClearFile = useCallback(() => {
     if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
@@ -215,7 +218,7 @@ function AutoClipFlow() {
   }, [file, videoPreviewUrl]);
 
   // Length is only known once the file's metadata loads (effect above).
-  const durationError = sourceDurationError(sourceDurationSec);
+  const durationError = sourceDurationError(sourceDurationSec, tier);
 
   // Covers the awaits before the status flips (project create, URL import):
   // the button showed nothing for those seconds, and a second click made a
@@ -412,7 +415,7 @@ function AutoClipFlow() {
                     >
                       <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-on-primary"><IcCloud /></span>
                       <span className="text-lg font-semibold text-fg">Drop a video anywhere, or choose a file</span>
-                      <span className="text-[13px] text-fg-muted">MP4, MOV or WebM · up to 500 MB · 1 min to 1 h 30 m</span>
+                      <span className="text-[13px] text-fg-muted">{sourceLimitsHint(tier)}</span>
                     </button>
                     <div className="flex items-center justify-center gap-2.5">
                       <AssetField accept={["video"]} label="Choose from Assets" onSelect={(asset) => { handleClearFile(); setImportedUrl(null); setImportedTitle(null); setPickedAsset(asset); }} />

@@ -25,37 +25,14 @@ export const AUTOCLIP_LIMITS: Record<PlanTier, { maxBytes: number; maxSourceSec:
 export const AUTOCLIP_FILE_TYPES = ["video/mp4", "video/quicktime", "video/webm"] as const;
 
 // ── Sources ───────────────────────────────────────────────────────────────
-/** url-import.ts allowlist: https only, exact host match. */
-export const SOURCE_HOSTS = [
-  "youtube.com",
-  "www.youtube.com",
-  "m.youtube.com",
-  "youtu.be",
-  "music.youtube.com",
-  "vimeo.com",
-  "player.vimeo.com",
-  "drive.google.com",
-  "docs.google.com",
-  "dropbox.com",
-  "www.dropbox.com",
-  "loom.com",
-  "www.loom.com",
-] as const;
-
-export function isAllowedSourceUrl(raw: string): boolean {
-  try {
-    const u = new URL(raw.trim());
-    return u.protocol === "https:" && (SOURCE_HOSTS as readonly string[]).includes(u.hostname.toLowerCase());
-  } catch {
-    return false;
-  }
-}
+export { SOURCE_HOSTS, SOURCE_HOSTS_LABEL, isAllowedSourceUrl } from "../sources";
+import { SOURCE_HOSTS_LABEL, isAllowedSourceUrl } from "../sources";
 
 export const sourceLinkSchema = z
   .string()
   .trim()
   .min(1, "Paste a link")
-  .refine(isAllowedSourceUrl, "Use a YouTube, Vimeo, Loom, Google Drive or Dropbox link");
+  .refine(isAllowedSourceUrl, `Use a ${SOURCE_HOSTS_LABEL} link`);
 
 export const autoClipSourceSchema = z.discriminatedUnion("kind", [
   z.object({

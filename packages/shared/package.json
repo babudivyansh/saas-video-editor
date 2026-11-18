@@ -13,7 +13,8 @@
     "./captions": "./src/editor/captions.ts",
     "./caption-templates": "./src/captions/templates.ts",
     "./caption-emoji": "./src/captions/emoji.ts",
-    "./caption-style": "./src/captions/style.ts"
+    "./caption-style": "./src/captions/style.ts",
+    "./sources": "./src/sources.ts"
   },
   "dependencies": {
     "zod": "^4.4.3"

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useUploadQueue } from "@/app/dashboard/assets/hooks/useUploadQueue";
 import type { PickerAsset } from "@/app/components/assets/assetPickerData";
 import { useInsufficientCredits } from "@/app/components/billing/CreditModalContext";
+import { useAuth } from "@/app/components/AuthContext";
 import { getStoredToken, useVideoGenerate, type RunSettings } from "@/app/hooks/useVideoGenerate";
 import { discardDraftProject } from "@/lib/discard-draft-project";
 import { readVideoDuration, sourceDurationError, sourceFileError } from "@/lib/autoclip-source";
@@ -34,6 +35,7 @@ type Source =
 export function useLaunchSource() {
   const router = useRouter();
   const queue = useUploadQueue();
+  const tier = useAuth().user?.tier;
   const creditModal = useInsufficientCredits();
   const { generateAutoClipForProject, paymentBlock, clearPaymentBlock } = useVideoGenerate();
   const [source, setSource] = useState<Source | null>(null);
@@ -72,27 +74,27 @@ export function useLaunchSource() {
 
   const chooseFile = useCallback(async (file: File) => {
     resetMessages();
-    const fileError = sourceFileError(file);
+    const fileError = sourceFileError(file, tier);
     if (fileError) { setPickError(fileError); return; }
     // Length is checked before a byte goes up: an hour-long upload that
     // AutoClip then refuses is the worst way to find out.
     setChecking(true);
-    const durationError = sourceDurationError(await readVideoDuration(file));
+    const durationError = sourceDurationError(await readVideoDuration(file), tier);
     setChecking(false);
     if (durationError) { setPickError(durationError); return; }
     dropUpload(source);
     const [itemId] = await queue.addFiles([file]);
     setSource({ kind: "upload", itemId, localUrl: URL.createObjectURL(file) });
-  }, [queue, source, dropUpload, resetMessages]);
+  }, [queue, source, dropUpload, resetMessages, tier]);
 
   const chooseAsset = useCallback((asset: PickerAsset) => {
     resetMessages();
     if (asset.kind !== "video") { setPickError("Pick a video. AutoClip cuts clips from video."); return; }
-    const durationError = sourceDurationError(asset.duration);
+    const durationError = sourceDurationError(asset.duration, tier);
     if (durationError) { setPickError(durationError); return; }
     dropUpload(source);
     setSource({ kind: "asset", asset });
-  }, [source, dropUpload, resetMessages]);
+  }, [source, dropUpload, resetMessages, tier]);
 
   // What the bar shows, and what a run would start from.
   let view: LaunchSourceView | null = null;

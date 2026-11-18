@@ -84,7 +84,7 @@ export function LinkSheet({ visible, onClose, onPick }: { visible: boolean; onCl
         returnKeyType="go"
         onSubmitEditing={submit}
         error={error}
-        helper="YouTube, Vimeo, Loom, Google Drive or Dropbox. Live streams can't be clipped."
+        helper="YouTube, Twitch, Vimeo, Loom, Google Drive or Dropbox. Live streams can't be clipped."
       />
       <Button label="Use this link" variant="secondary" size="sm" fullWidth onPress={submit} />
     </BottomSheet>

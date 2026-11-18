@@ -91,7 +91,7 @@ describe("AutoClip", () => {
     fireEvent.press(await screen.findByRole("button", { name: /^Paste link/ }));
     fireEvent.changeText(screen.getByLabelText("Video link"), "https://tiktok.com/@a/video/1");
     press("Use this link");
-    expect(await screen.findByText(/Use a YouTube, Vimeo, Loom/)).toBeOnTheScreen();
+    expect(await screen.findByText(/Use a YouTube, Twitch, Vimeo, Loom/)).toBeOnTheScreen();
     fireEvent.changeText(screen.getByLabelText("Video link"), "https://youtu.be/abc123");
     press("Use this link");
     // The server measures a link when the run starts.

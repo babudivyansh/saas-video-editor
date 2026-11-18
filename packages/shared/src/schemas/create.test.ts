@@ -39,7 +39,7 @@ describe("create schemas", () => {
   it("explains unsupported links", () => {
     const r = sourceLinkSchema.safeParse("https://tiktok.com/@a/video/1");
     expect(r.success).toBe(false);
-    expect(r.error?.issues[0]?.message).toMatch(/YouTube, Vimeo, Loom/);
+    expect(r.error?.issues[0]?.message).toMatch(/YouTube, Twitch, Vimeo, Loom/);
     expect(sourceLinkSchema.parse("  https://youtu.be/abc  ")).toBe("https://youtu.be/abc");
   });
 
