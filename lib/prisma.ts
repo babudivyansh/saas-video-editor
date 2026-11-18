@@ -7,6 +7,7 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
 import { logger } from "@/lib/logger";
+import { dbPoolOptions } from "@/lib/db-pool-config";
 // Automatically rewrite direct Supabase connection strings (IPv6-only) to the IPv4 Connection Pooler.
 // Deliberately reads/writes raw `process.env.DATABASE_URL` rather than lib/env.ts's `env.DATABASE_URL`:
 // `env` is parsed once, eagerly, at that module's own import time, so if anything imports lib/env.ts
@@ -34,21 +35,19 @@ const globalForPrisma = globalThis as unknown as {
   pgPool: pg.Pool;
 };
 
-const pool =
-  globalForPrisma.pgPool ??
-  new pg.Pool({
-    connectionString: process.env.DATABASE_URL,
-  });
-
-if (process.env.NODE_ENV !== "production") globalForPrisma.pgPool = pool;
+// Cached on globalThis in EVERY environment, not just dev. In production the
+// cache is what keeps one pool per process: Turbopack evaluates this module
+// once per entry that bundles it, and each copy used to open its own pool
+// against Supabase's 15-connection session pooler (CLIPIRO-WEB-9/-16). See
+// lib/db-pool-config.ts for the sizing.
+const pool = (globalForPrisma.pgPool ??= new pg.Pool(dbPoolOptions({
+  DATABASE_URL: process.env.DATABASE_URL,
+  DATABASE_POOL_MAX: process.env.DATABASE_POOL_MAX,
+})));
 
 const adapter = new PrismaPg(pool);
 
-export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    adapter,
-    log: process.env.NODE_ENV === "development" ? ["query", "error"] : ["error"],
-  });
-
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+export const prisma = (globalForPrisma.prisma ??= new PrismaClient({
+  adapter,
+  log: process.env.NODE_ENV === "development" ? ["query", "error"] : ["error"],
+}));

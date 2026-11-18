@@ -19,7 +19,7 @@ import { indexForTemplateId, DEFAULT_TEMPLATE_ID } from "@/lib/captions/legacySt
 import { estimateRunCost } from "@/lib/captions/runEstimate";
 import { OVERFLOW_MINUTES_PER_CREDIT, overflowCreditsFor } from "@/lib/plans/tiers";
 import { MAX_INSTRUCTIONS_CHARS } from "@/lib/autoclip-create-input";
-import { IcFilm, IcCloud, IcFile, IcX, IcSparkle, apiFetch, ASPECTS } from "./_components/shared";
+import { IcFilm, IcCloud, IcFile, IcX, IcSparkle, apiFetch, importUrlAndWait, ASPECTS } from "./_components/shared";
 import { clipEditorHref, projectHref } from "@/lib/project-links";
 import { sourceDurationError, sourceFileError, sourceLimitsHint } from "@/lib/autoclip-source";
 import { FlowHeader, PresetCards, QuestionHeading, StepFooter, flowStyles as fs, type FlowStep, type Preset, type PresetId } from "./_components/FlowParts";
@@ -272,7 +272,7 @@ function AutoClipFlow() {
       try {
         const created = await apiFetch<{ project: { id: string } }>("/api/projects", { method: "POST", body: JSON.stringify({ title: importedTitle ?? "Imported video", productType: "auto-clip" }) });
         projectId = created.project.id;
-        await apiFetch(`/api/projects/${projectId}/import-url`, { method: "POST", body: JSON.stringify({ url: importedUrl }) });
+        await importUrlAndWait(projectId, importedUrl);
         const outcome = await generateAutoClipForProject({ projectId, token, ...settings });
         if (outcome === "payment_blocked") await discardDraftProject(projectId, token);
       } catch (e) {

@@ -11,6 +11,7 @@ import { type Clip } from "@prisma/client";
 import { downloadFile } from "@/utils/download";
 import { runFFmpegArgs, maybeUseFilterScript } from "@/utils/ffmpeg-render";
 import { buildDynamicCropFilter, TARGET_RES, type StoredCrop } from "@/lib/reframe";
+import { centeredAspectCrop } from "@/lib/crop";
 import { FILTER_PRESETS, type FilterPreset } from "@/lib/editor/types";
 import { type SignalTrack } from "@/lib/signal-track";
 import { type WordTiming } from "@/utils/elevenlabs";
@@ -30,9 +31,7 @@ const MOOD_TO_FILTER: Record<(typeof MOODS)[number], FilterPreset> = {
 const PREVIEW_W = 405;
 
 function aspectRatioFilter(ratio: string): string {
-  if (ratio === "16:9") return "crop=in_w:in_w*9/16";
-  if (ratio === "1:1") return "crop=in_h:in_h";
-  return "crop=in_h*9/16:in_h";
+  return centeredAspectCrop(ratio === "16:9" || ratio === "1:1" ? ratio : "9:16");
 }
 
 export interface PreviewFrame { atSec: number; dataUrl: string }

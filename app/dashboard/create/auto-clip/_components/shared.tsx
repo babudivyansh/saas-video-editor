@@ -53,6 +53,37 @@ export async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
   return data as T;
 }
 
+/**
+ * Imports a link into the project and resolves once the source is attached.
+ * The server downloads in the background and this polls: holding one request
+ * open for a long VOD outlived the connection, and the draft was discarded
+ * while the server was still uploading it (CLIPIRO-WEB-15).
+ */
+export async function importUrlAndWait(
+  projectId: string,
+  url: string,
+  opts: { pollMs?: number; maxWaitMs?: number } = {},
+): Promise<void> {
+  const pollMs = opts.pollMs ?? 3000;
+  const deadline = Date.now() + (opts.maxWaitMs ?? 60 * 60 * 1000);
+  const base = `/api/projects/${projectId}/import-url`;
+  await apiFetch(base, { method: "POST", body: JSON.stringify({ url, async: true }) });
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, pollMs));
+    let s: { state: "running" | "done" | "failed"; error?: string };
+    try {
+      s = await apiFetch(`${base}?status=1`);
+    } catch (e) {
+      // A dropped poll (network blip, deploy restart) is not a failed import.
+      if (e instanceof ApiError && e.status !== 429 && e.status < 500) throw e;
+      continue;
+    }
+    if (s.state === "done") return;
+    if (s.state === "failed") throw new Error(s.error ?? "Import failed");
+  }
+  throw new Error("The import is taking too long. Please try again.");
+}
+
 export type SortKey = "score" | "order" | "duration";
 
 // ── Shared types ─────────────────────────────────────────────────────────────

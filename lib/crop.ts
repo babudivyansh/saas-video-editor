@@ -45,6 +45,24 @@ export function outputResolution(aspect: Aspect): { w: number; h: number } | nul
   }
 }
 
+/**
+ * ffmpeg `crop` for the largest centred window of the given aspect that fits
+ * inside the frame, whatever the frame's own shape. Width and height are both
+ * clamped to the input and rounded down to even numbers (libx264).
+ *
+ * The AutoClip renderer used to hard-code one side per aspect
+ * ("crop=in_w:in_w*9/16" for 16:9), which only fits a frame that is at most
+ * 16:9 wide. A 20:9 phone recording (2400x1080) asked for a 2400x1350 crop
+ * and ffmpeg refused the whole graph (CLIPIRO-WEB-14); the 9:16 and 1:1
+ * variants break the same way on sources taller than 9:16.
+ */
+export function centeredAspectCrop(aspect: "9:16" | "16:9" | "1:1"): string {
+  const [rw, rh] = aspect === "16:9" ? [16, 9] : aspect === "1:1" ? [1, 1] : [9, 16];
+  const w = `trunc(min(iw\\,ih*${rw}/${rh})/2)*2`;
+  const h = `trunc(min(ih\\,iw*${rh}/${rw})/2)*2`;
+  return `crop=${w}:${h}`;
+}
+
 // ffmpeg video filter chain that crops the source to the chosen aspect (centered)
 // and scales it to the standard output resolution. Returns "" for "original"
 // (only forces even dimensions, required by libx264).

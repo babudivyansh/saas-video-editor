@@ -4,6 +4,8 @@ import { env } from "@/lib/env";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { getAuthUser } from "@/lib/auth";
 import { withRetry } from "@/lib/with-retry";
+import { logger } from "@/lib/logger";
+import { geminiText, GeminiBlockedError, GEMINI_BLOCKED_MESSAGE } from "@/lib/gemini-text";
 
 // An image prompt, not an essay. Without a cap this was a free, general-purpose
 // LLM endpoint for anyone who could rotate IPs.
@@ -41,14 +43,25 @@ async function handlePOST(req: NextRequest) {
 
   const instruction =
     `You are an expert AI image prompt engineer. Rewrite the following image prompt to be more detailed, vivid, and descriptive. Add specific details about lighting, style, atmosphere, colors, and composition. Keep the core subject and intent identical. Return ONLY the enhanced prompt text — no explanations, no quotes, no prefixes.\n\nOriginal prompt: ${prompt}`;
-  // Worst case 2 x 12s + backoff, inside maxDuration (30s).
-  const result = await withRetry((signal) => model.generateContent(instruction, { signal }), {
-    timeoutMs: 12_000,
-    maxAttempts: 2,
-  });
-
-  const enhanced = result.response.text().trim();
-  return NextResponse.json({ prompt: enhanced });
+  // No try/catch here used to mean a blocked prompt or a Gemini timeout was an
+  // unhandled 500 (CLIPIRO-WEB-13).
+  try {
+    // Worst case 2 x 12s + backoff, inside maxDuration (30s).
+    const result = await withRetry((signal) => model.generateContent(instruction, { signal }), {
+      timeoutMs: 12_000,
+      maxAttempts: 2,
+    });
+    const enhanced = geminiText(result).trim();
+    if (!enhanced) throw new Error("empty response");
+    return NextResponse.json({ prompt: enhanced });
+  } catch (err) {
+    if (err instanceof GeminiBlockedError) {
+      logger.warn("enhance-prompt", "blocked by Gemini", { reason: err.reason });
+      return NextResponse.json({ error: GEMINI_BLOCKED_MESSAGE }, { status: 422 });
+    }
+    logger.error("enhance-prompt", "enhancement failed", err);
+    return NextResponse.json({ error: "Couldn't enhance the prompt just now. Please try again." }, { status: 502 });
+  }
 }
 
 export const POST = withRateLimit(handlePOST, { limit: 20, windowSec: 3600, keyBy: "user", name: "enhance-prompt" });
