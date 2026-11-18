@@ -5,7 +5,7 @@ vi.mock("@/lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: 
 
 import { logger } from "@/lib/logger";
 import { UserFacingError } from "@/lib/user-facing-error";
-import { GEMINI_IMAGE_BUSY, GEMINI_IMAGE_UNAVAILABLE, parseQuotaError, postGeminiImage } from "./gemini-image";
+import { GEMINI_IMAGE_BUSY, GEMINI_IMAGE_UNAVAILABLE, HARD_CAP_COOLDOWN_MS, parseQuotaError, postGeminiImage, resetGeminiImageCooldown } from "./gemini-image";
 
 // Shape of a real Gemini 429 body (google.rpc QuotaFailure + RetryInfo).
 const quotaBody = (quotaId: string, retryDelay = "3s") => JSON.stringify({
@@ -44,6 +44,7 @@ describe("postGeminiImage", () => {
     vi.stubGlobal("fetch", fetchMock);
     fetchMock.mockReset();
     vi.mocked(logger.error).mockClear();
+    resetGeminiImageCooldown();
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -56,6 +57,24 @@ describe("postGeminiImage", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(logger.error).toHaveBeenCalledTimes(1);
     expect(String(vi.mocked(logger.error).mock.calls[0][1])).toMatch(/quota exhausted/);
+  });
+
+  // CLIPIRO-WEB-12: Photo Edit asks for several images in parallel; each got
+  // the same free-tier 429 and each paged, and every retry called Google again.
+  it("reports a hard cap once for parallel calls, then fails fast until the cooldown ends", async () => {
+    fetchMock.mockImplementation(async () => new Response(quotaBody("GenerateRequestsPerDayPerProjectPerModel-FreeTier"), { status: 429 }));
+    const results = await Promise.allSettled([1, 2, 3].map(() => postGeminiImage({}, { tag: "t" })));
+    expect(results.every((r) => r.status === "rejected" && r.reason instanceof UserFacingError)).toBe(true);
+    expect(logger.error).toHaveBeenCalledTimes(1);
+
+    fetchMock.mockClear();
+    await expect(postGeminiImage({}, { tag: "t" })).rejects.toThrow(GEMINI_IMAGE_UNAVAILABLE);
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(HARD_CAP_COOLDOWN_MS + 1);
+    fetchMock.mockResolvedValueOnce(new Response("{}", { status: 200 }));
+    expect((await postGeminiImage({}, { tag: "t" })).ok).toBe(true);
+    expect(logger.error).toHaveBeenCalledTimes(1);
   });
 
   it("waits out a per-minute limit and succeeds", async () => {

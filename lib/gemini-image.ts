@@ -26,6 +26,20 @@ export const GEMINI_IMAGE_UNAVAILABLE =
 export const GEMINI_IMAGE_BUSY =
   "The image service is busy right now. Your credits were refunded. Try again in a moment, or pick another model.";
 
+/**
+ * After a hard-cap 429 the key stays unusable for a while (a free-tier key has
+ * no image quota at all). Calls in this window fail fast, without hitting
+ * Google and without paging again: CLIPIRO-WEB-12 was five Sentry events from
+ * one person's two Photo Edit attempts, one per parallel image.
+ */
+export const HARD_CAP_COOLDOWN_MS = 15 * 60 * 1000;
+const breaker = ((globalThis as unknown as { __geminiImageBreaker?: { until: number } }).__geminiImageBreaker ??= { until: 0 });
+
+/** Test hook. */
+export function resetGeminiImageCooldown(): void {
+  breaker.until = 0;
+}
+
 export interface QuotaInfo {
   /** Quota ids Google named, e.g. "GenerateRequestsPerDayPerProjectPerModel-FreeTier". */
   quotaIds: string[];
@@ -69,6 +83,7 @@ export async function postGeminiImage(
   opts: { tag: string; signal?: AbortSignal; onRetry?: (attempt: number) => void },
 ): Promise<Response> {
   if (!env.GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not set");
+  if (Date.now() < breaker.until) throw new UserFacingError(GEMINI_IMAGE_UNAVAILABLE);
   const payload = JSON.stringify(body);
 
   for (let attempt = 1; ; attempt++) {
@@ -101,6 +116,10 @@ export async function postGeminiImage(
       const quota = parseQuotaError(text);
       if (quota.hardCap) {
         // Needs the owner (billing / quota in Google AI Studio), not a retry.
+        // Reported once per cooldown: parallel images all get this 429.
+        const alreadyReported = Date.now() < breaker.until;
+        breaker.until = Date.now() + Math.max(HARD_CAP_COOLDOWN_MS, quota.retryDelayMs ?? 0);
+        if (alreadyReported) throw new UserFacingError(GEMINI_IMAGE_UNAVAILABLE);
         logger.error(opts.tag, `${GEMINI_IMAGE_MODEL} quota exhausted (${quota.quotaIds.join(", ") || "unknown quota"}) — the Gemini API key needs billing or a higher quota`, text.slice(0, 500));
         throw new UserFacingError(GEMINI_IMAGE_UNAVAILABLE);
       }

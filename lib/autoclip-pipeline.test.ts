@@ -3,6 +3,7 @@ import { spawnSync } from "child_process";
 import fs from "fs";
 import os from "os";
 import path from "path";
+import { centeredAspectCrop } from "@/lib/crop";
 
 // Stub the queue factory: modules loaded here (e.g. lib/asset-moderation.ts
 // via autoclip-pipeline) call createRenderQueue at import time, which would
@@ -240,7 +241,7 @@ describe("buildBrollFilterComplex", () => {
   // every crop keyframe is expressed in.
   it("crops once up front and splits, rather than cropping each main segment", () => {
     const fc = buildBrollFilterComplex(10, 3, 5.5, "16:9", null, null);
-    expect((fc.match(/crop=in_w:in_w\*9\/16/g) ?? []).length).toBe(1);
+    expect(fc.split(centeredAspectCrop("16:9")).length - 1).toBe(1);
     expect(fc).toContain("split=2[m0][m1]");
     // Both main segments are trimmed from the already-cropped stream.
     expect(fc).toContain("[m0]trim=start=0");
@@ -256,7 +257,7 @@ describe("buildBrollFilterComplex", () => {
     expect(fc).toContain(dynamicCrop);
     // Still exactly one crop, still before the split.
     expect(fc.indexOf(dynamicCrop)).toBeLessThan(fc.indexOf("split=2"));
-    expect(fc).not.toContain("crop=in_h*9/16:in_h"); // the static fallback is not used
+    expect(fc).not.toContain(centeredAspectCrop("9:16")); // the static fallback is not used
   });
 });
 

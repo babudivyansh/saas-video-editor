@@ -8,6 +8,7 @@ import { getUserTier } from "@/lib/auth";
 import { takeFairUse, releaseFairUse } from "@/lib/fair-use";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
+import { geminiText, GeminiBlockedError, GEMINI_BLOCKED_MESSAGE } from "@/lib/gemini-text";
 
 // maxDuration must stay ahead of withRetry's worst case below (2 attempts x
 // 20s + backoff). Gemini 2.5 Flash regularly takes longer than the old 8s
@@ -92,7 +93,7 @@ Rules:
       (signal) => model.generateContent(prompt, { signal }),
       { timeoutMs: 20_000, maxAttempts: 2 },
     );
-    const raw = result.response.text().trim();
+    const raw = geminiText(result).trim();
 
     let ideas: { title: string; description: string }[];
     try {
@@ -111,7 +112,9 @@ Rules:
     return NextResponse.json({ ideas });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Generation failed";
-    logger.error("brainstormer", "generation failed", err);
+    const blocked = err instanceof GeminiBlockedError;
+    if (blocked) logger.warn("brainstormer", "blocked by Gemini", { reason: err.reason });
+    else logger.error("brainstormer", "generation failed", err);
     // Our failure, so it doesn't count against today's free uses.
     await releaseFairUse(auth.userId, "brainstormer");
     try {
@@ -120,6 +123,7 @@ Rules:
     } catch { /* swallow */ }
     // The raw text ("Failed to parse AI response as JSON", provider errors)
     // stays in the logs and on the Generation row.
+    if (blocked) return NextResponse.json({ error: `${GEMINI_BLOCKED_MESSAGE} This didn't use up one of today's uses.` }, { status: 422 });
     return NextResponse.json({ error: "We couldn't come up with ideas just now. Please try again — this didn't use up one of today's uses." }, { status: 502 });
   }
 }

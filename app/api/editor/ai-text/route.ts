@@ -7,6 +7,7 @@ import { withRetry } from "@/lib/with-retry";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import { AI_TEXT_LLM_OPERATIONS, buildAiTextPrompt, type AiTextLlmOperation } from "@/lib/editor/ai-text";
+import { geminiText, GeminiBlockedError, GEMINI_BLOCKED_MESSAGE } from "@/lib/gemini-text";
 
 const MAX_TEXT_LENGTH = 4000; // generous for a caption cue or a text-clip run; guards against pasting a whole script
 
@@ -45,10 +46,14 @@ export async function POST(req: NextRequest) {
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
     const prompt = buildAiTextPrompt(operation as AiTextLlmOperation, text, targetLang);
     const result = await withRetry((signal) => model.generateContent(prompt, { signal }), { timeoutMs: 30_000 });
-    const out = result.response.text().trim();
+    const out = geminiText(result).trim();
     if (!out) throw new Error("empty response");
     return NextResponse.json({ result: out });
   } catch (err) {
+    if (err instanceof GeminiBlockedError) {
+      logger.warn("editor-ai-text", `operation ${operation} blocked by Gemini`, { reason: err.reason });
+      return NextResponse.json({ error: GEMINI_BLOCKED_MESSAGE }, { status: 422 });
+    }
     logger.error("editor-ai-text", `operation ${operation} failed`, err);
     return NextResponse.json({ error: "AI Tools request failed — try again" }, { status: 500 });
   }

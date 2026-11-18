@@ -1,7 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { logger } from "@/lib/logger";
-import { prisma } from "@/lib/prisma";
+import { recordVital } from "@/lib/web-vitals-buffer";
 import { WEB_VITAL_METRICS, bucketFor, normalizeVitalsPath } from "@/lib/web-vitals";
 import { withRateLimit } from "@/lib/with-rate-limit";
 
@@ -40,18 +39,10 @@ async function handlePOST(req: NextRequest) {
     bucket: bucketFor(metric, value),
   };
 
-  // Best-effort, like every other analytics write here: never fail the
-  // request (or, by extension, log noise into the user's console) over a
-  // metrics row.
-  try {
-    await prisma.webVitalDaily.upsert({
-      where: { date_metric_path_bucket: key },
-      create: { ...key, count: 1 },
-      update: { count: { increment: 1 } },
-    });
-  } catch (err) {
-    logger.error("web-vitals", `failed to record ${metric}`, err);
-  }
+  // Buffered and written in batches (lib/web-vitals-buffer.ts): one upsert per
+  // beacon used to exhaust the DB pooler under a burst (CLIPIRO-WEB-9).
+  // Best-effort, like every other analytics write here.
+  recordVital(key);
 
   return NextResponse.json({ ok: true });
 }

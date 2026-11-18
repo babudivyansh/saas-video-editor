@@ -18,6 +18,7 @@ vi.mock("@/lib/env", () => ({ env: { RENDER_QUEUE_DRIVER: "in-process" } }));
 vi.mock("@/lib/redis", () => ({ redis: { get: vi.fn(), set: vi.fn(), del: vi.fn() } }));
 
 import { InProcessQueue, NonRetryableError } from "./job-queue";
+import { logger } from "@/lib/logger";
 
 /** Let the queue's async drain loop run to completion. */
 const settle = () => new Promise((r) => setTimeout(r, 30));
@@ -36,6 +37,25 @@ describe("InProcessQueue retries", () => {
     new InProcessQueue<{ projectId: string }>("test", handler).enqueue("j2", { projectId: "p" });
     await settle();
     expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  // CLIPIRO-WEB-11: "Video is 37 min — your plan supports Auto Clips up to
+  // 30 min" is the job ending correctly, not a fault to page on.
+  it("logs an expected verdict as a warning, an unexpected permanent failure as an error", async () => {
+    vi.mocked(logger.error).mockClear();
+    vi.mocked(logger.warn).mockClear();
+    new InProcessQueue<{ projectId: string }>("test", async () => {
+      throw new NonRetryableError("Video is 37 min — your plan supports 30", { expected: true });
+    }).enqueue("e1", { projectId: "p" });
+    await settle();
+    expect(logger.error).not.toHaveBeenCalled();
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+
+    new InProcessQueue<{ projectId: string }>("test", async () => {
+      throw new NonRetryableError("Analysis stopped");
+    }).enqueue("e2", { projectId: "p" });
+    await settle();
+    expect(logger.error).toHaveBeenCalledTimes(1);
   });
 
   it("keeps draining later jobs after one fails permanently", async () => {

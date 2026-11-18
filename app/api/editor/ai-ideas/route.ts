@@ -7,6 +7,7 @@ import { withRetry } from "@/lib/with-retry";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import { AI_IDEA_KINDS, buildAiIdeasPrompt, parseAiIdeas, type AiIdeaKind } from "@/lib/editor/ai-text";
+import { geminiText, GeminiBlockedError, GEMINI_BLOCKED_MESSAGE } from "@/lib/gemini-text";
 
 const MAX_BRIEF_LENGTH = 500;
 
@@ -41,10 +42,14 @@ export async function POST(req: NextRequest) {
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
     const prompt = buildAiIdeasPrompt(kind as AiIdeaKind, brief);
     const result = await withRetry((signal) => model.generateContent(prompt, { signal }), { timeoutMs: 30_000 });
-    const ideas = parseAiIdeas(result.response.text());
+    const ideas = parseAiIdeas(geminiText(result));
     if (ideas.length === 0) throw new Error("empty response");
     return NextResponse.json({ ideas });
   } catch (err) {
+    if (err instanceof GeminiBlockedError) {
+      logger.warn("editor-ai-ideas", `kind ${kind} blocked by Gemini`, { reason: err.reason });
+      return NextResponse.json({ error: GEMINI_BLOCKED_MESSAGE }, { status: 422 });
+    }
     logger.error("editor-ai-ideas", `kind ${kind} failed`, err);
     return NextResponse.json({ error: "AI request failed — try again" }, { status: 500 });
   }

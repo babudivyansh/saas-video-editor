@@ -86,6 +86,7 @@ const MAX_MUSIC_BYTES = 50 * 1024 * 1024;
 /** `-map` for the source's audio: its first audio stream only (see the render). */
 export const SOURCE_AUDIO_MAP = "0:a:0";
 import { TARGET_RES } from "@/lib/reframe";
+import { centeredAspectCrop } from "@/lib/crop";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -93,12 +94,10 @@ import { greetingName } from "@/lib/display-name";
 
 export type Aspect = "9:16" | "16:9" | "1:1";
 
+// Clamped to the frame: a source wider than 16:9 or taller than 9:16 used to
+// get a crop larger than itself and fail the render (CLIPIRO-WEB-14).
 function aspectRatioFilter(ratio: Aspect): string {
-  switch (ratio) {
-    case "9:16": return "crop=in_h*9/16:in_h";
-    case "16:9": return "crop=in_w:in_w*9/16";
-    case "1:1":  return "crop=in_h:in_h";
-  }
+  return centeredAspectCrop(ratio);
 }
 
 const MOODS = ["energetic", "calm", "dramatic", "funny", "neutral"] as const;
@@ -970,7 +969,7 @@ export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATT
     if (durationSec < minDuration) {
       // Genuinely too short: the video will still be so on attempt 2 and 3,
       // and each retry re-downloads the whole source to find that out.
-      throw new NonRetryableError(`Video is too short (${durationSec.toFixed(1)}s) for the requested clip duration (min ${minDuration}s)`);
+      throw new NonRetryableError(`Video is too short (${durationSec.toFixed(1)}s) for the requested clip duration (min ${minDuration}s)`, { expected: true });
     }
     // Tiered source-length cap (cost ceiling per job + upgrade trigger).
     {
@@ -981,6 +980,7 @@ export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATT
       if (durationSec > cap) {
         throw new NonRetryableError(
           `Video is ${(durationSec / 60).toFixed(0)} min — your plan supports Auto Clips up to ${Math.round(cap / 60)} min per video. Upgrade for longer uploads.`,
+          { expected: true },
         );
       }
     }
@@ -1003,6 +1003,7 @@ export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATT
         throw new NonRetryableError(
           `This video needs ${charge.needed} Clip Minute${charge.needed === 1 ? "" : "s"} and you have ${charge.available}. ` +
           `Top up minutes, upgrade, or allow the ${short}-minute shortfall to be paid with ${overflowCreditsFor(short)} AI credit${overflowCreditsFor(short) === 1 ? "" : "s"}. Nothing was charged.`,
+          { expected: true },
         );
       }
     }
