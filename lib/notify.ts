@@ -43,7 +43,11 @@ export type NotificationType =
   // Creator partner programme (lib/creator-program.ts): a creator's referrals
   // reached the free-Pro goal — admins grant it, the creator is told.
   | "admin_creator_goal_reached"
-  | "creator_goal_reached";
+  | "creator_goal_reached"
+  // Email delivery trouble (lib/email/router/alerts.ts): a provider down,
+  // quota near its limit, every provider unavailable. In-app on purpose —
+  // emailing "email is broken" through the broken providers is circular.
+  | "admin_email_alert";
 
 export interface NotifyInput {
   userId: string;

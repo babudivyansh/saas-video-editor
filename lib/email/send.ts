@@ -27,10 +27,19 @@ import { unsubscribeUrl } from "./unsubscribe";
 import { isSuppressed, logEmail } from "./suppression";
 import { LEGAL, PRODUCT_NAME } from "./tokens";
 import { maskEmail } from "@/lib/mask-email";
+import { routerEnabled, priorityFor } from "./router/config";
+import { deliver, PROVIDERS } from "./router/deliver";
 
 export interface SendResult {
-  status: "sent" | "suppressed" | "skipped-optout" | "dev-logged" | "failed";
-  channel: "resend" | "smtp" | "dev-console" | null;
+  /**
+   * sent      a provider ACCEPTED it (not proof of delivery — webhooks say that)
+   * deferred  no provider could take it now; the email-maintenance cron retries it
+   * unknown   a provider may or may not have accepted it (timed out mid-request);
+   *           deliberately not re-sent anywhere, to avoid a duplicate
+   * duplicate a send with the same idempotencyKey already went out
+   */
+  status: "sent" | "suppressed" | "skipped-optout" | "dev-logged" | "failed" | "deferred" | "unknown" | "duplicate";
+  channel: "resend" | "brevo" | "mailjet" | "smtp" | "dev-console" | null;
   messageId: string | null;
   error?: string;
 }
@@ -42,6 +51,11 @@ export interface SendOptions {
   replyTo?: string;
   /** Files to attach — e.g. the GST tax invoice PDF on a payment receipt. */
   attachments?: EmailAttachment[];
+  /**
+   * Router only: a second send with the same key is not sent again (e.g. a
+   * payment id on a receipt, so a redelivered billing webhook can't double it).
+   */
+  idempotencyKey?: string;
 }
 
 export interface EmailAttachment {
@@ -289,7 +303,38 @@ export async function sendTemplate<P>(
     // eliminate, just one level down.
     let providerError: string | undefined;
 
-    if (env.RESEND_API_KEY) {
+    // Multi-provider router (Brevo → Mailjet → Resend). Replaces the direct
+    // Resend call below while EMAIL_ROUTER_ENABLED=true; with it unset this
+    // block is skipped and sending is byte-for-byte the old path — which is
+    // the rollback. SMTP below stays the very last resort either way.
+    if (routerEnabled() && Object.values(PROVIDERS).some((p) => p.isConfigured())) {
+      const r = await deliver({
+        templateId: id,
+        priority: priorityFor(id, entry.group),
+        userId: userId ?? null,
+        idempotencyKey: opts.idempotencyKey,
+        to,
+        subject: payload.subject,
+        html: payload.html,
+        text: payload.text,
+        headers: payload.headers,
+        replyTo: payload.replyTo,
+        attachments: payload.attachments,
+      });
+      if (r.status === "sent" || r.status === "duplicate") {
+        if (r.status === "sent") {
+          await logEmail({
+            recipient: to, templateId: id, status: "sent", channel: r.provider, providerMessageId: r.providerMessageId, userId,
+          });
+        }
+        return { status: r.status, channel: r.provider, messageId: r.providerMessageId };
+      }
+      if (r.status === "deferred" || r.status === "unknown") {
+        await logEmail({ recipient: to, templateId: id, status: r.status, channel: r.provider, userId, error: r.error ?? null });
+        return { status: r.status, channel: r.provider, messageId: null, error: r.error };
+      }
+      providerError = r.error ?? "no email provider could send";
+    } else if (env.RESEND_API_KEY) {
       try {
         const { id: messageId } = await viaResend(payload);
         await logEmail({
