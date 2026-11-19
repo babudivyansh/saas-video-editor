@@ -22,6 +22,7 @@ import {
   analyzeAudio,
   encodeArgs,
   maybeUseFilterScript,
+  ffmpegInputArgs,
   type RenderTarget,
 } from "@/utils/ffmpeg-render";
 import { uploadFileToS3 } from "@/utils/s3-upload";
@@ -73,7 +74,7 @@ import { getFaceTimeline } from "@/lib/asd";
 // P0-3: Project.uploadedVideoUrl is a PRESIGNED url minted at upload time and
 // only valid for 6 hours, so every job that reused it later died on its first
 // step with 403 "Request has expired". Always re-mint before downloading.
-import { freshSourceUrl } from "@/lib/source-url";
+import { classifySource, freshSourceUrl } from "@/lib/source-url";
 import { loadFaceTimeline, saveFaceTimeline } from "@/lib/face-timeline-store";
 import { calibrateScore, getViralityWeights, type SubScores } from "@/lib/virality-score";
 import { parseS3Url } from "@/lib/s3-url";
@@ -87,7 +88,8 @@ const MAX_MUSIC_BYTES = 50 * 1024 * 1024;
 export const SOURCE_AUDIO_MAP = "0:a:0";
 import { TARGET_RES } from "@/lib/reframe";
 import { centeredAspectCrop } from "@/lib/crop";
-import { audioSafeSource, discardAudioSafeSource, isCorruptAudioFailure } from "@/lib/audio-safe-source";
+import { discardAudioSafeSource } from "@/lib/audio-safe-source";
+import { renderWithSourceFallbacks } from "@/lib/clip-source";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -1909,7 +1911,9 @@ export async function renderClipFile(
     : "";
   const captionedLabel = captionTrack ? "videocap" : "video";
 
-  const baseArgs = ["-y", "-ss", String(clip.startSec), "-to", String(clip.endSec), "-i", videoPath];
+  // `videoPath` may be a presigned URL (a re-render): ffmpegInputArgs adds the
+  // reconnect options, and the input seek then reads only this window.
+  const baseArgs = ["-y", "-ss", String(clip.startSec), "-to", String(clip.endSec), ...ffmpegInputArgs(videoPath)];
   const outputArgs = encodeArgs(target);
 
   let selectFilter: string | null = null;
@@ -2059,9 +2063,13 @@ export async function renderClipFile(
 async function renderOneClip(
   projectId: string,
   clip: Clip,
+  /** A local path, or a presigned URL ffmpeg reads with Range requests. */
   videoPath: string,
   watermark = false,
   target: RenderTarget = "cpu",
+  /** For a URL `videoPath`: downloads the whole source and resolves to its
+   *  path. Only called when a render cannot be done from the URL. */
+  localSource?: () => Promise<string>,
 ): Promise<{ ok: boolean }> {
   // Each render gets its own directory rather than sharing os.tmpdir(). Two
   // reasons: concurrent clips (the pool added in P1.4) can no longer collide
@@ -2083,17 +2091,10 @@ async function renderOneClip(
         void prisma.clip.update({ where: { id: clip.id }, data: { progress: Math.round(5 + pct * 0.75) } }).catch(() => {});
       },
     });
-    let rendered: Awaited<ReturnType<typeof renderClipFile>>;
-    try {
-      rendered = await renderFrom(videoPath);
-    } catch (err) {
-      // A source whose AAC track is corrupt aborts every render on a frame
-      // with an unconvertible channel count (CLIPIRO-WEB-14, 2026-11-19).
-      // Rebuild the audio once and render from that copy.
-      if (!isCorruptAudioFailure(err)) throw err;
-      rendered = await renderFrom(await audioSafeSource(videoPath));
-    }
-    const { finalDurationSec, words } = rendered;
+    // Corrupt source audio is repaired and rendered again; a remote source
+    // (a re-render's presigned URL) falls back to a full download when the
+    // repair needs a local file or the http read failed. See lib/clip-source.ts.
+    const { finalDurationSec, words } = await renderWithSourceFallbacks(videoPath, renderFrom, localSource);
 
     await prisma.clip.update({ where: { id: clip.id }, data: { progress: 82 } });
     await runFFmpegArgs([
@@ -2303,6 +2304,15 @@ export async function renderJob(payload: RenderPayload, ctx: JobContext = SINGLE
 
 export interface RerenderPayload { projectId: string; clipId: string }
 
+/**
+ * Lifetime of the presigned source URL a re-render hands ffmpeg. ffmpeg
+ * re-requests it on every seek and every reconnect, so it must outlive the
+ * whole job: probe + render (15-minute watchdog) + its B-roll-less retry +
+ * the lite-edit pass is well under an hour; six leaves room for a queue
+ * that started the job late. A fallback download mints its own URL.
+ */
+const RERENDER_SOURCE_URL_TTL_SEC = 6 * 3600;
+
 export async function rerenderJob(payload: RerenderPayload): Promise<void> {
   const { projectId, clipId } = payload;
   const project = await prisma.project.findUnique({ where: { id: projectId } });
@@ -2315,14 +2325,37 @@ export async function rerenderJob(payload: RerenderPayload): Promise<void> {
   const { refundFailedRerender } = await import("@/lib/autoclip-rerender");
 
   const tmp = os.tmpdir();
+  // Where the whole source lands IF it is downloaded (see localSource).
   const videoPath = path.join(tmp, `${projectId}-src-rerender-${clipId}.mp4`);
   try {
-    await downloadFile(await freshSourceUrl(project.uploadedVideoUrl, project.userId), videoPath);
+    // Our own bucket: ffmpeg reads the presigned URL directly, fetching the
+    // moov atom and this clip's window — not the whole file, which for an
+    // 81-minute upload was 1.1 GB per re-render and stalled on Hostinger.
+    // Anything else (a third-party URL, a key the owner can't be shown to
+    // own) still goes through downloadFile, whose network guard refuses
+    // private addresses on every hop; ffmpeg has no such guard.
+    const uploadedVideoUrl = project.uploadedVideoUrl;
+    const source = await classifySource(uploadedVideoUrl, project.userId, RERENDER_SOURCE_URL_TTL_SEC);
+    let downloaded: Promise<string> | null = null;
+    const localSource = () => (downloaded ??= (async () => {
+      await downloadFile(await freshSourceUrl(uploadedVideoUrl, project.userId), videoPath);
+      return videoPath;
+    })());
+    let renderSource = source.kind === "owned" ? source.url : await localSource();
 
     let updatedClip = clip;
     const allFaces = await loadFaceTimeline(project);
     if (allFaces && allFaces.length > 0) {
-      const { w: srcW, h: srcH } = await getMediaDimensions(videoPath);
+      let { w: srcW, h: srcH } = await getMediaDimensions(renderSource);
+      // The probe reports failure as 0x0. Over a URL that means the read
+      // failed (a local file always probed): crop keyframes computed for a
+      // 0x0 frame would be persisted and ruin this render and every later
+      // one, so switch the whole job to a downloaded copy instead.
+      if ((!srcW || !srcH) && renderSource !== videoPath) {
+        logger.warn("auto-clip", `probing the source over http failed for clip ${clipId}; downloading it instead`);
+        renderSource = await localSource();
+        ({ w: srcW, h: srcH } = await getMediaDimensions(renderSource));
+      }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const silenceOpts = (clip.silenceSettings as any) ?? {};
       const preset = silenceOpts.reframingPreset ?? "balanced";
@@ -2365,7 +2398,7 @@ export async function rerenderJob(payload: RerenderPayload): Promise<void> {
 
     const { getUserTier } = await import("@/lib/auth");
     const watermark = (await getUserTier(project.userId)) === "free";
-    const { ok } = await renderOneClip(projectId, updatedClip, videoPath, watermark);
+    const { ok } = await renderOneClip(projectId, updatedClip, renderSource, watermark, "cpu", localSource);
     // renderOneClip swallows its own error and marks the clip failed, so a
     // failed re-render used to leave the user charged for a clip they never
     // received — the batch path refunds, this one never did.
