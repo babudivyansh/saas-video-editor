@@ -1074,3 +1074,10 @@ body {
 @keyframes nav-sparkle-f1 { from { transform: translate(0, 0); opacity: 1; } to { transform: translate(-3px, -3px); opacity: 0.2; } }
 @keyframes nav-sparkle-f2 { from { transform: translate(0, 0); opacity: 0.9; } to { transform: translate(3px, -2px); opacity: 0; } }
 @keyframes nav-sparkle-f3 { from { transform: translate(0, 0); opacity: 0.6; } to { transform: translate(2px, -4px); opacity: 1; } }
+
+/* Clip players fill their 9:16 card with object-fit: cover. That style stays
+   on a <video> in native full screen, so on a wide screen a vertical clip was
+   stretched to the screen's width with its top and bottom cut off — it
+   looked landscape. In full screen, show the whole frame instead. */
+video:fullscreen { object-fit: contain !important; background: #000; }
+video:-webkit-full-screen { object-fit: contain !important; background: #000; }
