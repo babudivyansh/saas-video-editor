@@ -36,7 +36,7 @@ export const CRON_SCHEDULE: readonly CronScheduleEntry[] = [
   { schedule: "0 2 * * *", path: "/api/cron/account-purge", secret: "CRON_SECRET" },
   { schedule: "*/15 * * * *", path: "/api/cron/asset-cleanup", secret: "ASSET_CLEANUP_SECRET" },
   { schedule: "0 5 * * *", path: "/api/cron/asset-cleanup?job=retention", secret: "ASSET_CLEANUP_SECRET" },
-  { schedule: "0 9 * * *", path: "/api/cron/onboarding", secret: "CRON_SECRET" },
+  { schedule: "5 * * * *", path: "/api/cron/onboarding", secret: "CRON_SECRET" },
   { schedule: "0 9 * * 1", path: "/api/cron/reengagement", secret: "CRON_SECRET" },
   { schedule: "0 11 * * *", path: "/api/cron/feature-announcements", secret: "CRON_SECRET" },
   { schedule: "0 10 * * *", path: "/api/cron/review-drip", secret: "CRON_SECRET" },

@@ -176,7 +176,7 @@
     "gender": "लिंग",
     "genders": { "male": "पुरुष", "female": "स्त्री", "unspecified": "सांगायचे नाही" },
     "intendedUseLabel": "तुम्ही Clipiro कशासाठी वापरू इच्छिता?",
-    "intendedUses": { "contentCreator": "कंटेंट क्रिएटर", "businessMarketing": "व्यवसाय / मार्केटिंग", "personal": "वैयक्तिक", "other": "इतर" },
+    "intendedUses": { "gaming": "गेमिंग स्ट्रीम", "podcast": "पॉडकास्ट", "education": "भाषणे व धडे", "contentCreator": "कंटेंट क्रिएटर", "businessMarketing": "व्यवसाय / मार्केटिंग", "personal": "वैयक्तिक", "other": "इतर" },
     "restartTourTitle": "ऑनबोर्डिंग टूर पुन्हा सुरू करा",
     "restartTourDesc": "पुढच्या वेळी डॅशबोर्डवर आल्यावर वेलकम स्क्रीन आणि गाइडेड टूर पुन्हा पहा.",
     "restarting": "पुन्हा सुरू होत आहे…",

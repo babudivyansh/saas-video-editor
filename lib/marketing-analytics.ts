@@ -1,6 +1,12 @@
 import { logger } from "./logger";
 import { prisma } from "./prisma";
-import { ATTRIBUTION_COOKIE, parseAttributionCookie, type UtmTuple } from "./marketing-attribution";
+import {
+  ATTRIBUTION_COOKIE,
+  FIRST_TOUCH_COOKIE,
+  parseAttributionCookie,
+  parseFirstTouchCookie,
+  type UtmTuple,
+} from "./marketing-attribution";
 
 export type { UtmTuple };
 
@@ -84,10 +90,29 @@ export async function recordSignupAttribution(
   req: { cookies: { get(name: string): { value: string } | undefined } },
   res: { cookies: { set(name: string, value: string, opts: { maxAge: number; path: string }): unknown } },
   path: string,
+  /** When given, the source is also stored on the new User row
+   *  (signupSource / signupReferrer / signupLandingPath), so a signup can be
+   *  traced to where it came from, not just counted. */
+  userId?: string,
 ): Promise<void> {
   const utm = parseAttributionCookie(req.cookies.get(ATTRIBUTION_COOKIE)?.value);
-  if (!utm) return;
+  const firstTouch = parseFirstTouchCookie(req.cookies.get(FIRST_TOUCH_COOKIE)?.value);
 
+  if (userId && (utm || firstTouch)) {
+    await prisma.user
+      .update({
+        where: { id: userId },
+        data: {
+          signupSource: utm ? [utm.source, utm.medium, utm.campaign].join("/") : null,
+          signupReferrer: firstTouch?.referrer ?? null,
+          signupLandingPath: firstTouch?.landing ?? null,
+        },
+      })
+      .catch((e) => logger.error("marketing-analytics", `signup source write failed for ${userId}`, e));
+  }
+  if (firstTouch) res.cookies.set(FIRST_TOUCH_COOKIE, "", { maxAge: 0, path: "/" });
+
+  if (!utm) return;
   await recordMarketingEvent("marketing_signup", { path, placement: "listing", utm });
   res.cookies.set(ATTRIBUTION_COOKIE, "", { maxAge: 0, path: "/" });
 }

@@ -1,5 +1,35 @@
 import { describe, expect, it } from "vitest";
-import { buildAttributionCookie, parseAttributionCookie } from "./marketing-attribution";
+import {
+  buildAttributionCookie,
+  buildFirstTouchCookie,
+  parseAttributionCookie,
+  parseFirstTouchCookie,
+} from "./marketing-attribution";
+
+describe("first-touch cookie", () => {
+  it("records the referring host (without www) and the landing path", () => {
+    const v = buildFirstTouchCookie("https://www.Google.com/search?q=gta+clips", "clipiro.com", "/gta-6-clip-maker");
+    expect(v).toBe("google.com|/gta-6-clip-maker");
+    expect(parseFirstTouchCookie(v)).toEqual({ referrer: "google.com", landing: "/gta-6-clip-maker" });
+  });
+
+  it("calls no referer, our own host, or a malformed referer 'direct'", () => {
+    expect(buildFirstTouchCookie(null, "clipiro.com", "/")).toBe("direct|/");
+    expect(buildFirstTouchCookie("https://www.clipiro.com/pricing", "clipiro.com", "/login")).toBe("direct|/login");
+    expect(buildFirstTouchCookie("not a url", "clipiro.com", "/")).toBe("direct|/");
+  });
+
+  it("never stores a query string or odd characters in the path", () => {
+    expect(buildFirstTouchCookie(null, "clipiro.com", "/a<b>")).toBe("direct|/");
+    expect(buildFirstTouchCookie(null, "clipiro.com", `/${"x".repeat(100)}`)).toBe("direct|/");
+  });
+
+  it("parses tolerantly", () => {
+    expect(parseFirstTouchCookie(undefined)).toBeNull();
+    expect(parseFirstTouchCookie("bad host!|/x")).toBeNull();
+    expect(parseFirstTouchCookie("t.co|")).toEqual({ referrer: "t.co", landing: "/" });
+  });
+});
 
 describe("buildAttributionCookie", () => {
   it("joins the three values", () => {

@@ -176,7 +176,7 @@
     "gender": "பாலினம்",
     "genders": { "male": "ஆண்", "female": "பெண்", "unspecified": "கூற விரும்பவில்லை" },
     "intendedUseLabel": "Clipiro ஐ எதற்காகப் பயன்படுத்த விரும்புகிறீர்கள்?",
-    "intendedUses": { "contentCreator": "கண்டெண்ட் கிரியேட்டர்", "businessMarketing": "வணிகம் / சந்தைப்படுத்தல்", "personal": "தனிப்பட்டது", "other": "மற்றவை" },
+    "intendedUses": { "gaming": "கேமிங் ஸ்ட்ரீம்கள்", "podcast": "பாட்காஸ்ட்கள்", "education": "உரைகள் & பாடங்கள்", "contentCreator": "கண்டெண்ட் கிரியேட்டர்", "businessMarketing": "வணிகம் / சந்தைப்படுத்தல்", "personal": "தனிப்பட்டது", "other": "மற்றவை" },
     "restartTourTitle": "ஆன்போர்டிங் சுற்றுலாவை மீண்டும் தொடங்கு",
     "restartTourDesc": "அடுத்த முறை டாஷ்போர்டுக்கு வரும்போது வரவேற்பு திரை மற்றும் வழிகாட்டப்பட்ட சுற்றுலாவை மீண்டும் காணுங்கள்.",
     "restarting": "மீண்டும் தொடங்குகிறது…",

@@ -176,7 +176,7 @@
     "gender": "性别",
     "genders": { "male": "男", "female": "女", "unspecified": "不愿透露" },
     "intendedUseLabel": "您打算将Clipiro用于什么用途？",
-    "intendedUses": { "contentCreator": "内容创作者", "businessMarketing": "商业 / 营销", "personal": "个人使用", "other": "其他" },
+    "intendedUses": { "gaming": "游戏直播", "podcast": "播客", "education": "演讲与课程", "contentCreator": "内容创作者", "businessMarketing": "商业 / 营销", "personal": "个人使用", "other": "其他" },
     "restartTourTitle": "重新开始新手引导",
     "restartTourDesc": "下次访问仪表盘时重新查看欢迎界面和引导教程。",
     "restarting": "重新开始中…",

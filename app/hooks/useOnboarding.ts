@@ -1,7 +1,9 @@
 "use client";
 import { useState, useCallback } from "react";
 import { useAuth } from "@/app/components/AuthContext";
-import type { PrimaryGoalId } from "@/lib/onboarding-config";
+import type { INTENDED_USE_OPTIONS, PrimaryGoalId } from "@/lib/onboarding-config";
+
+export type IntendedUseId = typeof INTENDED_USE_OPTIONS[number]["id"];
 
 export type ExperienceLevel = "beginner" | "intermediate" | "advanced";
 export type TeamOrIndividual = "individual" | "team";
@@ -52,6 +54,17 @@ export function useOnboarding() {
     [complete],
   );
 
+  // "What do you make?" — stored as the same User.intendedUse the Settings
+  // profile edits. Best-effort: a failed save must not block the welcome flow.
+  const saveIntendedUse = useCallback(async (intendedUse: IntendedUseId) => {
+    if (!token) return;
+    await fetch("/api/auth/profile", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ intendedUse }),
+    }).catch(() => {});
+  }, [token]);
+
   // Fire-and-forget: only needs to persist so a reload resumes at the right
   // step. The tour's own local state (not user.tourStep) drives its render,
   // so there's no need to block on refreshUser for every single step.
@@ -93,6 +106,7 @@ export function useOnboarding() {
     completeOnboarding,
     skipOnboarding,
     savePreferences,
+    saveIntendedUse,
     advanceTour,
     finishTour,
     trackEvent,

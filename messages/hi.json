@@ -176,7 +176,7 @@
     "gender": "लिंग",
     "genders": { "male": "पुरुष", "female": "महिला", "unspecified": "बताना नहीं चाहते" },
     "intendedUseLabel": "Clipiro का इस्तेमाल आप किस लिए करना चाहते हैं?",
-    "intendedUses": { "contentCreator": "कंटेंट क्रिएटर", "businessMarketing": "बिज़नेस / मार्केटिंग", "personal": "व्यक्तिगत", "other": "अन्य" },
+    "intendedUses": { "gaming": "गेमिंग स्ट्रीम", "podcast": "पॉडकास्ट", "education": "टॉक्स और लेसन", "contentCreator": "कंटेंट क्रिएटर", "businessMarketing": "बिज़नेस / मार्केटिंग", "personal": "व्यक्तिगत", "other": "अन्य" },
     "restartTourTitle": "ऑनबोर्डिंग टूर फिर से शुरू करें",
     "restartTourDesc": "अगली बार डैशबोर्ड पर आने पर वेलकम स्क्रीन और गाइडेड टूर फिर से देखें।",
     "restarting": "फिर से शुरू हो रहा है…",

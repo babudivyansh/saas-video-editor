@@ -46,6 +46,57 @@ export function buildAttributionCookie(
   return parts.join("|");
 }
 
+// ── First touch: where a visitor came from, for EVERY signup ────────────────
+//
+// mkt_attr above only exists when the landing URL carried UTM tags, which most
+// traffic (search, a link in a Discord, a typed URL) doesn't — so 2026-11 the
+// team couldn't tell GTA-page traffic from anything else. This second cookie
+// records the referring site's host and the first path the visitor landed on,
+// on the same first-touch / 30-day / consent terms, and is stored on the User
+// at signup (User.signupReferrer / signupLandingPath).
+
+export const FIRST_TOUCH_COOKIE = "first_touch";
+
+export interface FirstTouch {
+  /** Referring host without "www.", or "direct" when there was none / it was us. */
+  referrer: string;
+  /** First path landed on, e.g. "/gta-6-clip-maker". */
+  landing: string;
+}
+
+function normalizeHost(host: string): string {
+  const h = host.toLowerCase().replace(/^www\./, "");
+  return h.length <= 64 && /^[a-z0-9.-]+$/.test(h) ? h : "";
+}
+
+function normalizePath(path: string): string {
+  const p = path.toLowerCase();
+  return p.length <= 80 && /^\/[a-z0-9/_.-]*$/.test(p) ? p : "/";
+}
+
+/** Value for FIRST_TOUCH_COOKIE ("host|path"). `ownHost` is this site's host,
+ *  so internal navigation reads as "direct" rather than as a referral. */
+export function buildFirstTouchCookie(referer: string | null, ownHost: string, pathname: string): string {
+  let referrer = "direct";
+  if (referer) {
+    try {
+      const host = normalizeHost(new URL(referer).hostname);
+      if (host && host !== normalizeHost(ownHost)) referrer = host;
+    } catch {
+      /* malformed Referer — treat as direct */
+    }
+  }
+  return `${referrer}|${normalizePath(pathname)}`;
+}
+
+export function parseFirstTouchCookie(raw: string | null | undefined): FirstTouch | null {
+  if (!raw) return null;
+  const [host = "", path = ""] = raw.split("|");
+  const referrer = host === "direct" ? "direct" : normalizeHost(host);
+  if (!referrer) return null;
+  return { referrer, landing: normalizePath(path) };
+}
+
 /**
  * Tolerant by design — a malformed or truncated cookie yields empty strings
  * rather than throwing. Attribution is best-effort metadata; it must never be

@@ -450,16 +450,16 @@ export const EMAIL_REGISTRY: Record<string, TemplateEntry<never>> = {
     category: "productUpdates",
     trigger: "Registration, and Google OAuth first sign-in",
     build: lifecycle.welcome,
-    samples: { default: { firstName: "Divyansh", credits: 30 } },
+    samples: { default: { firstName: "Divyansh", minutes: 30 } },
   }),
   "onboarding-day-1": entry({
     id: "onboarding-day-1",
     title: "Onboarding day 1",
     group: "lifecycle",
     category: "productUpdates",
-    trigger: "Cron, one day after signup with no activity",
+    trigger: "Cron, one day after signup if no AutoClip run was started",
     build: lifecycle.onboardingDay1,
-    samples: { default: { name: "Divyansh", creditsLeft: 30 } },
+    samples: { default: { name: "Divyansh", minutesLeft: 30 } },
   }),
   "onboarding-day-3": entry({
     id: "onboarding-day-3",
@@ -469,8 +469,8 @@ export const EMAIL_REGISTRY: Record<string, TemplateEntry<never>> = {
     trigger: "Cron, three days after signup — branches on whether they've created anything",
     build: lifecycle.onboardingDay3,
     samples: {
-      "has created": { name: "Divyansh", creditsUsed: 12, hasUsed: true },
-      "not started": { name: "Divyansh", creditsUsed: 0, hasUsed: false },
+      "has created": { name: "Divyansh", clipCount: 12, hasUsed: true },
+      "not started": { name: "Divyansh", clipCount: 0, hasUsed: false },
     },
   }),
   "onboarding-day-7": entry({
@@ -478,9 +478,9 @@ export const EMAIL_REGISTRY: Record<string, TemplateEntry<never>> = {
     title: "Onboarding day 7",
     group: "lifecycle",
     category: "productUpdates",
-    trigger: "Cron, one week after signup",
+    trigger: "Cron, one week after signup (free users only)",
     build: lifecycle.onboardingDay7,
-    samples: { default: { name: "Divyansh", creditsLeft: 18 } },
+    samples: { default: { name: "Divyansh", minutesLeft: 18 } },
   }),
   "reengagement-7d": entry({
     id: "reengagement-7d",
@@ -489,7 +489,7 @@ export const EMAIL_REGISTRY: Record<string, TemplateEntry<never>> = {
     category: "marketingEmails",
     trigger: "Cron, seven days inactive",
     build: lifecycle.reengagement7Day,
-    samples: { default: { name: "Divyansh", creditsLeft: 25 } },
+    samples: { default: { name: "Divyansh", minutesLeft: 25 } },
   }),
   "reengagement-30d": entry({
     id: "reengagement-30d",
@@ -498,16 +498,16 @@ export const EMAIL_REGISTRY: Record<string, TemplateEntry<never>> = {
     category: "marketingEmails",
     trigger: "Cron, thirty days inactive (win-back)",
     build: lifecycle.reengagement30Day,
-    samples: { default: { name: "Divyansh", creditsLeft: 25, daysSinceLogin: 34 } },
+    samples: { default: { name: "Divyansh", minutesLeft: 25, daysSinceLogin: 34 } },
   }),
   "first-video-success": entry({
     id: "first-video-success",
     title: "First video success",
     group: "lifecycle",
     category: "marketingEmails",
-    trigger: "An hour after a user's first successful render",
+    trigger: "Onboarding cron, 2+ hours after a free user's first completed AutoClip run",
     build: lifecycle.firstVideoSuccess,
-    samples: { default: { name: "Divyansh" } },
+    samples: { default: { name: "Divyansh", clipCount: 8 } },
   }),
 
   // ── Affiliate ─────────────────────────────────────────────────────────────
