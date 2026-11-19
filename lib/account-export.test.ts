@@ -68,6 +68,7 @@ vi.mock("@/lib/prisma", () => ({
     asset: { findMany: vi.fn(async () => []) },
     purchase: { findMany: vi.fn(async () => []) },
     loginEvent: { findMany: vi.fn(async () => []) },
+    userEvent: { findMany: vi.fn(async () => []) },
     notificationPreference: { findUnique: vi.fn(async () => null) },
     socialAccount: {
       findMany: vi.fn(async ({ select }: { select: Record<string, boolean> }) => {

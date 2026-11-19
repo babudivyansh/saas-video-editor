@@ -1,7 +1,7 @@
 "use client";
 
 // One account, every control: Overview (profile, balances, notes, affiliate,
-// social), Security (sign-in, 2FA, email, password, devices, login history),
+// social), Journey (where they came from + everything they did), Security (sign-in, 2FA, email, password, devices, login history),
 // Billing (subscription, renewal cancel, purchases + refund, credit ledger,
 // credit/minute adjust), Content (projects + library, with delete), and
 // Data (export + delete account). Destructive actions need the user's email typed; every
@@ -24,6 +24,7 @@ import { CreditAdjust } from "../CreditAdjust";
 import { AccountSecurity } from "../_components/AccountSecurity";
 import { useAccountAction } from "../_components/useAccountAction";
 import { DataExport } from "../_components/DataExport";
+import { UserJourney } from "../_components/UserJourney";
 import { AuditTimeline } from "../../audit/_components/AuditTimeline";
 import { ContentBrowser } from "../../_components/ContentBrowser";
 
@@ -314,6 +315,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
         label="Account"
         items={[
           { id: "overview", label: "Overview", content: overview },
+          { id: "journey", label: "Journey", content: <UserJourney userId={id} headers={headers} /> },
           { id: "security", label: "Security", content: <AccountSecurity user={d.user} loginEvents={d.loginEvents} headers={headers} /> },
           { id: "billing", label: "Billing", content: billing },
           { id: "content", label: "Content", content: <Card shadow padding="md"><ContentBrowser headers={headers} userId={id} /></Card> },

@@ -63,6 +63,7 @@ const EXACT: Record<string, Row> = {
   "user.hard_delete": ["Deleted account", "accounts", "critical", "user", "The account, its content and stored files were permanently deleted.", true],
   "user.deleted": ["Deleted account", "accounts", "critical", "user", "The account was permanently deleted.", true],
   "user.data_exported": ["Exported data of", "accounts", "view", "user", "A download of all data held about this account was built.", true],
+  "users.exported": ["Exported the user list", "accounts", "view", "none", "A CSV of the filtered Admin → Users list was downloaded."],
   "user.data_export_downloaded": ["Downloaded data export of", "accounts", "view", "user", "The download link to this account's data export was handed out."],
   "user.bulk_suspend": ["Suspended accounts in bulk", "accounts", "destructive", "none", "Several accounts were suspended at once.", true],
   "user.bulk_unsuspend": ["Unsuspended accounts in bulk", "accounts", "change", "none", "Several accounts were unsuspended at once.", true],
@@ -155,8 +156,8 @@ const EXACT: Record<string, Row> = {
   "email_provider.suspension_cleared": ["Cleared an email provider's suspension", "operations", "change", "none", "A provider marked suspended was put back into rotation after the admin resolved it with the provider.", true],
   "email_settings.updated": ["Changed email delivery settings", "config", "change", "none", "Provider priority order or the pause on non-critical email was changed."],
   "email_alert.resolved": ["Resolved an email alert", "operations", "change", "none", "An email delivery alert was marked resolved on Admin -> Email."],
-  "signup_alerts.updated": ["Changed new-signup email alerts", "config", "change", "none", "The new-signup staff email was switched or its recipients changed."],
-  "signup_alerts.test_sent": ["Sent a test new-signup email", "config", "change", "none", "A sample new-signup email went to every current recipient."],
+  "signup_alerts.updated": ["Changed staff email alerts", "config", "change", "none", "Signup emails (off / daily / every signup), money alerts or their recipients changed."],
+  "signup_alerts.test_sent": ["Sent a test staff email", "config", "change", "none", "A test signup email or today's daily summary went to every current recipient."],
   "autoclip_calibration.recalibrated": ["Recalibrated AutoClip virality weights", "config", "change", "none", "Scoring weights were recomputed from engagement."],
 
   // ── Social ──

@@ -1,5 +1,6 @@
 "use client";
-import { useState, useEffect, Fragment } from "react";
+import { useState, useEffect, Fragment, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AdminShell from "../AdminShell";
 import { ErrorCard } from "../dashboard/ui";
@@ -40,6 +41,9 @@ interface AdminUser {
   deactivatedAt: string | null;
   emailVerifiedAt: string | null;
   twoFactorEnabled: boolean;
+  lastLoginAt: string | null;
+  hasPassword: boolean;
+  intendedUse: string | null;
   _count: { projects: number };
 }
 
@@ -52,6 +56,22 @@ const FILTERS = [
   ["2fa", "Two-factor on"],
   ["admins", "Admins"],
 ] as const;
+
+// Funnel filters (lib/admin/user-filters.ts). Each select maps to one query param.
+const FUNNEL_FILTERS = [
+  { param: "journey", label: "Journey", options: [
+    ["", "Any journey"],
+    ["stuck", "Signed up 1d+ ago, never ran AutoClip"],
+    ["never_ran", "Never ran AutoClip"],
+    ["ran", "Ran AutoClip"],
+    ["free_after_run", "Ran AutoClip, never paid"],
+    ["paid", "Paid at least once"],
+  ] },
+  { param: "joined", label: "Joined", options: [["", "Joined any time"], ["1d", "Joined last 24h"], ["7d", "Joined last 7 days"], ["30d", "Joined last 30 days"], ["90d", "Joined last 90 days"]] },
+  { param: "method", label: "Signed up with", options: [["", "Email or Google"], ["google", "Google"], ["email", "Email"]] },
+  { param: "active", label: "Last active", options: [["", "Any activity"], ["7d", "Logged in last 7 days"], ["inactive_30d", "No login for 30+ days"]] },
+] as const;
+type FunnelParam = (typeof FUNNEL_FILTERS)[number]["param"];
 
 type BulkAction = "suspend" | "unsuspend" | "revoke_sessions";
 const BULK_LABEL: Record<BulkAction, string> = { suspend: "Suspend", unsuspend: "Unsuspend", revoke_sessions: "Sign out everywhere" };
@@ -94,14 +114,32 @@ function planChangePreview(user: AdminUser | null, plan: PlanRef | null): string
 }
 
 
+// Filters arrive in the URL from Admin → Analytics ("See who"), so the list
+// opens already narrowed. useSearchParams needs a Suspense boundary.
 export default function AdminUsersPage() {
+  return (
+    <Suspense fallback={null}>
+      <AdminUsers />
+    </Suspense>
+  );
+}
+
+function AdminUsers() {
+  const sp = useSearchParams();
   const { token, user } = useAuth();
   const { showToast } = useToast();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [searchInput, setSearchInput] = useState("");
   const search = useDebouncedValue(searchInput);
-  const [filter, setFilter] = useState("");
+  const [filter, setFilter] = useState(() => sp.get("filter") ?? "");
+  const [funnel, setFunnel] = useState<Record<FunnelParam, string>>(() => ({
+    journey: sp.get("journey") ?? "",
+    joined: sp.get("joined") ?? "",
+    method: sp.get("method") ?? "",
+    active: sp.get("active") ?? "",
+  }));
+  const [exporting, setExporting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulk, setBulk] = useState<BulkAction | null>(null);
 
@@ -146,9 +184,9 @@ export default function AdminUsersPage() {
   const headers = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${token}` });
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["admin-users", page, search, filter],
+    queryKey: ["admin-users", page, search, filter, funnel],
     queryFn: async () => {
-      const params = new URLSearchParams({ search, filter, page: String(page), limit: String(LIMIT) });
+      const params = new URLSearchParams({ search, filter, ...funnel, page: String(page), limit: String(LIMIT) });
       const [u, p] = await Promise.all([
         fetch(`/api/admin/users?${params}`, { headers: headers() }),
         fetch("/api/admin/plans", { headers: headers() }),
@@ -197,6 +235,26 @@ export default function AdminUsersPage() {
     }
     setSelected(new Set());
     queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+  }
+
+  async function exportCsv() {
+    setExporting(true);
+    try {
+      const params = new URLSearchParams({ search, filter, ...funnel });
+      const res = await fetch(`/api/admin/users/export?${params}`, { headers: headers() });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Export failed");
+      const name = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ?? "users.csv";
+      const href = URL.createObjectURL(await res.blob());
+      const a = document.createElement("a");
+      a.href = href;
+      a.download = name;
+      a.click();
+      URL.revokeObjectURL(href);
+    } catch (e) {
+      showToast((e as Error).message, "error");
+    } finally {
+      setExporting(false);
+    }
   }
 
   function toggle(id: string) {
@@ -286,8 +344,22 @@ export default function AdminUsersPage() {
           >
             {FILTERS.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
           </select>
+          {FUNNEL_FILTERS.map((f) => (
+            <select
+              key={f.param}
+              value={funnel[f.param]}
+              onChange={e => { setFunnel({ ...funnel, [f.param]: e.target.value }); setPage(1); setSelected(new Set()); }}
+              aria-label={f.label}
+              className="bg-panel border border-line rounded-xl px-3 py-2.5 text-sm text-fg focus:outline-none focus:ring-2 focus:ring-primary/40"
+            >
+              {f.options.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+            </select>
+          ))}
         </div>
-        <span className="text-sm text-fg-subtle">{total} user{total !== 1 ? "s" : ""}</span>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-fg-subtle">{total} user{total !== 1 ? "s" : ""}</span>
+          <Button size="sm" variant="secondary" loading={exporting} disabled={total === 0} onClick={exportCsv}>Export CSV</Button>
+        </div>
       </div>
 
       {isError ? (
@@ -388,7 +460,10 @@ export default function AdminUsersPage() {
                             </select>
                           </td>
                           <td className="py-3 px-3 text-fg-muted">{u._count.projects}</td>
-                          <td className="py-3 px-3 text-fg-subtle text-xs whitespace-nowrap">{fmt(u.createdAt)}</td>
+                          <td className="py-3 px-3 text-fg-subtle text-xs whitespace-nowrap">
+                            {fmt(u.createdAt)}
+                            <span className="block text-[11px]">{u.hasPassword ? "Email" : "Google"}{u.lastLoginAt ? ` · seen ${fmtDate(u.lastLoginAt)}` : ""}</span>
+                          </td>
                           <td className="py-3 px-3">
                             <div className="flex items-center gap-1.5">
                               <Button href={`/admin/users/${u.id}`} variant="secondary" size="sm">

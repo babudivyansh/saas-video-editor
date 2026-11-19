@@ -104,6 +104,10 @@
 # Admin weekly ops digest — same secret as social-refresh
 0 8 * * 1 curl -s -H "Authorization: Bearer $SOCIAL_REFRESH_SECRET" https://clipiro.com/api/cron/admin-digest
 
+# Admin daily summary, 09:00 IST — replaces one email per signup. Sends only
+# when Admin → Operations → Notifications has signup emails set to "Daily".
+30 3 * * * curl -s -H "Authorization: Bearer $CRON_SECRET" https://clipiro.com/api/cron/admin-daily-digest
+
 # Daily MRR snapshot — the ONLY source of MRR history. MRR is otherwise derived
 # from current subscription state, so a day this doesn't run is a permanent
 # hole in the dashboard's MRR chart that no backfill can repair (past plan

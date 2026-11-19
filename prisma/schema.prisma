@@ -206,6 +206,7 @@ model User {
   socialReportLinks   SocialReportLink[]
   generations         Generation[]
   loginEvents         LoginEvent[]
+  userEvents          UserEvent[]
   apiKeys             ApiKey[]
   brandKits           BrandKit[]
   // Posts to social accounts (Social Studio, mobile Phase 11.3).
@@ -343,6 +344,25 @@ model FeatureAnnouncement {
 // history and, over time, device/country analytics. The login route already
 // computed device + geo transiently for the sign-in alert email; now it also
 // persists them.
+// Things a user did that no other table records (2026-11-19, admin activity
+// timeline): how they signed up and what they downloaded. Everything else on
+// the timeline — logins, uploads, AutoClip runs, tool use, payments — is read
+// from the table that already holds it (lib/admin/user-activity.ts), so the
+// timeline covers history from before this table existed.
+model UserEvent {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String // "signup" | "download" — lib/user-events.ts
+  meta      Json?
+  // Set when the same event must only be recorded once (a signup, one file).
+  dedupeKey String?  @unique
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([type, createdAt])
+}
+
 model LoginEvent {
   id        String   @id @default(cuid())
   userId    String

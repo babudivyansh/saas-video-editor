@@ -26,6 +26,7 @@ export const CRON_ROUTES: Record<CronName, () => Promise<{ GET: CronRouteHandler
   "commission-payout": () => import("@/app/api/cron/commission-payout/route"),
   "account-purge": () => import("@/app/api/cron/account-purge/route"),
   "admin-digest": () => import("@/app/api/cron/admin-digest/route"),
+  "admin-daily-digest": () => import("@/app/api/cron/admin-daily-digest/route"),
   "clip-publish": () => import("@/app/api/cron/clip-publish/route"),
   "social-refresh": () => import("@/app/api/cron/social-refresh/route"),
   "feature-announcements": () => import("@/app/api/cron/feature-announcements/route"),

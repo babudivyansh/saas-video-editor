@@ -28,6 +28,7 @@ export const KNOWN_CRON_NAMES = [
   "commission-payout",
   "account-purge",
   "admin-digest",
+  "admin-daily-digest",
   "clip-publish",
   "social-refresh",
   "feature-announcements",

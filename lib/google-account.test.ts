@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/prisma", () => ({ prisma: {} }));
+vi.mock("@/lib/user-events", () => ({ recordSignupEvent: vi.fn(async () => {}), recordDownloadEvent: vi.fn(async () => {}), signupUtm: vi.fn(() => undefined) }));
 vi.mock("@/lib/account-claim", () => ({ claimUnverifiedAccount: vi.fn() }));
 vi.mock("@/lib/minutes", () => ({ grantFreeTierMinutes: vi.fn() }));
 vi.mock("@/lib/affiliate", () => ({ attributeReferral: vi.fn() }));

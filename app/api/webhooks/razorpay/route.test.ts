@@ -26,6 +26,7 @@ vi.mock("@/lib/email", () => ({
   }),
 }));
 vi.mock("@/lib/notify", () => ({ notify: vi.fn(async () => {}) }));
+vi.mock("@/lib/admin/staff-alerts", () => ({ alertIfFirstPayment: vi.fn(async () => {}), alertRenewalFailed: vi.fn(async () => {}), alertRefund: vi.fn(async () => {}), alertDispute: vi.fn(async () => {}) }));
 vi.mock("@/lib/notifications", () => ({ shouldSendCategory: vi.fn(async () => false) }));
 vi.mock("@/lib/reviews/prompt-triggers", () => ({
   evaluatePromptTrigger: vi.fn(async () => null),

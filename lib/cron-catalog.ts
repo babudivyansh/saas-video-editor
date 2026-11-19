@@ -74,6 +74,11 @@ export const CRON_CATALOG: Record<string, CronJobInfo> = {
     description: "Emails the admins the weekly ops digest.",
     tier: "safe",
   },
+  "/api/cron/admin-daily-digest": {
+    label: "Admin daily summary",
+    description: "Emails staff the last 24h of signups, stuck users, AutoClip runs and payments. Skips unless signup emails are set to Daily.",
+    tier: "safe",
+  },
   "/api/cron/mrr-snapshot": {
     label: "MRR snapshot",
     description: "Records today's MRR. The only source of MRR history; safe to re-run (upserts the day).",
