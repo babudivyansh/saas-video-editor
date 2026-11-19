@@ -16,12 +16,13 @@ import { OverviewTab } from "./_components/OverviewTab";
 import { JobsTab } from "./_components/JobsTab";
 import { QueuesTab } from "./_components/QueuesTab";
 import { FlagsTab } from "./_components/FlagsTab";
+import { MaintenanceTab } from "./_components/MaintenanceTab";
 import { ServicesTab } from "./_components/ServicesTab";
 import { NotificationsTab } from "./_components/NotificationsTab";
 import { IncidentTools } from "./_components/IncidentTools";
 import { jobState, type AssetsAdminData, type OpsData } from "./_components/types";
 
-const TAB_IDS = ["overview", "jobs", "queues", "services", "flags", "notifications", "incident"] as const;
+const TAB_IDS = ["overview", "jobs", "queues", "services", "flags", "maintenance", "notifications", "incident"] as const;
 // A manual run that hasn't reported back in this long is given up on.
 const PENDING_TIMEOUT_MS = 10 * 60 * 1000;
 
@@ -138,6 +139,7 @@ function OpsConsole() {
           },
           { id: "services", label: "Services", content: <ServicesTab headers={headers} /> },
           { id: "flags", label: "Flags & maintenance", content: <FlagsTab data={d} headers={headers} /> },
+          { id: "maintenance", label: "Feature maintenance", content: <MaintenanceTab headers={headers} /> },
           { id: "notifications", label: "Notifications", content: <NotificationsTab headers={headers} /> },
           { id: "incident", label: "Incident tools", content: <IncidentTools headers={headers} /> },
         ]}
