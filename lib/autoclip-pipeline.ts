@@ -395,6 +395,9 @@ export async function notifyRenderOutcome(
       body: opts?.reason ?? "Something went wrong while rendering your clips. Please try again — you've been refunded for anything that didn't render.",
       href,
     });
+    // Several failures close together usually mean an outage, not a bad file.
+    const { noteAutoClipFailure } = await import("@/lib/admin/staff-alerts");
+    await noteAutoClipFailure();
   }
 }
 

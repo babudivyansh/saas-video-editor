@@ -32,6 +32,7 @@ export const CRON_SCHEDULE: readonly CronScheduleEntry[] = [
   { schedule: "0 5 * * 1", path: "/api/cron/social-refresh?job=recalibrate-virality", secret: "SOCIAL_REFRESH_SECRET" },
   { schedule: "0 4 * * *", path: "/api/cron/commission-payout", secret: "CRON_SECRET" },
   { schedule: "0 8 * * 1", path: "/api/cron/admin-digest", secret: "SOCIAL_REFRESH_SECRET" },
+  { schedule: "30 3 * * *", path: "/api/cron/admin-daily-digest", secret: "CRON_SECRET" },
   { schedule: "15 3 * * *", path: "/api/cron/mrr-snapshot", secret: "SOCIAL_REFRESH_SECRET" },
   { schedule: "0 2 * * *", path: "/api/cron/account-purge", secret: "CRON_SECRET" },
   { schedule: "*/15 * * * *", path: "/api/cron/asset-cleanup", secret: "ASSET_CLEANUP_SECRET" },

@@ -394,6 +394,7 @@ const CRON_STALE_AFTER_SEC: Record<CronRunId, number> = {
   "review-prompts": 36 * 3600,
   "subscription-reminder": 36 * 3600,
   "admin-digest": 9 * 24 * 3600, // weekly
+  "admin-daily-digest": 36 * 3600, // daily, 09:00 IST
   reengagement: 9 * 24 * 3600, // weekly
   "feature-announcements": 36 * 3600, // daily
   // A missed day is a permanent hole in the MRR series — nothing can fill it
@@ -472,8 +473,12 @@ export async function growthSection() {
     prisma.$queryRaw<Array<{ month: Date; signups: bigint; activated: bigint; paid: bigint }>>`
       SELECT date_trunc('month', u."createdAt") AS month,
              COUNT(*) AS signups,
-             COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM "Generation" g WHERE g."userId" = u.id)) AS activated,
-             COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM "Purchase" p WHERE p."userId" = u.id)) AS paid
+             -- Activated = used an AI tool OR started an AutoClip run. Generation
+             -- alone missed every AutoClip user (AutoClip writes Projects, not
+             -- Generations), which is most of them.
+             COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM "Generation" g WHERE g."userId" = u.id)
+                                 OR EXISTS (SELECT 1 FROM "Project" pr WHERE pr."userId" = u.id AND pr."productType" = 'auto-clip')) AS activated,
+             COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM "Purchase" p WHERE p."userId" = u.id AND p."amountInPaise" > 0)) AS paid
       FROM "User" u
       WHERE u."createdAt" >= ${sixMonthsAgo}
       GROUP BY 1 ORDER BY 1`,

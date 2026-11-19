@@ -15,6 +15,7 @@ import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
 import { evaluatePromptTrigger, recordPrompt } from "@/lib/reviews/prompt-triggers";
 import { notify, notifyAdmins } from "@/lib/notify";
+import { alertDispute, alertIfFirstPayment, alertRefund, alertRenewalFailed } from "@/lib/admin/staff-alerts";
 import { shouldSendCategory } from "@/lib/notifications";
 import { sendReviewPromptEmail } from "@/lib/email";
 import { greetingName } from "@/lib/display-name";
@@ -262,7 +263,15 @@ export async function POST(req: NextRequest) {
         // Diwali 2026 monthly first-month bonus, stamped at checkout.
         notesDiwaliBonus: subEntity.notes?.diwaliBonus,
       });
-      if (result.fulfilled) await maybePromptAfterBillingSuccess(subEntity.notes?.userId);
+      if (result.fulfilled) {
+        await maybePromptAfterBillingSuccess(subEntity.notes?.userId);
+        await alertIfFirstPayment({
+          userId: subEntity.notes?.userId,
+          paymentId: paymentEntity.id,
+          amountInPaise: paymentEntity.amount ?? 0,
+          currency: paymentEntity.currency,
+        });
+      }
     }
     return NextResponse.json({ received: true });
   }
@@ -293,6 +302,9 @@ export async function POST(req: NextRequest) {
       } catch (e) {
         logger.error("webhook", `dunning record failed for ${sub.id}`, e);
         return NextResponse.json({ error: "dunning record failed" }, { status: 500 });
+      }
+      if (event.event === "payment.failed") {
+        await alertRenewalFailed({ subscriptionId: sub.id, userId: sub.notes?.userId, reason });
       }
     }
     return NextResponse.json({ received: true });
@@ -336,7 +348,15 @@ export async function POST(req: NextRequest) {
         notes: entity.notes,
         eventName: event.event,
       });
-      if (result.fulfilled) await maybePromptAfterBillingSuccess(entity.notes?.userId);
+      if (result.fulfilled) {
+        await maybePromptAfterBillingSuccess(entity.notes?.userId);
+        await alertIfFirstPayment({
+          userId: entity.notes?.userId,
+          paymentId: entity.id,
+          amountInPaise: entity.amount ?? 0,
+          currency: entity.currency,
+        });
+      }
     }
   }
 
@@ -364,7 +384,7 @@ export async function POST(req: NextRequest) {
       // is a real failure (DB down mid-clawback); answering 200 to it lost the
       // refund and the credit clawback permanently, since Razorpay won't retry.
       try {
-        await refundPurchase({
+        const refunded = await refundPurchase({
           purchaseId: paymentId,
           actorId: "system:razorpay-webhook",
           reason: `Razorpay ${event.event}`,
@@ -373,6 +393,7 @@ export async function POST(req: NextRequest) {
             ? { refund: { id: refundEntity.id, amountMinor: refundEntity.amount, ...(typeof totalRefunded === "number" ? { totalRefundedMinor: totalRefunded } : {}) } }
             : {}),
         });
+        if (refunded.ok) await alertRefund({ paymentId, refundId: refundEntity?.id, partial: refunded.partial });
       } catch (e) {
         logger.error("webhook", `refund mirror failed for ${paymentId}`, e);
         return NextResponse.json({ error: "refund mirror failed" }, { status: 500 });
@@ -401,6 +422,7 @@ export async function POST(req: NextRequest) {
             `Payment ${paymentId} was disputed${dispute?.reason_code ? ` (${dispute.reason_code})` : ""}. Submit evidence in the Razorpay dashboard before the deadline.`,
             "/admin/purchases",
           );
+          await alertDispute({ paymentId, reason: dispute?.reason_code ?? null, amountMinor: dispute?.amount ?? null });
         } else {
           const { refundPurchase } = await import("@/lib/admin/billing");
           await refundPurchase({

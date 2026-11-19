@@ -10,6 +10,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // its engine has its own real-database suite, so it's a spy here.
 const grantFreeTierMinutes = vi.hoisted(() => vi.fn(async () => ({ bonus: 30, subscription: 0, purchased: 0, total: 30 })));
 vi.mock("@/lib/minutes", () => ({ grantFreeTierMinutes }));
+vi.mock("@/lib/user-events", () => ({ recordSignupEvent: vi.fn(async () => {}), recordDownloadEvent: vi.fn(async () => {}), signupUtm: vi.fn(() => undefined) }));
 import { NextRequest } from "next/server";
 import { encodeOAuthState } from "@/lib/oauth-state";
 

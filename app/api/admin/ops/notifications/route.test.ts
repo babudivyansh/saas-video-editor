@@ -16,7 +16,8 @@ vi.mock("@/lib/redis", () => ({
 const auditAdminAction = vi.fn(async () => {});
 vi.mock("@/lib/admin/audit", () => ({ auditAdminAction, auditIp: () => null, auditOnce: vi.fn(async () => false) }));
 
-let stored = { enabled: true, recipients: [] as string[] };
+const DEFAULTS = { signupMode: "daily", moneyAlerts: true, recipients: [] as string[], mutedAdmins: [] as string[] };
+let stored = { ...DEFAULTS };
 const setSignupAlertSettings = vi.fn(async (s: typeof stored) => (stored = s));
 vi.mock("@/lib/admin/signup-alerts", () => ({
   getSignupAlertSettings: vi.fn(async () => stored),
@@ -31,7 +32,7 @@ const patch = (body: unknown) => PATCH(new NextRequest(url, { method: "PATCH", b
 
 beforeEach(() => {
   isAdmin = true;
-  stored = { enabled: true, recipients: [] };
+  stored = { ...DEFAULTS };
   vi.clearAllMocks();
 });
 
@@ -39,28 +40,31 @@ describe("/api/admin/ops/notifications", () => {
   it("is admin-only", async () => {
     isAdmin = false;
     expect((await GET(new NextRequest(url))).status).toBe(403);
-    expect((await patch({ enabled: false, recipients: [] })).status).toBe(403);
+    expect((await patch({ ...DEFAULTS, signupMode: "off" })).status).toBe(403);
     expect(setSignupAlertSettings).not.toHaveBeenCalled();
   });
 
-  it("returns the settings and the admin accounts used by default", async () => {
+  it("returns the settings and the admin accounts", async () => {
     const res = await GET(new NextRequest(url));
-    expect(await res.json()).toEqual({ signup: { enabled: true, recipients: [] }, adminEmails: ["a1@clipiro.com"] });
+    expect(await res.json()).toEqual({ signup: DEFAULTS, adminEmails: ["a1@clipiro.com"] });
   });
 
   it("saves and audits a change", async () => {
-    const res = await patch({ enabled: false, recipients: ["ops@x.co"] });
+    const next = { signupMode: "off", moneyAlerts: false, recipients: ["ops@x.co"], mutedAdmins: ["a1@clipiro.com"] };
+    const res = await patch(next);
     expect(res.status).toBe(200);
-    expect(setSignupAlertSettings).toHaveBeenCalledWith({ enabled: false, recipients: ["ops@x.co"] });
+    expect(setSignupAlertSettings).toHaveBeenCalledWith(next);
     expect(auditAdminAction).toHaveBeenCalledWith("admin-1", "signup_alerts.updated", undefined, expect.objectContaining({
-      before: { enabled: true, recipients: [] },
-      after: { enabled: false, recipients: ["ops@x.co"] },
+      before: DEFAULTS,
+      after: next,
     }));
   });
 
-  it("rejects an invalid recipient", async () => {
-    const res = await patch({ enabled: true, recipients: ["not-an-email"] });
-    expect(res.status).toBe(400);
+  it("rejects an invalid body", async () => {
+    expect((await patch({ ...DEFAULTS, recipients: ["not-an-email"] })).status).toBe(400);
+    expect((await patch({ ...DEFAULTS, signupMode: "weekly" })).status).toBe(400);
+    // The pre-2026-11-19 body shape is rejected rather than half-applied.
+    expect((await patch({ enabled: true, recipients: [] })).status).toBe(400);
     expect(setSignupAlertSettings).not.toHaveBeenCalled();
   });
 });

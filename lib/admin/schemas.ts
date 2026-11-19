@@ -659,9 +659,12 @@ export const assetModerateSchema = z
   })
   .strict();
 
+const alertEmail = z.string().trim().email("Enter a valid email address").max(200);
 export const signupAlertsSchema = z
   .object({
-    enabled: z.boolean(),
-    recipients: z.array(z.string().trim().email("Enter a valid email address").max(200)).max(20),
+    signupMode: z.enum(["off", "instant", "daily"]),
+    moneyAlerts: z.boolean(),
+    recipients: z.array(alertEmail).max(20),
+    mutedAdmins: z.array(alertEmail).max(50),
   })
   .strict();
