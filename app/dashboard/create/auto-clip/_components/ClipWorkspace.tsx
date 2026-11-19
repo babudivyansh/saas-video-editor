@@ -2,20 +2,21 @@
 // Split out of ../page.tsx (stage 7 of the AutoClip audit) — moved, not rewritten.
 import { useRef, useState, useEffect, useReducer, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ReframeAndCutsControls } from "@/app/components/auto-clip/ReframeAndCutsControls";
-import { LiteEditTab, type LiteEdits } from "@/app/components/auto-clip/LiteEditTab";
+import { REFRAME_PRESETS, ZOOM_STRENGTHS, SPEAKER_MODES } from "@/app/components/auto-clip/ReframeAndCutsControls";
+import { PanelSection, PanelSlider, Segmented, useAccordion } from "@/app/components/auto-clip/PanelSection";
+import { useMenuNav } from "@/app/components/ui/useMenuNav";
+import { LiteEditTab, toLiteEdits, type LiteEdits } from "@/app/components/auto-clip/LiteEditTab";
+import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
 import { ClipCaptionPreview } from "@/app/components/auto-clip/ClipCaptionPreview";
-import { mediaPath, renderWaitReducer, rerenderPriceLabel, type CropKeyframe } from "@/app/components/auto-clip/clipPanelLogic";
-import { useCommitQueue, type CommitQueueHandle } from "@/app/components/auto-clip/useCommitQueue";
+import { fmtStamp, groupTranscriptLines, mediaPath, rebaseWords, renderWaitReducer, rerenderPriceLabel, type CropKeyframe } from "@/app/components/auto-clip/clipPanelLogic";
 import { CaptionTemplatePicker, CaptionTweakControls, TranslateCaptions } from "@/app/components/auto-clip/CaptionTemplatePicker";
 import { resolveCaptionTemplate, resolveTemplateId } from "@clipiro/shared/caption-templates";
 import { templateIdForIndex } from "@/lib/captions/legacyStyleIndex";
 import { Switch } from "@/app/components/ui/Switch";
-import { Button } from "@/app/components/ui/Button";
 import { hexToASS, assToHex } from "@/lib/ass-color";
-import { RelatedSection, RelatedRail, RelatedList, RelatedEmpty, RelatedLoading, SourceWindowBar, fmtDuration } from "@/app/components/related/RelatedContent";
+import { RelatedRail, RelatedList, RelatedEmpty, RelatedLoading, SourceWindowBar, fmtDuration } from "@/app/components/related/RelatedContent";
 import type { ClipRelated } from "@/lib/related-content";
-import { IcChevronLeft, IcChevronRight, IcPlay, ApiError, apiFetch, ClipItem, ScoreBreakdownWithInsights, InsightRow, scoreBand, arCss, ASPECTS } from "./shared";
+import { IcChevronLeft, IcChevronRight, IcPlay, apiFetch, ClipItem, ScoreBreakdownWithInsights, InsightRow, scoreBand, arCss, ASPECTS } from "./shared";
 import { EditInEditorButton, DubPanel, PublishPanel } from "./ClipActions";
 import type { SpeakerMode } from "@/lib/speaker-modes";
 
@@ -36,19 +37,21 @@ export function RelatedForClip({
   const hasDerived =
     derived.dubs.length > 0 || derived.publishes.length > 0 || derived.editorProjects.length > 0;
 
+  const derivedCount = derived.dubs.length + derived.publishes.length + derived.editorProjects.length;
+  const section = useAccordion("siblings");
+
   return (
-    <>
-      <RelatedSection title="From this source">
+    <div className="space-y-2">
+      <PanelSection
+        title="Source video"
+        summary={source ? (source.asset?.name ?? source.project.title) : "Not found"}
+        {...section("source")}
+      >
         {source ? (
-          <div className="space-y-2.5 px-3 py-3 rounded-xl bg-surface">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-ink truncate">
-                {source.asset?.name ?? source.project.title}
-              </span>
-              <span className="text-[10px] text-ink-soft/60 shrink-0">
-                {source.project.clipCount} clip{source.project.clipCount === 1 ? "" : "s"}
-              </span>
-            </div>
+          <div className="space-y-2.5">
+            <p className="text-[11px] text-fg-muted">
+              {source.project.clipCount} clip{source.project.clipCount === 1 ? "" : "s"} from this video
+            </p>
             <SourceWindowBar
               startSec={source.window.startSec}
               endSec={source.window.endSec}
@@ -58,9 +61,9 @@ export function RelatedForClip({
         ) : (
           <RelatedEmpty message="We couldn't trace this clip back to its source video." />
         )}
-      </RelatedSection>
+      </PanelSection>
 
-      <RelatedSection title="Other clips from this video" count={siblingClips.length}>
+      <PanelSection title="Other clips" summary={siblingClips.length > 0 ? String(siblingClips.length) : "None"} {...section("siblings")}>
         {siblingClips.length > 0 ? (
           <RelatedRail
             items={siblingClips.map((c) => ({
@@ -75,9 +78,9 @@ export function RelatedForClip({
         ) : (
           <RelatedEmpty message="This was the only clip from this video." />
         )}
-      </RelatedSection>
+      </PanelSection>
 
-      <RelatedSection title="Made from this clip">
+      <PanelSection title="Made from this clip" summary={hasDerived ? String(derivedCount) : "Nothing yet"} {...section("derived")}>
         {hasDerived ? (
           <RelatedList
             items={[
@@ -104,8 +107,8 @@ export function RelatedForClip({
         ) : (
           <RelatedEmpty message="Nothing made from this clip yet — dub, publish or open it in the editor." />
         )}
-      </RelatedSection>
-    </>
+      </PanelSection>
+    </div>
   );
 }
 
@@ -123,6 +126,89 @@ function DownloadLink({ href, pending, className, children }: { href: string; pe
     );
   }
   return <a href={href} download className={className}>{children}</a>;
+}
+
+const ASPECT_NAMES: Record<string, string> = { "9:16": "9:16 vertical", "16:9": "16:9 landscape", "1:1": "1:1 square" };
+
+/** A small drawing of each speaker layout, so the choice reads without the docs. */
+function SpeakerGlyph({ mode, on }: { mode: SpeakerMode; on: boolean }) {
+  const block = `flex-1 rounded-sm ${on ? "bg-emerald-bright/40" : "bg-surface-3"}`;
+  return (
+    <span aria-hidden className="relative flex h-10 flex-col gap-0.5 rounded-md bg-panel p-1">
+      {mode === "auto" && <span className={`flex flex-1 items-center justify-center text-[10px] font-bold ${on ? "text-emerald-bright" : "text-fg-muted"}`}>AI picks</span>}
+      {mode === "single" && <span className={block} />}
+      {mode === "split" && <><span className={block} /><span className={block} /></>}
+      {mode === "active" && <><span className={block} /><span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-warning" /></>}
+      {mode === "gaming" && <><span className="flex-[0.6] rounded-sm bg-fg-subtle" /><span className={block} /></>}
+    </span>
+  );
+}
+
+/**
+ * The "More" tab: Transcript, Related and Publish in a menu, so the tab row
+ * is one line instead of wrapping to two. When one of them is open it takes
+ * More's place in the row. Its own small menu, not ui/Dropdown: that closes on
+ * a document Escape listener, which would also close the whole workspace.
+ */
+function MoreTabsMenu({ items, active, onPick }: {
+  items: { id: WorkspaceTab; label: string; desc: string }[];
+  active: WorkspaceTab | null;
+  onPick: (t: WorkspaceTab) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  useMenuNav(menuRef, open);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => { if (!wrapRef.current?.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open]);
+  const current = items.find((i) => i.id === active);
+  return (
+    <div
+      ref={wrapRef}
+      className="relative"
+      onKeyDown={(e) => {
+        // preventDefault tells the workspace's own Esc handler to leave it alone.
+        if (e.key === "Escape" && open) { e.preventDefault(); setOpen(false); btnRef.current?.focus(); }
+      }}
+    >
+      <button
+        ref={btnRef}
+        type="button"
+        id={current ? `ac-tab-${current.id}` : undefined}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className={`-mb-px flex min-h-[42px] items-center gap-1 whitespace-nowrap border-b-2 text-[12.5px] font-semibold transition-colors ${current ? "border-emerald-bright text-fg" : "border-transparent text-fg-muted hover:text-fg"}`}
+      >
+        {current?.label ?? "More"}
+        <svg aria-hidden width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className={`transition-transform ${open ? "rotate-180" : ""}`}><path d="m6 9 6 6 6-6" /></svg>
+      </button>
+      {open && (
+        <div ref={menuRef} role="menu" aria-label="More clip tools" className="absolute right-0 top-full z-40 mt-1 w-60 rounded-xl border border-line-strong bg-panel-raised p-1.5 shadow-xl">
+          {items.map((i) => (
+            <button
+              key={i.id}
+              type="button"
+              role="menuitem"
+              onClick={() => { onPick(i.id); setOpen(false); }}
+              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left hover:bg-surface-3 focus-visible:bg-surface-3 focus-visible:outline-none"
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block text-[13px] font-semibold text-fg">{i.label}</span>
+                <span className="block text-[11px] text-fg-muted">{i.desc}</span>
+              </span>
+              {i.id === active && <svg aria-label="Open" role="img" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="text-emerald-bright"><path d="M20 6 9 17l-5-5" /></svg>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ── Clip Workspace (ready clips) — full-screen, video hero + contextual tools ─
@@ -144,7 +230,12 @@ export function ClipWorkspace({
   const [panelOpen, setPanelOpen] = useState(true);
   const [playing, setPlaying] = useState(false);
   const [copied, setCopied] = useState<"idle" | "copied" | "failed">("idle");
-  const [detailOpen, setDetailOpen] = useState(false);
+  // Design B accordions, one per tab (one section open at a time).
+  const capSec = useAccordion("style");
+  const rfSec = useAccordion("speakers");
+  const inSec = useAccordion("why");
+  const pubSec = useAccordion("post");
+  const [openLine, setOpenLine] = useState<number | null>(null);
 
   // A modal dialog in behaviour, not just in looks. It covered the whole
   // page but focus stayed on the card behind it, Tab walked out into the
@@ -156,31 +247,6 @@ export function ClipWorkspace({
     dialogRef.current?.querySelector<HTMLElement>("[data-autofocus]")?.focus();
     return () => { opener?.focus?.(); };
   }, []);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        // Not while typing (Esc there dismisses autocomplete/IME, and closing
-        // threw away half-typed caption and transcript edits), and not when an
-        // inner menu already consumed it.
-        const t = e.target as HTMLElement | null;
-        const typing = !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable);
-        if (typing || e.defaultPrevented) return;
-        onClose();
-        return;
-      }
-      if (e.key !== "Tab" || !dialogRef.current) return;
-      const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(
-        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-      )).filter((el) => el.offsetParent !== null);
-      if (focusable.length === 0) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
 
   // Brand kits (Captions tab). A kit is a caption template plus an accent
   // colour (stored in highlightColor, ASS byte order) and a logo.
@@ -195,81 +261,64 @@ export function ClipWorkspace({
   });
   const brandKits = brandKitsQuery.data?.kits ?? [];
 
-  // ── One-click editing ────────────────────────────────────────────────────
-  // Every control in this panel takes effect on its own: it saves and starts
-  // the re-render. There used to be an Apply button at the foot of the
-  // Captions, Reframe and Edit tabs, and a caption template did nothing
-  // visible until it was pressed. Three queues (one per tab) debounce bursts
-  // and send in order; a change that lands while the clip is rendering is
-  // queued server-side and renders right after (lib/autoclip-rerender.ts).
+  // ── Draft, then render once ──────────────────────────────────────────────
+  // Every change used to save AND re-render the clip by itself, so picking a
+  // caption style, nudging a slider or fixing one word each cost a render (and
+  // a slot of the 10-a-day fair-use cap). Changes are now a draft: the stage
+  // previews what it can live (caption look, words, trim, framing), and one
+  // "Render changes" sends the whole draft as a single re-render.
   const [renderWait, dispatchRenderWait] = useReducer(renderWaitReducer, { left: 0, path: null });
   const onCommitted = useCallback((r: { deferred: boolean }) => {
     dispatchRenderWait({ type: "committed", deferred: r.deferred });
     onChanged();
   }, [onChanged]);
-  const captionQ = useCommitQueue(onCommitted);
-  const reframeQ = useCommitQueue(onCommitted);
-  const editQ = useCommitQueue(onCommitted);
   const clipPath = mediaPath(clip.videoUrl);
   useEffect(() => {
     dispatchRenderWait({ type: "clip", path: clipPath, status: clip.status });
   }, [clipPath, clip.status]);
-  const sendRender = async (url: string, method: "PUT" | "POST", body: unknown) => {
-    const r = await apiFetch<{ status?: string }>(url, { method, body: JSON.stringify(body) });
-    return { deferred: r.status === "queued_next" };
-  };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const override = (clip.subtitleStyleOverride as any) ?? {};
-  // The clip's template: its saved id (old ids resolve to their replacement),
-  // else the one its legacy style index maps to.
-  const [templateId, setTemplateId] = useState<string>(() =>
-    resolveTemplateId((override.templateId as string | undefined) ?? templateIdForIndex(clip.captionStyleIndex ?? 0)),
-  );
+  // What the rendered file has: the saved row. The draft is compared with it.
+  const savedCaptions: CaptionValues = {
+    // The clip's template: its saved id (old ids resolve to their replacement),
+    // else the one its legacy style index maps to.
+    templateId: resolveTemplateId((override.templateId as string | undefined) ?? templateIdForIndex(clip.captionStyleIndex ?? 0)),
+    accent: typeof override.accent === "string" ? override.accent : null,
+    sizeScale: typeof override.sizeScale === "number" ? override.sizeScale : 1,
+    // Only an explicit choice is saved; until then the template's own placement
+    // (or, for centred templates, the face-aware default) applies.
+    positionY: typeof override.positionY === "number" ? override.positionY : null,
+    captionsOn: clip.hasCaptions,
+  };
+  const [templateId, setTemplateId] = useState<string>(savedCaptions.templateId);
   const template = resolveCaptionTemplate(templateId);
-  const [accent, setAccent] = useState<string | null>(typeof override.accent === "string" ? override.accent : null);
-  const [sizeScale, setSizeScale] = useState<number>(typeof override.sizeScale === "number" ? override.sizeScale : 1);
-  // Only an explicit choice is saved; until then the template's own placement
-  // (or, for centred templates, the face-aware default) applies.
-  const [positionY, setPositionY] = useState<number | null>(typeof override.positionY === "number" ? override.positionY : null);
+  const [accent, setAccent] = useState<string | null>(savedCaptions.accent);
+  const [sizeScale, setSizeScale] = useState<number>(savedCaptions.sizeScale);
+  const [positionY, setPositionY] = useState<number | null>(savedCaptions.positionY);
   const faceY = typeof override.captionPositionY === "number" ? override.captionPositionY : null;
   const shownPositionY = positionY ?? (template.placement.y === "low" ? 68 : template.placement.y === "high" ? 25 : Math.round(faceY ?? 50));
   // What the render will use: an explicit position, else face-aware for centred templates (clip-captions.ts).
   const renderPositionY = positionY ?? (template.placement.y === "mid" ? faceY : null);
-  const [captionsOn, setCaptionsOn] = useState(clip.hasCaptions);
-  // Set by any caption change; the stage shows the live preview until the
-  // render carrying it lands.
+  const [captionsOn, setCaptionsOn] = useState(savedCaptions.captionsOn);
+  // Set when a render carrying a visible change starts; the stage keeps the
+  // live preview up until that render lands.
   const [captionTouched, setCaptionTouched] = useState(false);
 
   interface CaptionValues { templateId: string; accent: string | null; sizeScale: number; positionY: number | null; captionsOn: boolean }
   const captionValues = (): CaptionValues => ({ templateId, accent, sizeScale, positionY, captionsOn });
   /** The whole caption style, explicitly — null clears a tweak (the server merges). */
   const styleBody = (v: CaptionValues) => ({ templateId: v.templateId, accent: v.accent, sizeScale: v.sizeScale, positionY: v.positionY });
-  function commitCaptions(patch: Partial<CaptionValues>, delayMs: number) {
-    const v = { ...captionValues(), ...patch };
-    if (patch.templateId !== undefined) setTemplateId(v.templateId);
-    if ("accent" in patch) setAccent(v.accent);
-    if (patch.sizeScale !== undefined) setSizeScale(v.sizeScale);
-    if ("positionY" in patch) setPositionY(v.positionY);
-    if (patch.captionsOn !== undefined) setCaptionsOn(v.captionsOn);
-    setCaptionTouched(true);
+  /** A caption change: draft only, shown on the live preview at once. */
+  function commitCaptions(patch: Partial<CaptionValues>) {
+    if (patch.templateId !== undefined) setTemplateId(patch.templateId);
+    if ("accent" in patch) setAccent(patch.accent ?? null);
+    if (patch.sizeScale !== undefined) setSizeScale(patch.sizeScale);
+    if ("positionY" in patch) setPositionY(patch.positionY ?? null);
+    if (patch.captionsOn !== undefined) setCaptionsOn(patch.captionsOn);
     setCopiedToAll("idle");
-    const idx = v.captionsOn ? (clip.captionStyleIndex != null && clip.captionStyleIndex >= 0 ? clip.captionStyleIndex : 0) : -1;
-    const url = `/api/projects/${projectId}/clips/${clip.id}/style`;
-    captionQ.schedule(async () => {
-      try {
-        return await sendRender(url, "PUT", { captionStyleIndex: idx, subtitleStyleOverride: styleBody(v) });
-      } catch (e) {
-        // The daily fair-use cap on free re-renders: keep the pick anyway
-        // (saving a style never renders or charges) and say what that means.
-        if (e instanceof ApiError && e.status === 429 && /re-rendered this clip/i.test(e.message)) {
-          await apiFetch(url, { method: "PUT", body: JSON.stringify({ subtitleStyleOverride: styleBody(v), render: false }) });
-          throw new Error(`Style saved but not rendered: ${e.message} Downloads keep the previous version until it re-renders.`);
-        }
-        throw e;
-      }
-    }, delayMs);
   }
+  const captionsDirty = (Object.keys(savedCaptions) as (keyof CaptionValues)[]).some((k) => captionValues()[k] !== savedCaptions[k]);
 
   // "Use on all": copies the STYLE to the sibling clips and nothing more. It
   // deliberately does not render them — re-rendering twenty clips nobody asked
@@ -294,7 +343,7 @@ export function ClipWorkspace({
     commitCaptions({
       ...(kit.captionTemplateId ? { templateId: resolveTemplateId(kit.captionTemplateId) } : {}),
       ...(kit.highlightColor ? { accent: assToHex(kit.highlightColor).toUpperCase() } : {}),
-    }, 300);
+    });
   }
   // One click, named after what it holds; it used to open a name field with
   // its own Save and Cancel.
@@ -315,7 +364,7 @@ export function ClipWorkspace({
   // Audio cuts / reframe.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const silence = (clip.silenceSettings as any) ?? {};
-  const [reframe, setReframe] = useState(() => ({
+  const savedReframe = {
     removeSilence: (silence.removeSilence as boolean) ?? false,
     silenceThresholdMs: (silence.silenceThresholdMs as number) ?? 400,
     removeFillers: (silence.removeFillers as boolean) ?? false,
@@ -325,19 +374,14 @@ export function ClipWorkspace({
     speakerMode: (silence.speakerMode as string) ?? "auto",
     smoothness: (silence.smoothness as number) ?? 50,
     trackingSpeed: (silence.trackingSpeed as number) ?? 50,
-  }));
+  };
+  const [reframe, setReframe] = useState(savedReframe);
   type ReframeState = typeof reframe;
-  /** A reframe/audio setter that also saves and re-renders. Sliders wait for the drag to settle. */
-  function reframeSetter<K extends keyof ReframeState>(key: K, delayMs = 500) {
-    return (value: ReframeState[K]) => {
-      const next = { ...reframe, [key]: value };
-      setReframe(next);
-      reframeQ.schedule(
-        () => sendRender(`/api/projects/${projectId}/clips/${clip.id}/style`, "PUT", { silenceSettings: next }),
-        delayMs,
-      );
-    };
+  /** A reframe/audio setter: draft only. */
+  function reframeSetter<K extends keyof ReframeState>(key: K) {
+    return (value: ReframeState[K]) => setReframe((r) => ({ ...r, [key]: value }));
   }
+  const reframeDirty = JSON.stringify(reframe) !== JSON.stringify(savedReframe);
 
   // Transcript (fetched on open — clips list omits transcriptJson).
   // `speaker` is carried even though nothing here renders it: the save
@@ -379,35 +423,26 @@ export function ClipWorkspace({
   const [saving, setSaving] = useState(false);
   const [saveErr, setSaveErr] = useState<string | null>(null);
 
-  /** Edit tab: absolute trim points are fixed NOW, against the window the user was looking at. */
-  function commitLiteEdits(edits: LiteEdits, trim: { startSec: number; endSec: number } | null, delayMs: number) {
-    const window = trim ? { startSec: clip.startSec + trim.startSec, endSec: clip.startSec + trim.endSec } : {};
-    editQ.schedule(
-      () => sendRender(`/api/projects/${projectId}/clips/${clip.id}/lite`, "PUT", { liteEdits: edits, ...window }),
-      delayMs,
-    );
+  // Edit tab draft: the whole lite-edit state plus a trim relative to the
+  // clip's window (null = whole clip). null until the tab changes something.
+  const [liteDraft, setLiteDraft] = useState<{ edits: LiteEdits; trim: { startSec: number; endSec: number } | null } | null>(null);
+  // Bumped by Discard so the Edit tab drops its own copy of the draft.
+  const [liteKey, setLiteKey] = useState(0);
+  const savedLite = clip.liteEdits;
+  const savedLiteJson = JSON.stringify(toLiteEdits({
+    speed: savedLite?.speed ?? 1,
+    fadeIn: savedLite?.transition?.fadeInSec ?? 0,
+    fadeOut: savedLite?.transition?.fadeOutSec ?? 0,
+    music: savedLite?.music,
+  }));
+  const trimDraft = liteDraft?.trim ?? null;
+  const liteDirty = !!liteDraft && (!!trimDraft || JSON.stringify(liteDraft.edits) !== savedLiteJson);
+  function commitLiteEdits(edits: LiteEdits, trim: { startSec: number; endSec: number } | null) {
+    setLiteDraft({ edits, trim });
   }
 
-  /** Aspect ratio, transcript: already one click each; same wait-for-render bookkeeping. */
-  async function oneShot(url: string, method: "PUT" | "POST", body: unknown) {
-    setSaving(true); setSaveErr(null);
-    try {
-      onCommitted(await sendRender(url, method, body));
-    } catch (e: unknown) {
-      setSaveErr(e instanceof Error ? e.message : "An error occurred");
-    } finally { setSaving(false); }
-  }
-
-  async function handleChangeAspect(aspectRatio: "9:16" | "16:9" | "1:1") {
-    if (aspectRatio === clip.aspectRatio) return;
-    await oneShot(`/api/projects/${projectId}/clips/${clip.id}/rerender`, "POST", { aspectRatio });
-  }
-
-  async function handleSaveTranscript() {
-    // Corrected words show on the clip at once while the render runs.
-    if (captionsOn) setCaptionTouched(true);
-    await oneShot(`/api/projects/${projectId}/clips/${clip.id}/transcript`, "PUT", { transcript: localWords });
-  }
+  const [aspectDraft, setAspectDraft] = useState<string>(clip.aspectRatio);
+  const aspectDirty = aspectDraft !== clip.aspectRatio;
 
   const bd = clip.scoreBreakdown as unknown as ScoreBreakdownWithInsights | null;
   // No invented copy. If the model produced nothing there is nothing to
@@ -440,34 +475,148 @@ export function ClipWorkspace({
   const isRendering = clip.status === "rendering" || clip.status === "queued";
   // The file on screen (and the one Download gives) doesn't have the latest
   // change yet.
-  const renderPending = captionQ.busy || reframeQ.busy || editQ.busy || saving || renderWait.left > 0 || isRendering;
-  const livePreview = captionTouched && (captionQ.busy || renderWait.left > 0 || isRendering);
-  if (captionTouched && !livePreview) {
-    // The render with the new style has landed: play it.
+  const originalWords = detail?.transcriptJson ?? localWords;
+  const transcriptLines = groupTranscriptLines(originalWords);
+  const changedWords = localWords.reduce((n, w, i) => n + (w.word !== originalWords[i]?.word ? 1 : 0), 0);
+  const transcriptDirty = changedWords > 0;
+
+  const draftParts = [
+    liteDirty && (trimDraft ? "trim" : "edits"), captionsDirty && "captions", reframeDirty && "reframe",
+    aspectDirty && "format", transcriptDirty && "transcript",
+  ].filter((x): x is string => !!x);
+  const dirty = draftParts.length > 0;
+
+  /** The whole draft as ONE re-render. Nothing is saved until this runs. */
+  async function renderChanges() {
+    const patch: Record<string, unknown> = {};
+    if (captionsDirty) {
+      patch.subtitleStyleOverride = styleBody(captionValues());
+      patch.captionStyleIndex = captionsOn ? (clip.captionStyleIndex != null && clip.captionStyleIndex >= 0 ? clip.captionStyleIndex : 0) : -1;
+    }
+    if (reframeDirty) patch.silenceSettings = reframe;
+    if (aspectDirty) patch.aspectRatio = aspectDraft;
+    if (liteDirty && liteDraft) {
+      patch.liteEdits = liteDraft.edits;
+      if (trimDraft) { patch.startSec = clip.startSec + trimDraft.startSec; patch.endSec = clip.startSec + trimDraft.endSec; }
+    }
+    if (transcriptDirty) {
+      // Sent words skip the server's own rebase onto a new trim, so do it here.
+      patch.transcript = trimDraft ? rebaseWords(localWords, clip.startSec, clip.startSec + trimDraft.startSec, clip.startSec + trimDraft.endSec) : localWords;
+    }
+    setSaving(true); setSaveErr(null);
+    try {
+      const r = await apiFetch<{ status?: string }>(`/api/projects/${projectId}/clips/${clip.id}/rerender`, { method: "POST", body: JSON.stringify(patch) });
+      if (captionsDirty || transcriptDirty || trimDraft || aspectDirty) setCaptionTouched(true);
+      setLiteDraft(null);
+      onCommitted({ deferred: r.status === "queued_next" });
+      if (transcriptDirty || trimDraft) {
+        // The row holds the new words now (saved before the render is queued);
+        // edit from those, so the next draft starts clean.
+        void transcriptQuery.refetch().then((res) => setLocalWords(res.data?.detail?.transcriptJson ?? []));
+      }
+    } catch (e: unknown) {
+      // The draft stays as it was, so nothing is lost on a 402/429.
+      setSaveErr(e instanceof Error ? e.message : "Couldn't start the render");
+    } finally { setSaving(false); }
+  }
+
+  function discardChanges() {
+    setTemplateId(savedCaptions.templateId); setAccent(savedCaptions.accent); setSizeScale(savedCaptions.sizeScale);
+    setPositionY(savedCaptions.positionY); setCaptionsOn(savedCaptions.captionsOn);
+    setReframe(savedReframe);
+    setAspectDraft(clip.aspectRatio);
+    setLocalWords(originalWords);
+    setLiteDraft(null);
+    setLiteKey((k) => k + 1);
+    setSaveErr(null);
+  }
+
+  // Leaving with a draft asks first: Back, Esc, the clip arrows, a related clip.
+  const [pendingLeave, setPendingLeave] = useState<(() => void) | null>(null);
+  const leave = (go: () => void) => { if (dirty) setPendingLeave(() => go); else go(); };
+  useEffect(() => {
+    if (!dirty) return;
+    const onUnload = (e: BeforeUnloadEvent) => { e.preventDefault(); };
+    window.addEventListener("beforeunload", onUnload);
+    return () => window.removeEventListener("beforeunload", onUnload);
+  }, [dirty]);
+  // Esc closes (asking first when there is a draft); Tab stays inside.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      // A dialog opened on top (all caption styles, the plans page) portals
+      // outside this one and handles its own Esc and Tab. Without this, Esc
+      // there closed the whole workspace too.
+      const host = e.target instanceof Element ? e.target.closest('[role="dialog"]') : null;
+      if (host && host !== dialogRef.current) return;
+      if (e.key === "Escape") {
+        // Not while typing (Esc there dismisses autocomplete/IME, and closing
+        // threw away half-typed caption and transcript edits), and not when an
+        // inner menu already consumed it.
+        const t = e.target as HTMLElement | null;
+        const typing = !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable);
+        if (typing || e.defaultPrevented) return;
+        if (dirty) setPendingLeave(() => onClose); else onClose();
+        return;
+      }
+      if (e.key !== "Tab" || !dialogRef.current) return;
+      const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      )).filter((el) => el.offsetParent !== null);
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose, dirty]);
+
+  const renderingNow = isRendering || renderWait.left > 0;
+  const renderPending = saving || renderingNow;
+  const trimStartAbs = trimDraft ? clip.startSec + trimDraft.startSec : clip.startSec;
+  const trimEndAbs = trimDraft ? clip.startSec + trimDraft.endSec : clip.endSec;
+  const renderCarrying = captionTouched && (saving || renderingNow);
+  const livePreview = captionsDirty || transcriptDirty || !!trimDraft || aspectDirty || renderCarrying;
+  if (captionTouched && !saving && !renderingNow) {
+    // The render with the change has landed: play it.
     setCaptionTouched(false);
     setPlaying(true);
   }
   const renderProgress = clip.status === "rendering" ? `Rendering… ${clip.progress}%` : "Queued to render…";
-  /** One status line per tab: saving, then rendering, then nothing. */
-  function statusFor(q: CommitQueueHandle): string | null {
-    if (q.status === "waiting" || q.status === "saving") return "Saving…";
-    if (isRendering || renderWait.left > 0) return renderProgress;
-    return null;
-  }
-  const previewStatus = captionQ.busy ? "Live preview · saving…" : `Live preview · ${renderProgress.toLowerCase()}`;
-  const TABS: { id: WorkspaceTab; label: string }[] = [
-    { id: "edit", label: "Edit" }, { id: "captions", label: "Captions" }, { id: "reframe", label: "Reframe" },
-    { id: "insights", label: "Insights" }, { id: "transcript", label: "Transcript" },
-    { id: "related", label: "Related" }, { id: "publish", label: "Publish" },
+  const previewStatus = dirty ? "Preview · not rendered yet" : `Live preview · ${renderProgress.toLowerCase()}`;
+  // One status line for the whole panel, in its footer.
+  const footerStatus = saving
+    ? "Starting the render…"
+    : renderingNow
+      ? clip.status === "rendering" ? "Rendering your changes…" : "Queued to render…"
+      : dirty
+        ? `Not rendered yet: ${draftParts.join(", ")}`
+        : "Up to date";
+
+  // Design B: the four tabs used on every clip stay in the row; the other
+  // three sit under More. When one of those is open, More shows its name.
+  const MAIN_TABS: { id: WorkspaceTab; label: string }[] = [
+    { id: "edit", label: "Edit" }, { id: "captions", label: "Captions" },
+    { id: "reframe", label: "Reframe" }, { id: "insights", label: "Insights" },
   ];
-  const panelTitle: Record<WorkspaceTab, string> = { edit: "Edit", captions: "Captions", reframe: "Reframe & Audio", insights: "Insights", transcript: "Transcript", related: "Related", publish: "Publish" };
+  const MORE_TABS: { id: WorkspaceTab; label: string; desc: string }[] = [
+    { id: "transcript", label: "Transcript", desc: "Fix words in the captions" },
+    { id: "related", label: "Related", desc: "Source video and other clips" },
+    { id: "publish", label: "Publish", desc: "Post, schedule or dub" },
+  ];
+  const moreActive = MORE_TABS.find((t) => t.id === tab);
+
+  const best = SUB_SCORES.filter((s): s is [string, number] => typeof s[1] === "number").sort((a, b) => b[1] - a[1])[0];
+  const hookNotes = [bd?.hookExplanation, bd?.retentionPrediction, clip.brollQuery].filter(Boolean).length;
+
 
   return (
     <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="ac-workspace-title" className="fixed inset-0 z-50 ac-expand" style={{ background: "var(--surface)", transformOrigin: expandOrigin }}>
       <div className="h-full flex flex-col">
         {/* Header */}
         <div className="ac-rise h-[60px] flex-shrink-0 border-b border-card-border bg-panel flex items-center gap-3 px-4">
-          <button data-autofocus onClick={onClose} className="inline-flex items-center gap-2 min-h-[40px] px-3.5 rounded-lg border border-card-border bg-panel text-ink text-[13px] font-semibold hover:bg-tint-blue transition-colors">
+          <button data-autofocus onClick={() => leave(onClose)} className="inline-flex items-center gap-2 min-h-[40px] px-3.5 rounded-lg border border-card-border bg-panel text-ink text-[13px] font-semibold hover:bg-tint-blue transition-colors">
             <IcChevronLeft /> Back to clips
           </button>
           <div className="w-px h-6 bg-card-border" />
@@ -505,10 +654,10 @@ export function ClipWorkspace({
                   <ClipCaptionPreview
                     sourceUrl={sourceUrl}
                     renderedUrl={clip.videoUrl}
-                    startSec={clip.startSec}
-                    endSec={clip.endSec}
-                    aspectCss={arCss(clip.aspectRatio)}
-                    cropKeyframes={detail?.cropKeyframes ?? null}
+                    startSec={trimStartAbs}
+                    endSec={trimEndAbs}
+                    aspectCss={arCss(aspectDraft)}
+                    cropKeyframes={aspectDirty || trimDraft ? null : detail?.cropKeyframes ?? null}
                     words={localWords}
                     template={template}
                     captionsOn={captionsOn}
@@ -540,9 +689,9 @@ export function ClipWorkspace({
             </div>
             {/* Clip navigation */}
             <div className="h-[52px] flex-shrink-0 flex items-center justify-center gap-2 relative">
-              <button aria-label="Previous clip" onClick={onPrev} disabled={total <= 1} className="w-9 h-9 rounded-lg border border-white/15 bg-white/[.08] text-white flex items-center justify-center disabled:opacity-30 hover:bg-white/15 transition-colors"><IcChevronLeft /></button>
+              <button aria-label="Previous clip" onClick={() => leave(onPrev)} disabled={total <= 1} className="w-9 h-9 rounded-lg border border-white/15 bg-white/[.08] text-white flex items-center justify-center disabled:opacity-30 hover:bg-white/15 transition-colors"><IcChevronLeft /></button>
               <span className="text-xs text-white/70 font-medium">Clip {index + 1} of {total}</span>
-              <button aria-label="Next clip" onClick={onNext} disabled={total <= 1} className="w-9 h-9 rounded-lg border border-white/15 bg-white/[.08] text-white flex items-center justify-center disabled:opacity-30 hover:bg-white/15 transition-colors"><IcChevronRight /></button>
+              <button aria-label="Next clip" onClick={() => leave(onNext)} disabled={total <= 1} className="w-9 h-9 rounded-lg border border-white/15 bg-white/[.08] text-white flex items-center justify-center disabled:opacity-30 hover:bg-white/15 transition-colors"><IcChevronRight /></button>
               {!panelOpen && (
                 <button onClick={() => setPanelOpen(true)} className="absolute right-0 inline-flex items-center gap-2 min-h-[38px] px-4 rounded-lg border border-white/15 bg-white/10 text-white text-[13px] font-semibold hover:bg-white/20 transition-colors">Tools</button>
               )}
@@ -551,80 +700,84 @@ export function ClipWorkspace({
 
           {panelOpen && (
             <aside className="ac-tools-panel bg-panel flex flex-col">
-              <div className="flex items-center gap-2 pl-4 pr-3 py-2.5 border-b border-card-border">
-                <p className="flex-1 text-sm font-bold text-ink">{panelTitle[tab]}</p>
+              <div className="flex items-center gap-2 pl-4 pr-3 pt-3 pb-1">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-fg-subtle">Clip {index + 1} of {total}</p>
+                  <p className="mt-0.5 truncate text-sm font-bold text-fg">{clip.title || `Clip ${clip.index + 1}`}</p>
+                </div>
                 <button onClick={() => setPanelOpen(false)} aria-label="Hide tools" className="w-8 h-8 rounded-lg border border-card-border bg-panel text-ink-soft hover:bg-tint-blue hover:text-ink transition-colors flex items-center justify-center"><IcChevronRight /></button>
               </div>
-              {/* Real tabs: role/aria-selected and arrow-key movement, not
-                  aria-current on a row of buttons. On phones they scroll in
-                  one row instead of wrapping to three. */}
-              <div
-                role="tablist"
-                aria-label="Clip tools"
-                className="flex flex-nowrap md:flex-wrap overflow-x-auto gap-1 px-3 py-2.5 border-b border-card-border"
-                onKeyDown={(e) => {
-                  if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
-                  e.preventDefault();
-                  const i = TABS.findIndex((t) => t.id === tab);
-                  const next = TABS[(i + (e.key === "ArrowRight" ? 1 : TABS.length - 1)) % TABS.length];
-                  setTab(next.id);
-                  (e.currentTarget.querySelector(`[data-tab="${next.id}"]`) as HTMLElement | null)?.focus();
-                }}
-              >
-                {TABS.map((t) => (
-                  <button key={t.id} data-tab={t.id} role="tab" id={`ac-tab-${t.id}`} aria-selected={tab === t.id} aria-controls="ac-tab-panel" tabIndex={tab === t.id ? 0 : -1} onClick={() => setTab(t.id)}
-                    className={`shrink-0 min-h-[36px] px-3 rounded-full text-[12.5px] font-bold transition-colors ${tab === t.id ? "bg-brand text-on-primary" : "text-fg-muted hover:bg-surface-3 hover:text-fg"}`}>
-                    {t.label}
-                  </button>
-                ))}
+              <div className="flex items-end gap-4 border-b border-card-border px-4">
+                {/* Real tabs: role/aria-selected and arrow-key movement. */}
+                <div
+                  role="tablist"
+                  aria-label="Clip tools"
+                  className="flex gap-4"
+                  onKeyDown={(e) => {
+                    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+                    e.preventDefault();
+                    const i = Math.max(0, MAIN_TABS.findIndex((t) => t.id === tab));
+                    const next = MAIN_TABS[(i + (e.key === "ArrowRight" ? 1 : MAIN_TABS.length - 1)) % MAIN_TABS.length];
+                    setTab(next.id);
+                    (e.currentTarget.querySelector(`[data-tab="${next.id}"]`) as HTMLElement | null)?.focus();
+                  }}
+                >
+                  {MAIN_TABS.map((t) => (
+                    <button key={t.id} data-tab={t.id} role="tab" id={`ac-tab-${t.id}`} aria-selected={tab === t.id} aria-controls="ac-tab-panel" tabIndex={tab === t.id || (moreActive && t.id === "edit") ? 0 : -1} onClick={() => setTab(t.id)}
+                      className={`-mb-px min-h-[42px] whitespace-nowrap border-b-2 text-[12.5px] font-semibold transition-colors ${tab === t.id ? "border-emerald-bright text-fg" : "border-transparent text-fg-muted hover:text-fg"}`}>
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+                <MoreTabsMenu items={MORE_TABS} active={moreActive?.id ?? null} onPick={setTab} />
               </div>
 
               <div id="ac-tab-panel" role="tabpanel" aria-labelledby={`ac-tab-${tab}`} className="flex-1 overflow-y-auto p-5">
                 {tab === "edit" && (
                   <div className="ac-panel-in">
                     <LiteEditTab
+                      key={liteKey}
                       projectId={projectId}
                       clipId={clip.id}
                       windowSec={clip.endSec - clip.startSec}
                       peaks={clip.audioPeaks ?? []}
                       initial={clip.liteEdits}
-                      priceLabel={priceLabel}
-                      statusText={statusFor(editQ)}
-                      error={editQ.error}
+                      error={null}
                       onCommit={commitLiteEdits}
                     />
                   </div>
                 )}
 
                 {tab === "captions" && (
-                  <div className="ac-panel-in space-y-5">
-                    <p className="rounded-lg bg-surface px-3 py-2 text-[11px] text-ink-soft">
-                      Click a style to see it on the clip straight away. It saves and re-renders by itself — <span className="font-semibold text-ink">{priceLabel}</span>.
-                    </p>
-                    {(captionQ.error || statusFor(captionQ)) && (
-                      <p role={captionQ.error ? "alert" : "status"} aria-live="polite" className={`text-[11.5px] font-semibold ${captionQ.error ? "text-error" : "text-brand"}`}>
-                        {captionQ.error ?? statusFor(captionQ)}
-                      </p>
-                    )}
-                    <CaptionTemplatePicker value={templateId} onChange={(id) => commitCaptions({ templateId: id }, 600)} />
-
-                    <CaptionTweakControls
-                      accent={accent}
-                      templateAccent={template.colors.accent}
-                      onAccentChange={(hex) => commitCaptions({ accent: hex }, 900)}
-                      sizeScale={sizeScale}
-                      onSizeScaleChange={(v) => commitCaptions({ sizeScale: v }, 900)}
-                      positionY={shownPositionY}
-                      onPositionYChange={(y) => commitCaptions({ positionY: y }, 900)}
-                      otherClipCount={siblingClipIds.length}
-                      onApplyToAll={() => void applyStyleToAll()}
-                      applyToAllState={copiedToAll}
+                  <div className="ac-panel-in space-y-2">
+                    <PanelSection title="Style" summary={template.name} {...capSec("style")}>
+                      <CaptionTemplatePicker value={templateId} onChange={(id) => commitCaptions({ templateId: id })} />
+                    </PanelSection>
+                    <PanelSection title="Colour, size and position" summary={`${accent ?? "Template colour"} · ${Math.round(sizeScale * 100)}%`} {...capSec("tweaks")}>
+                      <CaptionTweakControls
+                        accent={accent}
+                        templateAccent={template.colors.accent}
+                        onAccentChange={(hex) => commitCaptions({ accent: hex })}
+                        sizeScale={sizeScale}
+                        onSizeScaleChange={(v) => commitCaptions({ sizeScale: v })}
+                        positionY={shownPositionY}
+                        onPositionYChange={(y) => commitCaptions({ positionY: y })}
+                        otherClipCount={siblingClipIds.length}
+                        onApplyToAll={() => void applyStyleToAll()}
+                        applyToAllState={copiedToAll}
+                      />
+                    </PanelSection>
+                    <PanelSection
+                      title="Burn in"
+                      summary={captionsOn ? "Baked into the file" : "No subtitles"}
+                      trailing={<Switch checked={captionsOn} onChange={(on) => commitCaptions({ captionsOn: on })} label="Burn in captions" />}
                     />
-
-                    <div className="space-y-2 rounded-xl border border-card-border p-3">
-                      <p className="text-[12px] font-bold text-ink-soft uppercase tracking-wider">Brand kit</p>
+                    <PanelSection title="Language" summary="Subtitles in another language" {...capSec("language")}>
+                      <TranslateCaptions projectId={projectId} clipId={clip.id} disabled={renderPending} onQueued={() => onCommitted({ deferred: false })} />
+                    </PanelSection>
+                    <PanelSection title="Brand kit" summary={brandKits.length > 0 ? `${brandKits.length} saved` : "None saved"} {...capSec("kit")}>
                       {brandKits.length > 0 && (
-                        <select aria-label="Load a brand kit" defaultValue="" onChange={(e) => { const kit = brandKits.find((k) => k.id === e.target.value); if (kit) applyBrandKit(kit); e.target.value = ""; }} className="w-full rounded-lg border border-card-border px-3 py-2 text-sm bg-panel">
+                        <select aria-label="Load a brand kit" defaultValue="" onChange={(e) => { const kit = brandKits.find((k) => k.id === e.target.value); if (kit) applyBrandKit(kit); e.target.value = ""; }} className="w-full rounded-lg border border-line bg-bg px-3 py-2 text-sm text-fg">
                           <option value="" disabled>Use a saved style…</option>
                           {brandKits.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}
                         </select>
@@ -633,7 +786,7 @@ export function ClipWorkspace({
                         type="button"
                         onClick={() => saveBrandKitMutation.mutate()}
                         disabled={saveBrandKitMutation.isPending}
-                        className="w-full text-center text-xs font-semibold text-brand hover:underline py-1 disabled:opacity-50"
+                        className="w-full py-1 text-center text-xs font-semibold text-emerald-bright hover:underline disabled:opacity-50"
                       >
                         {saveBrandKitMutation.isPending
                           ? "Saving…"
@@ -642,61 +795,81 @@ export function ClipWorkspace({
                             : `Save this style as a Brand Kit (“${kitName}”)`}
                       </button>
                       {saveBrandKitMutation.isError && <p className="text-[11px] text-error">{saveBrandKitMutation.error instanceof Error ? saveBrandKitMutation.error.message : "Couldn't save the brand kit"}</p>}
-                    </div>
-
-                    <div className="flex items-center justify-between rounded-xl border border-card-border p-3">
-                      <div className="pr-3">
-                        <p className="text-[12.5px] font-semibold text-ink">Burn captions in</p>
-                        <p className="text-[11px] text-ink-soft">{captionsOn ? "Baked into the exported file." : "This clip renders without subtitles."}</p>
-                      </div>
-                      <Switch checked={captionsOn} onChange={(on) => commitCaptions({ captionsOn: on }, 400)} label="Burn in captions" />
-                    </div>
-                    <TranslateCaptions projectId={projectId} clipId={clip.id} disabled={renderPending} onQueued={() => onCommitted({ deferred: false })} />
+                    </PanelSection>
                   </div>
                 )}
 
                 {tab === "reframe" && (
-                  <div className="ac-panel-in space-y-5">
-                    <div>
-                      <h3 className="text-[12px] font-bold text-ink-soft uppercase tracking-wider mb-1">Aspect ratio</h3>
-                      <p className="text-[12.5px] text-ink-soft mb-2.5">Re-frames and re-renders this clip for a different placement.</p>
-                      <div className="flex gap-1.5">
-                        {ASPECTS.map((a) => (
-                          <button
-                            key={a.value}
-                            type="button"
-                            disabled={saving || a.value === clip.aspectRatio}
-                            onClick={() => handleChangeAspect(a.value)}
-                            className={`flex-1 flex items-center justify-center gap-1.5 min-h-[38px] rounded-xl text-[12px] font-bold transition-colors disabled:cursor-default ${
-                              a.value === clip.aspectRatio
-                                ? "grad-brand text-on-primary shadow-glow"
-                                : "border border-card-border text-ink-soft hover:bg-tint-blue hover:text-ink"
-                            }`}
-                          >
-                            <span className={`${a.box} border-2 border-current rounded-[2px]`} />
-                            {a.label}
-                          </button>
-                        ))}
-                      </div>
-                      <p className="mt-2 text-[11px] text-ink-soft text-center">One click re-frames and re-renders — {priceLabel}.</p>
-                    </div>
-                    <div className="h-px bg-card-border" />
-                    <p className="rounded-lg bg-surface px-3 py-2 text-[11px] text-ink-soft">
-                      Each setting below applies as you change it and re-renders the clip — <span className="font-semibold text-ink">{priceLabel}</span>.
-                    </p>
-                    <ReframeAndCutsControls
-                      smartAutoReframe={reframe.smartAutoReframe} setSmartAutoReframe={reframeSetter("smartAutoReframe")}
-                      reframingPreset={reframe.reframingPreset} setReframingPreset={reframeSetter("reframingPreset")}
-                      zoomStrength={reframe.zoomStrength as "low" | "medium" | "high"} setZoomStrength={reframeSetter("zoomStrength")}
-                      speakerMode={reframe.speakerMode as SpeakerMode} setSpeakerMode={reframeSetter("speakerMode")}
-                      smoothness={reframe.smoothness} setSmoothness={reframeSetter("smoothness", 900)}
-                      trackingSpeed={reframe.trackingSpeed} setTrackingSpeed={reframeSetter("trackingSpeed", 900)}
-                      removeSilence={reframe.removeSilence} setRemoveSilence={reframeSetter("removeSilence")}
-                      silenceThresholdMs={reframe.silenceThresholdMs} setSilenceThresholdMs={reframeSetter("silenceThresholdMs", 900)}
-                      removeFillers={reframe.removeFillers} setRemoveFillers={reframeSetter("removeFillers")}
+                  <div className="ac-panel-in space-y-2">
+                    <PanelSection title="Format" summary={ASPECT_NAMES[aspectDraft] ?? aspectDraft} {...rfSec("format")}>
+                      <Segmented
+                        label="Aspect ratio"
+                        options={ASPECTS.map((a) => ({ value: a.value, label: <><span className={`${a.box} rounded-[2px] border-2 border-current`} />{a.label}</> }))}
+                        value={aspectDraft as (typeof ASPECTS)[number]["value"]}
+                        onChange={setAspectDraft}
+                      />
+                      <p className="text-[11px] text-fg-muted">The preview shows a centred crop; the render re-frames it properly.</p>
+                    </PanelSection>
+                    <PanelSection
+                      title="Smart Auto Reframe"
+                      summary={reframe.smartAutoReframe ? "Centres and zooms" : "Off"}
+                      trailing={<Switch checked={reframe.smartAutoReframe} onChange={reframeSetter("smartAutoReframe")} label="Smart Auto Reframe" />}
                     />
-                    {(saveErr || reframeQ.error) && <p role="alert" className="text-xs text-error">{reframeQ.error ?? saveErr}</p>}
-                    {statusFor(reframeQ) && <p role="status" aria-live="polite" className="text-[11px] text-ink-soft text-center">{statusFor(reframeQ)}</p>}
+                    {reframe.smartAutoReframe && (
+                      <>
+                        <PanelSection title="Who's on screen" summary={SPEAKER_MODES.find((m) => m.value === reframe.speakerMode)?.label} {...rfSec("speakers")}>
+                          <div role="radiogroup" aria-label="Speaker mode" className="grid grid-cols-3 gap-2">
+                            {SPEAKER_MODES.map((m) => {
+                              const on = reframe.speakerMode === m.value;
+                              return (
+                                <button key={m.value} type="button" role="radio" aria-checked={on} onClick={() => { if (!on) reframeSetter("speakerMode")(m.value); }}
+                                  className={`flex flex-col gap-1.5 rounded-xl border p-2 text-left transition-colors ${on ? "border-tint-emerald-border bg-tint-emerald" : "border-line bg-bg hover:border-line-strong"}`}>
+                                  <SpeakerGlyph mode={m.value} on={on} />
+                                  <span className={`text-[12px] font-semibold ${on ? "text-emerald-bright" : "text-fg"}`}>{m.label}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </PanelSection>
+                        <PanelSection
+                          title="Camera feel"
+                          summary={`${REFRAME_PRESETS.find((p) => p.value === reframe.reframingPreset)?.label ?? reframe.reframingPreset} · ${ZOOM_STRENGTHS.find((z) => z.value === reframe.zoomStrength)?.label ?? reframe.zoomStrength} zoom`}
+                          {...rfSec("camera")}
+                        >
+                          <p className="text-[12px] text-fg-muted">Camera motion</p>
+                          <Segmented label="Camera motion" options={REFRAME_PRESETS} value={reframe.reframingPreset} onChange={reframeSetter("reframingPreset")} />
+                          <p className="text-[12px] text-fg-muted">Zoom strength</p>
+                          <Segmented label="Zoom strength" options={ZOOM_STRENGTHS} value={reframe.zoomStrength} onChange={reframeSetter("zoomStrength")} />
+                        </PanelSection>
+                        <PanelSection title="Smoothness and tracking" summary={`${reframe.smoothness}% · ${reframe.trackingSpeed}%`} {...rfSec("motion")}>
+                          <PanelSlider label="Smoothness" value={reframe.smoothness} display={`${reframe.smoothness}%`} min={0} max={100} step={5} onChange={reframeSetter("smoothness")} />
+                          <PanelSlider label="Tracking speed" value={reframe.trackingSpeed} display={`${reframe.trackingSpeed}%`} min={0} max={100} step={5} onChange={reframeSetter("trackingSpeed")} />
+                        </PanelSection>
+                      </>
+                    )}
+                    <PanelSection
+                      title="Silences and fillers"
+                      summary={[reframe.removeSilence ? `Silences over ${reframe.silenceThresholdMs} ms cut` : "Silences kept", reframe.removeFillers ? "fillers cut" : null].filter(Boolean).join(" · ")}
+                      {...rfSec("audio")}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-[12px] font-semibold text-fg">Remove silences</p>
+                          <p className="text-[11px] text-fg-muted">Cuts silent gaps longer than the threshold.</p>
+                        </div>
+                        <Switch checked={reframe.removeSilence} onChange={reframeSetter("removeSilence")} label="Remove silences" />
+                      </div>
+                      {reframe.removeSilence && (
+                        <PanelSlider label="Silence threshold" value={reframe.silenceThresholdMs} display={`${reframe.silenceThresholdMs} ms`} min={200} max={1000} step={50} onChange={reframeSetter("silenceThresholdMs")} />
+                      )}
+                      <div className="flex items-center justify-between gap-3 border-t border-line pt-3">
+                        <div>
+                          <p className="text-[12px] font-semibold text-fg">Remove filler words</p>
+                          <p className="text-[11px] text-fg-muted">Cuts words like &quot;um&quot;, &quot;uh&quot; and &quot;like&quot;.</p>
+                        </div>
+                        <Switch checked={reframe.removeFillers} onChange={reframeSetter("removeFillers")} label="Remove filler words" />
+                      </div>
+                    </PanelSection>
                   </div>
                 )}
 
@@ -707,117 +880,125 @@ export function ClipWorkspace({
                       <p className="text-sm text-fg leading-relaxed">This video couldn&apos;t be transcribed, so the AI never read its content. Virality scores and suggested captions would just be guesses, so they&apos;re hidden. Add a working transcription key and re-run the analysis to get genuine insights.</p>
                     </div>
                   ) : (
-                    <div className="ac-panel-in space-y-4">
-                      <div className="rounded-2xl p-4" style={{ background: band.bg, border: `1px solid ${band.border}` }}>
-                        <p className="text-[12px] font-bold uppercase tracking-wider mb-1.5" style={{ color: band.text }}>
-                          {band.icon} {band.label}
-                          {clip.score != null && <span className="opacity-60 tabular-nums"> · {clip.score}/99</span>}
-                        </p>
-                        <p className="text-[13.5px] font-bold text-ink mb-1">Why this clip works</p>
-                        {bd?.reasoning ? (
-                          <p className="text-[12.5px] text-ink-soft leading-relaxed">{bd.reasoning}</p>
-                        ) : (
-                          <p className="text-[12.5px] text-ink-soft/60 italic leading-relaxed">The AI didn&apos;t return an explanation for this clip.</p>
-                        )}
-                      </div>
-                      <button onClick={() => setDetailOpen((o) => !o)} className="flex items-center justify-between w-full">
-                        <span className="text-[12px] font-bold text-ink-soft uppercase tracking-wider">Detailed insights</span>
-                        <span className="text-[12px] font-semibold text-brand">{detailOpen ? "Hide" : "View"}</span>
-                      </button>
-                      {detailOpen && (
-                        <div className="ac-panel-in space-y-4">
-                          <div className="grid grid-cols-2 gap-2.5">
-                            {SUB_SCORES.map(([label, val]) => (
-                              <div key={label} className="rounded-xl border border-card-border px-3 py-2.5">
-                                <span className="text-[11px] text-ink-soft font-semibold block">{label}</span>
-                                {typeof val === "number" ? (
-                                  <>
-                                    <span className="text-base font-extrabold text-ink">{val}</span>
-                                    <span className="text-[11px] text-ink-soft/60"> / 99</span>
-                                  </>
-                                ) : (
-                                  <span className="text-base font-extrabold text-ink-soft/40">—</span>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                          <div className="space-y-2.5 text-[12.5px]">
-                            <InsightRow label="Audience" value={bd?.audience} />
-                            <div className="h-px bg-card-border" />
-                            <InsightRow label="Platform fit" value={bd?.platform} />
-                            <div className="h-px bg-card-border" />
-                            <InsightRow label="Best time to post" value={bd?.suggestedPostingTime} />
-                            {bd?.hookExplanation && (
-                              <>
-                                <div className="h-px bg-card-border" />
-                                <InsightRow label="Why the hook works" value={bd.hookExplanation} />
-                              </>
-                            )}
-                            {bd?.retentionPrediction && (
-                              <>
-                                <div className="h-px bg-card-border" />
-                                <InsightRow label="Retention outlook" value={bd.retentionPrediction} />
-                              </>
-                            )}
-                            {clip.brollQuery && (
-                              <>
-                                <div className="h-px bg-card-border" />
-                                <InsightRow label="B-roll searched for" value={clip.brollQuery} />
-                              </>
-                            )}
-                          </div>
-                          {hasPostCopy && (
-                          <div className="rounded-xl border border-dashed border-card-border p-3 space-y-2">
-                            <div className="flex items-center justify-between">
-                              <span className="text-[11px] font-bold text-ink-soft uppercase tracking-wider">Suggested post copy</span>
-                              <button onClick={() => void copySocial()} className="text-[12px] font-bold text-brand hover:underline">{copied === "copied" ? "✓ Copied!" : copied === "failed" ? "Couldn't copy" : "Copy"}</button>
-                            </div>
-                            {caption && <p className="text-[12.5px] text-ink italic">&quot;{caption}&quot;</p>}
-                            {bd?.hashtags && bd.hashtags.length > 0 && (
-                              <div className="flex gap-1.5 flex-wrap">
-                                {bd.hashtags.map((h) => <span key={h} className="px-2 py-0.5 rounded-md text-[10.5px] font-bold" style={{ background: "var(--tint-emerald)", color: "var(--brand)" }}>{h}</span>)}
-                              </div>
-                            )}
-                          </div>
-                          )}
+                    <div className="ac-panel-in space-y-2">
+                      <div className="flex items-center gap-3 px-0.5 pb-2">
+                        <span className="text-[28px] font-extrabold tabular-nums text-fg">{clip.score ?? "—"}</span>
+                        <div>
+                          <p className="text-[13px] font-semibold" style={{ color: band.text }}><span aria-hidden>{band.icon}</span> {band.label}</p>
+                          <p className="text-[11.5px] text-fg-muted">Virality score out of 99</p>
                         </div>
+                      </div>
+                      <PanelSection title="Why it works" {...inSec("why")}>
+                        {bd?.reasoning ? (
+                          <p className="text-[12.5px] leading-relaxed text-fg-muted">{bd.reasoning}</p>
+                        ) : (
+                          <p className="text-[12.5px] italic leading-relaxed text-fg-subtle">The AI didn&apos;t return an explanation for this clip.</p>
+                        )}
+                      </PanelSection>
+                      <PanelSection title="Score breakdown" summary={best ? `Best: ${best[0]} ${best[1]}` : undefined} {...inSec("scores")}>
+                        <div className="grid grid-cols-2 gap-2">
+                          {SUB_SCORES.map(([label, val]) => (
+                            <div key={label} className="space-y-1.5 rounded-lg border border-line bg-bg px-2.5 py-2">
+                              <div className="flex items-baseline justify-between">
+                                <span className="text-[11px] font-semibold text-fg-muted">{label}</span>
+                                <span className={`text-[13px] font-extrabold ${typeof val === "number" ? "text-fg" : "text-fg-subtle"}`}>{typeof val === "number" ? val : "—"}</span>
+                              </div>
+                              <div className="h-1 overflow-hidden rounded bg-surface-3">
+                                <div className="h-full rounded bg-emerald-bright" style={{ width: `${typeof val === "number" ? Math.min(100, (val / 99) * 100) : 0}%` }} />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </PanelSection>
+                      <PanelSection title="Audience and timing" summary={bd?.suggestedPostingTime ?? bd?.platform ?? undefined} {...inSec("audience")}>
+                        <div className="space-y-2.5 text-[12.5px]">
+                          <InsightRow label="Audience" value={bd?.audience} />
+                          <div className="h-px bg-line" />
+                          <InsightRow label="Platform fit" value={bd?.platform} />
+                          <div className="h-px bg-line" />
+                          <InsightRow label="Best time to post" value={bd?.suggestedPostingTime} />
+                        </div>
+                      </PanelSection>
+                      {hookNotes > 0 && (
+                        <PanelSection title="Hook and retention" summary={`${hookNotes} note${hookNotes === 1 ? "" : "s"}`} {...inSec("hook")}>
+                          <div className="space-y-2.5 text-[12.5px]">
+                            {bd?.hookExplanation && <InsightRow label="Why the hook works" value={bd.hookExplanation} />}
+                            {bd?.retentionPrediction && <InsightRow label="Retention outlook" value={bd.retentionPrediction} />}
+                            {clip.brollQuery && <InsightRow label="B-roll searched for" value={clip.brollQuery} />}
+                          </div>
+                        </PanelSection>
+                      )}
+                      {hasPostCopy && (
+                        <PanelSection
+                          title="Suggested post copy"
+                          trailing={<button type="button" onClick={() => void copySocial()} className="min-h-[30px] rounded-full border border-line px-3 text-[12px] font-semibold text-fg-muted hover:text-fg">{copied === "copied" ? "✓ Copied" : copied === "failed" ? "Couldn't copy" : "Copy"}</button>}
+                          {...inSec("copy")}
+                        >
+                          {caption && <p className="text-[12.5px] italic text-fg">&quot;{caption}&quot;</p>}
+                          {bd?.hashtags && bd.hashtags.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5">
+                              {bd.hashtags.map((h) => <span key={h} className="rounded-md bg-tint-emerald px-2 py-0.5 text-[10.5px] font-bold text-emerald-bright">{h}</span>)}
+                            </div>
+                          )}
+                        </PanelSection>
                       )}
                     </div>
                   )
                 )}
 
                 {tab === "transcript" && (
-                  <div className="ac-panel-in space-y-4">
-                    <p className="text-[12px] text-ink-soft">Click any word to correct spelling or formatting. Saving re-renders the clip&apos;s captions.</p>
-                    <div className="flex flex-wrap gap-2 p-3 bg-surface rounded-xl border border-card-border max-h-72 overflow-y-auto">
-                      {transcriptLoading && <p className="text-xs text-ink-soft">Loading transcript…</p>}
-                      {!transcriptLoading && localWords.length === 0 && (
-                        <p className="text-xs text-ink-soft">No transcript for this clip — captions were off, or transcription didn&apos;t succeed for this video.</p>
-                      )}
-                      {localWords.map((w, idx) => (
-                        <div key={idx} className="flex items-center gap-1 bg-panel px-2 py-1 rounded-md border border-card-border shadow-sm text-xs">
-                          {/* Sized to its content instead of a fixed w-16, which truncated any word
-                              longer than about six characters — in a field whose entire
-                              purpose is reading and correcting words. */}
-                          <input
-                            type="text"
-                            value={w.word}
-                            size={Math.max(3, Math.min(w.word.length + 1, 24))}
-                            onChange={(e) => { const next = [...localWords]; next[idx] = { ...next[idx], word: e.target.value }; setLocalWords(next); }}
-                            className="min-w-[2.5rem] max-w-[12rem] bg-transparent focus:outline-none border-b border-transparent focus:border-brand font-semibold"
-                          />
-                          <span className="text-[9px] text-ink-soft/60 font-mono">{(w.start / 1000).toFixed(1)}s</span>
+                  <div className="ac-panel-in space-y-2">
+                    <p className="text-[12px] text-fg-muted">Click a line to correct its words. The preview shows them at once; they go into the clip when you render.</p>
+                    {transcriptLoading && <p className="text-xs text-fg-muted">Loading transcript…</p>}
+                    {!transcriptLoading && localWords.length === 0 && (
+                      <p className="text-xs text-fg-muted">No transcript for this clip — captions were off, or transcription didn&apos;t succeed for this video.</p>
+                    )}
+                    {transcriptLines.map((line, li) => {
+                      const open = openLine === li;
+                      const edited = line.some((i) => localWords[i] && localWords[i].word !== originalWords[i]?.word);
+                      const startMs = localWords[line[0]]?.start ?? 0;
+                      return (
+                        <div key={li} className={`rounded-xl border bg-surface-1 ${open ? "border-line-strong" : "border-line"}`}>
+                          <button type="button" aria-expanded={open} onClick={() => setOpenLine(open ? null : li)} className="flex min-h-[44px] w-full items-center gap-3 rounded-xl px-3.5 py-2 text-left">
+                            <span className="w-11 shrink-0 font-mono text-[11px] text-fg-subtle">{fmtStamp(startMs)}</span>
+                            <span className={`min-w-0 flex-1 text-[12.5px] text-fg ${open ? "font-semibold" : "truncate"}`}>{line.map((i) => localWords[i]?.word).join(" ")}</span>
+                            {edited && <span role="img" aria-label="Edited" className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-bright" />}
+                          </button>
+                          {open && (
+                            <div className="flex flex-wrap gap-1.5 px-3.5 pb-3">
+                              {line.map((idx) => {
+                                const w = localWords[idx];
+                                if (!w) return null;
+                                const changed = w.word !== originalWords[idx]?.word;
+                                return (
+                                  <div key={idx} className={`flex items-center gap-1 rounded-md border px-2 py-1 text-xs ${changed ? "border-tint-emerald-border bg-tint-emerald" : "border-line bg-bg"}`}>
+                                    {/* Sized to its content: a fixed width truncated any word
+                                        longer than about six characters. */}
+                                    <input
+                                      type="text"
+                                      value={w.word}
+                                      aria-label={`Word at ${(w.start / 1000).toFixed(1)} seconds`}
+                                      size={Math.max(3, Math.min(w.word.length + 1, 24))}
+                                      onChange={(e) => { const next = [...localWords]; next[idx] = { ...next[idx], word: e.target.value }; setLocalWords(next); }}
+                                      className="min-w-[2.5rem] max-w-[12rem] border-b border-transparent bg-transparent font-semibold text-fg focus:border-emerald-bright focus:outline-none"
+                                    />
+                                    <span className="font-mono text-[9px] text-fg-subtle">{(w.start / 1000).toFixed(1)}s</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
-                      ))}
-                    </div>
-                    {saveErr && <p className="text-xs text-error">{saveErr}</p>}
-                    <Button onClick={handleSaveTranscript} disabled={saving || transcriptLoading || localWords.length === 0} className="w-full">{saving ? "Saving…" : `Save transcript changes (re-renders — ${priceLabel})`}</Button>
-                    {(isRendering || renderWait.left > 0) && <p role="status" aria-live="polite" className="text-[11px] text-ink-soft text-center">{renderProgress}</p>}
+                      );
+                    })}
+                    {changedWords > 0 && (
+                      <p className="pt-1 text-[11.5px] text-fg-muted">{changedWords} word{changedWords === 1 ? "" : "s"} changed.</p>
+                    )}
                   </div>
                 )}
 
                 {tab === "related" && (
-                  <div className="ac-panel-in space-y-5">
+                  <div className="ac-panel-in space-y-2">
                     {relatedQuery.isLoading && <RelatedLoading />}
                     {relatedQuery.error && (
                       <p className="text-xs text-error">Couldn&apos;t load related content.</p>
@@ -825,32 +1006,67 @@ export function ClipWorkspace({
                     {relatedQuery.data && (
                       <RelatedForClip
                         related={relatedQuery.data.related}
-                        onOpenSibling={onOpenSibling}
+                        onOpenSibling={(id) => leave(() => onOpenSibling(id))}
                       />
                     )}
                   </div>
                 )}
 
                 {tab === "publish" && (
-                  <div className="ac-panel-in space-y-4">
-                    <PublishPanel projectId={projectId} clip={clip} embedded />
-                    <div className="pt-1 border-t border-card-border">
-                      {/* Open straight away: it was a "Dub into another language" button
-                          that only revealed the language picker. */}
+                  <div className="ac-panel-in space-y-2">
+                    <PanelSection title="Post or schedule" summary="Social accounts" {...pubSec("post")}>
+                      <PublishPanel projectId={projectId} clip={clip} embedded />
+                    </PanelSection>
+                    {/* Open straight away when picked: it was a button that only revealed the language picker. */}
+                    <PanelSection title="Dub" summary="A voiced copy in another language" {...pubSec("dub")}>
                       <DubPanel projectId={projectId} clip={clip} embedded />
-                    </div>
+                    </PanelSection>
                   </div>
                 )}
               </div>
 
-              <div className="border-t border-card-border px-5 py-3.5 flex items-center gap-2.5">
-                <EditInEditorButton projectId={projectId} clip={clip} className="min-h-[44px] px-4 rounded-xl border border-card-border bg-panel text-ink text-[12.5px] font-semibold hover:bg-tint-blue transition-colors disabled:opacity-50" />
-                <DownloadLink href={`/api/projects/${projectId}/clips/${clip.id}/download`} pending={renderPending} className="flex-1 min-h-[44px] rounded-xl grad-brand text-on-primary text-[13.5px] font-bold shadow-glow flex items-center justify-center">Download clip</DownloadLink>
+              <div className="border-t border-card-border">
+                <div role="status" aria-live="polite" className="space-y-1.5 px-4 pt-3">
+                  {saveErr && <p role="alert" className="text-[11.5px] font-semibold text-error">{saveErr}</p>}
+                  <div className="flex items-center justify-between gap-3 text-[11.5px]">
+                    <span className={dirty && !renderingNow && !saving ? "text-warning" : "text-fg-muted"}>{footerStatus}</span>
+                    {clip.status === "rendering" && !saving && <span className="font-mono text-emerald-bright">{clip.progress}%</span>}
+                  </div>
+                  {renderingNow && !saving && (
+                    <div className="h-[3px] overflow-hidden rounded bg-surface-3">
+                      <div className="h-full rounded bg-emerald-bright transition-[width] duration-500" style={{ width: `${clip.status === "rendering" ? clip.progress : 0}%` }} />
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-2.5 px-4 py-3">
+                  {dirty ? (
+                    <>
+                      <button type="button" onClick={discardChanges} disabled={saving} className="min-h-[44px] px-4 rounded-xl border border-card-border bg-panel text-ink text-[12.5px] font-semibold hover:bg-tint-blue transition-colors disabled:opacity-50">Discard</button>
+                      <button type="button" onClick={() => void renderChanges()} disabled={saving} className="flex-1 min-h-[44px] rounded-xl grad-brand text-on-primary text-[13.5px] font-bold shadow-glow flex items-center justify-center disabled:opacity-60">
+                        {saving ? "Starting…" : `Render changes · ${priceLabel}`}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <EditInEditorButton projectId={projectId} clip={clip} className="min-h-[44px] px-4 rounded-xl border border-card-border bg-panel text-ink text-[12.5px] font-semibold hover:bg-tint-blue transition-colors disabled:opacity-50" />
+                      <DownloadLink href={`/api/projects/${projectId}/clips/${clip.id}/download`} pending={renderPending} className="flex-1 min-h-[44px] rounded-xl grad-brand text-on-primary text-[13.5px] font-bold shadow-glow flex items-center justify-center">Download clip</DownloadLink>
+                    </>
+                  )}
+                </div>
               </div>
             </aside>
           )}
         </div>
       </div>
+      <ConfirmDialog
+        open={!!pendingLeave}
+        title="Leave without rendering?"
+        message={`Your changes (${draftParts.join(", ")}) aren't rendered yet. Leave now and they're lost.`}
+        confirmLabel="Leave without rendering"
+        danger
+        onConfirm={() => { const go = pendingLeave; setPendingLeave(null); go?.(); }}
+        onClose={() => setPendingLeave(null)}
+      />
     </div>
   );
 }

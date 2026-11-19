@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  CommitQueue, coverObjectPosition, cropAt, mediaPath, renderWaitReducer, rerenderPriceLabel,
+  CommitQueue, coverObjectPosition, cropAt, fmtStamp, groupTranscriptLines, mediaPath, rebaseWords, renderWaitReducer, rerenderPriceLabel,
   type CommitResult, type CropKeyframe,
 } from "./clipPanelLogic";
 
@@ -158,5 +158,52 @@ describe("rerenderPriceLabel", () => {
   });
   it("doesn't claim free before the price has loaded", () => {
     expect(rerenderPriceLabel(1, null)).toBe("may cost credits");
+  });
+});
+
+describe("groupTranscriptLines", () => {
+  const w = (word: string, start: number, end = start + 200) => ({ word, start, end });
+  it("breaks after sentence punctuation", () => {
+    const words = [w("Most", 0), w("die.", 250), w("They", 500), w("survive", 750)];
+    expect(groupTranscriptLines(words)).toEqual([[0, 1], [2, 3]]);
+  });
+  it("breaks on a pause longer than 600 ms", () => {
+    const words = [w("one", 0), w("two", 300), w("three", 1200)];
+    expect(groupTranscriptLines(words)).toEqual([[0, 1], [2]]);
+  });
+  it("caps a line at eight words", () => {
+    const words = Array.from({ length: 10 }, (_, i) => w(`w${i}`, i * 220));
+    expect(groupTranscriptLines(words).map((l) => l.length)).toEqual([8, 2]);
+  });
+  it("covers every word exactly once, and handles an empty transcript", () => {
+    const words = [w("a", 0), w("b.", 210), w("c", 2000)];
+    expect(groupTranscriptLines(words).flat()).toEqual([0, 1, 2]);
+    expect(groupTranscriptLines([])).toEqual([]);
+  });
+});
+
+describe("fmtStamp", () => {
+  it("formats milliseconds as m:ss.s", () => {
+    expect(fmtStamp(6800)).toBe("0:06.8");
+    expect(fmtStamp(74_250)).toBe("1:14.3");
+    expect(fmtStamp(-5)).toBe("0:00.0");
+  });
+});
+
+describe("rebaseWords", () => {
+  const words = [
+    { word: "a", start: 500, end: 900 },
+    { word: "b", start: 2100, end: 2600, speaker: "S1" },
+    { word: "c", start: 4800, end: 5400 },
+  ];
+  it("shifts words onto a later start, drops those cut off and clips the edge", () => {
+    // Clip was 10s-16s; trimmed to 12s-15s.
+    expect(rebaseWords(words, 10, 12, 15)).toEqual([
+      { word: "b", start: 100, end: 600, speaker: "S1" },
+      { word: "c", start: 2800, end: 3000 },
+    ]);
+  });
+  it("leaves words alone when the window is unchanged", () => {
+    expect(rebaseWords(words, 10, 10, 16)).toEqual(words);
   });
 });
