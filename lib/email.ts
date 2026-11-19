@@ -47,7 +47,11 @@ export type OtpPurpose = "login" | "signup" | "verify" | "step-up";
 export async function sendOtpEmail(to: string, otp: string, purpose: OtpPurpose = "verify"): Promise<DeliveryChannel> {
   const r = await sendTemplate("otp", to, { otp, purpose });
   if (r.channel === "dev-console") return "dev-console";
-  return r.status === "sent" ? "email" : "failed";
+  // "unknown" = a provider timed out after possibly accepting it. Reporting
+  // that as a failure would make the person request another code while the
+  // first may be landing; the router has already refused to send a second
+  // copy elsewhere, and the resend button is there if it never arrives.
+  return r.status === "sent" || r.status === "unknown" || r.status === "duplicate" ? "email" : "failed";
 }
 
 export async function sendPasswordResetEmail(to: string, name: string, resetLink: string): Promise<void> {

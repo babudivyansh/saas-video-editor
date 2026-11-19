@@ -5,7 +5,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   LayoutDashboard, Users, Star, Calendar, Tag, Ticket, Wrench, Cpu,
-  Receipt, BarChart3, Server, ScrollText, Gift, Megaphone, HardDrive, Mic,
+  Receipt, BarChart3, Server, ScrollText, Gift, Megaphone, HardDrive, Mic, Mail,
 } from "lucide-react";
 
 export interface AdminNavItem {
@@ -62,6 +62,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     label: "System",
     items: [
       { href: "/admin/ops",     label: "Operations",        icon: Server,     exact: false },
+      { href: "/admin/email",   label: "Email delivery",    icon: Mail,       exact: false },
       { href: "/admin/users",   label: "Accounts",          icon: Users,      exact: false },
       { href: "/admin/content", label: "Content & Storage", icon: HardDrive,  exact: false },
       { href: "/admin/audit",   label: "Audit Log",         icon: ScrollText, exact: false },

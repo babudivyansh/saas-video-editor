@@ -668,3 +668,49 @@ export const signupAlertsSchema = z
     mutedAdmins: z.array(alertEmail).max(50),
   })
   .strict();
+
+// -- Admin -> Email (lib/email/router) ----------------------------------------
+const emailProviderName = z.enum(["brevo", "mailjet", "resend"]);
+const optionalLimit = z.number().int().min(0).max(10_000_000).nullable();
+
+export const emailProviderPatchSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    dailyLimit: optionalLimit.optional(),
+    monthlyLimit: optionalLimit.optional(),
+    /** Put a SUSPENDED provider back into rotation - only after resolving it with the provider. */
+    clearSuspension: z.literal(true).optional(),
+    reason: z.string().trim().max(500).optional(),
+  })
+  .strict()
+  .refine((v) => !v.clearSuspension || (v.reason ?? "").length >= 5, {
+    message: "Say how the suspension was resolved",
+    path: ["reason"],
+  });
+
+export const emailSettingsPatchSchema = z
+  .object({
+    priority: z.array(emailProviderName).length(3).refine((a) => new Set(a).size === 3, "Each provider once").optional(),
+    pauseNoncritical: z.boolean().optional(),
+  })
+  .strict();
+
+export const emailOverviewQuerySchema = z.object({
+  range: z.enum(["today", "7d", "30d", "custom"]).default("7d"),
+  from: z.string().max(40).optional(),
+  to: z.string().max(40).optional(),
+});
+
+export const emailMessagesQuerySchema = z.object({
+  q: z.string().trim().max(200).optional(),
+  status: z.enum(["pending", "sending", "accepted", "delivered", "deferred", "bounced", "complained", "failed", "suppressed", "unknown"]).optional(),
+  provider: emailProviderName.optional(),
+  templateId: z.string().trim().max(80).optional(),
+  priority: z.enum(["critical", "high", "normal"]).optional(),
+  range: z.enum(["today", "7d", "30d", "custom", "all"]).default("7d"),
+  from: z.string().max(40).optional(),
+  to: z.string().max(40).optional(),
+  sort: z.enum(["createdAt", "-createdAt"]).default("-createdAt"),
+  page: z.coerce.number().int().min(1).max(10_000).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(25),
+});

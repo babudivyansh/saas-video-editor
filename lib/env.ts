@@ -139,6 +139,34 @@ const schema = z.object({
   // endpoint rejects everything, which is the correct failure: an unverified
   // webhook could suppress any address an attacker names.
   RESEND_WEBHOOK_SECRET: z.string().optional(),
+
+  // ── Multi-provider email router (lib/email/router) ─────────────────────────
+  // OFF unless "true": with it off, sending is exactly the old path (Resend,
+  // then SMTP). Turning it off again is the rollback.
+  EMAIL_ROUTER_ENABLED: z.string().optional(),
+  // Comma-separated priority, e.g. "brevo,mailjet,resend". Admin → Email can
+  // override it at runtime; this is the default for a fresh database.
+  EMAIL_PROVIDER_PRIORITY: z.string().optional(),
+  EMAIL_FALLBACK_ENABLED: z.string().optional(), // default "true"
+  EMAIL_QUOTA_WARNING_PERCENT: z.string().optional(), // default 70
+  EMAIL_QUOTA_CRITICAL_PERCENT: z.string().optional(), // default 90
+  // Brevo (transactional API v3). Sender defaults to EMAIL_FROM.
+  BREVO_API_KEY: z.string().optional(),
+  BREVO_SENDER_EMAIL: z.string().optional(),
+  BREVO_SENDER_NAME: z.string().optional(),
+  // Brevo webhooks carry no signature: the webhook is created with a bearer
+  // token (or Basic auth) and the route compares it to this.
+  BREVO_WEBHOOK_SECRET: z.string().optional(),
+  // Mailjet (Send API v3.1). Sender defaults to EMAIL_FROM.
+  MAILJET_API_KEY: z.string().optional(),
+  MAILJET_SECRET_KEY: z.string().optional(),
+  MAILJET_SENDER_EMAIL: z.string().optional(),
+  MAILJET_SENDER_NAME: z.string().optional(),
+  // Mailjet's event webhook supports only Basic auth embedded in the URL
+  // (https://user:SECRET@clipiro.com/...); this is the password half.
+  MAILJET_WEBHOOK_SECRET: z.string().optional(),
+  // Resend sender override; EMAIL_FROM stays the default so nothing changes.
+  RESEND_FROM_EMAIL: z.string().optional(),
   // Where images in email are loaded from. Split from NEXT_PUBLIC_APP_URL on
   // purpose — links must follow the deployment, but a staging or preview build
   // still needs the logo to resolve to a host a mail client can reach.
