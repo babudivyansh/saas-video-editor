@@ -1,230 +1,220 @@
-// Welcome, onboarding drip, re-engagement and the first-video upsell.
+// Welcome, onboarding drip, re-engagement and the first-clips upsell.
 // All opt-out-able marketing/product mail.
+//
+// Rewritten 2026-11-19 around what the product actually is now: AutoClip,
+// billed in Clip Minutes. The previous copy still pitched "AI videos from text
+// scripts", Voice Changer and a "Creator Wizard" (all deleted 2026-09) and
+// counted everything in credits, which AutoClip doesn't spend.
 
 import type { EmailDocument } from "../layout";
 import { html } from "../html";
 import { greet, plural } from "../format";
 import { APP_URL, PRODUCT_NAME } from "../tokens";
+import { TRIAL_DAYS } from "@/lib/plans/tiers";
 
 const DASHBOARD_URL = `${APP_URL}/dashboard`;
 const PRICING_URL = `${APP_URL}/pricing`;
 
-export function welcome(p: { firstName: string; credits: number }): EmailDocument {
+/** The three steps every "you haven't started yet" email repeats. */
+const HOW_IT_WORKS = [
+  "Paste a YouTube or Twitch link, or upload a video",
+  "AutoClip finds the best moments and captions them",
+  "Download vertical clips for Shorts, Reels and TikTok",
+];
+
+const FREE_LIMITS = "Free clips carry a small watermark and export at 720p.";
+
+export function welcome(p: { firstName: string; minutes: number }): EmailDocument {
   const name = greet(p.firstName);
   return {
-    subject: `Welcome to ${PRODUCT_NAME}, ${name} — here are your ${p.credits} free credits`,
-    preheader: `${p.credits} credits are already in your account. Your first video takes about two minutes.`,
+    subject: `Welcome to ${PRODUCT_NAME}, ${name} — ${p.minutes} free Clip Minutes are ready`,
+    preheader: "Paste a link to a long video and get your first clips in a few minutes.",
     blocks: [
       { kind: "heading", text: `Welcome to ${PRODUCT_NAME}, ${name}` },
-      { kind: "paragraph", text: "You're all set. Start making AI-powered videos in minutes." },
+      {
+        kind: "paragraph",
+        text: "Give AutoClip one long video (a stream, podcast or talk) and it gives you back short vertical clips with captions.",
+      },
       {
         kind: "hero",
-        label: "Your starting credits",
-        value: String(p.credits),
-        caption: "ready to use right now",
+        label: "Free Clip Minutes",
+        value: String(p.minutes),
+        caption: "one minute of source video each",
         tone: "brand",
       },
-      {
-        kind: "list",
-        title: "Get started in three steps",
-        marker: "number",
-        items: ["Go to your dashboard", "Pick a video style or tool", "Export your first AI video"],
-      },
-      { kind: "button", href: DASHBOARD_URL, label: "Go to dashboard" },
+      { kind: "list", title: "Your first clips in three steps", marker: "number", items: HOW_IT_WORKS },
+      { kind: "button", href: DASHBOARD_URL, label: "Make my first clips" },
       {
         kind: "paragraph",
         tone: "fine",
-        text: "Each credit is one AI render. Start with a short clip to see the quality.",
+        text: "Tip: start with a video of 10–30 minutes. It's quick to process and leaves you minutes for a second try.",
       },
     ],
   };
 }
 
-export function onboardingDay1(p: { name: string; creditsLeft: number }): EmailDocument {
+export function onboardingDay1(p: { name: string; minutesLeft: number }): EmailDocument {
   return {
-    subject: `Your ${p.creditsLeft} ${PRODUCT_NAME} credits are waiting — here's how to use them`,
-    preheader: "Your first AI video takes less than two minutes. Three ideas inside.",
+    subject: `Your ${p.minutesLeft} free Clip Minutes are still waiting`,
+    preheader: "Paste one link. That's the whole setup.",
     blocks: [
-      { kind: "heading", text: `Your ${p.creditsLeft} credits are waiting, ${greet(p.name)}` },
+      { kind: "heading", text: `Your first clips are one link away, ${greet(p.name)}` },
       {
         kind: "paragraph",
-        text: "You signed up yesterday but haven't created anything yet. Your first AI video takes under two minutes.",
+        text: html`You signed up yesterday but haven't run AutoClip yet. You have
+          <strong>${p.minutesLeft} free Clip ${plural(p.minutesLeft, "Minute")}</strong>, enough for a full stream highlight or podcast episode.`,
       },
-      {
-        kind: "list",
-        title: "Three ideas to try right now",
-        marker: "bullet",
-        items: [
-          html`<strong>Clipiro AutoClip</strong> — one long video, a week of clips`,
-          html`<strong>Auto Clip</strong> — upload a long video, get viral shorts`,
-          html`<strong>AI Voiceover</strong> — turn text into professional narration`,
-        ],
-      },
-      { kind: "button", href: DASHBOARD_URL, label: "Create my first video" },
+      { kind: "list", title: "How it works", marker: "number", items: HOW_IT_WORKS },
+      { kind: "button", href: DASHBOARD_URL, label: "Paste a link" },
     ],
   };
 }
 
-export function onboardingDay3(p: { name: string; creditsUsed: number; hasUsed: boolean }): EmailDocument {
+export function onboardingDay3(p: { name: string; clipCount: number; hasUsed: boolean }): EmailDocument {
   const name = greet(p.name);
   if (p.hasUsed) {
     return {
-      subject: `${name}, you've already created ${p.creditsUsed} videos — here's what's next`,
-      preheader: "A feature you might not have found yet.",
+      subject: `${name}, you've made ${p.clipCount} ${plural(p.clipCount, "clip")} — make them look like yours`,
+      preheader: "Caption styles, your own brand, and the clip editor.",
       blocks: [
-        { kind: "heading", text: "Great progress" },
+        { kind: "heading", text: "Nice start" },
         {
           kind: "paragraph",
-          text: html`You've already used <strong>${p.creditsUsed} credits</strong> — a strong start. Here's something
-            you might not have discovered yet:`,
+          text: html`AutoClip has made you <strong>${p.clipCount} ${plural(p.clipCount, "clip")}</strong>. Three things
+            worth trying on them:`,
         },
         {
-          kind: "callout",
-          tone: "accent",
-          title: "Social Tracker",
-          body: "Connect YouTube or Instagram and track how your videos perform — views, likes, growth — in one dashboard.",
+          kind: "list",
+          marker: "bullet",
+          items: [
+            html`<strong>Caption styles</strong> — 150 looks, from clean to gaming`,
+            html`<strong>Trim and reframe</strong> — open any clip and adjust the start, end or crop`,
+            html`<strong>Run another video</strong> — re-running the same video is free for a while`,
+          ],
         },
-        { kind: "button", href: DASHBOARD_URL, label: "Go to dashboard" },
+        { kind: "button", href: DASHBOARD_URL, label: "Open my clips" },
       ],
     };
   }
 
   return {
-    subject: `Still haven't tried ${PRODUCT_NAME}? Here's what you're missing`,
-    preheader: "Three things creators are making with their free credits.",
+    subject: `Still haven't tried AutoClip? It takes one link`,
+    preheader: "Streams, podcasts, talks — anything long becomes Shorts.",
     blocks: [
-      { kind: "heading", text: "You're missing out" },
+      { kind: "heading", text: "Your free minutes are still here" },
       {
         kind: "paragraph",
-        text: "You've been signed up for three days but haven't created anything yet. Here's what other creators are making:",
+        text: "Creators use AutoClip to turn one long video into a week of Shorts, Reels and TikToks:",
       },
       {
         kind: "list",
         marker: "bullet",
         items: [
-          "Viral YouTube Shorts from text scripts",
-          "Auto-clipped highlights from long-form videos",
-          "AI voiceovers in 50+ voices",
+          "Stream VODs into highlight clips",
+          "Podcast episodes into talking-point clips",
+          "Talks and lessons into bite-size explainers",
         ],
       },
-      { kind: "button", href: DASHBOARD_URL, label: "Go to dashboard" },
+      { kind: "button", href: DASHBOARD_URL, label: "Make my first clips" },
     ],
   };
 }
 
-export function onboardingDay7(p: { name: string; creditsLeft: number }): EmailDocument {
+export function onboardingDay7(p: { name: string; minutesLeft: number }): EmailDocument {
   return {
-    subject: `Keep creating — ${p.creditsLeft} free credits left`,
-    preheader: "One week in. Here's what a Pro plan adds when the free credits run out.",
+    subject: `One week in — clips without the watermark`,
+    preheader: `Try Pro free for ${TRIAL_DAYS} days: no watermark, 1080p, more minutes.`,
     blocks: [
-      { kind: "heading", text: "One week in — keep your momentum" },
+      { kind: "heading", text: "Ready to post clips that look fully yours?" },
       {
         kind: "paragraph",
-        text: html`Hi ${greet(p.name)}, you have <strong>${p.creditsLeft} free ${plural(p.creditsLeft, "credit")}</strong>
-          left. When they're gone, a Pro plan keeps you creating.`,
+        text: html`Hi ${greet(p.name)}, you have <strong>${p.minutesLeft} free Clip ${plural(p.minutesLeft, "Minute")}</strong>
+          left. ${FREE_LIMITS}`,
       },
       {
         kind: "list",
-        title: "With a Pro plan you get",
+        title: "Every paid plan gives you",
         marker: "check",
         items: [
-          "Monthly credit refills — never run out",
-          "All AI tools unlocked",
-          "Priority rendering queue",
-          "Social Tracker analytics",
+          "No watermark on any clip",
+          "1080p exports (4K on Pro)",
+          "Clip Minutes every month, for longer videos",
         ],
       },
-      { kind: "button", href: PRICING_URL, label: "See plans and pricing" },
-      { kind: "paragraph", tone: "fine", text: "Plans start from ₹299/month. Cancel any time." },
+      { kind: "button", href: PRICING_URL, label: `Try Pro free for ${TRIAL_DAYS} days` },
+      { kind: "paragraph", tone: "fine", text: "Cancel any time during the trial and you won't be charged." },
     ],
   };
 }
 
-export function reengagement7Day(p: { name: string; creditsLeft: number }): EmailDocument {
+export function reengagement7Day(p: { name: string; minutesLeft: number }): EmailDocument {
   return {
-    subject: `${greet(p.name)}, your ${p.creditsLeft} credits are waiting for you`,
-    preheader: "Still here, still yours. Three things to try when you're back.",
+    subject: `${greet(p.name)}, your ${p.minutesLeft} Clip Minutes are waiting`,
+    preheader: "Got a new stream or episode? Turn it into clips.",
     blocks: [
-      { kind: "heading", text: `We miss you, ${greet(p.name)}` },
+      { kind: "heading", text: `Got a new video, ${greet(p.name)}?` },
       {
         kind: "paragraph",
-        text: html`You haven't created anything in a while. Your <strong>${p.creditsLeft} credits</strong> are still
-          here, ready to go.`,
+        text: html`Your <strong>${p.minutesLeft} Clip ${plural(p.minutesLeft, "Minute")}</strong> are still here. Paste the
+          link to your latest stream, podcast or talk and AutoClip will cut it into Shorts.`,
       },
-      {
-        kind: "list",
-        title: "Jump back in and try something new",
-        marker: "bullet",
-        items: [
-          "Clipiro AutoClip — one long video, a week of clips",
-          "Voice Changer — transform any voice in seconds",
-          "Social Tracker — see how your videos are performing",
-        ],
-      },
-      { kind: "button", href: DASHBOARD_URL, label: "Jump back in" },
+      { kind: "button", href: DASHBOARD_URL, label: "Paste a link" },
     ],
   };
 }
 
 export function reengagement30Day(p: {
   name: string;
-  creditsLeft: number;
+  minutesLeft: number;
   daysSinceLogin: number;
 }): EmailDocument {
   return {
-    subject: `We miss you — here's what's new at ${PRODUCT_NAME}`,
-    preheader: `It's been ${p.daysSinceLogin} days. A lot has changed since your last visit.`,
+    subject: `What's new at ${PRODUCT_NAME}`,
+    preheader: `It's been ${p.daysSinceLogin} days. AutoClip has improved a lot since then.`,
     blocks: [
       { kind: "heading", text: "It's been a while — here's what's new" },
       {
         kind: "paragraph",
-        text: html`Hi ${greet(p.name)}, it's been ${p.daysSinceLogin} days since you last signed in. A lot has
-          improved, and you still have <strong>${p.creditsLeft} credits</strong> waiting.`,
+        text: html`Hi ${greet(p.name)}, it's been ${p.daysSinceLogin} days since you last signed in, and you have
+          <strong>${p.minutesLeft} Clip ${plural(p.minutesLeft, "Minute")}</strong> to use.`,
       },
       {
         kind: "list",
         title: `New at ${PRODUCT_NAME}`,
         marker: "bullet",
         items: [
-          "Faster rendering engine — 2× speed improvement",
-          "50+ new AI voice styles",
-          "Instagram and YouTube Social Tracker",
+          "Paste a Twitch or YouTube link instead of uploading",
+          "150 caption styles, including gaming looks",
+          "Edit any clip's captions and timing in one click",
         ],
       },
-      { kind: "button", href: DASHBOARD_URL, label: "See what's new" },
-      {
-        kind: "paragraph",
-        tone: "fine",
-        text: "Your credits never expire while you're on a paid plan.",
-      },
+      { kind: "button", href: DASHBOARD_URL, label: "Try it on a new video" },
     ],
   };
 }
 
-export function firstVideoSuccess(p: { name: string }): EmailDocument {
+export function firstVideoSuccess(p: { name: string; clipCount: number }): EmailDocument {
   return {
-    subject: `You just made your first ${PRODUCT_NAME} video — here's what's next`,
-    preheader: "Congratulations. Here's what a Pro plan unlocks from here.",
+    subject: `Your first ${plural(p.clipCount, "clip")} — now without the watermark?`,
+    preheader: `Try Pro free for ${TRIAL_DAYS} days: no watermark, 1080p and 4K, more Clip Minutes.`,
     blocks: [
-      { kind: "heading", text: `You just made your first ${PRODUCT_NAME} video` },
+      { kind: "heading", text: `You made your first ${p.clipCount} ${plural(p.clipCount, "clip")}` },
       {
         kind: "paragraph",
-        text: `Hi ${greet(p.name)}, congratulations on your first AI video. Now that you've seen what's possible, here's what's waiting on Pro:`,
+        text: html`Hi ${greet(p.name)}, nice work. ${FREE_LIMITS} Before you post them, here's what Pro changes:`,
       },
       {
         kind: "list",
-        title: "Upgrade to Pro and unlock",
+        title: `Pro, free for ${TRIAL_DAYS} days`,
         marker: "check",
         items: [
-          html`<strong>Monthly credit refills</strong> — never run out again`,
-          html`<strong>Higher resolution exports</strong>`,
-          html`<strong>All AI tools</strong> — Voice Changer, Auto Clip, Creator Wizard`,
-          html`<strong>Social Tracker</strong> — see how your videos perform`,
-          html`<strong>Priority rendering queue</strong>`,
+          html`<strong>No watermark</strong> on every clip`,
+          html`<strong>1080p and 4K</strong> exports`,
+          html`<strong>More Clip Minutes</strong> every month, for full streams and episodes`,
         ],
       },
-      { kind: "button", href: PRICING_URL, label: "Explore Pro plans" },
-      { kind: "paragraph", tone: "fine", text: "Plans start from ₹299/month. Cancel any time." },
+      { kind: "button", href: PRICING_URL, label: `Start my ${TRIAL_DAYS}-day free trial` },
+      { kind: "paragraph", tone: "fine", text: "Cancel any time during the trial and you won't be charged." },
     ],
   };
 }

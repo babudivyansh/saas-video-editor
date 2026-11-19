@@ -1,15 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // firePostCreditSpendEmails is the one place every credit-spending route in
-// the app converges on for the first-video/low-credit emails (via
-// spendCredits() — see credits.postspend.test.ts for that wiring). This file
-// pins two things specific to THIS module:
+// the app converges on for the low-credit email (via spendCredits() — see
+// credits.postspend.test.ts for that wiring). This file pins:
 //
-//   1. firstVideoAt is only written once the send has actually succeeded —
-//      previously it was written first, so a transient send failure silently
-//      and permanently lost a user's one-shot "first video" email with no
-//      retry. A "sent"/"suppressed"/"skipped-optout"/"dev-logged" outcome
-//      all correctly count as handled; only "failed" must leave it unset.
+//   1. the first-video upsell is NOT sent from here any more (AutoClip spends
+//      minutes, so a credit spend was the wrong trigger — see
+//      app/api/cron/onboarding/route.test.ts for where it lives now).
 //   2. fireZeroCreditsEmail's own independent rate-limit/opt-out behavior.
 
 interface UserRow {
@@ -23,7 +20,7 @@ interface UserRow {
 }
 let user: UserRow;
 let categoryAllowed: boolean;
-const sendFirstVideoSuccessEmail = vi.fn<(to: string, name: string) => Promise<boolean>>();
+const sendFirstVideoSuccessEmail = vi.fn<(to: string, name: string, clipCount: number) => Promise<boolean>>();
 const sendLowCreditsEmail = vi.fn(async () => {});
 const sendZeroCreditsEmail = vi.fn(async () => {});
 
@@ -64,47 +61,12 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe("firePostCreditSpendEmails — first-video send/flag ordering", () => {
-  it("sets firstVideoAt only after a successful send", async () => {
-    sendFirstVideoSuccessEmail.mockResolvedValueOnce(true);
-    firePostCreditSpendEmails("u1", 40);
-    await flush();
-    expect(sendFirstVideoSuccessEmail).toHaveBeenCalledWith("u@test.co", "Ada");
-    expect(user.firstVideoAt).not.toBeNull();
-  });
-
-  it("leaves firstVideoAt unset when the send fails, so the next spend retries it", async () => {
-    sendFirstVideoSuccessEmail.mockResolvedValueOnce(false);
-    firePostCreditSpendEmails("u1", 40);
-    await flush();
-    expect(user.firstVideoAt).toBeNull();
-  });
-
-  it("leaves firstVideoAt unset when the send rejects outright", async () => {
-    sendFirstVideoSuccessEmail.mockRejectedValueOnce(new Error("resend down"));
-    firePostCreditSpendEmails("u1", 40);
-    await flush();
-    expect(user.firstVideoAt).toBeNull();
-  });
-
-  it("never re-sends once firstVideoAt is already set", async () => {
-    user.firstVideoAt = new Date();
+describe("firePostCreditSpendEmails", () => {
+  it("no longer sends the first-video upsell on a credit spend (it moved to the onboarding cron)", async () => {
     firePostCreditSpendEmails("u1", 40);
     await flush();
     expect(sendFirstVideoSuccessEmail).not.toHaveBeenCalled();
-  });
-
-  it("a retried spend after a failed send succeeds and sets the flag", async () => {
-    sendFirstVideoSuccessEmail.mockResolvedValueOnce(false);
-    firePostCreditSpendEmails("u1", 40);
-    await flush();
     expect(user.firstVideoAt).toBeNull();
-
-    sendFirstVideoSuccessEmail.mockResolvedValueOnce(true);
-    firePostCreditSpendEmails("u1", 38);
-    await flush();
-    expect(user.firstVideoAt).not.toBeNull();
-    expect(sendFirstVideoSuccessEmail).toHaveBeenCalledTimes(2);
   });
 });
 

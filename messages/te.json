@@ -176,7 +176,7 @@
     "gender": "లింగం",
     "genders": { "male": "పురుషుడు", "female": "స్త్రీ", "unspecified": "చెప్పదలచుకోలేదు" },
     "intendedUseLabel": "మీరు Clipiroను దేని కోసం ఉపయోగించాలనుకుంటున్నారు?",
-    "intendedUses": { "contentCreator": "కంటెంట్ క్రియేటర్", "businessMarketing": "వ్యాపారం / మార్కెటింగ్", "personal": "వ్యక్తిగతం", "other": "ఇతరం" },
+    "intendedUses": { "gaming": "గేమింగ్ స్ట్రీమ్‌లు", "podcast": "పాడ్‌కాస్ట్‌లు", "education": "ప్రసంగాలు & పాఠాలు", "contentCreator": "కంటెంట్ క్రియేటర్", "businessMarketing": "వ్యాపారం / మార్కెటింగ్", "personal": "వ్యక్తిగతం", "other": "ఇతరం" },
     "restartTourTitle": "ఆన్‌బోర్డింగ్ టూర్‌ను పునఃప్రారంభించండి",
     "restartTourDesc": "మీరు తదుపరిసారి డాష్‌బోర్డ్‌ను సందర్శించినప్పుడు వెల్‌కమ్ స్క్రీన్ మరియు గైడెడ్ టూర్‌ను మళ్లీ ప్లే చేయండి.",
     "restarting": "పునఃప్రారంభిస్తోంది…",

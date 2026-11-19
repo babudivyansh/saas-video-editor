@@ -4,7 +4,7 @@ import { SESSION_COOKIE_NAME, verifyToken } from "@/lib/auth";
 import { publicPathForAppPath } from "@/app/components/featureLinks";
 import { withNextParam } from "@/lib/safe-redirect";
 import { isPublicApiRoute } from "@/lib/api-public-routes";
-import { ATTRIBUTION_COOKIE, buildAttributionCookie } from "@/lib/marketing-attribution";
+import { ATTRIBUTION_COOKIE, FIRST_TOUCH_COOKIE, buildAttributionCookie, buildFirstTouchCookie } from "@/lib/marketing-attribution";
 import { rateLimit } from "@/lib/rate-limit";
 import { buildCsp } from "@/lib/csp";
 import { adminOrigin, isAdminApiPath, isAdminHostAuthPage, isAdminPagePath, isStaticFilePath, requestHost } from "@/lib/admin-host";
@@ -245,6 +245,29 @@ export async function proxy(request: NextRequest) {
         path: "/",
       });
     }
+  }
+
+  // First touch for every visitor, UTM or not (lib/marketing-attribution.ts):
+  // referring host + landing path. Signed-out page views only — an API call or
+  // a signed-in user's navigation says nothing about where a signup came from.
+  if (
+    marketingConsent !== "denied" &&
+    !auth &&
+    request.method === "GET" &&
+    !pathname.startsWith("/api/") &&
+    !request.cookies.get(FIRST_TOUCH_COOKIE)
+  ) {
+    response.cookies.set(
+      FIRST_TOUCH_COOKIE,
+      buildFirstTouchCookie(request.headers.get("referer"), request.nextUrl.hostname, pathname),
+      {
+        maxAge: 30 * 24 * 60 * 60, // 30 days
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        httpOnly: true,
+        path: "/",
+      },
+    );
   }
 
   // The admin host's sign-in pages are copies of the main site's; keep them out of search.

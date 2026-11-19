@@ -96,7 +96,7 @@ export const CRON_CATALOG: Record<string, CronJobInfo> = {
   },
   "/api/cron/onboarding": {
     label: "Onboarding emails",
-    description: "Sends the day 1 / 3 / 7 onboarding email sequence.",
+    description: "Sends the day 1 / 3 / 7 onboarding emails and the first-clips upgrade email.",
     tier: "danger",
   },
   "/api/cron/reengagement": {

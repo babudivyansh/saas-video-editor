@@ -34,6 +34,9 @@ export default function ProfileSettingsPage() {
   ];
 
   const INTENDED_USES = [
+    { value: "gaming", label: t("intendedUses.gaming") },
+    { value: "podcast", label: t("intendedUses.podcast") },
+    { value: "education", label: t("intendedUses.education") },
     { value: "content_creator", label: t("intendedUses.contentCreator") },
     { value: "business_marketing", label: t("intendedUses.businessMarketing") },
     { value: "personal", label: t("intendedUses.personal") },

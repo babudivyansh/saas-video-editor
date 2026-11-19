@@ -93,8 +93,13 @@ export async function signInWithGoogleProfile(req: NextRequest, profile: GoogleP
     // a failed grant must not fail the signup — the monthly drip retries it.
     const newUserId = user.id;
     if (!repeatInbox && (await signupGrantAllowedForIp(getClientIp(req)))) {
-      await grantFreeTierMinutes(newUserId, "grant:signup").catch((e) =>
-        logger.error("auth", `signup minutes grant failed for ${newUserId}`, e));
+      const granted = await grantFreeTierMinutes(newUserId, "grant:signup").catch((e) => {
+        logger.error("auth", `signup minutes grant failed for ${newUserId}`, e);
+        return null;
+      });
+      // The row above was read before the grant; callers show this balance
+      // in the welcome email.
+      if (granted) user = { ...user, minutes: granted.total };
     }
 
     // Google doesn't collect a typed code, so this is cookie-attribution

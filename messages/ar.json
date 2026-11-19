@@ -176,7 +176,7 @@
     "gender": "الجنس",
     "genders": { "male": "ذكر", "female": "أنثى", "unspecified": "أفضّل عدم الإفصاح" },
     "intendedUseLabel": "لماذا تخطط لاستخدام Clipiro؟",
-    "intendedUses": { "contentCreator": "منشئ محتوى", "businessMarketing": "أعمال / تسويق", "personal": "شخصي", "other": "أخرى" },
+    "intendedUses": { "gaming": "بث الألعاب", "podcast": "بودكاست", "education": "محاضرات ودروس", "contentCreator": "منشئ محتوى", "businessMarketing": "أعمال / تسويق", "personal": "شخصي", "other": "أخرى" },
     "restartTourTitle": "إعادة تشغيل جولة التعريف",
     "restartTourDesc": "شاهد شاشة الترحيب والجولة الإرشادية مرة أخرى في المرة القادمة التي تزور فيها لوحة التحكم.",
     "restarting": "جارٍ إعادة التشغيل…",
