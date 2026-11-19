@@ -111,14 +111,17 @@ withFfmpeg("rerenderJob — reads the source over http, not a full download", ()
   beforeAll(async () => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), "rerender-url-"));
     fixturePath = path.join(dir, "src.mp4");
-    // 60 s of noisy video at a fixed high bitrate, so the clip's 3 s window
-    // is a small, measurable fraction of the file. The default mp4 muxer puts
-    // the moov atom at the END, as phone uploads have it.
+    // 120 s of noisy video at a fixed high bitrate (~90 MB), so the clip's
+    // 3 s window is a small, measurable fraction of the file. Big enough that
+    // the fixed cost of each ffmpeg open (it probes ~5 MB of stream data,
+    // more with Linux's larger socket buffers) stays a minor share: on a
+    // 22 MB fixture the probe + render opens alone were 40%. The default mp4
+    // muxer puts the moov atom at the END, as phone uploads have it.
     const made = spawnSync(FFMPEG!, [
       "-hide_banner", "-y",
-      "-f", "lavfi", "-i", "testsrc2=s=640x360:r=30:d=60,noise=alls=40:allf=t",
-      "-f", "lavfi", "-i", "sine=frequency=440:duration=60",
-      "-c:v", "libx264", "-preset", "ultrafast", "-b:v", "3M", "-g", "60",
+      "-f", "lavfi", "-i", "testsrc2=s=640x360:r=30:d=120,noise=alls=60:allf=t",
+      "-f", "lavfi", "-i", "sine=frequency=440:duration=120",
+      "-c:v", "libx264", "-preset", "ultrafast", "-b:v", "6M", "-minrate", "6M", "-maxrate", "6M", "-bufsize", "6M", "-g", "60",
       "-c:a", "aac", "-shortest", fixturePath,
     ], { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
     expect(made.status, made.stderr).toBe(0);
@@ -173,9 +176,11 @@ withFfmpeg("rerenderJob — reads the source over http, not a full download", ()
     expect(clipUpdates.some((u) => u.data.cropKeyframes && typeof u.data.cropKeyframes === "object")).toBe(true);
 
     const size = fs.statSync(fixturePath).size;
-    // A 3 s window of a 60 s file is 5%, plus the moov atom, a keyframe of
-    // lead-in and the probes' reads. A full read would be 100%.
+    // A 3 s window of a 120 s file is 2.5%, plus the moov atom, a keyframe
+    // of lead-in and each open's probe reads. A full read would be 100%.
     expect(bytesServed).toBeGreaterThan(0);
+    if (process.env.RERENDER_URL_DEBUG) process.stderr.write(`served ${bytesServed} of ${size}
+`);
     expect(bytesServed / size).toBeLessThan(0.25);
   }, 120_000);
 
