@@ -24,7 +24,7 @@ export async function buildStaffDigest(now: Date): Promise<AdminDailyDigestData>
       where: { createdAt: { gte: since, lt: now }, purgedAt: null },
       orderBy: { createdAt: "desc" },
       select: {
-        id: true, email: true, name: true, hasPassword: true, intendedUse: true,
+        id: true, email: true, name: true, hasPassword: true, intendedUse: true, signupReferrer: true, signupSource: true,
         projects: { where: { productType: AUTOCLIP }, select: { id: true }, take: 1 },
       },
     }),
@@ -85,6 +85,8 @@ export async function buildStaffDigest(now: Date): Promise<AdminDailyDigestData>
       name: s.name,
       method: s.hasPassword ? ("email" as const) : ("google" as const),
       intendedUse: s.intendedUse,
+      // The campaign's source when tagged, else the referring host.
+      cameFrom: s.signupSource?.split("/")[0] || s.signupReferrer || null,
       startedAutoClip: s.projects.length > 0,
     })),
     moreSignups: Math.max(0, signups.length - MAX_LISTED_SIGNUPS),

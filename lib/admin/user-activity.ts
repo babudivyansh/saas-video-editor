@@ -210,6 +210,10 @@ export interface SignupAttribution {
   intendedUse: string | null;
   referralCode: string | null;
   utm: { source: string; medium: string; campaign: string } | null;
+  /** Referring host at first visit ("direct" when none) — User.signupReferrer. */
+  referrer: string | null;
+  /** First path landed on — User.signupLandingPath. */
+  landingPath: string | null;
   /** From the first recorded login (signup signs the user in). Approximate, IP-based. */
   country: string | null;
   device: string | null;
@@ -233,9 +237,18 @@ export interface ActivitySummary {
   payments: number;
 }
 
+function parseSignupSource(v: string | null): SignupAttribution["utm"] {
+  if (!v) return null;
+  const [source = "", medium = "", campaign = ""] = v.split("/");
+  return source || medium || campaign ? { source, medium, campaign } : null;
+}
+
 export async function getUserActivitySummary(userId: string): Promise<ActivitySummary> {
   const [user, logins, uploads, runsByStatus, firstRun, clips, gens, genFails, downloads, paid, signup, firstLogin] = await Promise.all([
-    prisma.user.findUnique({ where: { id: userId }, select: { createdAt: true, lastLoginAt: true, hasPassword: true, intendedUse: true } }),
+    prisma.user.findUnique({ where: { id: userId }, select: {
+      createdAt: true, lastLoginAt: true, hasPassword: true, intendedUse: true,
+      signupSource: true, signupReferrer: true, signupLandingPath: true,
+    } }),
     prisma.loginEvent.count({ where: { userId } }),
     prisma.asset.count({ where: { userId, sourceFeature: { in: ["upload", "url-import"] } } }),
     prisma.project.groupBy({ by: ["status"], where: { userId, productType: AUTOCLIP }, _count: { _all: true } }),
@@ -256,7 +269,11 @@ export async function getUserActivitySummary(userId: string): Promise<ActivitySu
           method: user.hasPassword ? "email" : "google",
           intendedUse: user.intendedUse,
           referralCode: meta.referralCode ?? null,
-          utm: meta.utm ?? null,
+          // UserEvent's UTM first; User.signupSource ("source/medium/campaign") covers
+          // signups recorded by the attribution code before UserEvent existed.
+          utm: meta.utm ?? parseSignupSource(user.signupSource),
+          referrer: user.signupReferrer,
+          landingPath: user.signupLandingPath,
           country: firstLogin?.country ?? null,
           device: firstLogin?.device ?? null,
         }

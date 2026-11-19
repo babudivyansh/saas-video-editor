@@ -174,6 +174,8 @@ export interface AdminDailyDigestSignup {
   name: string | null;
   method: "email" | "google";
   intendedUse: string | null;
+  /** Campaign source or referring host ("direct" when none); null before 19 Nov 2026. */
+  cameFrom: string | null;
   startedAutoClip: boolean;
 }
 
@@ -226,10 +228,11 @@ export function dailyDigest(d: AdminDailyDigestData): EmailDocument {
       ...(d.newSignups.length
         ? [{
             kind: "table" as const,
-            head: ["Email", "Via", "Makes", "AutoClip"],
+            head: ["Email", "Via", "From", "Makes", "AutoClip"],
             rows: d.newSignups.map((s) => [
               userLink(s.userId, s.email),
               s.method === "google" ? "Google" : "Email",
+              s.cameFrom ?? "—",
               s.intendedUse ?? "—",
               s.startedAutoClip ? "Yes" : "Not yet",
             ]),

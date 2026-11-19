@@ -25,6 +25,8 @@ interface Summary {
     intendedUse: string | null;
     referralCode: string | null;
     utm: { source: string; medium: string; campaign: string } | null;
+    referrer: string | null;
+    landingPath: string | null;
     country: string | null;
     device: string | null;
   } | null;
@@ -135,13 +137,15 @@ export function UserJourney({ userId, headers }: { userId: string; headers: () =
             <Row label="Signed up" value={dt(s?.signedUpAt ?? null)} />
             <Row label="With" value={a ? (a.method === "google" ? "Google" : "Email") : null} />
             <Row label="Makes" value={a?.intendedUse} />
+            <Row label="Came from" value={a?.referrer} />
+            <Row label="First page" value={a?.landingPath} />
             <Row label="Campaign" value={campaign} />
             <Row label="Referral code" value={a?.referralCode} />
             <Row label="Country (from IP)" value={a?.country} />
             <Row label="First device" value={a?.device} />
           </dl>
           <p className="text-[11px] text-fg-subtle mt-2">
-            Campaign and referral are recorded from 19 Nov 2026; older signups show “—”.
+            Source, first page, campaign and referral are recorded from 19 Nov 2026; older signups show “—”.
           </p>
         </Card>
 

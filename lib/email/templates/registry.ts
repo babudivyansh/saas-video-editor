@@ -804,8 +804,8 @@ export const EMAIL_REGISTRY: Record<string, TemplateEntry<never>> = {
         signupsGoogle: 4,
         startedAutoClip: 2,
         newSignups: [
-          { userId: "u1", email: "aarav@example.com", name: "Aarav", method: "google" as const, intendedUse: "gaming", startedAutoClip: true },
-          { userId: "u2", email: "priya@example.com", name: null, method: "email" as const, intendedUse: null, startedAutoClip: false },
+          { userId: "u1", email: "aarav@example.com", name: "Aarav", method: "google" as const, intendedUse: "gaming", cameFrom: "instagram", startedAutoClip: true },
+          { userId: "u2", email: "priya@example.com", name: null, method: "email" as const, intendedUse: null, cameFrom: "google.com", startedAutoClip: false },
         ],
         moreSignups: 4,
         stuck: [{ userId: "u9", email: "rohan@example.com" }],

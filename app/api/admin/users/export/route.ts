@@ -16,7 +16,8 @@ const MAX_EXPORT_ROWS = 10_000;
 const FILTER_KEYS = ["search", "filter", "journey", "joined", "method", "use", "active"];
 
 const HEADER = [
-  "user_id", "email", "name", "signed_up_at", "signup_method", "intended_use", "plan", "subscription_ends_at",
+  "user_id", "email", "name", "signed_up_at", "signup_method", "intended_use",
+  "came_from", "first_page", "campaign", "plan", "subscription_ends_at",
   "last_login_at", "role", "suspended", "autoclip_runs", "paid_inr", "payments",
 ];
 
@@ -34,6 +35,7 @@ export const GET = withAdmin(async (req, { admin }) => {
     take: MAX_EXPORT_ROWS,
     select: {
       id: true, email: true, name: true, createdAt: true, hasPassword: true, intendedUse: true,
+      signupReferrer: true, signupLandingPath: true, signupSource: true,
       subscriptionEndsAt: true, lastLoginAt: true, role: true, suspendedAt: true,
       plan: { select: { name: true } },
       _count: { select: { projects: { where: { productType: AUTOCLIP } } } },
@@ -54,7 +56,8 @@ export const GET = withAdmin(async (req, { admin }) => {
   const rows: CsvRow[] = users.map((u) => {
     const p = paidBy.get(u.id);
     return [
-      u.id, u.email, u.name, iso(u.createdAt), u.hasPassword ? "email" : "google", u.intendedUse, u.plan?.name ?? "Free",
+      u.id, u.email, u.name, iso(u.createdAt), u.hasPassword ? "email" : "google", u.intendedUse,
+      u.signupReferrer, u.signupLandingPath, u.signupSource, u.plan?.name ?? "Free",
       iso(u.subscriptionEndsAt), iso(u.lastLoginAt), u.role, u.suspendedAt ? "yes" : "no", u._count.projects,
       p ? ((p._sum.amountInPaise ?? 0) / 100).toFixed(2) : "0.00", p?._count._all ?? 0,
     ];

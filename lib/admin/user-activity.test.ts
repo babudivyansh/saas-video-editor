@@ -2,7 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const t = (iso: string) => new Date(iso);
 const rows = {
-  user: { createdAt: t("2026-11-10T10:00:00Z"), hasPassword: false, intendedUse: "gaming" },
+  user: {
+    createdAt: t("2026-11-10T10:00:00Z"), hasPassword: false, intendedUse: "gaming",
+    signupSource: null as string | null, signupReferrer: "instagram.com", signupLandingPath: "/gta-6-clip-maker",
+  },
   logins: [{ id: "l1", createdAt: t("2026-11-10T10:01:00Z"), device: "Chrome on Windows", country: "IN" }],
   uploads: [{ id: "a1", createdAt: t("2026-11-11T09:00:00Z"), name: "stream.mp4", kind: "video", size: BigInt(52_428_800), duration: 1200, sourceFeature: "upload" }],
   runs: [
@@ -97,7 +100,19 @@ describe("getUserActivitySummary", () => {
     expect(s.attribution).toEqual({
       method: "google", intendedUse: "gaming", referralCode: "AARAV20",
       utm: { source: "instagram", medium: "social", campaign: "gta6" }, country: "IN", device: "Chrome on Windows",
+      referrer: "instagram.com", landingPath: "/gta-6-clip-maker",
     });
+  });
+
+  // Signups whose UTM was only written to User.signupSource (no UserEvent meta).
+  it("falls back to User.signupSource for the campaign", async () => {
+    const { prisma } = await import("@/lib/prisma");
+    vi.mocked(prisma.userEvent.findFirst).mockResolvedValueOnce(null);
+    rows.user.signupSource = "youtube/video/launch";
+    const s = await getUserActivitySummary("u1");
+    rows.user.signupSource = null;
+    expect(s.attribution?.utm).toEqual({ source: "youtube", medium: "video", campaign: "launch" });
+    expect(s.attribution?.referralCode).toBeNull();
     expect(s).toMatchObject({ autoClipRuns: 2, autoClipReady: 1, autoClipFailed: 1, clips: 6, logins: 4, downloads: 1, paidTotalInPaise: 79900, payments: 1 });
   });
 });
