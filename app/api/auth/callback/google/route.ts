@@ -69,9 +69,22 @@ export async function GET(req: NextRequest) {
     });
 
     if (!tokenResponse.ok) {
-      const errorData = await tokenResponse.json();
-      logger.error("google-callback", "Token exchange failed", { redirectUri, appUrlValue: env.NEXT_PUBLIC_APP_URL, errorData });
-      return NextResponse.json({ error: "Failed to exchange authorization code" }, { status: 400 });
+      const errorData = (await tokenResponse.json().catch(() => ({}))) as { error?: string; error_description?: string };
+      const reason = typeof errorData.error === "string" ? errorData.error : `HTTP ${tokenResponse.status}`;
+      // invalid_grant = this one-time code was already used or has expired:
+      // the callback loaded twice (back button, refresh, a mobile browser
+      // restoring the tab) or the user took too long. Signing in again fixes
+      // it, so it is not paged. Anything else (redirect_uri_mismatch,
+      // invalid_client) is our configuration and is. CLIPIRO-WEB-1B: the
+      // detail was redacted by Sentry, so the reason now leads the message.
+      if (reason === "invalid_grant") {
+        logger.warn("google-callback", "Token exchange failed: invalid_grant (code reused or expired)");
+        return NextResponse.redirect(new URL("/login?error=oauth_expired", appUrl()));
+      }
+      logger.error("google-callback", `Token exchange failed: ${reason}`, { redirectUri, appUrlValue: env.NEXT_PUBLIC_APP_URL, errorData });
+      // A redirect, not JSON: this is a top-level navigation, and a raw JSON
+      // error page is a dead end for the user.
+      return NextResponse.redirect(new URL("/login?error=oauth_failed", appUrl()));
     }
 
     const { access_token } = await tokenResponse.json();
@@ -83,7 +96,8 @@ export async function GET(req: NextRequest) {
     });
 
     if (!profileResponse.ok) {
-      return NextResponse.json({ error: "Failed to fetch user profile" }, { status: 400 });
+      logger.warn("google-callback", `Google profile fetch failed: HTTP ${profileResponse.status}`);
+      return NextResponse.redirect(new URL("/login?error=oauth_failed", appUrl()));
     }
 
     const profile = await profileResponse.json();
