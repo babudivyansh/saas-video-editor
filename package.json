@@ -25,7 +25,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "test": "vitest run && npm run test --workspaces --if-present",
     "test:ffmpeg": "tsx utils/test-ffmpeg.ts",
-    "postinstall": "prisma generate && node scripts/install-render-ffmpeg.mjs && node scripts/install-ytdlp.mjs && node scripts/prune-ffmpeg-static-cache.mjs",
+    "postinstall": "node scripts/fix-prisma-engine-perms.mjs && prisma generate && node scripts/install-render-ffmpeg.mjs && node scripts/install-ytdlp.mjs && node scripts/prune-ffmpeg-static-cache.mjs",
     "check:gpu": "node scripts/check-gpu-service.mjs",
     "verify:render-runtime": "tsx scripts/verify-render-runtime.ts",
     "verify:ytdlp": "tsx scripts/verify-ytdlp.ts",
