@@ -47,8 +47,12 @@ export const GET = withAdmin(async () => {
       bytes: toByteCount(u._sum.size),
       count: u._count,
     })),
+    // Asset.size is a BigInt (PR #303): spreading the row put it in the JSON
+    // as-is and Response.json threw "Do not know how to serialize a BigInt"
+    // as soon as one asset was flagged (CLIPIRO-WEB-1D).
     flaggedAssets: flagged.map((f) => ({
       ...f,
+      size: toByteCount(f.size),
       user: userById.get(f.userId) ?? null,
     })),
   });

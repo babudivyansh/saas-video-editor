@@ -322,6 +322,12 @@ export default function AuthForm({
       setError("This account is deactivated.");
     } else if (oauthError === "oauth_state") {
       setError("Google sign-in could not be verified. Please try again.");
+    } else if (oauthError === "oauth_expired") {
+      setError("That Google sign-in link expired. Please sign in with Google again.");
+    } else if (oauthError === "oauth_failed") {
+      setError("Google sign-in didn't go through. Please try again, or sign in with your email.");
+    } else if (oauthError === "rate_limited") {
+      setError("Too many sign-in attempts. Please wait a few minutes and try again.");
     }
     // Don't leave a single-use ticket sitting in the address bar / history.
     window.history.replaceState({}, "", window.location.pathname);

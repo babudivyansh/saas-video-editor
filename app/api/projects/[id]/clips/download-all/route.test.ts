@@ -63,3 +63,35 @@ describe("GET .../clips/download-all", () => {
     expect(clipFindMany).not.toHaveBeenCalled();
   });
 });
+
+// CLIPIRO-WEB-1G (2026-11-19): a connect timeout to S3 for ONE clip threw out
+// of the loop and failed the whole archive.
+describe("GET .../clips/download-all when storage is flaky", () => {
+  const twoClips = [
+    { index: 0, title: "Hook", videoUrl: "https://cdn.example/c0.mp4" },
+    { index: 1, title: "Payoff", videoUrl: "https://cdn.example/c1.mp4" },
+  ];
+
+  it("retries a clip whose fetch failed once", async () => {
+    clipFindMany.mockResolvedValueOnce(twoClips);
+    const fetchMock = vi.fn()
+      .mockRejectedValueOnce(new TypeError("fetch failed"))
+      .mockImplementation(async () => new Response(new Uint8Array([1, 2, 3])));
+    vi.stubGlobal("fetch", fetchMock);
+    const res = await GET(req(), ctx);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("X-Clips-Included")).toBe("2");
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("skips a clip storage can't hand over and still returns the rest", async () => {
+    clipFindMany.mockResolvedValueOnce(twoClips);
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      if (String(url).includes("c0")) throw new TypeError("fetch failed");
+      return new Response(new Uint8Array([1, 2, 3]));
+    }));
+    const res = await GET(req(), ctx);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("X-Clips-Included")).toBe("1");
+  });
+});

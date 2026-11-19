@@ -57,7 +57,14 @@ async function handleGET(
   try {
     // Presigned — the bucket is private, so the stored unsigned URL is a 403.
     // Streamed on to the client, so only the wait for headers is bounded.
-    const upstream = await fetchHeadersWithin(await fetchableMediaUrl(clip.videoUrl, 600), FETCH_TIMEOUT.api);
+    // One retry: a connect timeout to S3 from the host (CLIPIRO-WEB-1H) was
+    // a 500 for the user on the first blip.
+    const url = await fetchableMediaUrl(clip.videoUrl, 600);
+    const upstream = await fetchHeadersWithin(url, FETCH_TIMEOUT.api)
+      .catch(async () => {
+        await new Promise((r) => setTimeout(r, 1000));
+        return fetchHeadersWithin(url, FETCH_TIMEOUT.api);
+      });
     if (!upstream.ok || !upstream.body) {
       logger.warn("auto-clip", `clip download upstream ${upstream.status} for ${clipId}`);
       return NextResponse.json({ error: "Could not fetch the clip" }, { status: 502 });
@@ -76,7 +83,7 @@ async function handleGET(
     return new NextResponse(upstream.body, { headers });
   } catch (err) {
     logger.error("auto-clip", `clip download failed for ${clipId}`, err);
-    return NextResponse.json({ error: "Could not build the download" }, { status: 500 });
+    return NextResponse.json({ error: "Could not reach storage. Please try again." }, { status: 502 });
   }
 }
 

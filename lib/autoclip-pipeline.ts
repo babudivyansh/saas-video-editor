@@ -87,6 +87,7 @@ const MAX_MUSIC_BYTES = 50 * 1024 * 1024;
 export const SOURCE_AUDIO_MAP = "0:a:0";
 import { TARGET_RES } from "@/lib/reframe";
 import { centeredAspectCrop } from "@/lib/crop";
+import { audioSafeSource, discardAudioSafeSource, isCorruptAudioFailure } from "@/lib/audio-safe-source";
 import os from "os";
 import path from "path";
 import fs from "fs";
@@ -2075,13 +2076,24 @@ async function renderOneClip(
   try {
     await prisma.clip.update({ where: { id: clip.id }, data: { status: "rendering", progress: 5 } });
 
-    const { finalDurationSec, words } = await renderClipFile({
-      projectId, clip, videoPath, tmp, outPath: clipPath,
+    const renderFrom = (source: string) => renderClipFile({
+      projectId, clip, videoPath: source, tmp, outPath: clipPath,
       captions: clip.hasCaptions, watermark, target,
       onProgress: (pct) => {
         void prisma.clip.update({ where: { id: clip.id }, data: { progress: Math.round(5 + pct * 0.75) } }).catch(() => {});
       },
     });
+    let rendered: Awaited<ReturnType<typeof renderClipFile>>;
+    try {
+      rendered = await renderFrom(videoPath);
+    } catch (err) {
+      // A source whose AAC track is corrupt aborts every render on a frame
+      // with an unconvertible channel count (CLIPIRO-WEB-14, 2026-11-19).
+      // Rebuild the audio once and render from that copy.
+      if (!isCorruptAudioFailure(err)) throw err;
+      rendered = await renderFrom(await audioSafeSource(videoPath));
+    }
+    const { finalDurationSec, words } = rendered;
 
     await prisma.clip.update({ where: { id: clip.id }, data: { progress: 82 } });
     await runFFmpegArgs([
@@ -2281,6 +2293,7 @@ export async function renderJob(payload: RenderPayload, ctx: JobContext = SINGLE
     throw err;
   } finally {
     try { if (fs.existsSync(videoPath)) fs.unlinkSync(videoPath); } catch {}
+    discardAudioSafeSource(videoPath);
   }
 }
 
@@ -2402,6 +2415,7 @@ export async function rerenderJob(payload: RerenderPayload): Promise<void> {
     throw new NonRetryableError(err instanceof Error ? err.message : String(err));
   } finally {
     try { if (fs.existsSync(videoPath)) fs.unlinkSync(videoPath); } catch {}
+    discardAudioSafeSource(videoPath);
     // A change the user made while this render ran (a second caption pick, a
     // speed change) was queued behind it rather than refused — render it now,
     // so the clip always ends on the newest settings. Never masks the result

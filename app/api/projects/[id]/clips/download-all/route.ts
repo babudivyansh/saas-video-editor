@@ -6,6 +6,13 @@ import { ZipWriter } from "@/lib/zip-writer";
 import { logger } from "@/lib/logger";
 import { fetchableMediaUrl } from "@/lib/signed-media";
 import { FETCH_TIMEOUT } from "@/lib/fetch-timeout";
+import { withRetry } from "@/lib/with-retry";
+
+class HttpStatusError extends Error {
+  constructor(readonly status: number) {
+    super(`storage answered ${status}`);
+  }
+}
 
 // GET /api/projects/[id]/clips/download-all
 // Streams every ready clip as one zip.
@@ -70,12 +77,21 @@ async function handleGET(req: NextRequest, { params }: { params: Promise<{ id: s
 
     for (const [i, clip] of clips.entries()) {
       // Presigned — the bucket is private, so the stored unsigned URL is a 403.
-      const res = await fetch(await fetchableMediaUrl(clip.videoUrl!, 600), { signal: AbortSignal.timeout(FETCH_TIMEOUT.transfer) });
-      if (!res.ok) {
-        logger.warn("auto-clip", `skipping clip ${clip.index} in bulk download (${res.status})`);
+      // One clip that storage can't hand over (a connect timeout to S3 from
+      // the host, CLIPIRO-WEB-1G) used to throw out of the loop and fail the
+      // whole archive; it is retried once, then skipped like a missing clip.
+      let buf: Buffer;
+      try {
+        const url = await fetchableMediaUrl(clip.videoUrl!, 600);
+        buf = await withRetry(async (signal) => {
+          const res = await fetch(url, { signal });
+          if (!res.ok) throw new HttpStatusError(res.status);
+          return Buffer.from(await res.arrayBuffer());
+        }, { timeoutMs: FETCH_TIMEOUT.transfer, maxAttempts: 2, baseDelayMs: 1000, isRetryable: (e) => !(e instanceof HttpStatusError) });
+      } catch (err) {
+        logger.warn("auto-clip", `skipping clip ${clip.index} in bulk download`, { reason: err instanceof Error ? err.message : String(err) });
         continue;
       }
-      const buf = Buffer.from(await res.arrayBuffer());
       if (total + buf.length > MAX_TOTAL_BYTES) {
         logger.warn("auto-clip", `bulk download for ${projectId} hit the size cap after ${included} clips`);
         break;

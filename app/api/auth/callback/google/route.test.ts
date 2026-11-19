@@ -165,3 +165,34 @@ describe("GET /api/auth/callback/google — post-login destination", () => {
     expect(location.pathname).toBe("/dashboard"); // safely fell back
   });
 });
+
+// CLIPIRO-WEB-1B (2026-11-19): a failed token exchange answered with a raw
+// JSON error page and paged for every case, including a reused code.
+describe("GET /api/auth/callback/google — token exchange failures", () => {
+  const tokenFails = (status: number, body: unknown) => vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+    if (url.includes("oauth2.googleapis.com/token")) return { ok: false, status, json: async () => body };
+    throw new Error(`unexpected fetch: ${url}`);
+  }));
+
+  it("sends a reused or expired code back to /login to try again, without paging", async () => {
+    const { logger } = await import("@/lib/logger");
+    vi.mocked(logger.error).mockClear();
+    tokenFails(400, { error: "invalid_grant", error_description: "Bad Request" });
+    const res = await GET(makeRequest("RAW", null));
+    expect(res.status).toBe(307);
+    const loc = new URL(res.headers.get("location")!);
+    expect(loc.pathname).toBe("/login");
+    expect(loc.searchParams.get("error")).toBe("oauth_expired");
+    expect(logger.error).not.toHaveBeenCalled();
+    expect(finishLogin).not.toHaveBeenCalled();
+  });
+
+  it("pages a configuration failure, naming the reason, and still redirects", async () => {
+    const { logger } = await import("@/lib/logger");
+    vi.mocked(logger.error).mockClear();
+    tokenFails(400, { error: "redirect_uri_mismatch" });
+    const res = await GET(makeRequest("RAW", null));
+    expect(new URL(res.headers.get("location")!).searchParams.get("error")).toBe("oauth_failed");
+    expect(String(vi.mocked(logger.error).mock.calls[0][1])).toContain("redirect_uri_mismatch");
+  });
+});
