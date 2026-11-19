@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/app/components/ui/Button";
 import { Switch } from "@/app/components/ui/Switch";
 import { ClipScrubber } from "./ClipScrubber";
+import { PanelSection, PanelSlider, Segmented, useAccordion } from "./PanelSection";
 import { clientAuthToken } from "@/lib/client-session";
 
 // The "Edit" tab of the clip panel: trim, speed, music bed, fades — and a
@@ -15,6 +16,14 @@ import { clientAuthToken } from "@/lib/client-session";
 // debounces), so dragging a slider is one render, not twenty.
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
+/** One tap fills the search box and searches. */
+const MOODS = ["Upbeat", "Lo-fi", "Cinematic", "Chill"] as const;
+
+/** 34.9 -> "0:34.9" */
+function fmtClock(sec: number): string {
+  const m = Math.floor(sec / 60);
+  return `${m}:${(sec - m * 60).toFixed(1).padStart(4, "0")}`;
+}
 
 export interface LiteEdits {
   v: 1;
@@ -39,10 +48,6 @@ export interface LiteEditTabProps {
   windowSec: number;
   peaks: number[];
   initial: LiteEdits | null;
-  /** Price of the next re-render, e.g. "free" or "1 credit". */
-  priceLabel: string;
-  /** Save state of this tab's changes, shown under the controls. */
-  statusText: string | null;
   error: string | null;
   /** Called on every change; the parent saves it and re-renders. */
   onCommit: (edits: LiteEdits, trim: { startSec: number; endSec: number } | null, delayMs: number) => void;
@@ -69,7 +74,7 @@ export function toLiteEdits(s: Pick<State, "speed" | "fadeIn" | "fadeOut" | "mus
 }
 
 export function LiteEditTab({
-  projectId, clipId, windowSec, peaks, initial, priceLabel, statusText, error: commitError, onCommit,
+  projectId, clipId, windowSec, peaks, initial, error: commitError, onCommit,
 }: LiteEditTabProps) {
   const [s, setS] = useState<State>(() => ({
     speed: initial?.speed ?? 1,
@@ -125,12 +130,12 @@ export function LiteEditTab({
     setFrames(null);
   }
 
-  async function searchMusic() {
-    if (!query.trim()) return;
+  async function searchMusic(q: string = query) {
+    if (!q.trim()) return;
     setSearching(true);
     setError(null);
     try {
-      const res = await fetch(`/api/editor/stock/search?type=audio&q=${encodeURIComponent(query)}`, { headers: authHeaders() });
+      const res = await fetch(`/api/editor/stock/search?type=audio&q=${encodeURIComponent(q)}`, { headers: authHeaders() });
       const data = await res.json();
       setResults(Array.isArray(data.items) ? data.items.slice(0, 6) : []);
       if (!res.ok) setError(data.error ?? "Music search is unavailable right now.");
@@ -163,15 +168,18 @@ export function LiteEditTab({
   }
 
   const shown = error ?? commitError;
+  const section = useAccordion("trim");
+  const trimmed = trimOf(s);
+  const edited = !!trimmed || s.speed !== 1 || !!s.music || s.fadeIn > 0 || s.fadeOut > 0;
+  const fadesSummary = s.fadeIn > 0 || s.fadeOut > 0 ? `In ${s.fadeIn.toFixed(1)}s · Out ${s.fadeOut.toFixed(1)}s` : "Off";
 
   return (
-    <div className="space-y-6">
-      <p className="rounded-lg bg-surface px-3 py-2 text-[11px] text-ink-soft">
-        Changes apply as you make them and re-render the clip — <span className="font-semibold text-ink">{priceLabel}</span>.
-      </p>
-
-      <div>
-        <h4 className="text-xs font-bold text-ink uppercase tracking-wider mb-2">Trim</h4>
+    <div className="space-y-2">
+      <PanelSection
+        title="Trim"
+        summary={trimmed ? `${fmtClock(s.trimStart)} – ${fmtClock(s.trimEnd)}` : "Whole clip"}
+        {...section("trim")}
+      >
         <ClipScrubber
           peaks={peaks}
           durationSec={windowSec}
@@ -179,61 +187,45 @@ export function LiteEditTab({
           endSec={s.trimEnd}
           onChange={({ startSec, endSec }) => change({ trimStart: startSec, trimEnd: endSec }, COMMIT_DELAY.drag)}
         />
-      </div>
+      </PanelSection>
 
-      <div>
-        <h4 className="text-xs font-bold text-ink uppercase tracking-wider mb-2">Speed</h4>
-        <div className="grid grid-cols-6 gap-1.5" role="radiogroup" aria-label="Speed">
-          {SPEEDS.map((v) => (
-            <button
-              key={v}
-              type="button"
-              role="radio"
-              aria-checked={s.speed === v}
-              onClick={() => { if (s.speed !== v) change({ speed: v }, COMMIT_DELAY.click); }}
-              className={`rounded-lg border py-1.5 text-[11px] font-semibold transition-colors ${
-                s.speed === v ? "grad-brand text-on-primary shadow-glow border-transparent" : "bg-panel border-card-border text-ink-soft hover:bg-tint-blue"
-              }`}
-            >
-              {v}×
-            </button>
-          ))}
-        </div>
+      <PanelSection title="Speed" summary={`${s.speed}×`} {...section("speed")}>
+        <Segmented
+          label="Speed"
+          options={SPEEDS.map((v) => ({ value: v as number, label: `${v}×` }))}
+          value={s.speed}
+          onChange={(v) => change({ speed: v }, COMMIT_DELAY.click)}
+        />
         {s.speed !== 1 && (
-          <p className="text-[10px] text-ink-soft mt-1.5">
+          <p className="text-[11px] text-fg-muted">
             Clip becomes {((s.trimEnd - s.trimStart) / s.speed).toFixed(1)}s. Captions and framing follow automatically.
           </p>
         )}
-      </div>
+      </PanelSection>
 
-      <div>
-        <h4 className="text-xs font-bold text-ink uppercase tracking-wider mb-2">Music bed</h4>
+      <PanelSection title="Music bed" summary={s.music ? (s.music.title ?? "Selected track") : "None"} {...section("music")}>
         {s.music ? (
-          <div className="rounded-lg border border-card-border p-3 space-y-2 bg-panel">
+          <div className="space-y-3">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-semibold text-ink truncate">{s.music.title ?? "Selected track"}</p>
-              <button type="button" onClick={() => change({ music: undefined }, COMMIT_DELAY.click)} className="text-[11px] text-ink-soft hover:text-ink">Remove</button>
+              <p className="truncate text-xs font-semibold text-fg">{s.music.title ?? "Selected track"}</p>
+              <button type="button" onClick={() => change({ music: undefined }, COMMIT_DELAY.click)} className="text-[11px] font-semibold text-fg-muted hover:text-fg">Remove</button>
             </div>
-            <div className="space-y-1">
-              <div className="flex justify-between text-[10px] text-ink-soft">
-                <span>Volume</span><span>{Math.round(s.music.volume * 100)}%</span>
-              </div>
-              <input
-                type="range" min={0} max={0.6} step={0.02} value={s.music.volume}
-                aria-label="Music volume"
-                onChange={(e) => change({ music: { ...s.music!, volume: Number(e.target.value) } }, COMMIT_DELAY.drag)}
-                className="w-full h-1 bg-surface-3 rounded-lg appearance-none cursor-pointer accent-brand"
-              />
-            </div>
-            <div className="flex items-center justify-between">
+            <PanelSlider
+              label="Volume"
+              value={s.music.volume}
+              display={`${Math.round(s.music.volume * 100)}%`}
+              min={0} max={0.6} step={0.02}
+              onChange={(v) => change({ music: { ...s.music!, volume: v } }, COMMIT_DELAY.drag)}
+            />
+            <div className="flex items-center justify-between gap-3">
               <div>
-                <label className="text-[11px] font-semibold text-ink block">Duck under speech</label>
-                <span className="text-[10px] text-ink-soft">Music drops while someone is talking.</span>
+                <p className="text-[12px] font-semibold text-fg">Duck under speech</p>
+                <p className="text-[11px] text-fg-muted">Music drops while someone is talking.</p>
               </div>
               <Switch checked={s.music.duck} onChange={(v) => change({ music: { ...s.music!, duck: v } }, COMMIT_DELAY.click)} label="Duck under speech" />
             </div>
             {/* Jamendo's licence requires the artist to be credited. */}
-            {s.music.attribution && <p className="text-[9px] text-ink-soft/80 leading-tight">{s.music.attribution}</p>}
+            {s.music.attribution && <p className="text-[10px] leading-tight text-fg-subtle">{s.music.attribution}</p>}
           </div>
         ) : (
           <div className="space-y-2">
@@ -244,29 +236,41 @@ export function LiteEditTab({
                 onKeyDown={(e) => { if (e.key === "Enter") void searchMusic(); }}
                 placeholder="Search music — e.g. upbeat, lo-fi, cinematic"
                 aria-label="Search music"
-                className="flex-1 rounded-lg border border-card-border px-3 py-2 text-xs"
+                className="min-w-0 flex-1 rounded-lg border border-line bg-bg px-3 py-2 text-xs text-fg"
               />
-              <Button size="sm" onClick={() => void searchMusic()} disabled={searching || !query.trim()}>
+              <Button size="sm" variant="secondary" onClick={() => void searchMusic()} disabled={searching || !query.trim()}>
                 {searching ? "…" : "Search"}
               </Button>
             </div>
+            <div className="flex flex-wrap gap-1.5">
+              {MOODS.map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => { setQuery(m); void searchMusic(m); }}
+                  className="min-h-[30px] rounded-full border border-line px-3 text-[12px] font-semibold text-fg-muted hover:border-line-strong hover:text-fg"
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
             {results.length > 0 && (
-              <ul className="space-y-1 max-h-40 overflow-y-auto">
+              <ul className="max-h-48 space-y-1 overflow-y-auto">
                 {results.map((r) => (
-                  <li key={r.id} className="flex items-center justify-between gap-2 text-xs border border-card-border rounded-lg px-2 py-1.5 bg-panel">
+                  <li key={r.id} className="flex items-center justify-between gap-2 rounded-lg border border-line bg-bg px-2 py-1.5 text-xs">
                     <button
                       type="button"
                       onClick={() => togglePlay(r)}
                       aria-label={`${playingId === r.id ? "Stop" : "Play"} ${trackName(r)}`}
-                      className="w-6 h-6 shrink-0 rounded-full bg-surface-3 text-ink flex items-center justify-center hover:bg-tint-blue"
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-line-strong text-fg hover:bg-surface-3"
                     >
                       {playingId === r.id ? "■" : "▶"}
                     </button>
                     <span className="flex-1 truncate">{trackName(r)}</span>
-                    {r.durationSec ? <span className="text-[10px] text-ink-soft shrink-0">{Math.floor(r.durationSec / 60)}:{String(Math.round(r.durationSec % 60)).padStart(2, "0")}</span> : null}
+                    {r.durationSec ? <span className="shrink-0 font-mono text-[10px] text-fg-subtle">{Math.floor(r.durationSec / 60)}:{String(Math.round(r.durationSec % 60)).padStart(2, "0")}</span> : null}
                     <button
                       type="button"
-                      className="text-brand font-semibold shrink-0"
+                      className="shrink-0 font-semibold text-emerald-bright"
                       onClick={() => {
                         audioRef.current?.pause();
                         setPlayingId(null);
@@ -283,51 +287,52 @@ export function LiteEditTab({
             )}
           </div>
         )}
-      </div>
+      </PanelSection>
 
-      <div>
-        <h4 className="text-xs font-bold text-ink uppercase tracking-wider mb-2">Fades</h4>
-        <div className="grid grid-cols-2 gap-3">
+      <PanelSection title="Fades" summary={fadesSummary} {...section("fades")}>
+        <div className="grid grid-cols-2 gap-4">
           {([["In", "fadeIn"], ["Out", "fadeOut"]] as const).map(([label, key]) => (
-            <div key={label} className="space-y-1">
-              <div className="flex justify-between text-[10px] text-ink-soft">
-                <span>Fade {label.toLowerCase()}</span><span>{s[key].toFixed(1)}s</span>
-              </div>
-              <input
-                type="range" min={0} max={1.5} step={0.1} value={s[key]}
-                aria-label={`Fade ${label.toLowerCase()}`}
-                onChange={(e) => change({ [key]: Number(e.target.value) } as Partial<State>, COMMIT_DELAY.drag)}
-                className="w-full h-1 bg-surface-3 rounded-lg appearance-none cursor-pointer accent-brand"
-              />
-            </div>
+            <PanelSlider
+              key={label}
+              label={`Fade ${label.toLowerCase()}`}
+              value={s[key]}
+              display={`${s[key].toFixed(1)}s`}
+              min={0} max={1.5} step={0.1}
+              onChange={(v) => change({ [key]: v } as Partial<State>, COMMIT_DELAY.drag)}
+            />
           ))}
         </div>
-      </div>
+      </PanelSection>
 
       {/* Ground-truth preview: the same filter graph the render uses. */}
-      <div className="rounded-xl border border-dashed border-card-border p-3 space-y-2">
-        <div className="flex items-center justify-between">
-          <h4 className="text-xs font-bold text-ink uppercase tracking-wider">Preview</h4>
-          <button type="button" onClick={() => void loadPreview()} disabled={previewing} className="text-xs font-bold text-brand hover:underline disabled:opacity-50">
-            {previewing ? "Rendering…" : frames ? "Refresh" : "Show me"}
-          </button>
-        </div>
-        {frames && frames.length > 0 ? (
+      <PanelSection title="Preview frames" summary={frames ? `${frames.length} frames` : "Not loaded"} {...section("preview")}>
+        <p className="text-[11px] text-fg-muted">
+          Real frames from the actual render — framing, captions, colour and watermark exactly as they will appear.
+        </p>
+        {frames && frames.length > 0 && (
           <div className="grid grid-cols-3 gap-2">
             {frames.map((f) => (
               // eslint-disable-next-line @next/next/no-img-element
-              <img key={f.atSec} src={f.dataUrl} alt={`Frame at ${f.atSec.toFixed(1)}s`} className="w-full rounded-lg border border-card-border" />
+              <img key={f.atSec} src={f.dataUrl} alt={`Frame at ${f.atSec.toFixed(1)}s`} className="w-full rounded-lg border border-line" />
             ))}
           </div>
-        ) : (
-          <p className="text-[10px] text-ink-soft">
-            Real frames from the actual render — framing, captions, colour and watermark exactly as they will appear.
-          </p>
         )}
-      </div>
+        <Button size="sm" variant="secondary" onClick={() => void loadPreview()} disabled={previewing}>
+          {previewing ? "Rendering…" : frames ? "Refresh" : "Show me"}
+        </Button>
+      </PanelSection>
+
+      {edited && (
+        <button
+          type="button"
+          onClick={() => change({ speed: 1, fadeIn: 0, fadeOut: 0, music: undefined, trimStart: 0, trimEnd: windowSec }, COMMIT_DELAY.click)}
+          className="px-0.5 py-1.5 text-[12px] font-semibold text-fg-muted underline hover:text-fg"
+        >
+          Reset all edits
+        </button>
+      )}
 
       {shown && <p role="alert" className="text-xs text-error">{shown}</p>}
-      {statusText && <p role="status" aria-live="polite" className="text-[11px] text-ink-soft text-center">{statusText}</p>}
     </div>
   );
 }

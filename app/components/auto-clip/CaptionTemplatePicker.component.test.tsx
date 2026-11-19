@@ -4,10 +4,10 @@
 // testTimeout is raised because jsdom + userEvent tests have no headroom
 // against vitest's 5s default once `npm test` runs many files in parallel.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { CAPTION_FAMILIES, CAPTION_TEMPLATES } from "@clipiro/shared/caption-templates";
-import { CaptionTemplatePicker, CaptionTweakControls } from "./CaptionTemplatePicker";
+import { CaptionTemplatePicker, CaptionTweakControls, quickPickTemplates } from "./CaptionTemplatePicker";
 import { resetCaptionTemplateCache } from "@/app/components/captions/useCaptionTemplates";
 
 vi.setConfig({ testTimeout: 30_000 });
@@ -21,11 +21,28 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("CaptionTemplatePicker", () => {
-  it("reports the chosen template id", async () => {
+  it("shows four styles, the clip's own first, and the rest behind All styles", async () => {
+    render(<CaptionTemplatePicker value="twomic" onChange={() => {}} />);
+    const pressed = await screen.findAllByRole("button", { pressed: true });
+    expect(pressed.map((b) => b.getAttribute("aria-label"))).toEqual(["Two Mic"]);
+    expect(screen.getAllByRole("button", { pressed: false })).toHaveLength(3);
+    expect(screen.getByRole("button", { name: `All ${CAPTION_TEMPLATES.length} caption styles` })).toBeInTheDocument();
+  });
+
+  it("picks from the full gallery in its own dialog, then closes it", async () => {
     const onChange = vi.fn();
     render(<CaptionTemplatePicker value="clean" onChange={onChange} />);
-    await userEvent.click(await screen.findByRole("button", { name: /^Two Mic$/ }));
+    await userEvent.click(await screen.findByRole("button", { name: /^All \d+ caption styles$/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Caption styles" });
+    await userEvent.click(within(dialog).getByRole("button", { name: /^Two Mic$/ }));
     expect(onChange).toHaveBeenCalledWith("twomic");
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Caption styles" })).not.toBeInTheDocument());
+  });
+
+  it("quickPickTemplates skips locked styles and never repeats the current one", () => {
+    const list = CAPTION_TEMPLATES.slice(0, 6).map((t, i) => ({ ...t, locked: i === 1 }));
+    expect(quickPickTemplates(list, list[3].id).map((t) => t.id)).toEqual([list[3].id, list[0].id, list[2].id, list[4].id]);
+    expect(quickPickTemplates(list, null).map((t) => t.id)).toEqual([list[0].id, list[2].id, list[3].id, list[4].id]);
   });
 
   it("applies the server's renames (admin overrides)", async () => {
@@ -36,7 +53,7 @@ describe("CaptionTemplatePicker", () => {
       templates: CAPTION_TEMPLATES.map((t) => ({ ...t, name: t.id === "clean" ? "Plain Jane" : t.name, locked: false })),
     };
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } })));
-    render(<CaptionTemplatePicker value={null} onChange={() => {}} />);
+    render(<CaptionTemplatePicker value="clean" onChange={() => {}} />);
     expect(await screen.findByRole("button", { name: /^Plain Jane$/ })).toBeInTheDocument();
   });
 });

@@ -39,11 +39,14 @@ export function TemplatePreviewLoop({
   className,
   showSafeZone,
   accent,
+  fill,
 }: {
   template: CaptionTemplateSpec;
   className?: string;
   showSafeZone?: boolean;
   accent?: string | null;
+  /** Fill the wrapper (size it with className) instead of a 9:16 box. */
+  fill?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const words = useMemo(() => sampleWords(template), [template]);
@@ -52,7 +55,7 @@ export function TemplatePreviewLoop({
   const t = useDemoClock(ref, length, rest);
   return (
     <div ref={ref} className={className}>
-      <CaptionTemplateRender template={template} words={words} timeMs={t} showSafeZone={showSafeZone} accent={accent} />
+      <CaptionTemplateRender template={template} words={words} timeMs={t} showSafeZone={showSafeZone} accent={accent} fill={fill} />
     </div>
   );
 }
@@ -76,6 +79,13 @@ export interface CaptionTemplateGalleryProps {
   columns?: 2 | 3 | 4 | 5;
   /** Cap the grid height and scroll inside it. */
   maxHeightClass?: string;
+  /**
+   * false: no scroll box of its own; the page or dialog around it scrolls.
+   * The box is `overscroll-contain`, and an uncapped one never scrolls itself
+   * yet still swallows the wheel, so a full-page gallery would not scroll
+   * while the pointer was over the cards.
+   */
+  scrollInside?: boolean;
 }
 
 export default function CaptionTemplateGallery({
@@ -85,6 +95,7 @@ export default function CaptionTemplateGallery({
   disabled,
   columns = 4,
   maxHeightClass = "max-h-[460px]",
+  scrollInside = true,
 }: CaptionTemplateGalleryProps) {
   const { templates, families } = useCaptionTemplates();
   const [family, setFamily] = useState<CaptionFamilyId | "all">("all");
@@ -121,7 +132,7 @@ export default function CaptionTemplateGallery({
         ))}
       </div>
 
-      <div className={`${maxHeightClass} overflow-y-auto overscroll-contain pr-1`}>
+      <div className={scrollInside ? `${maxHeightClass} overflow-y-auto overscroll-contain pr-1` : undefined}>
         <div className={`grid ${cols} gap-2.5`}>
           {visible.map((t) => {
             const selected = value === t.id;
