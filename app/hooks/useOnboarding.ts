@@ -58,12 +58,15 @@ export function useOnboarding() {
   // profile edits. Best-effort: a failed save must not block the welcome flow.
   const saveIntendedUse = useCallback(async (intendedUse: IntendedUseId) => {
     if (!token) return;
-    await fetch("/api/auth/profile", {
+    const res = await fetch("/api/auth/profile", {
       method: "PATCH",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({ intendedUse }),
-    }).catch(() => {});
-  }, [token]);
+    }).catch(() => null);
+    // Home's link box words its hint by intendedUse, so pull the saved answer
+    // into the signed-in user now rather than on the next page load.
+    if (res?.ok) await refreshUser().catch(() => {});
+  }, [token, refreshUser]);
 
   // Fire-and-forget: only needs to persist so a reload resumes at the right
   // step. The tour's own local state (not user.tourStep) drives its render,

@@ -100,6 +100,9 @@ model User {
   // Where the signup came from (lib/marketing-attribution.ts, set once at
   // signup): UTM "source/medium/campaign" when the landing URL had tags, the
   // referring host ("direct" when none) and the first path landed on.
+  // 1-hour "paste a link" nudge for signups who haven't started an AutoClip
+  // run (app/api/cron/onboarding). Set whether or not the email went out.
+  activationNudgeSentAt    DateTime?
   signupSource             String?
   signupReferrer           String?
   signupLandingPath        String?

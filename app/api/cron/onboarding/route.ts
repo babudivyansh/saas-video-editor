@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
+  sendFirstRunNudgeEmail,
   sendFirstVideoSuccessEmail,
   sendOnboardingDay1Email,
   sendOnboardingDay3Email,
@@ -18,6 +19,8 @@ import { withCronTracking } from "@/lib/cron-tracking";
 //   GET /api/cron/onboarding
 //   Authorization: Bearer <CRON_SECRET>
 //
+// 1 hour: "paste a link" nudge, worded for what the user makes, only if no
+//         AutoClip run was started
 // Day 1:  nudge, 24h after signup, only if no AutoClip run was started
 // Day 3:  adaptive — "make them yours" if they have clips, else a second nudge
 // Day 7:  upgrade prompt (free users only)
@@ -41,6 +44,8 @@ const FIRST_CLIPS_DELAY_MS = 2 * 60 * 60 * 1000;
 /** Only users who signed up recently get the first-clips upsell, so shipping
  *  this doesn't email every old account that once ran AutoClip. */
 const FIRST_CLIPS_MAX_ACCOUNT_AGE_DAYS = 30;
+/** The first "paste a link" nudge goes this long after signup. */
+const ACTIVATION_NUDGE_DELAY_MS = 60 * 60 * 1000;
 
 /** AutoClip runs the user started (anything past an empty draft). */
 function startedRuns(userId: string) {
@@ -58,10 +63,40 @@ async function handleGET(req: NextRequest) {
   }
 
   const now = new Date();
-  const results = { day1: 0, day1Skipped: 0, day3: 0, day7: 0, firstClips: 0, errors: 0 };
+  const results = { nudge: 0, day1: 0, day1Skipped: 0, day3: 0, day7: 0, firstClips: 0, errors: 0 };
 
   function daysAgo(d: number) {
     return new Date(now.getTime() - d * 24 * 60 * 60 * 1000);
+  }
+
+  // ── 1 hour: signed up 1–24h ago and never started a run ─────────────────
+  // The first nudge, worded for what they said they make (welcome screen →
+  // intendedUse). Most signups who never run AutoClip leave in the first
+  // session, so a 24h-only reminder was too late.
+  try {
+    const users = await prisma.user.findMany({
+      where: {
+        createdAt: { gte: daysAgo(1), lte: new Date(now.getTime() - ACTIVATION_NUDGE_DELAY_MS) },
+        activationNudgeSentAt: null,
+      },
+      select: { id: true, email: true, name: true, minutes: true, intendedUse: true },
+    });
+
+    for (const u of users) {
+      try {
+        const started = (await startedRuns(u.id)) > 0;
+        if (!started && (await shouldSendCategory(u.id, "productUpdates"))) {
+          await sendFirstRunNudgeEmail(u.email, greetingName(u.name), u.minutes, u.intendedUse);
+          results.nudge++;
+        }
+        await prisma.user.update({ where: { id: u.id }, data: { activationNudgeSentAt: now } });
+      } catch (e) {
+        logger.error("cron/onboarding", `nudge error for ${u.id}`, e);
+        results.errors++;
+      }
+    }
+  } catch (e) {
+    logger.error("cron/onboarding", "nudge batch error", e);
   }
 
   // ── Day 1: signed up 24–48h ago and never started a run ─────────────────
