@@ -241,6 +241,42 @@ export class NeedsReauthError extends Error {
   constructor() { super("This YouTube account was connected before publish access existed — reconnect it to enable publishing."); }
 }
 
+/**
+ * YouTube refused the upload for a limit that lifts on its own: the channel's
+ * own daily upload limit (400 uploadLimitExceeded; CLIPIRO-WEB-1K, six posts
+ * to one channel on 2026-11-19) or the app's API quota (403 quotaExceeded).
+ * Not a bug and not the person's fault: the post should wait and go later.
+ */
+export class YouTubeUploadLimitError extends Error {
+  constructor(readonly scope: "channel" | "app", readonly reason: string) {
+    super(`youtube upload refused: ${reason}`);
+    this.name = "YouTubeUploadLimitError";
+  }
+}
+
+const CHANNEL_LIMIT_REASONS = new Set(["uploadLimitExceeded"]);
+const APP_QUOTA_REASONS = new Set(["quotaExceeded", "dailyLimitExceeded", "rateLimitExceeded", "userRateLimitExceeded"]);
+
+/** The `reason` values in a Google API error body. */
+export function googleErrorReasons(body: string): string[] {
+  try {
+    const parsed = JSON.parse(body) as { error?: { errors?: Array<{ reason?: unknown }> } };
+    return (parsed.error?.errors ?? []).map((e) => e.reason).filter((r): r is string => typeof r === "string");
+  } catch {
+    return [];
+  }
+}
+
+/** The limit error a refused upload init stands for, or null. */
+export function uploadLimitError(status: number, body: string): YouTubeUploadLimitError | null {
+  if (status !== 400 && status !== 403 && status !== 429) return null;
+  for (const r of googleErrorReasons(body)) {
+    if (CHANNEL_LIMIT_REASONS.has(r)) return new YouTubeUploadLimitError("channel", r);
+    if (APP_QUOTA_REASONS.has(r)) return new YouTubeUploadLimitError("app", r);
+  }
+  return null;
+}
+
 /** What to upload: bytes in memory, or a stream of known length (an S3 object
  * passed straight through, so a large export never sits in memory). */
 export type UploadBody = { buffer: Buffer } | { stream: NodeJS.ReadableStream; size: number };
@@ -268,12 +304,13 @@ export async function uploadVideo(
     signal: AbortSignal.timeout(FETCH_TIMEOUT.api),
   });
 
-  if (initRes.status === 401 || initRes.status === 403) {
+  if (!initRes.ok) {
     const body = await initRes.text();
-    if (/insufficient|scope/i.test(body)) throw new NeedsReauthError();
+    if ((initRes.status === 401 || initRes.status === 403) && /insufficient|scope/i.test(body)) throw new NeedsReauthError();
+    const limit = uploadLimitError(initRes.status, body);
+    if (limit) throw limit;
     throw new Error(`youtube upload init failed: ${initRes.status} ${body}`);
   }
-  if (!initRes.ok) throw new Error(`youtube upload init failed: ${initRes.status} ${await initRes.text()}`);
 
   const uploadUrl = initRes.headers.get("location");
   if (!uploadUrl) throw new Error("youtube upload init returned no upload URL");
