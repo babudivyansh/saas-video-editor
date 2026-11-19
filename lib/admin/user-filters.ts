@@ -42,6 +42,10 @@ export function buildUserWhere(params: URLSearchParams, now: Date = new Date()):
   if (filter === "subscribed") and.push({ subscriptionEndsAt: { gt: now }, planId: { not: null } });
   else if (SUPPORT_FILTERS[filter]) and.push(SUPPORT_FILTERS[filter]);
 
+  // Funnel filters count customers only, exactly like Admin → Analytics
+  // (lib/admin/funnel.ts), so a "See who" link lists the same people the bar counted.
+  if ((JOURNEY_FILTERS as readonly string[]).includes(journey)) and.push({ role: "USER", purgedAt: null });
+
   switch (journey) {
     case "never_ran":
       and.push(NEVER_RAN);

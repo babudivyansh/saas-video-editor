@@ -156,6 +156,7 @@ export function NotificationsTab({ headers }: { headers: Headers }) {
               type="button"
               role="radio"
               aria-checked={on}
+              aria-label={`${m.label}: ${m.hint}`}
               onClick={() => setForm({ ...form, signupMode: m.value })}
               className={`text-left rounded-xl border px-3 py-2 transition-colors ${on ? "border-brand bg-surface-2" : "border-line hover:bg-surface-2"}`}
             >

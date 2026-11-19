@@ -22,13 +22,17 @@ describe("buildUserWhere", () => {
 
   it("finds signups who got stuck before their first AutoClip run", () => {
     expect(where("journey=stuck")).toEqual({
-      AND: [{ projects: { none: { productType: "auto-clip" } } }, { createdAt: { lt: daysAgo(1) } }],
+      AND: [{ role: "USER", purgedAt: null }, { projects: { none: { productType: "auto-clip" } } }, { createdAt: { lt: daysAgo(1) } }],
     });
   });
 
   it("finds the upgrade audience: ran AutoClip, never paid", () => {
     expect(where("journey=free_after_run")).toEqual({
-      AND: [{ projects: { some: { productType: "auto-clip" } } }, { purchases: { none: { amountInPaise: { gt: 0 } } } }],
+      AND: [
+        { role: "USER", purgedAt: null },
+        { projects: { some: { productType: "auto-clip" } } },
+        { purchases: { none: { amountInPaise: { gt: 0 } } } },
+      ],
     });
   });
 

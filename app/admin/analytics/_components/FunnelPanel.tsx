@@ -21,7 +21,22 @@ interface FunnelReport {
   toolFailures: Array<{ label: string; total: number; failed: number; topReason: string | null }>;
 }
 
-const pct = (part: number, whole: number) => (whole > 0 ? `${((part / whole) * 100).toFixed(part / whole < 0.1 ? 1 : 0)}%` : "—");
+const pct = (part: number, whole: number) =>
+  whole <= 0 ? "—" : part === 0 ? "0%" : `${((part / whole) * 100).toFixed(part / whole < 0.1 ? 1 : 0)}%`;
+
+/**
+ * What each step is compared with. Trial and payment don't follow a download
+ * (or each other: most payers skip the trial), so both are measured against
+ * everyone who started AutoClip.
+ */
+const COMPARE_WITH: Record<string, { key: string; label: string }> = {
+  uploaded: { key: "signed_up", label: "of signups" },
+  ran_autoclip: { key: "uploaded", label: "of uploaders" },
+  got_clips: { key: "ran_autoclip", label: "of AutoClip users" },
+  downloaded: { key: "got_clips", label: "of those with clips" },
+  trial: { key: "ran_autoclip", label: "of AutoClip users" },
+  paid: { key: "ran_autoclip", label: "of AutoClip users" },
+};
 
 function duration(hours: number | null): string {
   if (hours == null) return "—";
@@ -79,8 +94,9 @@ export function FunnelPanel({ token }: { token: string | null }) {
           <span className="font-semibold text-fg">{duration(data.medianHoursToFirstRun)}</span>.
         </p>
         <ol className="space-y-2.5">
-          {data.steps.map((s, i) => {
-            const prev = i > 0 ? data.steps[i - 1].users : s.users;
+          {data.steps.map((s) => {
+            const cmp = COMPARE_WITH[s.key];
+            const base = cmp ? data.steps.find((x) => x.key === cmp.key)?.users ?? 0 : 0;
             const width = signups > 0 ? Math.max(2, (s.users / signups) * 100) : 0;
             const journey = STEP_JOURNEY[s.key];
             const link = journey === undefined ? undefined : `${journey}joined=${data.days}d`;
@@ -98,7 +114,7 @@ export function FunnelPanel({ token }: { token: string | null }) {
                       <span className="font-semibold text-fg">{s.users}</span>
                     )}
                     <span className="ml-2">{pct(s.users, signups)}</span>
-                    {i > 0 && <span className="ml-2 text-[11px] text-fg-subtle">{pct(s.users, prev)} of previous</span>}
+                    {cmp && <span className="ml-2 text-[11px] text-fg-subtle">{pct(s.users, base)} {cmp.label}</span>}
                   </span>
                 </div>
                 <div className="h-2.5 rounded-full bg-surface-2 overflow-hidden" aria-hidden>
