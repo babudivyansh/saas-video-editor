@@ -124,6 +124,11 @@ export const CRON_CATALOG: Record<string, CronJobInfo> = {
     description: "Emails 7d/3d/1d expiry warnings and the expired notice.",
     tier: "danger",
   },
+  "/api/cron/email-maintenance": {
+    label: "Email router upkeep",
+    description: "Retries deferred email, re-probes email providers, raises quota alerts, prunes old email logs. Safe to re-run.",
+    tier: "safe",
+  },
   "/api/cron/stale-clip-sweep": {
     label: "Stale AutoClip sweep",
     description: "Fails and refunds clips stranded in queued/rendering by a crash.",

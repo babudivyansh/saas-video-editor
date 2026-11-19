@@ -147,6 +147,11 @@
 # POST /api/admin/ops/run-stale-clip-sweep (admin-authenticated).
 */15 * * * * curl -s -H "Authorization: Bearer $CRON_SECRET" https://clipiro.com/api/cron/stale-clip-sweep
 
+# Multi-provider email upkeep: retries deferred mail, re-probes Brevo/Mailjet/
+# Resend, quota + traffic alerts, prunes email logs. No-op while
+# EMAIL_ROUTER_ENABLED is off.
+*/5 * * * * curl -s -H "Authorization: Bearer $CRON_SECRET" https://clipiro.com/api/cron/email-maintenance
+
 # AutoClip dub sweep — finishes ElevenLabs dubbing jobs (lib/autoclip-dub.ts).
 # Until a dub-completion webhook is confirmed to exist and is registered in
 # the ElevenLabs dashboard (see app/api/webhooks/elevenlabs/route.ts), this

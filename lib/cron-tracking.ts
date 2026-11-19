@@ -33,6 +33,7 @@ export const KNOWN_CRON_NAMES = [
   "feature-announcements",
   "mrr-snapshot",
   "voice-library-sync",
+  "email-maintenance",
 ] as const;
 export type CronName = (typeof KNOWN_CRON_NAMES)[number];
 
