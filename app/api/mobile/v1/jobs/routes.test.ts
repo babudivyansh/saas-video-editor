@@ -41,6 +41,18 @@ const cloneFindFirst = vi.fn();
 vi.mock("@/lib/prisma", () => ({ prisma: { asset: { findFirst: assetFindFirst }, clonedVoice: { findFirst: cloneFindFirst } } }));
 vi.mock("@/utils/s3-upload", () => ({ getPresignedUrl: vi.fn(async () => "https://s3/signed") }));
 vi.mock("@/lib/signed-media", () => ({ resignMediaUrl: vi.fn() }));
+// Per-feature maintenance: the features listed here are switched off.
+const inMaintenance = new Set<string>();
+vi.mock("@/lib/feature-maintenance", async () => {
+  const { NextResponse } = await import("next/server");
+  return {
+    featureMaintenanceGate: vi.fn(async (_req: unknown, feature: string) =>
+      inMaintenance.has(feature)
+        ? NextResponse.json({ error: "Under maintenance. Please check after some time.", maintenance: true, feature }, { status: 503 })
+        : null,
+    ),
+  };
+});
 
 const { POST } = await import("./route");
 
@@ -52,6 +64,7 @@ const settings = { clipLength: "short", clipCount: 6, aspectRatio: "9:16", capti
 
 beforeEach(() => {
   vi.clearAllMocks();
+  inMaintenance.clear();
   web.createProject.mockResolvedValue(json({ project: { id: "p1" } }, 201));
   web.patchProject.mockResolvedValue(json({ project: {} }));
   web.importUrl.mockResolvedValue(json({ ok: true }));
@@ -189,5 +202,34 @@ describe("cloned voices", () => {
     const res = await POST(req({ type: "voiceover", text: "Hello there", voiceId: "clone:theirs" }));
     expect([res.status, (await res.json()).code]).toEqual([404, "voice_not_found"]);
     expect(web.voiceover).not.toHaveBeenCalled();
+  });
+});
+
+describe("feature maintenance", () => {
+  it("refuses a job for a feature in maintenance before any web route runs (nothing charged)", async () => {
+    inMaintenance.add("ai-voiceover");
+    const res = await POST(req({ type: "voiceover", text: "Hello there", voiceId: "brian" }));
+    expect([res.status, await res.json()]).toEqual([
+      503,
+      { error: "Under maintenance. Please check after some time.", maintenance: true, feature: "ai-voiceover" },
+    ]);
+    expect(web.voiceover).not.toHaveBeenCalled();
+    expect(cloneFindFirst).not.toHaveBeenCalled();
+  });
+
+  it("refuses an AutoClip job without creating a project", async () => {
+    inMaintenance.add("auto-clip");
+    const res = await POST(req({ type: "autoclip", source: { kind: "asset", assetId: "a1" }, settings }));
+    expect(res.status).toBe(503);
+    expect(web.createProject).not.toHaveBeenCalled();
+    expect(web.autoClip).not.toHaveBeenCalled();
+  });
+
+  it("leaves other features running", async () => {
+    inMaintenance.add("auto-clip");
+    web.image.mockResolvedValue(json({ generationId: "g1" }));
+    const res = await POST(req({ type: "ai-image", prompt: "neon city at night", modelId: "seedream-5.0", ratio: "9:16" }));
+    expect(res.status).toBe(202);
+    expect(web.image).toHaveBeenCalledOnce();
   });
 });

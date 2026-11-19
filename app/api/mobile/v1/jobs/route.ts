@@ -20,6 +20,8 @@ import { resolveVoiceRef } from "@/lib/mobile/voices";
 import { prisma } from "@/lib/prisma";
 import { getPresignedUrl } from "@/utils/s3-upload";
 import { FETCH_TIMEOUT } from "@/lib/fetch-timeout";
+import { MOBILE_JOB_FEATURE } from "@/lib/feature-maintenance-registry";
+import { featureMaintenanceGate } from "@/lib/feature-maintenance";
 
 // POST /api/mobile/v1/jobs { type, … } → 202 { jobId }. Starts any long job by
 // running the web's own routes (their validation, prices, plan limits,
@@ -209,6 +211,13 @@ export const POST = withMobileAuth(async (req: NextRequest, auth) => {
   const body = await parseBody(req, startJobRequest);
   if (!body.ok) return body.res;
   const b = body.data;
+  // Per-feature maintenance: the tool is in the body, so the proxy can't see
+  // it — gate here, before any web route (and its charge) runs.
+  const feature = MOBILE_JOB_FEATURE[b.type];
+  if (feature) {
+    const refused = await featureMaintenanceGate(req, feature);
+    if (refused) return refused;
+  }
   let result: Result;
   switch (b.type) {
     case "autoclip":

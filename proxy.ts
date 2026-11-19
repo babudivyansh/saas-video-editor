@@ -8,6 +8,10 @@ import { ATTRIBUTION_COOKIE, FIRST_TOUCH_COOKIE, buildAttributionCookie, buildFi
 import { rateLimit } from "@/lib/rate-limit";
 import { buildCsp } from "@/lib/csp";
 import { adminOrigin, isAdminApiPath, isAdminHostAuthPage, isAdminPagePath, isStaticFilePath, requestHost } from "@/lib/admin-host";
+import { featureForApiCall, featureForPagePath } from "@/lib/feature-maintenance-registry";
+
+// Where a page of a feature in maintenance is rewritten to (app/dashboard/maintenance).
+const MAINTENANCE_PAGE = "/dashboard/maintenance";
 
 // Sets the enforcing CSP (see lib/csp.ts) on every response this file returns,
 // API responses included.
@@ -135,6 +139,17 @@ export async function proxy(request: NextRequest) {
       return withCsp(NextResponse.json({ error: "Unauthorized" }, { status: 401 }), csp);
     }
 
+    // Per-feature maintenance (admin Ops → Maintenance): a call that would
+    // start new work for a switched-off feature gets the 503 before its route
+    // runs, so nothing is charged. Reads stay open; admins pass. The store is
+    // only loaded when the path belongs to a feature.
+    const feature = featureForApiCall(pathname, request.method);
+    if (feature) {
+      const { featureMaintenanceGate } = await import("@/lib/feature-maintenance");
+      const refused = await featureMaintenanceGate(request, feature.id);
+      if (refused) return withCsp(refused, csp);
+    }
+
     const group = GROUP_LIMITS.find((g) => pathname.startsWith(g.prefix));
     if (group) {
       const result = await rateLimit(`${group.name}:user:${auth.userId}`, group.limit, group.windowSec);
@@ -190,6 +205,19 @@ export async function proxy(request: NextRequest) {
     const publicPage = request.nextUrl.search ? undefined : publicPathForAppPath(pathname);
     const target = publicPage ?? withNextParam("/login", originalDestination);
     return withCsp(NextResponse.redirect(new URL(target, request.url)), csp);
+  }
+
+  // A feature in maintenance shows its maintenance state in place of the page
+  // (same URL, inside the dashboard shell) to everyone but admins.
+  const pageFeature = auth && isProtectedPage ? featureForPagePath(pathname) : undefined;
+  if (pageFeature) {
+    const { shouldShowFeatureMaintenance } = await import("@/lib/feature-maintenance");
+    if (await shouldShowFeatureMaintenance(request, pageFeature.id)) {
+      const target = new URL(`${MAINTENANCE_PAGE}?feature=${encodeURIComponent(pageFeature.id)}`, request.url);
+      const headers = new Headers(request.headers);
+      headers.set("x-nonce", nonce);
+      return withCsp(NextResponse.rewrite(target, { request: { headers } }), csp);
+    }
   }
 
   const isSignedOutOnlyPage = SIGNED_OUT_ONLY_PATHS.includes(pathname);

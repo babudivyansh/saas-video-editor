@@ -17,7 +17,7 @@ const CATEGORIES = ["accounts", "billing", "security", "content", "operations", 
 const SEVERITIES = ["critical", "destructive", "money", "security", "change", "view"] as const;
 const TARGET_TYPES = [
   "user", "coupon", "plan", "review", "affiliate", "announcement", "project", "asset", "purchase",
-  "commission", "social_account", "cron", "queue_job", "flag", "tool", "model",
+  "commission", "social_account", "cron", "queue_job", "flag", "tool", "feature", "model",
 ] as const;
 
 export const auditFiltersSchema = z.object({

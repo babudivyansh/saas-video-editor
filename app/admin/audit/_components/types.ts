@@ -116,6 +116,7 @@ export const TARGET_TYPE_LABEL: Record<string, string> = {
   queue_job: "Queue jobs",
   flag: "Feature flags",
   tool: "Tools",
+  feature: "Features (maintenance)",
   model: "AI models",
 };
 

@@ -23,7 +23,7 @@ export type AuditSeverity = "critical" | "destructive" | "money" | "security" | 
 export type AuditTargetType =
   | "user" | "coupon" | "plan" | "review" | "affiliate" | "announcement" | "project"
   | "asset" | "purchase" | "commission" | "social_account" | "cron" | "queue_job"
-  | "flag" | "tool" | "model" | "voice" | "none";
+  | "flag" | "tool" | "feature" | "model" | "voice" | "none";
 
 export interface AuditActionInfo {
   /** Past-tense phrase that reads before the target: "Deleted account". */
@@ -138,6 +138,8 @@ const EXACT: Record<string, Row> = {
   "cron.resumed": ["Resumed scheduled job", "operations", "change", "cron", "The job runs on schedule again."],
   "maintenance.enabled": ["Turned maintenance mode ON", "operations", "critical", "none", "All non-admin traffic was blocked with a 503."],
   "maintenance.disabled": ["Turned maintenance mode off", "operations", "change", "none", "Normal traffic was restored."],
+  "feature_maintenance.enabled": ["Put a feature in maintenance:", "operations", "destructive", "feature", "Users see “Under maintenance” on this feature and its API refuses new work with a 503. Admins can still use it."],
+  "feature_maintenance.disabled": ["Took a feature out of maintenance:", "operations", "change", "feature", "The feature is available to users again."],
   "clip.stale_sweep_run": ["Ran the stale AutoClip sweep", "operations", "change", "none", "Stuck clips were failed and refunded."],
   "clip.dub_sweep_run": ["Ran the dub sweep", "operations", "change", "none", "Pending dubbing jobs were checked."],
   "moderation.rescan_run": ["Re-ran content moderation on skipped uploads", "operations", "change", "none", "Uploads whose scan was skipped were counted or sent back to be scanned."],

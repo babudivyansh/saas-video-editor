@@ -291,6 +291,14 @@ export async function readMultipartWithin(
       { status: 503, headers: { "Retry-After": "300" } },
     );
   }
+  // ...and so does its per-feature maintenance gate (lib/feature-maintenance).
+  const { featureForApiCall } = await import("@/lib/feature-maintenance-registry");
+  const feature = featureForApiCall(req.nextUrl.pathname, req.method);
+  if (feature) {
+    const { featureMaintenanceGate } = await import("@/lib/feature-maintenance");
+    const refused = await featureMaintenanceGate(req, feature.id);
+    if (refused) return refused;
+  }
 
   const tooLarge = () => NextResponse.json(tooLargeBody(), { status: 413 });
 

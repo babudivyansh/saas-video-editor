@@ -461,6 +461,11 @@ export const opsFlagsSchema = z
   .strict()
   .refine((v) => v.flag !== undefined || v.maintenance !== undefined, { message: "Nothing to update" });
 
+// PATCH /api/admin/ops/feature-maintenance — one feature in/out of maintenance.
+export const featureMaintenancePatchSchema = z
+  .object({ feature: z.string().regex(/^[a-z0-9-]{1,64}$/), on: z.boolean() })
+  .strict();
+
 // POST /api/admin/ops/sessions — revokes every non-admin session platform-wide.
 // The UI already gates this behind a confirm-flip; this makes that
 // confirmation a server-enforced requirement, not just a UI courtesy.

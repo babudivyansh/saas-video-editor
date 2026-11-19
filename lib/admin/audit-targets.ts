@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { CRON_CATALOG, CRON_SCHEDULE, runIdForPath } from "@/lib/cron-catalog";
 import type { AuditTargetType } from "@/lib/admin/audit-catalog";
+import { getMaintenanceFeature } from "@/lib/feature-maintenance-registry";
 
 // Turns audit target ids into something a person can check: the account's
 // email, the coupon's code, the plan's name — and a link to it in the admin.
@@ -76,6 +77,7 @@ export async function resolveTargets(refs: TargetRef[]): Promise<Map<string, Res
       case "queue_job": out.set(k, { label: r.targetId, href: "/admin/ops?tab=queues", deleted: false }); break;
       case "flag": out.set(k, { label: r.targetId, href: "/admin/ops?tab=flags", deleted: false }); break;
       case "tool": out.set(k, { label: r.targetId, href: "/admin/tools", deleted: false }); break;
+      case "feature": out.set(k, { label: getMaintenanceFeature(r.targetId)?.label ?? r.targetId, href: "/admin/ops?tab=maintenance", deleted: false }); break;
       case "model": out.set(k, { label: r.targetId, href: "/admin/models", deleted: false }); break;
       case "voice": out.set(k, { label: r.targetId, href: "/admin/voices", deleted: false }); break;
       case "none": out.set(k, { label: r.targetId, href: null, deleted: false }); break;

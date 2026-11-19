@@ -27,6 +27,20 @@ vi.mock("@/lib/marketing-attribution", () => ({
 }));
 vi.mock("@/lib/csp", () => ({ buildCsp: () => "default-src 'self'" }));
 vi.mock("@/lib/flags", () => ({ getMaintenanceModeCached: async () => ({ on: false }) }));
+// Per-feature maintenance: features in this set are switched off; `featureAdmin`
+// stands in for requireAdmin.
+const featuresOff = new Set<string>();
+let featureAdmin = false;
+vi.mock("@/lib/feature-maintenance", async () => {
+  const { NextResponse } = await import("next/server");
+  return {
+    featureMaintenanceGate: async (_req: unknown, id: string) =>
+      featuresOff.has(id) && !featureAdmin
+        ? NextResponse.json({ error: "Under maintenance. Please check after some time.", maintenance: true, feature: id }, { status: 503 })
+        : null,
+    shouldShowFeatureMaintenance: async (_req: unknown, id: string) => featuresOff.has(id) && !featureAdmin,
+  };
+});
 
 const { proxy } = await import("./proxy");
 
@@ -212,5 +226,40 @@ describe("proxy() — admin console on its own host (ADMIN_ORIGIN)", () => {
     sessionValid = true;
     expect((await proxy(makeRequest("https://clipiro.com/admin/users", "valid-token"))).status).toBe(200);
     expect((await proxy(makeRequest("https://clipiro.com/api/admin/users", "valid-token"))).status).toBe(200);
+  });
+});
+
+describe("proxy() — per-feature maintenance", () => {
+  beforeEach(() => {
+    sessionValid = true;
+    featureAdmin = false;
+    featuresOff.clear();
+  });
+  const call = (url: string, method = "GET") => new NextRequest(url, { method, headers: { cookie: "session=valid-token" } });
+
+  it("shows a switched-off feature's page as the maintenance state, keeping the URL", async () => {
+    featuresOff.add("ai-voiceover");
+    const res = await proxy(call("https://clipiro.com/dashboard/tools/voiceover"));
+    expect(res.headers.get("location")).toBeNull();
+    const rewrite = new URL(res.headers.get("x-middleware-rewrite")!);
+    expect(rewrite.pathname).toBe("/dashboard/maintenance");
+    expect(rewrite.searchParams.get("feature")).toBe("ai-voiceover");
+  });
+
+  it("refuses new work on the feature's API with a 503, but keeps reads open", async () => {
+    featuresOff.add("ai-voiceover");
+    const post = await proxy(call("https://clipiro.com/api/tools/voiceover", "POST"));
+    expect(post.status).toBe(503);
+    expect(await post.json()).toMatchObject({ error: "Under maintenance. Please check after some time.", feature: "ai-voiceover" });
+    expect((await proxy(call("https://clipiro.com/api/tools/voiceover"))).status).toBe(200);
+  });
+
+  it("leaves other features and admins alone", async () => {
+    featuresOff.add("ai-voiceover");
+    expect((await proxy(call("https://clipiro.com/api/tools/image-generator", "POST"))).status).toBe(200);
+    expect((await proxy(call("https://clipiro.com/dashboard/tools/image-generator"))).headers.get("x-middleware-rewrite")).toBeNull();
+    featureAdmin = true;
+    expect((await proxy(call("https://clipiro.com/api/tools/voiceover", "POST"))).status).toBe(200);
+    expect((await proxy(call("https://clipiro.com/dashboard/tools/voiceover"))).headers.get("x-middleware-rewrite")).toBeNull();
   });
 });
