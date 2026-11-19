@@ -452,6 +452,18 @@ export const EMAIL_REGISTRY: Record<string, TemplateEntry<never>> = {
     build: lifecycle.welcome,
     samples: { default: { firstName: "Divyansh", minutes: 30 } },
   }),
+  "first-run-nudge": entry({
+    id: "first-run-nudge",
+    title: "First-run nudge (1 hour)",
+    group: "lifecycle",
+    category: "productUpdates",
+    trigger: "Onboarding cron, 1–24h after signup if no AutoClip run was started",
+    build: lifecycle.firstRunNudge,
+    samples: {
+      gaming: { name: "Divyansh", minutesLeft: 30, intendedUse: "gaming" },
+      "no answer": { name: "Divyansh", minutesLeft: 30, intendedUse: null },
+    },
+  }),
   "onboarding-day-1": entry({
     id: "onboarding-day-1",
     title: "Onboarding day 1",

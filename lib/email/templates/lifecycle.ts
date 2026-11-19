@@ -53,6 +53,40 @@ export function welcome(p: { firstName: string; minutes: number }): EmailDocumen
   };
 }
 
+/** What to paste, in the words of what the user said they make (welcome
+ *  screen → User.intendedUse). */
+export function sourceExample(intendedUse: string | null | undefined): string {
+  switch (intendedUse) {
+    case "gaming": return "a Twitch VOD or YouTube stream";
+    case "podcast": return "a podcast episode on YouTube";
+    case "education": return "a recorded talk or lesson";
+    case "business_marketing": return "a webinar, demo or interview";
+    default: return "any long video";
+  }
+}
+
+export function firstRunNudge(p: { name: string; minutesLeft: number; intendedUse: string | null }): EmailDocument {
+  const example = sourceExample(p.intendedUse);
+  return {
+    subject: `Your first clips take one link`,
+    preheader: `Paste ${example} and AutoClip does the rest.`,
+    blocks: [
+      { kind: "heading", text: `Ready when you are, ${greet(p.name)}` },
+      {
+        kind: "paragraph",
+        text: html`Paste ${example} into the box on your Home page and AutoClip finds the best moments, captions
+          them and cuts them vertical. You have <strong>${p.minutesLeft} free Clip ${plural(p.minutesLeft, "Minute")}</strong>.`,
+      },
+      { kind: "button", href: DASHBOARD_URL, label: "Paste a link" },
+      {
+        kind: "paragraph",
+        tone: "fine",
+        text: "Tip: a 10–30 minute video is quick to process and leaves you minutes for a second try.",
+      },
+    ],
+  };
+}
+
 export function onboardingDay1(p: { name: string; minutesLeft: number }): EmailDocument {
   return {
     subject: `Your ${p.minutesLeft} free Clip Minutes are still waiting`,

@@ -263,6 +263,12 @@ export async function sendWelcomeEmail(to: string, firstName: string, minutes: n
   await sendTemplate("welcome", to, { firstName, minutes });
 }
 
+export async function sendFirstRunNudgeEmail(
+  to: string, name: string, minutesLeft: number, intendedUse: string | null,
+): Promise<void> {
+  await sendTemplate("first-run-nudge", to, { name, minutesLeft, intendedUse });
+}
+
 export async function sendOnboardingDay1Email(
   to: string, name: string, minutesLeft: number,
 ): Promise<void> {

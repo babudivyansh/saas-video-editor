@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useOnboarding, type IntendedUseId } from "@/app/hooks/useOnboarding";
 import { INTENDED_USE_OPTIONS, PRIMARY_GOALS, type PrimaryGoalId } from "@/lib/onboarding-config";
 import { projectHref } from "@/lib/project-links";
+import { LAUNCH_URL_INPUT_ID } from "@/app/components/dashboard/AutoClipLaunchBox";
 
 interface InProgressProject {
   id: string;
@@ -92,7 +93,21 @@ export function WelcomeScreen({ firstName, resumeProject, onStartTour, onClose }
     await saveIntendedUse(id);
     trackEvent("welcome_preferences_saved", { intendedUse: id });
     setSavingUse(false);
-    setStep("tour-offer");
+    afterQuestion();
+  }
+
+  // Someone who came to turn a video into clips is already looking at the box
+  // that does it (Home's AutoClipLaunchBox, behind this overlay) — so skip the
+  // tour offer and hand them that box, focused. Every step between signup and
+  // a first run cost us users (17% of Oct–Nov signups ever started one). The
+  // other goals keep the tour offer, which then takes them to their tool.
+  function afterQuestion() {
+    if (chosenGoal?.id !== "auto-clip") {
+      setStep("tour-offer");
+      return;
+    }
+    onClose();
+    requestAnimationFrame(() => document.getElementById(LAUNCH_URL_INPUT_ID)?.focus());
   }
 
   function handleTakeTour() {
@@ -106,7 +121,7 @@ export function WelcomeScreen({ firstName, resumeProject, onStartTour, onClose }
 
   function handleEscape() {
     if (step === "tour-offer") handleSkipToTool();
-    else if (step === "preferences") setStep("tour-offer");
+    else if (step === "preferences") afterQuestion();
     else handleSkip();
   }
 
@@ -206,7 +221,7 @@ export function WelcomeScreen({ firstName, resumeProject, onStartTour, onClose }
           {(step === "goal" || step === "preferences") && (
             <div className="mt-6 text-center">
               <button
-                onClick={step === "goal" ? handleSkip : () => setStep("tour-offer")}
+                onClick={step === "goal" ? handleSkip : afterQuestion}
                 disabled={isSubmitting}
                 className="text-xs text-fg-subtle hover:text-ink-soft transition-colors disabled:opacity-50"
               >

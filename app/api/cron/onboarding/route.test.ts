@@ -4,15 +4,19 @@ import { NextRequest } from "next/server";
 process.env.CRON_SECRET = "test-secret";
 
 // Which batch a user.findMany call is for, read off its where clause.
-type Batch = "day1" | "day3" | "day7" | "firstClips";
+type Batch = "nudge" | "day1" | "day3" | "day7" | "firstClips";
 function batchOf(where: Record<string, unknown>): Batch {
+  if ("activationNudgeSentAt" in where) return "nudge";
   if ("onboardingDay1SentAt" in where) return "day1";
   if ("onboardingDay3SentAt" in where) return "day3";
   if ("onboardingDay7SentAt" in where) return "day7";
   return "firstClips";
 }
 
-interface Row { id: string; email: string; name: string | null; minutes?: number; planId?: string | null; trialEndsAt?: Date | null }
+interface Row {
+  id: string; email: string; name: string | null; minutes?: number;
+  planId?: string | null; trialEndsAt?: Date | null; intendedUse?: string | null;
+}
 let rows: Record<Batch, Row[]>;
 let startedRuns: Record<string, number>;
 let readyClips: Record<string, number>;
@@ -42,11 +46,13 @@ const shouldSendCategory = vi.fn(async (..._a: unknown[]) => true);
 vi.mock("@/lib/notifications", () => ({ shouldSendCategory: (...a: unknown[]) => shouldSendCategory(...a) }));
 vi.mock("@/lib/cron-tracking", () => ({ withCronTracking: (_n: string, fn: unknown) => fn }));
 
+const sendFirstRunNudgeEmail = vi.fn(async (..._a: unknown[]) => {});
 const sendOnboardingDay1Email = vi.fn(async (..._a: unknown[]) => {});
 const sendOnboardingDay3Email = vi.fn(async (..._a: unknown[]) => {});
 const sendOnboardingDay7Email = vi.fn(async (..._a: unknown[]) => {});
 const sendFirstVideoSuccessEmail = vi.fn(async (..._a: unknown[]) => true);
 vi.mock("@/lib/email", () => ({
+  sendFirstRunNudgeEmail: (...a: unknown[]) => sendFirstRunNudgeEmail(...a),
   sendOnboardingDay1Email: (...a: unknown[]) => sendOnboardingDay1Email(...a),
   sendOnboardingDay3Email: (...a: unknown[]) => sendOnboardingDay3Email(...a),
   sendOnboardingDay7Email: (...a: unknown[]) => sendOnboardingDay7Email(...a),
@@ -65,7 +71,7 @@ function stamped(userId: string, field: string): boolean {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  rows = { day1: [], day3: [], day7: [], firstClips: [] };
+  rows = { nudge: [], day1: [], day3: [], day7: [], firstClips: [] };
   startedRuns = {};
   readyClips = {};
   sendFirstVideoSuccessEmail.mockResolvedValue(true);
@@ -75,6 +81,24 @@ describe("GET /api/cron/onboarding", () => {
   it("rejects a request without the cron secret", async () => {
     const res = await GET(new NextRequest("http://localhost/api/cron/onboarding"));
     expect(res.status).toBe(401);
+  });
+
+  it("1-hour nudge: signups 1–24h old, worded by intendedUse, skipped once a run started", async () => {
+    rows.nudge = [
+      { id: "g", email: "g@t.co", name: "G", minutes: 30, intendedUse: "gaming" },
+      { id: "busy", email: "busy@t.co", name: "B", minutes: 10, intendedUse: null },
+    ];
+    startedRuns = { busy: 1 };
+    const body = await (await run()).json();
+
+    const where = whereSeen.nudge as { createdAt: { gte: Date; lte: Date } };
+    expect(Date.now() - where.createdAt.lte.getTime()).toBeGreaterThanOrEqual(60 * 60 * 1000 - 1000);
+    expect(Math.round((Date.now() - where.createdAt.gte.getTime()) / 3_600_000)).toBe(24);
+    expect(sendFirstRunNudgeEmail).toHaveBeenCalledTimes(1);
+    expect(sendFirstRunNudgeEmail).toHaveBeenCalledWith("g@t.co", "G", 30, "gaming");
+    expect(stamped("g", "activationNudgeSentAt")).toBe(true);
+    expect(stamped("busy", "activationNudgeSentAt")).toBe(true);
+    expect(body.nudge).toBe(1);
   });
 
   it("day 1 nudges only users who never started an AutoClip run, and stamps everyone", async () => {
