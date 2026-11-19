@@ -163,3 +163,47 @@ export function rerenderPriceLabel(rerenderCount: number, price: number | null):
   if (price == null) return "may cost credits";
   return `${price} credit${price === 1 ? "" : "s"}`;
 }
+
+// ── Transcript tab ──────────────────────────────────────────────────────────
+
+/** 6800 (ms) -> "0:06.8" */
+export function fmtStamp(ms: number): string {
+  const s = Math.max(0, ms / 1000);
+  const m = Math.floor(s / 60);
+  return `${m}:${(s - m * 60).toFixed(1).padStart(4, "0")}`;
+}
+
+/**
+ * Splits a word-timed transcript into caption-sized lines (indexes into the
+ * word list): a new line after sentence punctuation, after a pause, or at
+ * eight words. Only for reading and editing; the render does its own grouping.
+ */
+export function groupTranscriptLines(words: { word: string; start: number; end: number }[]): number[][] {
+  const lines: number[][] = [];
+  let cur: number[] = [];
+  words.forEach((w, i) => {
+    const prev = words[i - 1];
+    if (cur.length > 0 && prev && (cur.length >= 8 || w.start - prev.end > 600 || /[.?!]["')\]]?$/.test(prev.word))) {
+      lines.push(cur);
+      cur = [];
+    }
+    cur.push(i);
+  });
+  if (cur.length > 0) lines.push(cur);
+  return lines;
+}
+
+/**
+ * Clip-relative words moved onto a new trim window: shifted by the change in
+ * start, clipped to the new length, words outside it dropped. The same rule as
+ * the server's rebaseClipWords (lib/autoclip-pipeline.ts, server-only), for a
+ * draft that sends corrected words and a new trim in one render.
+ */
+export function rebaseWords<W extends { start: number; end: number }>(words: W[], oldStartSec: number, newStartSec: number, newEndSec: number): W[] {
+  const shiftMs = (newStartSec - oldStartSec) * 1000;
+  const lengthMs = (newEndSec - newStartSec) * 1000;
+  return words
+    .map((w) => ({ ...w, start: w.start - shiftMs, end: w.end - shiftMs }))
+    .filter((w) => w.end > 0 && w.start < lengthMs)
+    .map((w) => ({ ...w, start: Math.max(0, w.start), end: Math.min(lengthMs, w.end) }));
+}

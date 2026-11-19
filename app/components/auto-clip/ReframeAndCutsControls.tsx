@@ -5,20 +5,20 @@
 import { Switch } from "@/app/components/ui/Switch";
 import type { SpeakerMode } from "@/lib/speaker-modes";
 
-type ZoomStrength = "low" | "medium" | "high";
+export type ZoomStrength = "low" | "medium" | "high";
 
-const REFRAME_PRESETS = [
+export const REFRAME_PRESETS = [
   { value: "balanced", label: "Balanced" },
   { value: "minimal", label: "Minimal" },
   { value: "dynamic", label: "Dynamic" },
   { value: "cinematic", label: "Cinematic" },
 ] as const;
 
-const ZOOM_STRENGTHS: { value: ZoomStrength; label: string }[] = [
+export const ZOOM_STRENGTHS: { value: ZoomStrength; label: string }[] = [
   { value: "low", label: "Low" }, { value: "medium", label: "Medium" }, { value: "high", label: "High" },
 ];
 
-const SPEAKER_MODES: { value: SpeakerMode; label: string }[] = [
+export const SPEAKER_MODES: { value: SpeakerMode; label: string }[] = [
   { value: "auto", label: "Auto" }, { value: "single", label: "Single" },
   { value: "split", label: "Split" }, { value: "active", label: "Active" },
   { value: "gaming", label: "Gaming" },

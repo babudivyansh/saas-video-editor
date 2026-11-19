@@ -1,7 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Button } from "@/app/components/ui/Button";
-import CaptionTemplateGallery from "@/app/components/captions/CaptionTemplateGallery";
+import { Modal } from "@/app/components/ui/Modal";
+import CaptionTemplateGallery, { TemplatePreviewLoop } from "@/app/components/captions/CaptionTemplateGallery";
+import { useCaptionTemplates, type PickerTemplate } from "@/app/components/captions/useCaptionTemplates";
 import { useUpgradePrompt } from "@/app/components/captions/useUpgradePrompt";
 import { clientAuthToken } from "@/lib/client-session";
 
@@ -19,17 +21,81 @@ export interface CaptionTemplatePickerProps {
   disabled?: boolean;
 }
 
+/** How many styles the panel shows before "All styles". */
+const QUICK_COUNT = 4;
+
+/**
+ * The clip's own style first, then the first unlocked styles of the catalogue.
+ * The full gallery (150+, with its family tabs) took the whole panel and
+ * pushed every other caption setting out of view, so it opens in its own
+ * full-screen dialog instead.
+ */
+export function quickPickTemplates(templates: PickerTemplate[], value: string | null, count = QUICK_COUNT): PickerTemplate[] {
+  const current = templates.find((t) => t.id === value);
+  const rest = templates.filter((t) => t.id !== value && !t.locked).slice(0, count - (current ? 1 : 0));
+  return current ? [current, ...rest] : rest;
+}
+
 export function CaptionTemplatePicker({ value, onChange, disabled }: CaptionTemplatePickerProps) {
   const upgrade = useUpgradePrompt();
+  const { templates } = useCaptionTemplates();
+  const [allOpen, setAllOpen] = useState(false);
+  const quick = quickPickTemplates(templates, value);
+
   return (
     <div className="space-y-2.5">
-      <div>
-        <label className="text-xs font-semibold text-ink">Caption style</label>
-        <p className="text-[10px] text-ink-soft mt-0.5">
-          A complete look (type, motion, colour and emoji) in one choice.
-        </p>
+      <p className="text-[11px] text-fg-muted">A complete look (type, motion, colour and emoji) in one choice.</p>
+      <div className="grid grid-cols-2 gap-2.5">
+        {quick.map((t) => {
+          const selected = value === t.id;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              disabled={disabled}
+              aria-pressed={selected}
+              aria-label={t.name}
+              title={t.hint}
+              onClick={() => (t.locked ? upgrade() : onChange(t.id))}
+              className={`relative overflow-hidden rounded-xl bg-surface-2 text-left transition-all disabled:opacity-40 ${
+                selected ? "ring-2 ring-emerald-bright" : "ring-1 ring-card-border hover:ring-line-strong"
+              }`}
+            >
+              {/* Short tiles, not 9:16 phones: four of those filled the panel again. */}
+              <div style={{ height: 84 }}><TemplatePreviewLoop template={t} fill className="h-full" /></div>
+              <span className="block px-2 py-1.5">
+                <span className={`block truncate text-[11px] font-semibold ${selected ? "text-fg" : "text-fg-muted"}`}>{t.name}</span>
+              </span>
+              {selected && (
+                <span className="absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-bright">
+                  <svg className="h-2.5 w-2.5 text-bg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3.5" aria-hidden="true">
+                    <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
-      <CaptionTemplateGallery value={value} onChange={onChange} onLocked={upgrade} disabled={disabled} columns={3} maxHeightClass="max-h-[380px]" />
+      <Button type="button" variant="secondary" size="sm" className="w-full" onClick={() => setAllOpen(true)} disabled={disabled}>
+        {`All ${templates.length} caption styles`}
+      </Button>
+
+      <Modal open={allOpen} onClose={() => setAllOpen(false)} title="Caption styles" variant="fullscreen">
+        <div className="mx-auto max-w-6xl px-4 pb-10 pt-6 sm:px-8">
+          <p className="mb-5 text-center text-sm text-fg-muted">
+            Pick a look. It applies to this clip straight away, and you can still change its colour, size and position after.
+          </p>
+          <CaptionTemplateGallery
+            value={value}
+            onChange={(id) => { onChange(id); setAllOpen(false); }}
+            onLocked={upgrade}
+            disabled={disabled}
+            columns={5}
+            scrollInside={false}
+          />
+        </div>
+      </Modal>
     </div>
   );
 }
