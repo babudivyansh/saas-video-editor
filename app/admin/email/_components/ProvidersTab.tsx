@@ -157,7 +157,7 @@ export function ProvidersTab({ data, headers }: { data: EmailOverview; headers: 
                 </p>
                 <div className="flex flex-wrap gap-1.5 mt-1">
                   <StatusBadge tone={statusTone(p.status)}>{STATUS_LABEL[p.status] ?? p.status}</StatusBadge>
-                  <StatusBadge tone={p.configured ? "neutral" : "warning"}>{p.configured ? "Credentials set" : "No credentials"}</StatusBadge>
+                  {p.configured && <StatusBadge tone="neutral">Credentials set</StatusBadge>}
                   {p.senderVerified === false && <StatusBadge tone="error">Sender not verified</StatusBadge>}
                   {p.senderVerified === true && <StatusBadge tone="success">Sender verified</StatusBadge>}
                 </div>

@@ -113,6 +113,15 @@ describe("sendTemplate through the router", () => {
     expect(JSON.stringify(logLines)).not.toContain("482913");
   });
 
+  it("if the router's database is down before sending, it falls back to the legacy path without calling any router provider", async () => {
+    const { prisma } = await import("@/lib/prisma");
+    vi.mocked(prisma.emailMessage.create).mockRejectedValueOnce(new Error("db down"));
+    const r = await sendTemplate("otp", "new@user.com", { otp: "482913", purpose: "signup" });
+    // No Resend key / SMTP in this env, so the legacy path ends at the dev console.
+    expect(r.status).toBe("dev-logged");
+    expect(sent.brevo.length + sent.mailjet.length + sent.resend.length).toBe(0);
+  });
+
   it("a code that no provider can send fails fast — it is never held for a retry", async () => {
     outcomes.brevo.push(fail("transient")); outcomes.mailjet.push(fail("transient")); outcomes.resend.push(fail("transient"));
     const r = await sendTemplate("otp", "new@user.com", { otp: "111222", purpose: "login" });

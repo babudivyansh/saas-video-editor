@@ -33,6 +33,17 @@ const MAX_DELAY_MS = 4 * 60 * 60_000;
 
 export const PROVIDERS = { brevo: brevoProvider, mailjet: mailjetProvider, resend: resendProvider } as const;
 
+/**
+ * The router's own database was unusable BEFORE any provider was called — so
+ * nothing was sent, and the caller may safely use the legacy transport.
+ */
+export class RouterUnavailableError extends Error {
+  constructor(readonly cause: unknown) {
+    super("email router unavailable before sending");
+    this.name = "RouterUnavailableError";
+  }
+}
+
 export function defaultDeps(): RouterDeps {
   return { store: prismaRouterStore, alerts: dbAlertSink, providers: PROVIDERS };
 }
@@ -148,12 +159,44 @@ async function settle(
 
 /** Send one rendered email through the router. Throws only on a DB failure; the caller catches. */
 export async function deliver(input: DeliverInput, deps: RouterDeps = defaultDeps()): Promise<DeliverResult> {
+  let id: string;
+  try {
+    const early = await prepare(input);
+    if ("result" in early) return early.result;
+    id = early.id;
+  } catch (err) {
+    throw new RouterUnavailableError(err);
+  }
+
+  const email: OutboundEmail = {
+    messageId: id, to: input.to, subject: input.subject, html: input.html, text: input.text,
+    headers: input.headers, replyTo: input.replyTo, attachments: input.attachments, templateId: input.templateId,
+  };
+  const r = await routeEmail(email, input.priority, deps);
+  try {
+    return await settle(id, input.priority, r, { retryCount: 0, attemptCount: 0, sealed: () => sealPayload(input) });
+  } catch (err) {
+    // A provider may already have taken it: report the routing outcome as-is
+    // and let the stalled-send sweep mark the row, rather than throwing (which
+    // would invite the caller to send it again some other way).
+    logger.error("email:deliver", `could not record outcome of ${id}`, err);
+    return {
+      status: r.status === "accepted" ? "sent" : r.status === "unknown" ? "unknown" : "failed",
+      provider: r.provider, providerMessageId: r.providerMessageId, emailMessageId: id, error: r.errorMessage ?? undefined,
+    };
+  }
+}
+
+/** DB work before any provider is touched: idempotency check and the message row. */
+async function prepare(input: DeliverInput): Promise<{ result: DeliverResult } | { id: string }> {
   if (input.idempotencyKey) {
     const existing = await prisma.emailMessage.findUnique({ where: { idempotencyKey: input.idempotencyKey } });
     if (existing && existing.status !== "failed") {
       return {
-        status: "duplicate", provider: (existing.provider as ProviderName | null) ?? null,
-        providerMessageId: existing.providerMessageId, emailMessageId: existing.id,
+        result: {
+          status: "duplicate", provider: (existing.provider as ProviderName | null) ?? null,
+          providerMessageId: existing.providerMessageId, emailMessageId: existing.id,
+        },
       };
     }
     if (existing) {
@@ -173,14 +216,8 @@ export async function deliver(input: DeliverInput, deps: RouterDeps = defaultDep
       ...(paused ? { payloadEncrypted: sealPayload(input), nextAttemptAt: new Date(Date.now() + BASE_DELAY_MS) } : {}),
     },
   });
-  if (paused) return { status: "deferred", provider: null, providerMessageId: null, emailMessageId: id };
-
-  const email: OutboundEmail = {
-    messageId: id, to: input.to, subject: input.subject, html: input.html, text: input.text,
-    headers: input.headers, replyTo: input.replyTo, attachments: input.attachments, templateId: input.templateId,
-  };
-  const r = await routeEmail(email, input.priority, deps);
-  return settle(id, input.priority, r, { retryCount: 0, attemptCount: 0, sealed: () => sealPayload(input) });
+  if (paused) return { result: { status: "deferred", provider: null, providerMessageId: null, emailMessageId: id } };
+  return { id };
 }
 
 /**

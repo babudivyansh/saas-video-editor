@@ -28,7 +28,7 @@ import { isSuppressed, logEmail } from "./suppression";
 import { LEGAL, PRODUCT_NAME } from "./tokens";
 import { maskEmail } from "@/lib/mask-email";
 import { routerEnabled, priorityFor } from "./router/config";
-import { deliver, PROVIDERS } from "./router/deliver";
+import { deliver, PROVIDERS, RouterUnavailableError } from "./router/deliver";
 
 export interface SendResult {
   /**
@@ -307,34 +307,47 @@ export async function sendTemplate<P>(
     // Resend call below while EMAIL_ROUTER_ENABLED=true; with it unset this
     // block is skipped and sending is byte-for-byte the old path — which is
     // the rollback. SMTP below stays the very last resort either way.
+    let useLegacy = true;
     if (routerEnabled() && Object.values(PROVIDERS).some((p) => p.isConfigured())) {
-      const r = await deliver({
-        templateId: id,
-        priority: priorityFor(id, entry.group),
-        userId: userId ?? null,
-        idempotencyKey: opts.idempotencyKey,
-        to,
-        subject: payload.subject,
-        html: payload.html,
-        text: payload.text,
-        headers: payload.headers,
-        replyTo: payload.replyTo,
-        attachments: payload.attachments,
-      });
-      if (r.status === "sent" || r.status === "duplicate") {
+      useLegacy = false;
+      try {
+        const r = await deliver({
+          templateId: id,
+          priority: priorityFor(id, entry.group),
+          userId: userId ?? null,
+          idempotencyKey: opts.idempotencyKey,
+          to,
+          subject: payload.subject,
+          html: payload.html,
+          text: payload.text,
+          headers: payload.headers,
+          replyTo: payload.replyTo,
+          attachments: payload.attachments,
+        });
         if (r.status === "sent") {
           await logEmail({
             recipient: to, templateId: id, status: "sent", channel: r.provider, providerMessageId: r.providerMessageId, userId,
           });
         }
-        return { status: r.status, channel: r.provider, messageId: r.providerMessageId };
+        if (r.status === "sent" || r.status === "duplicate") {
+          return { status: r.status, channel: r.provider, messageId: r.providerMessageId };
+        }
+        if (r.status === "deferred" || r.status === "unknown") {
+          await logEmail({ recipient: to, templateId: id, status: r.status, channel: r.provider, userId, error: r.error ?? null });
+          return { status: r.status, channel: r.provider, messageId: null, error: r.error };
+        }
+        providerError = r.error ?? "no email provider could send";
+      } catch (err) {
+        // Only a failure BEFORE any provider was called arrives as
+        // RouterUnavailableError (its database was unreachable), so falling
+        // back to the legacy transport cannot produce a duplicate.
+        if (!(err instanceof RouterUnavailableError)) throw err;
+        logger.error("email:router", `router unavailable for ${id}; using the legacy transport`, err.cause);
+        useLegacy = true;
       }
-      if (r.status === "deferred" || r.status === "unknown") {
-        await logEmail({ recipient: to, templateId: id, status: r.status, channel: r.provider, userId, error: r.error ?? null });
-        return { status: r.status, channel: r.provider, messageId: null, error: r.error };
-      }
-      providerError = r.error ?? "no email provider could send";
-    } else if (env.RESEND_API_KEY) {
+    }
+
+    if (useLegacy && env.RESEND_API_KEY) {
       try {
         const { id: messageId } = await viaResend(payload);
         await logEmail({

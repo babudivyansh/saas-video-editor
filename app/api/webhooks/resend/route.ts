@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
-import { suppress } from "@/lib/email/suppression";
+import { markDelivery, suppress } from "@/lib/email/suppression";
+import { routerEnabled } from "@/lib/email/router/config";
 import { applyAll, parseResendDelivery } from "@/lib/email/router/webhooks";
 import { parseResendEvent, verifySvixSignature, type ResendEvent } from "@/lib/email/resend-webhook";
 
@@ -44,30 +45,40 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  // Shared with the Brevo/Mailjet routes (lib/email/router/webhooks.ts):
-  // deduped on the svix-id, moves the EmailMessage status forward only,
-  // updates EmailLog, and suppresses on a hard bounce or complaint.
-  const delivery = parseResendDelivery(req.headers.get("svix-id") ?? "", event as Parameters<typeof parseResendDelivery>[1]);
-  if (!delivery || delivery.kind === "ignored") {
-    // Acknowledged deliberately. Returning an error for an event type we simply
-    // do not act on would make Resend retry it and eventually disable the hook.
-    return NextResponse.json({ ok: true, ignored: event.type });
-  }
-
-  try {
-    await applyAll([delivery], "webhook:resend");
-  } catch {
-    return NextResponse.json({ error: "Processing failed" }, { status: 500 });
-  }
-
-  // A message to several recipients (none today) — suppress every one, as before.
+  // The original handling, unchanged and unconditional: EmailLog status by
+  // Resend's id, and suppression of every recipient on a permanent failure.
+  // Both are idempotent, so a redelivery is harmless.
   const parsed = parseResendEvent(event);
+  if (parsed.kind !== "ignored" && parsed.messageId) {
+    await markDelivery(parsed.messageId, parsed.kind === "delivered" ? "delivered" : parsed.kind);
+  }
   if (parsed.permanent) {
     const reason = parsed.kind === "complained" ? "complaint" : "hard_bounce";
-    for (const address of parsed.recipients.slice(1)) {
+    for (const address of parsed.recipients) {
       await suppress(address, reason, event.type);
     }
   }
 
+  // With the multi-provider router on, the same event also settles the
+  // EmailMessage it belongs to (lib/email/router/webhooks.ts): deduped on the
+  // svix-id, status only moves forward, an "unknown" send becomes accepted.
+  // Gated so this route never touches the router's tables before they exist.
+  if (routerEnabled()) {
+    const delivery = parseResendDelivery(req.headers.get("svix-id") ?? "", event as Parameters<typeof parseResendDelivery>[1]);
+    if (delivery && delivery.kind !== "ignored") {
+      try {
+        await applyAll([delivery], "webhook:resend");
+      } catch {
+        // 5xx so Resend retries; the event's dedupe row lets the retry through.
+        return NextResponse.json({ error: "Processing failed" }, { status: 500 });
+      }
+    }
+  }
+
+  if (parsed.kind === "ignored") {
+    // Acknowledged deliberately. Returning an error for an event type we simply
+    // do not act on would make Resend retry it and eventually disable the hook.
+    return NextResponse.json({ ok: true, ignored: event.type });
+  }
   return NextResponse.json({ ok: true });
 }
