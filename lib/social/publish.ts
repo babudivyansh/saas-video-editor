@@ -16,7 +16,7 @@ import { notify, type NotificationType } from "@/lib/notify";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { parseS3Url } from "@/lib/s3-url";
-import { NeedsReauthError, uploadVideo, type UploadBody } from "@/lib/social/google";
+import { NeedsReauthError, uploadVideo, YouTubeUploadLimitError, type UploadBody } from "@/lib/social/google";
 import { getValidAccessToken } from "@/lib/social/service";
 import { openS3ObjectStream } from "@/utils/s3-upload";
 import { FETCH_TIMEOUT } from "@/lib/fetch-timeout";
@@ -119,6 +119,33 @@ export async function uploadsFullToday(): Promise<boolean> {
   return Number((await redis.get(slotKey())) ?? 0) >= dailyUploadCap();
 }
 
+// ── YouTube said "not today" ────────────────────────────────────────────────
+// A channel over its own daily upload limit refuses every upload for hours;
+// asking again on each tick only repeats the refusal (six posts to one
+// channel failed within 13 s on 2026-11-19, CLIPIRO-WEB-1K). The channel is
+// paused, its posts stay pending, and the scheduler's 24 h lateness window
+// decides whether they still go out.
+
+/** How long a channel that hit its upload limit is left alone. */
+export const CHANNEL_PAUSE_SECONDS = 6 * 3600;
+export const UPLOAD_LIMIT_REASON = "YouTube’s daily upload limit for this channel was reached. We’ll try this post again in a few hours.";
+export const APP_QUOTA_REASON = "YouTube uploads are used up for today. We’ll try this post again once they reset.";
+
+const channelPauseKey = (socialAccountId: string) => `social:yt-channel-paused:${socialAccountId}`;
+
+export async function channelPaused(socialAccountId: string): Promise<boolean> {
+  return (await redis.get(channelPauseKey(socialAccountId))) !== null;
+}
+
+async function pauseChannel(socialAccountId: string): Promise<void> {
+  await redis.set(channelPauseKey(socialAccountId), "1", "EX", CHANNEL_PAUSE_SECONDS);
+}
+
+/** Marks today's app-wide uploads as used up, so no other post tries today. */
+async function exhaustUploadSlots(): Promise<void> {
+  await redis.set(slotKey(), String(dailyUploadCap()), "EX", 2 * 86_400);
+}
+
 /** Posts this person created in the last 24 h (each account a post goes to counts). */
 export async function postsInLastDay(userId: string): Promise<number> {
   return prisma.clipPublish.count({ where: { userId, createdAt: { gt: new Date(Date.now() - 86_400_000) } } });
@@ -176,6 +203,7 @@ export async function runPost(id: string): Promise<RunOutcome> {
     await fail(row, `Reconnect your ${providerName(row.socialAccount.provider)} account, then retry this post.`, "social_post_needs_reconnect");
     return "failed";
   }
+  if (await channelPaused(row.socialAccountId)) return "busy"; // the channel hit its upload limit; see pauseChannel
   if (!(await takeUploadSlot())) return "busy"; // stays pending; the next tick (or tomorrow) tries again
 
   const claimed = await prisma.clipPublish.updateMany({ where: { id: row.id, status: "pending" }, data: { status: "publishing" } });
@@ -193,6 +221,15 @@ export async function runPost(id: string): Promise<RunOutcome> {
     await notifyPost(row, "social_post_published");
     return "published";
   } catch (err) {
+    if (err instanceof YouTubeUploadLimitError) {
+      // Refused before any bytes went up, so putting it back can't double-post.
+      if (err.scope === "channel") await pauseChannel(row.socialAccountId);
+      else await exhaustUploadSlots();
+      const reason = err.scope === "channel" ? UPLOAD_LIMIT_REASON : APP_QUOTA_REASON;
+      await prisma.clipPublish.updateMany({ where: { id: row.id, status: "publishing" }, data: { status: "pending", failureReason: reason } });
+      logger.warn("social-publish", `post ${row.id} deferred: ${err.reason}`);
+      return "busy";
+    }
     if (err instanceof NeedsReauthError) {
       await prisma.socialAccount.update({ where: { id: row.socialAccountId }, data: { status: "needs_reauth" } }).catch(() => {});
       await fail(row, `Reconnect your ${providerName(row.socialAccount.provider)} account to allow uploads, then retry this post.`, "social_post_needs_reconnect");

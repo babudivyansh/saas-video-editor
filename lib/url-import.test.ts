@@ -5,14 +5,21 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const calls: Array<{ url: string; flags: Record<string, unknown> }> = [];
+/** Per download attempt: true writes the output file, false fails like prod. */
+let downloadPlan: boolean[] = [];
 vi.mock("youtube-dl-exec", () => ({
   create: () => async (url: string, flags: Record<string, unknown>) => {
     calls.push({ url, flags });
     if (flags.dumpSingleJson) return { title: "A video", duration: 30, is_live: false };
-    throw new Error("download stubbed out");
+    if (downloadPlan.shift()) {
+      const fs = await import("fs");
+      fs.writeFileSync(String(flags.output), "video");
+      return "";
+    }
+    throw Object.assign(new Error("download stubbed out"), { stderr: "ERROR: Did not get any data blocks" });
   },
 }));
-vi.mock("@/utils/s3-upload", () => ({ uploadFileToS3: vi.fn() }));
+vi.mock("@/utils/s3-upload", () => ({ uploadFileToS3: vi.fn(async () => "https://s3/stored.mp4") }));
 vi.mock("@/lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 vi.mock("@/lib/ensure-executable", () => ({ ensureExecutable: vi.fn() }));
 
@@ -20,7 +27,20 @@ const { importSourceFromUrl, isAllowedSourceUrl, probeSourceUrl, removeDownloadA
 
 beforeEach(() => {
   calls.length = 0;
+  downloadPlan = [];
+  vi.useRealTimers();
 });
+
+/** Runs an import with the retry delays skipped. */
+async function runImport() {
+  vi.useFakeTimers();
+  const p = importSourceFromUrl({ url: "https://www.youtube.com/watch?v=abc", userId: "u1", projectId: "p1", tier: "pro" });
+  p.catch(() => {}); // asserted below; keeps the rejection handled while timers run
+  await vi.runAllTimersAsync();
+  return p;
+}
+
+const downloads = () => calls.filter((c) => !c.flags.dumpSingleJson);
 
 describe("url import", () => {
   it("probes with site extractors only", async () => {
@@ -28,12 +48,28 @@ describe("url import", () => {
     expect(calls[0].flags.useExtractors).toBe("default,-generic");
   });
 
-  it("downloads with site extractors only", async () => {
-    await expect(
-      importSourceFromUrl({ url: "https://www.youtube.com/watch?v=abc", userId: "u1", projectId: "p1", tier: "pro" }),
-    ).rejects.toThrow();
-    const download = calls.find((c) => !c.flags.dumpSingleJson);
-    expect(download?.flags.useExtractors).toBe("default,-generic");
+  it("downloads with site extractors only, on every attempt", async () => {
+    await expect(runImport()).rejects.toThrow("We couldn't download that video");
+    expect(downloads()).toHaveLength(3);
+    for (const d of downloads()) expect(d.flags.useExtractors).toBe("default,-generic");
+  });
+
+  // CLIPIRO-WEB-T / WEB-1M: YouTube served an empty body for the web formats.
+  it("retries, and asks the mobile-web client last", async () => {
+    downloadPlan = [false, false, true];
+    const result = await runImport();
+    expect(result.url).toBe("https://s3/stored.mp4");
+    const [first, second, third] = downloads();
+    expect(first.flags.extractorArgs).toBeUndefined();
+    expect(second.flags.extractorArgs).toBeUndefined();
+    expect(third.flags.extractorArgs).toBe("youtube:player_client=mweb");
+    expect(third.flags.maxFilesize).toBe(first.flags.maxFilesize);
+  });
+
+  it("stops after the first attempt that works", async () => {
+    downloadPlan = [true];
+    await runImport();
+    expect(downloads()).toHaveLength(1);
   });
 
   it("allowlists hosts on the first hop", () => {

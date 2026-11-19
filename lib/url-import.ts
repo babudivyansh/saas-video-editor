@@ -15,7 +15,7 @@ import { uploadFileToS3 } from "@/utils/s3-upload";
 import { SOURCE_HOSTS, SOURCE_HOSTS_LABEL } from "@clipiro/shared/sources";
 import { TIER_MAX_AUTOCLIP_SOURCE_SECONDS, maxUploadBytesForTier, formatBytes } from "@/lib/plans/tiers";
 import { logger } from "@/lib/logger";
-import { runYtDlp, ytDlpErrorText, YtDlpError } from "@/lib/ytdlp";
+import { runYtDlp, ytDlpErrorText, YtDlpError, type YtDlpFlags } from "@/lib/ytdlp";
 import type { TierId } from "@/lib/plans/tiers";
 import ffmpegStatic from "ffmpeg-static";
 import { randomUUID } from "crypto";
@@ -115,6 +115,42 @@ export function removeDownloadArtifacts(tmpPath: string): void {
   } catch { /* tmp unreadable: the sweep (lib/tmp-sweep.ts) gets it later */ }
 }
 
+/**
+ * The download attempts, in order. YouTube intermittently answers the
+ * server's requests for its adaptive (web client) formats with an empty body,
+ * and yt-dlp fails with "Did not get any data blocks" after the probe
+ * succeeded (CLIPIRO-WEB-T / WEB-1M, 2026-11-16..19, latest yt-dlp). A second
+ * try usually gets through; the last one asks YouTube's mobile-web client,
+ * whose streams were still served when the web formats were refused
+ * (reproduced 2026-11-20: web formats 403, mweb downloaded). That stream can
+ * be lower resolution, which beats a failed import. Other sites ignore
+ * youtube: extractor args.
+ */
+export const DOWNLOAD_ATTEMPTS: ReadonlyArray<{ delayMs: number; flags: YtDlpFlags }> = [
+  { delayMs: 0, flags: {} },
+  { delayMs: 3_000, flags: {} },
+  { delayMs: 3_000, flags: { extractorArgs: "youtube:player_client=mweb" } },
+];
+
+async function downloadWithRetries(url: string, baseFlags: YtDlpFlags, tmpPath: string, attempts = DOWNLOAD_ATTEMPTS): Promise<void> {
+  let lastErr: unknown;
+  for (let i = 0; i < attempts.length; i++) {
+    const { delayMs, flags } = attempts[i];
+    if (delayMs) await new Promise((r) => setTimeout(r, delayMs));
+    try {
+      await runYtDlp(url, { ...baseFlags, ...flags });
+      if (i > 0) logger.info("url-import", `download succeeded on attempt ${i + 1}`);
+      return;
+    } catch (err) {
+      lastErr = err;
+      // Start the next attempt clean: a half-written .part would be resumed.
+      removeDownloadArtifacts(tmpPath);
+      if (i < attempts.length - 1) logger.warn("url-import", `download attempt ${i + 1} failed: ${ytDlpErrorText(err)}`);
+    }
+  }
+  throw lastErr;
+}
+
 export async function importSourceFromUrl(args: {
   url: string;
   userId: string;
@@ -152,7 +188,7 @@ export async function importSourceFromUrl(args: {
 
   const tmpPath = path.join(os.tmpdir(), `import-${projectId}-${randomUUID()}.mp4`);
   try {
-    await runYtDlp(url, {
+    const baseFlags = {
       output: tmpPath,
       format: "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080][ext=mp4]/best",
       mergeOutputFormat: "mp4",
@@ -167,7 +203,8 @@ export async function importSourceFromUrl(args: {
       // runs. (bare integer = bytes to yt-dlp.)
       maxFilesize: String(maxBytes),
       ...(ffmpegDir() ? { ffmpegLocation: ffmpegDir()! } : {}),
-    });
+    };
+    await downloadWithRetries(url, baseFlags, tmpPath);
 
     // Backstop for the streaming/unknown-size case yt-dlp can't pre-check.
     if (!fs.existsSync(tmpPath)) throw new UrlImportError("The download finished but produced no file.");

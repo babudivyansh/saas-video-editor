@@ -15,7 +15,7 @@ export interface SocialPublishPayload {
 
 export async function socialPublishJob(payload: SocialPublishPayload): Promise<void> {
   const outcome = await runPost(payload.postId);
-  if (outcome === "busy") logger.info("social-publish", `post ${payload.postId} waits: today's YouTube uploads are used up`);
+  if (outcome === "busy") logger.info("social-publish", `post ${payload.postId} waits: today's YouTube uploads are used up, or the channel hit its upload limit`);
 }
 
 const queue = createRenderQueue<SocialPublishPayload>("social-publish", socialPublishJob);

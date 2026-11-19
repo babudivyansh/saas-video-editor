@@ -12,6 +12,7 @@ const h = vi.hoisted(() => ({
   notify: vi.fn(async (_a: unknown) => {}),
   upload: vi.fn(async (..._a: unknown[]) => ({ videoId: "yt1", permalink: "https://www.youtube.com/watch?v=yt1" })),
   counter: { n: 0 },
+  kv: new Map<string, string>(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -27,17 +28,23 @@ vi.mock("@/lib/redis", () => ({
   redis: {
     incrWithExpire: vi.fn(async () => ++h.counter.n),
     decrFloor: vi.fn(async () => { h.counter.n = Math.max(0, h.counter.n - 1); }),
-    get: vi.fn(async () => String(h.counter.n)),
+    // The upload counter is the one social:yt-uploads:* key; others live in kv.
+    get: vi.fn(async (k: string) => (k.startsWith("social:yt-uploads:") ? String(h.counter.n) : h.kv.get(k) ?? null)),
+    set: vi.fn(async (k: string, v: string) => {
+      if (k.startsWith("social:yt-uploads:")) h.counter.n = Number(v);
+      else h.kv.set(k, v);
+    }),
   },
 }));
 vi.mock("@/lib/social/service", () => ({ getValidAccessToken: vi.fn(async () => "tok") }));
-vi.mock("@/lib/social/google", () => ({
+vi.mock("@/lib/social/google", async (orig) => ({
+  ...(await orig<typeof import("@/lib/social/google")>()),
   uploadVideo: (...a: unknown[]) => h.upload(...a),
   NeedsReauthError: class NeedsReauthError extends Error {},
 }));
 vi.mock("@/utils/s3-upload", () => ({ openS3ObjectStream: vi.fn(async (key: string) => ({ stream: `stream:${key}`, size: 42 })) }));
 
-const { NeedsReauthError } = await import("@/lib/social/google");
+const { NeedsReauthError, YouTubeUploadLimitError, uploadLimitError } = await import("@/lib/social/google");
 const pub = await import("./publish");
 
 const S3 = "https://bucket.s3.ap-south-1.amazonaws.com";
@@ -53,6 +60,7 @@ const row = (over: Record<string, unknown> = {}) => ({
 beforeEach(() => {
   vi.clearAllMocks();
   h.counter.n = 0;
+  h.kv.clear();
   h.updateMany.mockResolvedValue({ count: 1 });
 });
 
@@ -131,5 +139,42 @@ describe("runPost", () => {
   it("skips a post that is no longer pending", async () => {
     h.findUnique.mockResolvedValue(row({ status: "linked" }));
     expect(await pub.runPost("p1")).toBe("skipped");
+  });
+
+  // CLIPIRO-WEB-1K: six posts to one channel failed in 13 s on 2026-11-19.
+  it("puts a post back and pauses the channel when YouTube's channel upload limit is hit", async () => {
+    h.findUnique.mockResolvedValue(row());
+    h.upload.mockRejectedValueOnce(new YouTubeUploadLimitError("channel", "uploadLimitExceeded"));
+    expect(await pub.runPost("p1")).toBe("busy");
+    expect(h.updateMany).toHaveBeenLastCalledWith({ where: { id: "p1", status: "publishing" }, data: { status: "pending", failureReason: pub.UPLOAD_LIMIT_REASON } });
+    expect(h.notify).not.toHaveBeenCalled();
+    expect(await pub.channelPaused("acc1")).toBe(true);
+
+    // The channel's next post isn't even tried; another channel's still is.
+    h.upload.mockClear();
+    expect(await pub.runPost("p2")).toBe("busy");
+    expect(h.upload).not.toHaveBeenCalled();
+    h.findUnique.mockResolvedValue(row({ id: "p3", socialAccountId: "acc9", socialAccount: { id: "acc9", provider: "youtube", status: "active" } }));
+    expect(await pub.runPost("p3")).toBe("published");
+  });
+
+  it("stops today's uploads app-wide when the API quota is used up", async () => {
+    h.findUnique.mockResolvedValue(row());
+    h.upload.mockRejectedValueOnce(new YouTubeUploadLimitError("app", "quotaExceeded"));
+    expect(await pub.runPost("p1")).toBe("busy");
+    expect(h.updateMany).toHaveBeenLastCalledWith({ where: { id: "p1", status: "publishing" }, data: { status: "pending", failureReason: pub.APP_QUOTA_REASON } });
+    expect(await pub.uploadsFullToday()).toBe(true);
+  });
+});
+
+describe("uploadLimitError", () => {
+  const body = (reason: string) => JSON.stringify({ error: { code: 400, errors: [{ reason, domain: "youtube.video" }] } });
+
+  it("reads YouTube's reason, not the status alone", () => {
+    expect(uploadLimitError(400, body("uploadLimitExceeded"))).toMatchObject({ scope: "channel" });
+    expect(uploadLimitError(403, body("quotaExceeded"))).toMatchObject({ scope: "app" });
+    expect(uploadLimitError(400, body("invalidTitle"))).toBeNull();
+    expect(uploadLimitError(500, body("uploadLimitExceeded"))).toBeNull();
+    expect(uploadLimitError(400, "not json")).toBeNull();
   });
 });
