@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Checkbox } from "@/app/components/ui/Checkbox";
 import { Dropdown, DropdownItem } from "@/app/components/ui/Dropdown";
 import { useToast } from "@/app/components/ui/Toast";
+import { useWatermarkDownloadGate } from "@/app/components/billing/WatermarkUpgrade";
 import { RetryClipButton } from "@/app/dashboard/create/auto-clip/_components/ClipActions";
 import { arCss, fmtTime, scoreBand, type ScoreBreakdownWithInsights } from "@/app/dashboard/create/auto-clip/_components/shared";
 import type { WorkspaceTab } from "@/app/dashboard/create/auto-clip/_components/ClipWorkspace";
@@ -222,6 +223,7 @@ function AddToCollection({ clip }: { clip: ViewClip }) {
 
 function ActionsColumn({ clip, source, handlers }: { clip: ViewClip; source: ClipsSource; handlers: ClipHandlers }) {
   const { showToast } = useToast();
+  const gateDownload = useWatermarkDownloadGate();
   const [duplicating, setDuplicating] = useState(false);
   if (!isReady(clip)) return null;
   const base = `/api/projects/${clip.projectId}/clips/${clip.id}`;
@@ -234,7 +236,7 @@ function ActionsColumn({ clip, source, handlers }: { clip: ViewClip; source: Cli
       <a className={ACTION} href={`${base}/export-xml`} download>
         <IcXml /> Export XML
       </a>
-      <a className={ACTION} href={`${base}/download`} download>
+      <a className={ACTION} href={`${base}/download`} download onClick={(e) => gateDownload(e, `${base}/download`)}>
         <IcDownload /> Download
       </a>
       <button type="button" className={ACTION} onClick={() => handlers.onOpenWorkspace(clip, "edit")}>

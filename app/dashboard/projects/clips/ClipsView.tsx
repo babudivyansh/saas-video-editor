@@ -10,6 +10,9 @@ import { Skeleton } from "@/app/components/ui/Skeleton";
 import { useToast } from "@/app/components/ui/Toast";
 import { EmptyState } from "@/app/components/ui/EmptyState";
 import { ScorePerformanceBanner } from "@/app/components/auto-clip/ScorePerformanceBanner";
+import {
+  WatermarkDownloadGateProvider, WatermarkUpgradeBanner, useWatermarkDownloadGate,
+} from "@/app/components/billing/WatermarkUpgrade";
 import { ApiError } from "@/app/dashboard/create/auto-clip/_components/shared";
 import { ClipWorkspace, type WorkspaceTab } from "@/app/dashboard/create/auto-clip/_components/ClipWorkspace";
 import { activeFilterCount, parseFilters, type ClipFilters } from "@/lib/clip-view";
@@ -39,6 +42,13 @@ import {
 // the keep-or-skip review, which leads back here. ?view=all opts out of both:
 // it lists what is ready now. A project opened after its run finished lists
 // its clips straight away.
+
+/** An <a> download link that asks a free user about the watermark first (once
+ *  per session) — needs to sit under WatermarkDownloadGateProvider. */
+function DownloadAllLink({ href, className, children }: { href: string; className: string; children: React.ReactNode }) {
+  const gate = useWatermarkDownloadGate();
+  return <a href={href} className={className} onClick={(e) => gate(e, href)}>{children}</a>;
+}
 
 const LAYOUT_KEY = "clipiro:clips-layout";
 const SORTS: ClipSort[] = ["score", "order", "duration", "added"];
@@ -186,6 +196,7 @@ export function ClipsView({ source }: { source: ClipsSource }) {
   const SEG = "flex h-10 w-10 items-center justify-center rounded-lg outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary/60";
 
   return (
+    <WatermarkDownloadGateProvider>
     <div className="mx-auto w-full max-w-[1400px] space-y-5 px-4 pb-16 pt-6 sm:px-8">
       <Breadcrumbs
         items={[
@@ -246,16 +257,17 @@ export function ClipsView({ source }: { source: ClipsSource }) {
             </>
           )}
           {source.kind === "project" && readyCount > 1 && (
-            <a
+            <DownloadAllLink
               href={`/api/projects/${source.id}/clips/download-all`}
               className="inline-flex h-10 items-center gap-2 rounded-xl border border-line bg-surface-2 px-3.5 text-sm font-medium text-fg outline-none hover:bg-surface-3 focus-visible:ring-2 focus-visible:ring-primary/60"
             >
               <IcDownload /> Download all ({readyCount})
-            </a>
+            </DownloadAllLink>
           )}
         </div>
       </div>
 
+      {source.kind === "project" && readyCount > 0 && <WatermarkUpgradeBanner />}
       {project?.status === "completed" && <ScorePerformanceBanner />}
       {project && project.status !== "completed" && project.status !== "failed" && (
         <div className="flex flex-col gap-2">
@@ -351,6 +363,7 @@ export function ClipsView({ source }: { source: ClipsSource }) {
         />
       )}
     </div>
+    </WatermarkDownloadGateProvider>
   );
 }
 

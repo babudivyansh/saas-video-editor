@@ -13,7 +13,10 @@ import { APP_URL, PRODUCT_NAME } from "../tokens";
 import { TRIAL_DAYS } from "@/lib/plans/tiers";
 
 const DASHBOARD_URL = `${APP_URL}/dashboard`;
-const PRICING_URL = `${APP_URL}/pricing`;
+// The in-app plans view (BillingOverlayContext PLANS_HREF), not the marketing
+// /pricing page: a signed-in user lands on the same plans + trial screen the
+// app's own Upgrade buttons open, already logged in.
+const PLANS_URL = `${APP_URL}/dashboard?billing=1&view=plans`;
 
 /** The three steps every "you haven't started yet" email repeats. */
 const HOW_IT_WORKS = [
@@ -175,7 +178,7 @@ export function onboardingDay7(p: { name: string; minutesLeft: number }): EmailD
           "Clip Minutes every month, for longer videos",
         ],
       },
-      { kind: "button", href: PRICING_URL, label: `Try Pro free for ${TRIAL_DAYS} days` },
+      { kind: "button", href: PLANS_URL, label: `Try Pro free for ${TRIAL_DAYS} days` },
       { kind: "paragraph", tone: "fine", text: "Cancel any time during the trial and you won't be charged." },
     ],
   };
@@ -247,7 +250,7 @@ export function firstVideoSuccess(p: { name: string; clipCount: number }): Email
           html`<strong>More Clip Minutes</strong> every month, for full streams and episodes`,
         ],
       },
-      { kind: "button", href: PRICING_URL, label: `Start my ${TRIAL_DAYS}-day free trial` },
+      { kind: "button", href: PLANS_URL, label: `Start my ${TRIAL_DAYS}-day free trial` },
       { kind: "paragraph", tone: "fine", text: "Cancel any time during the trial and you won't be charged." },
     ],
   };

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useWatermarkDownloadGate } from "@/app/components/billing/WatermarkUpgrade";
 import { fmtTime, scoreBand } from "@/app/dashboard/create/auto-clip/_components/shared";
 import { IcCalendar, IcDownload } from "../components/icons";
 import { FeedbackButtons, type ClipHandlers } from "./ClipDetail";
@@ -14,6 +15,8 @@ export function ClipGridCard({ clip, onOpen, handlers }: { clip: ViewClip; onOpe
   const [hover, setHover] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const name = clipName(clip);
+  const gateDownload = useWatermarkDownloadGate();
+  const downloadHref = `/api/projects/${clip.projectId}/clips/${clip.id}/download`;
 
   return (
     <div
@@ -77,8 +80,9 @@ export function ClipGridCard({ clip, onOpen, handlers }: { clip: ViewClip; onOpe
               <IcCalendar />
             </button>
             <a
-              href={`/api/projects/${clip.projectId}/clips/${clip.id}/download`}
+              href={downloadHref}
               download
+              onClick={(e) => gateDownload(e, downloadHref)}
               aria-label={`Download ${name}`}
               className="flex h-10 w-10 items-center justify-center rounded-lg text-fg-muted hover:bg-surface-3 hover:text-fg outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
             >

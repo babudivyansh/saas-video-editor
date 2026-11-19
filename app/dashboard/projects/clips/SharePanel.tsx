@@ -13,6 +13,7 @@ import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import Breadcrumbs from "@/app/components/ui/Breadcrumbs";
 import { Skeleton } from "@/app/components/ui/Skeleton";
+import { useWatermarkDownloadGate } from "@/app/components/billing/WatermarkUpgrade";
 import { ApiError, apiFetch } from "@/app/dashboard/create/auto-clip/_components/shared";
 import type { PublishAccount } from "@/app/dashboard/create/auto-clip/_components/ClipActions";
 import { ProjectGone } from "./RunStates";
@@ -72,6 +73,7 @@ export function SharePanel({ projectId }: { projectId: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<Done | null>(null);
+  const gateDownload = useWatermarkDownloadGate();
 
   if (query.error instanceof ApiError && query.error.status === 404) return <ProjectGone />;
 
@@ -206,7 +208,13 @@ export function SharePanel({ projectId }: { projectId: string }) {
                       ))}
                       {n > 4 && <li className="px-3 text-[13px] text-fg-muted">+ {n - 4} more</li>}
                     </ul>
-                    <a href={zipHref} onClick={() => setDone({ kind: "download" })} className="mt-auto inline-flex h-[52px] items-center justify-center rounded-full border border-line-strong bg-surface-2 px-6 font-semibold text-fg hover:bg-surface-3">
+                    <a
+                      href={zipHref}
+                      onClick={(e) => {
+                        // A free user's first download may stop on the watermark question.
+                        gateDownload(e, zipHref);
+                        if (!e.defaultPrevented) setDone({ kind: "download" });
+                      }} className="mt-auto inline-flex h-[52px] items-center justify-center rounded-full border border-line-strong bg-surface-2 px-6 font-semibold text-fg hover:bg-surface-3">
                       Download ZIP
                     </a>
                   </section>
