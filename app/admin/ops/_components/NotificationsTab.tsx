@@ -6,7 +6,7 @@
 // snapshot (GET /api/admin/ops/notifications), not part of the ops poll:
 // nothing here changes on its own.
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
@@ -61,9 +61,12 @@ export function NotificationsTab({ headers }: { headers: Headers }) {
     },
   });
 
-  useEffect(() => {
-    if (data) setForm(data.signup);
-  }, [data]);
+  // Seed the form from each fresh snapshot (first load, and after a save).
+  const [seededFrom, setSeededFrom] = useState<NotificationsData | null>(null);
+  if (data && data !== seededFrom) {
+    setSeededFrom(data);
+    setForm(data.signup);
+  }
 
   const save = useMutation({
     mutationFn: async () => {

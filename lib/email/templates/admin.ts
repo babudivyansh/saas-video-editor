@@ -286,13 +286,17 @@ export interface AdminStaffAlertData {
   hrefLabel: string;
 }
 
+const STAFF_ALERT_TONES = { success: "success", warning: "warning", danger: "danger" } as const;
+
 export function staffAlert(d: AdminStaffAlertData): EmailDocument {
+  // Looked up, not passed through: an unknown value must not reach the renderer.
+  const tone = STAFF_ALERT_TONES[d.tone as keyof typeof STAFF_ALERT_TONES] ?? "neutral";
   return {
     subject: d.title,
     preheader: d.summary,
     blocks: [
       { kind: "heading", text: d.title },
-      { kind: "callout", tone: d.tone, body: d.summary },
+      { kind: "callout", tone, body: d.summary },
       ...(d.rows.length ? [{ kind: "kv" as const, rows: d.rows }] : []),
       { kind: "button", href: `${APP_URL}${d.href}`, label: d.hrefLabel },
       { kind: "paragraph", text: "Turn these off in Admin → Operations → Notifications.", tone: "fine" },
