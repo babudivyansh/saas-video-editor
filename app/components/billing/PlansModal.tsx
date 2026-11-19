@@ -2,7 +2,8 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/app/components/AuthContext";
 import { useRazorpayCheckout } from "@/app/components/useRazorpayCheckout";
-import { PURCHASABLE_TIER_ORDER, TIER_LABEL } from "@/lib/plans/tiers";
+import { PURCHASABLE_TIER_ORDER, TIER_LABEL, TRIAL_CREDITS, TRIAL_DAYS, TRIAL_MINUTES, isTrialPlan } from "@/lib/plans/tiers";
+import { CheckoutModal } from "@/app/pricing/_components/CheckoutModal";
 import { planCta } from "@/lib/plans/plan-cta";
 import { formatMoney, inferCurrencyFromLocale, type Currency } from "@/lib/currency-shared";
 import { formatDate } from "@/lib/format";
@@ -62,6 +63,10 @@ export function PlansModal({ onPurchaseSuccess, resumeFromPeriodEnd = false, onM
   }, [subscriptionCurrency]);
 
   const [checkoutPlan, setCheckoutPlan] = useState<DbPlan | null>(null);
+  // Whether the open checkout is the 7-day Pro trial (then it uses /pricing's
+  // CheckoutModal, which shows "₹0 due today" and "Start free trial").
+  const [checkoutTrial, setCheckoutTrial] = useState(false);
+  const [checkoutError, setCheckoutError] = useState("");
   const creatorDiscount = useCreatorDiscount(!!user);
 
   useEffect(() => {
@@ -87,23 +92,43 @@ export function PlansModal({ onPurchaseSuccess, resumeFromPeriodEnd = false, onM
     if (currentInterval) setTerm(currentInterval);
   }, [currentInterval]);
 
-  function openCheckout(plan: DbPlan) {
+  // The 7-day Pro trial, on the same terms /pricing and /api/billing/checkout
+  // use (lib/billing/trial.ts): once per account, first purchase only, never
+  // over a running plan. Every in-app "Try Pro free" button opens this view,
+  // which until 2026-11-19 had no trial at all — only /pricing did.
+  const trialEligible =
+    !!user && !user.trialUsedAt && !user.hasPurchased && !hasActivePlan && !resumeFromPeriodEnd;
+
+  function openCheckout(plan: DbPlan, trial = false) {
     setCheckoutPlan(plan);
+    setCheckoutTrial(trial);
+    setCheckoutError("");
   }
 
   function backToBrowse() {
     setCheckoutPlan(null);
+    setCheckoutTrial(false);
   }
 
   function handlePay() {
     if (!checkoutPlan) return;
+    setCheckoutError("");
     startCheckout({
       planId: checkoutPlan.slug,
       currency,
       resumeFromPeriodEnd,
-      onSuccess: () => {
-        onPurchaseSuccess();
-      },
+      ...(checkoutTrial
+        ? {
+            trial: true,
+            // A trial charges ₹0 — land on Billing, which says the trial has
+            // started, when it ends and what it costs after (as /pricing does).
+            // A full load on purpose: the overlay reads ?billing=/?success=
+            // only on first mount, so a client push would show nothing new.
+            // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+            onSuccess: () => { window.location.href = "/dashboard?billing=1&success=trial"; },
+            onError: setCheckoutError,
+          }
+        : { onSuccess: () => { onPurchaseSuccess(); } }),
     });
   }
 
@@ -122,7 +147,19 @@ export function PlansModal({ onPurchaseSuccess, resumeFromPeriodEnd = false, onM
     <div className="flex flex-col min-h-0">
         {/* Picking a plan opens a compact confirm dialog over the plans,
             rather than swapping the page for an order summary. */}
-        {checkoutPlan && (
+        {checkoutPlan && checkoutTrial && (
+          <CheckoutModal
+            plan={checkoutPlan}
+            trial
+            currency={currency}
+            activePlanEndsAt={null}
+            loading={checkoutLoading}
+            error={checkoutError}
+            onPay={handlePay}
+            onClose={backToBrowse}
+          />
+        )}
+        {checkoutPlan && !checkoutTrial && (
           <ConfirmPlanDialog
             plan={checkoutPlan}
             plans={subs}
@@ -158,6 +195,7 @@ export function PlansModal({ onPurchaseSuccess, resumeFromPeriodEnd = false, onM
             buyingPack={activeId}
             onBuyPack={handleBuyPack}
             onSelectPlan={openCheckout}
+            trialEligible={trialEligible}
             currentPlan={currentPlan}
             hasActivePlan={hasActivePlan}
             planStrip={hasActivePlan && currentPlan ? (
@@ -176,7 +214,7 @@ export function PlansModal({ onPurchaseSuccess, resumeFromPeriodEnd = false, onM
 }
 
 // ── Browse step ──────────────────────────────────────────────────────────────
-function BrowseStep({ plansLoading, subs, packs, minutePacks, term, onTermChange, currency, onCurrencyChange, buyingPack, onBuyPack, onSelectPlan, currentPlan, hasActivePlan, planStrip }: {
+function BrowseStep({ plansLoading, subs, packs, minutePacks, term, onTermChange, currency, onCurrencyChange, buyingPack, onBuyPack, onSelectPlan, trialEligible, currentPlan, hasActivePlan, planStrip }: {
   plansLoading: boolean;
   subs: DbPlan[];
   packs: DbPlan[];
@@ -187,7 +225,8 @@ function BrowseStep({ plansLoading, subs, packs, minutePacks, term, onTermChange
   onCurrencyChange: (c: Currency) => void;
   buyingPack: string | null;
   onBuyPack: (pack: DbPlan) => void;
-  onSelectPlan: (plan: DbPlan) => void;
+  onSelectPlan: (plan: DbPlan, trial?: boolean) => void;
+  trialEligible: boolean;
   currentPlan: DbPlan | null;
   hasActivePlan: boolean;
   planStrip: React.ReactNode;
@@ -253,6 +292,8 @@ function BrowseStep({ plansLoading, subs, packs, minutePacks, term, onTermChange
           {cards.map(plan => {
             const cta = planCta(plan, currentPlan, hasActivePlan);
             const isCurrent = currentPlan?.slug === plan.slug;
+            const offerTrial = isTrialPlan(plan) && trialEligible;
+            const perMonth = formatMoney(Math.round(minorUnits(plan, currency) / (plan.intervalMonths ?? 1)), currency);
             return (
               <PlanCard
                 key={plan.id}
@@ -263,14 +304,23 @@ function BrowseStep({ plansLoading, subs, packs, minutePacks, term, onTermChange
                 // Recommended plan first on phones, where only one card is on screen.
                 className={plan.tier === "pro" ? "max-sm:order-first" : ""}
                 isCurrent={isCurrent}
-                onSelect={onSelectPlan}
+                onSelect={(p) => onSelectPlan(p, offerTrial)}
                 size="compact"
-                ctaLabel={cta.label}
+                ctaLabel={offerTrial ? `Start ${TRIAL_DAYS}-day free trial` : cta.label}
                 ctaDisabled={cta.disabled}
                 footer={
-                  <p className="text-center text-xs text-fg-subtle">
-                    {isCurrent && hasActivePlan ? "You're on this plan" : "Cancel anytime"}
-                  </p>
+                  offerTrial ? (
+                    <p className="text-center text-xs text-fg-muted">
+                      {TRIAL_MINUTES} Clip Minutes + {TRIAL_CREDITS} credits to try · then {perMonth}/mo ·{" "}
+                      <button type="button" onClick={() => onSelectPlan(plan)} className="font-medium text-primary underline-offset-2 hover:underline">
+                        or buy now
+                      </button>
+                    </p>
+                  ) : (
+                    <p className="text-center text-xs text-fg-subtle">
+                      {isCurrent && hasActivePlan ? "You're on this plan" : "Cancel anytime"}
+                    </p>
+                  )
                 }
               />
             );
