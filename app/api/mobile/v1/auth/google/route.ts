@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
     const tokens = await convertToMobileSession(await finishLogin(req, user, getClientIp(req)));
     if (!tokens) return mobileError(500, "Couldn't start your session. Try again.");
     if (isNewUser) {
-      sendWelcomeEmail(user.email, greetingName(user.name), user.credits ?? 10).catch((e) => logger.error("mobile-google", "welcome email error", e));
+      sendWelcomeEmail(user.email, greetingName(user.name), user.minutes ?? 0).catch((e) => logger.error("mobile-google", "welcome email error", e));
     }
     return mobileSessionResponse(tokens, isNewUser ? 201 : 200);
   } catch (e) {

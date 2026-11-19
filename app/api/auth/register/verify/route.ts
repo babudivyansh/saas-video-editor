@@ -93,9 +93,13 @@ export async function POST(req: NextRequest) {
     // The free tier's Clip Minutes, through the ledgered helper (a raw column
     // write here would leave refunds nothing to restore against). Best-effort:
     // a failed grant must not fail the signup — the monthly drip retries it.
+    let signupMinutes = 0;
     if (!repeatInbox && (await signupGrantAllowedForIp(getClientIp(req)))) {
-      await grantFreeTierMinutes(user.id, "grant:signup").catch((e) =>
-        logger.error("auth", `signup minutes grant failed for ${user.id}`, e));
+      const granted = await grantFreeTierMinutes(user.id, "grant:signup").catch((e) => {
+        logger.error("auth", `signup minutes grant failed for ${user.id}`, e);
+        return null;
+      });
+      signupMinutes = granted?.total ?? 0;
     }
 
     const { token } = await completeLogin(req, user);
@@ -126,9 +130,9 @@ export async function POST(req: NextRequest) {
     res.cookies.set("affiliate_ref", "", { maxAge: 0, path: "/" });
     // Same shape for campaign attribution: record the conversion and clear the
     // first-touch cookie. Never throws; a missing cookie is a no-op.
-    await recordSignupAttribution(req, res, "/register");
+    await recordSignupAttribution(req, res, "/register", user.id);
 
-    sendWelcomeEmail(user.email, greetingName(pending.name), user.credits).catch(
+    sendWelcomeEmail(user.email, greetingName(pending.name), signupMinutes).catch(
       (e) => logger.error("register", "welcome email error", e),
     );
     // Staff "new signup" email (Admin → Operations → Notifications). Never throws.

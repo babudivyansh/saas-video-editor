@@ -176,7 +176,7 @@
     "gender": "Gênero",
     "genders": { "male": "Masculino", "female": "Feminino", "unspecified": "Prefiro não dizer" },
     "intendedUseLabel": "Para que você planeja usar o Clipiro?",
-    "intendedUses": { "contentCreator": "Criador de conteúdo", "businessMarketing": "Negócios / Marketing", "personal": "Pessoal", "other": "Outro" },
+    "intendedUses": { "gaming": "Streams de jogos", "podcast": "Podcasts", "education": "Palestras e aulas", "contentCreator": "Criador de conteúdo", "businessMarketing": "Negócios / Marketing", "personal": "Pessoal", "other": "Outro" },
     "restartTourTitle": "Reiniciar tour de introdução",
     "restartTourDesc": "Veja novamente a tela de boas-vindas e o tour guiado na próxima vez que visitar o painel.",
     "restarting": "Reiniciando…",

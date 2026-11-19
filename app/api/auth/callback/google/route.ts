@@ -142,9 +142,9 @@ export async function GET(req: NextRequest) {
       res.cookies.set("affiliate_ref", "", { maxAge: 0, path: "/" });
       // Same shape for campaign attribution: record the conversion and clear
       // the first-touch cookie. Never throws; a missing cookie is a no-op.
-      await recordSignupAttribution(req, res, "/api/auth/callback/google");
+      await recordSignupAttribution(req, res, "/api/auth/callback/google", user.id);
       // ── Welcome email for new Google signup (non-fatal) ───────────
-      sendWelcomeEmail(user.email, greetingName(user.name), user.credits ?? 10).catch(
+      sendWelcomeEmail(user.email, greetingName(user.name), user.minutes ?? 0).catch(
         (e) => logger.error("google-callback", "welcome email error", e)
       );
     }

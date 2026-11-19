@@ -21,7 +21,9 @@ vi.mock("@/lib/api-public-routes", () => ({ isPublicApiRoute: () => false }));
 vi.mock("@/lib/rate-limit", () => ({ rateLimit: vi.fn(async () => ({ allowed: true })) }));
 vi.mock("@/lib/marketing-attribution", () => ({
   ATTRIBUTION_COOKIE: "clipiro_attr",
+  FIRST_TOUCH_COOKIE: "first_touch",
   buildAttributionCookie: () => null,
+  buildFirstTouchCookie: () => "direct|/",
 }));
 vi.mock("@/lib/csp", () => ({ buildCsp: () => "default-src 'self'" }));
 vi.mock("@/lib/flags", () => ({ getMaintenanceModeCached: async () => ({ on: false }) }));

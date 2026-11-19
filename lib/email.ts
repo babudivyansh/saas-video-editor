@@ -258,44 +258,51 @@ export async function sendClipsReadyEmail(
 // Lifecycle
 // ─────────────────────────────────────────────────────────────────────────────
 
-export async function sendWelcomeEmail(to: string, firstName: string, credits: number): Promise<void> {
-  await sendTemplate("welcome", to, { firstName, credits });
+/** `minutes` is the signup Clip Minutes grant (what AutoClip spends). */
+export async function sendWelcomeEmail(to: string, firstName: string, minutes: number): Promise<void> {
+  await sendTemplate("welcome", to, { firstName, minutes });
+}
+
+export async function sendFirstRunNudgeEmail(
+  to: string, name: string, minutesLeft: number, intendedUse: string | null,
+): Promise<void> {
+  await sendTemplate("first-run-nudge", to, { name, minutesLeft, intendedUse });
 }
 
 export async function sendOnboardingDay1Email(
-  to: string, name: string, creditsLeft: number,
+  to: string, name: string, minutesLeft: number,
 ): Promise<void> {
-  await sendTemplate("onboarding-day-1", to, { name, creditsLeft });
+  await sendTemplate("onboarding-day-1", to, { name, minutesLeft });
 }
 
 export async function sendOnboardingDay3Email(
-  to: string, name: string, creditsUsed: number, hasUsed: boolean,
+  to: string, name: string, clipCount: number, hasUsed: boolean,
 ): Promise<void> {
-  await sendTemplate("onboarding-day-3", to, { name, creditsUsed, hasUsed });
+  await sendTemplate("onboarding-day-3", to, { name, clipCount, hasUsed });
 }
 
 export async function sendOnboardingDay7Email(
-  to: string, name: string, creditsLeft: number,
+  to: string, name: string, minutesLeft: number,
 ): Promise<void> {
-  await sendTemplate("onboarding-day-7", to, { name, creditsLeft });
+  await sendTemplate("onboarding-day-7", to, { name, minutesLeft });
 }
 
 export async function sendReengagement7DayEmail(
-  to: string, name: string, creditsLeft: number,
+  to: string, name: string, minutesLeft: number,
 ): Promise<void> {
-  await sendTemplate("reengagement-7d", to, { name, creditsLeft });
+  await sendTemplate("reengagement-7d", to, { name, minutesLeft });
 }
 
 export async function sendReengagement30DayEmail(
-  to: string, name: string, creditsLeft: number, daysSinceLogin: number,
+  to: string, name: string, minutesLeft: number, daysSinceLogin: number,
 ): Promise<void> {
-  await sendTemplate("reengagement-30d", to, { name, creditsLeft, daysSinceLogin });
+  await sendTemplate("reengagement-30d", to, { name, minutesLeft, daysSinceLogin });
 }
 
-/** Returns false on a delivery failure, so the one-shot caller in
- * lib/credit-events.ts can avoid marking this sent until it actually is. */
-export async function sendFirstVideoSuccessEmail(to: string, name: string): Promise<boolean> {
-  const r = await sendTemplate("first-video-success", to, { name });
+/** Returns false on a delivery failure, so the one-shot caller (the
+ * onboarding cron) can avoid marking this sent until it actually is. */
+export async function sendFirstVideoSuccessEmail(to: string, name: string, clipCount: number): Promise<boolean> {
+  const r = await sendTemplate("first-video-success", to, { name, clipCount });
   return r.status !== "failed";
 }
 

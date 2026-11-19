@@ -176,7 +176,7 @@
     "gender": "Geschlecht",
     "genders": { "male": "Männlich", "female": "Weiblich", "unspecified": "Möchte ich nicht angeben" },
     "intendedUseLabel": "Wofür möchten Sie Clipiro verwenden?",
-    "intendedUses": { "contentCreator": "Content-Creator", "businessMarketing": "Unternehmen / Marketing", "personal": "Privat", "other": "Sonstiges" },
+    "intendedUses": { "gaming": "Gaming-Streams", "podcast": "Podcasts", "education": "Vorträge & Kurse", "contentCreator": "Content-Creator", "businessMarketing": "Unternehmen / Marketing", "personal": "Privat", "other": "Sonstiges" },
     "restartTourTitle": "Einführungstour neu starten",
     "restartTourDesc": "Sehen Sie sich beim nächsten Besuch des Dashboards erneut den Willkommensbildschirm und die geführte Tour an.",
     "restarting": "Wird neu gestartet…",

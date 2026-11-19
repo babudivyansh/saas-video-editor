@@ -96,7 +96,16 @@ model User {
   name                     String?
   avatarUrl                String?
   gender                   String? // "male" | "female" | "unspecified" — validated in the API layer
-  intendedUse              String? // "content_creator" | "business_marketing" | "personal" | "other" — validated in the API layer
+  intendedUse              String? // "gaming" | "podcast" | "education" | "content_creator" | "business_marketing" | "personal" | "other" — validated in the API layer
+  // Where the signup came from (lib/marketing-attribution.ts, set once at
+  // signup): UTM "source/medium/campaign" when the landing URL had tags, the
+  // referring host ("direct" when none) and the first path landed on.
+  // 1-hour "paste a link" nudge for signups who haven't started an AutoClip
+  // run (app/api/cron/onboarding). Set whether or not the email went out.
+  activationNudgeSentAt    DateTime?
+  signupSource             String?
+  signupReferrer           String?
+  signupLandingPath        String?
   preferredLanguage        String    @default("en") // ISO 639-1 code — validated against lib/i18n-locales.ts's supported-locale list in the API layer
   planId                   String?
   plan                     Plan?     @relation(fields: [planId], references: [id])

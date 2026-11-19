@@ -14,6 +14,7 @@ import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { AssetPicker } from "@/app/components/assets/AssetPicker";
 import { useOpenPlans } from "@/app/components/billing/BillingOverlayContext";
+import { useAuth } from "@/app/components/AuthContext";
 import { DEFAULT_TEMPLATE_ID, indexForTemplateId } from "@/lib/captions/legacyStyleIndex";
 import { ACCEPTED_VIDEO_TYPES } from "@/lib/autoclip-source";
 import { useLaunchSource, type LaunchSourceView } from "./useLaunchSource";
@@ -34,6 +35,19 @@ const IcLink = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" 
 const IcFolder = () => <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4" aria-hidden="true"><path d="M3 6a2 2 0 012-2h4l2 2h8a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2z" /></svg>;
 const IcLibrary = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></svg>;
 const IcX = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" className="w-3 h-3" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>;
+
+/** The link box's id, so the welcome flow can hand focus straight to it. */
+export const LAUNCH_URL_INPUT_ID = "home-launch-url";
+
+// English only (like HeroTitle): the box's hint, in the words of what the user
+// said they make on the welcome screen (User.intendedUse). Other locales keep
+// their translated generic hint.
+const PLACEHOLDER_BY_USE: Record<string, string> = {
+  gaming: "Paste a Twitch VOD or YouTube stream link",
+  podcast: "Paste a podcast episode link (YouTube, Vimeo, Drive)",
+  education: "Paste a link to a recorded talk or lesson",
+  business_marketing: "Paste a webinar, demo or interview link",
+};
 
 function isHttpUrl(value: string): boolean {
   try {
@@ -149,6 +163,11 @@ export function AutoClipLaunchBox() {
   const fileRef = useRef<HTMLInputElement>(null);
   const launch = useLaunchSource();
   const view = launch.view;
+  const { user } = useAuth();
+  const locale = useLocale();
+  const placeholder =
+    (locale === "en" && user?.intendedUse ? PLACEHOLDER_BY_USE[user.intendedUse] : undefined) ??
+    t("home.urlPlaceholder");
 
   function presets(): URLSearchParams {
     const q = new URLSearchParams({ length, ratio });
@@ -210,11 +229,12 @@ export function AutoClipLaunchBox() {
               <span className="sr-only">{t("home.urlLabel")}</span>
               <span className="text-fg-subtle flex-shrink-0"><IcLink /></span>
               <input
+                id={LAUNCH_URL_INPUT_ID}
                 type="url"
                 inputMode="url"
                 value={url}
                 onChange={(e) => { setUrl(e.target.value); setError(null); }}
-                placeholder={launch.checking ? t("home.checking") : t("home.urlPlaceholder")}
+                placeholder={launch.checking ? t("home.checking") : placeholder}
                 aria-invalid={!!error}
                 aria-describedby={message ? "launch-error" : undefined}
                 className="w-full h-12 sm:h-[52px] bg-transparent text-base text-fg placeholder:text-fg-subtle outline-none"

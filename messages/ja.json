@@ -176,7 +176,7 @@
     "gender": "性別",
     "genders": { "male": "男性", "female": "女性", "unspecified": "回答しない" },
     "intendedUseLabel": "Clipiroを何のために使用しますか？",
-    "intendedUses": { "contentCreator": "コンテンツクリエイター", "businessMarketing": "ビジネス／マーケティング", "personal": "個人利用", "other": "その他" },
+    "intendedUses": { "gaming": "ゲーム配信", "podcast": "ポッドキャスト", "education": "講演・レッスン", "contentCreator": "コンテンツクリエイター", "businessMarketing": "ビジネス／マーケティング", "personal": "個人利用", "other": "その他" },
     "restartTourTitle": "オンボーディングツアーを再開",
     "restartTourDesc": "次回ダッシュボードにアクセスした際に、ウェルカム画面とガイド付きツアーを再度表示します。",
     "restarting": "再開中…",

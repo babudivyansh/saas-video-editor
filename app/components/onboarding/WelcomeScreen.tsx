@@ -1,9 +1,10 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
-import { useOnboarding, type ExperienceLevel, type TeamOrIndividual } from "@/app/hooks/useOnboarding";
-import { PRIMARY_GOALS, type PrimaryGoalId } from "@/lib/onboarding-config";
+import { useOnboarding, type IntendedUseId } from "@/app/hooks/useOnboarding";
+import { INTENDED_USE_OPTIONS, PRIMARY_GOALS, type PrimaryGoalId } from "@/lib/onboarding-config";
 import { projectHref } from "@/lib/project-links";
+import { LAUNCH_URL_INPUT_ID } from "@/app/components/dashboard/AutoClipLaunchBox";
 
 interface InProgressProject {
   id: string;
@@ -33,24 +34,13 @@ const GOAL_TINT: Record<PrimaryGoalId, string> = {
   editor: "bg-tint-amber text-warning border-warning/30",
 };
 
-const EXPERIENCE_OPTIONS: { id: ExperienceLevel; label: string }[] = [
-  { id: "beginner", label: "New to this" },
-  { id: "intermediate", label: "Some experience" },
-  { id: "advanced", label: "Very experienced" },
-];
-
-const TEAM_OPTIONS: { id: TeamOrIndividual; label: string }[] = [
-  { id: "individual", label: "Just me" },
-  { id: "team", label: "My team" },
-];
-
 type Step = "goal" | "preferences" | "tour-offer";
 
 const STEP_COPY: Record<Step, { title: string; body: string }> = {
   goal: { title: "", body: "" }, // uses the personalized-greeting branch below instead
   preferences: {
-    title: "A couple quick questions",
-    body: "This helps us tailor tips and recommendations to you — totally optional.",
+    title: "What do you make?",
+    body: "One tap — it helps us pick the right defaults and tips for you.",
   },
   "tour-offer": {
     title: "Nice choice!",
@@ -60,12 +50,12 @@ const STEP_COPY: Record<Step, { title: string; body: string }> = {
 
 export function WelcomeScreen({ firstName, resumeProject, onStartTour, onClose }: WelcomeScreenProps) {
   const router = useRouter();
-  const { isSubmitting, completeOnboarding, skipOnboarding, savePreferences, trackEvent } = useOnboarding();
+  const { isSubmitting, completeOnboarding, skipOnboarding, saveIntendedUse, trackEvent } = useOnboarding();
   const [pendingGoal, setPendingGoal] = useState<PrimaryGoalId | "resume" | null>(null);
   const [step, setStep] = useState<Step>("goal");
   const [chosenGoal, setChosenGoal] = useState<{ id: PrimaryGoalId; href: string } | null>(null);
-  const [experienceLevel, setExperienceLevel] = useState<ExperienceLevel | null>(null);
-  const [teamOrIndividual, setTeamOrIndividual] = useState<TeamOrIndividual | null>(null);
+  const [pickedUse, setPickedUse] = useState<IntendedUseId | null>(null);
+  const [savingUse, setSavingUse] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps -- fire exactly once per mount, not on every trackEvent identity change
@@ -97,14 +87,27 @@ export function WelcomeScreen({ firstName, resumeProject, onStartTour, onClose }
     onClose();
   }
 
-  async function handlePreferencesContinue() {
-    if (experienceLevel || teamOrIndividual) {
-      await savePreferences({
-        ...(experienceLevel ? { experienceLevel } : {}),
-        ...(teamOrIndividual ? { teamOrIndividual } : {}),
-      });
+  async function handleIntendedUse(id: IntendedUseId) {
+    setPickedUse(id);
+    setSavingUse(true);
+    await saveIntendedUse(id);
+    trackEvent("welcome_preferences_saved", { intendedUse: id });
+    setSavingUse(false);
+    afterQuestion();
+  }
+
+  // Someone who came to turn a video into clips is already looking at the box
+  // that does it (Home's AutoClipLaunchBox, behind this overlay) — so skip the
+  // tour offer and hand them that box, focused. Every step between signup and
+  // a first run cost us users (17% of Oct–Nov signups ever started one). The
+  // other goals keep the tour offer, which then takes them to their tool.
+  function afterQuestion() {
+    if (chosenGoal?.id !== "auto-clip") {
+      setStep("tour-offer");
+      return;
     }
-    setStep("tour-offer");
+    onClose();
+    requestAnimationFrame(() => document.getElementById(LAUNCH_URL_INPUT_ID)?.focus());
   }
 
   function handleTakeTour() {
@@ -118,7 +121,7 @@ export function WelcomeScreen({ firstName, resumeProject, onStartTour, onClose }
 
   function handleEscape() {
     if (step === "tour-offer") handleSkipToTool();
-    else if (step === "preferences") setStep("tour-offer");
+    else if (step === "preferences") afterQuestion();
     else handleSkip();
   }
 
@@ -164,50 +167,25 @@ export function WelcomeScreen({ firstName, resumeProject, onStartTour, onClose }
               </button>
             </div>
           ) : step === "preferences" ? (
-            <div className="space-y-5">
-              <div>
-                <p className="text-xs font-semibold text-ink-soft uppercase tracking-wide mb-2">Experience level</p>
-                <div className="flex flex-wrap gap-2">
-                  {EXPERIENCE_OPTIONS.map(opt => (
-                    <button
-                      key={opt.id}
-                      onClick={() => setExperienceLevel(opt.id)}
-                      className={`text-xs font-semibold px-3.5 py-2 rounded-full border transition-colors ${
-                        experienceLevel === opt.id
-                          ? "bg-brand text-on-primary border-brand"
-                          : "bg-panel text-ink-soft border-card-border hover:border-primary/30"
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-ink-soft uppercase tracking-wide mb-2">Who&apos;s this for?</p>
-                <div className="flex flex-wrap gap-2">
-                  {TEAM_OPTIONS.map(opt => (
-                    <button
-                      key={opt.id}
-                      onClick={() => setTeamOrIndividual(opt.id)}
-                      className={`text-xs font-semibold px-3.5 py-2 rounded-full border transition-colors ${
-                        teamOrIndividual === opt.id
-                          ? "bg-brand text-on-primary border-brand"
-                          : "bg-panel text-ink-soft border-card-border hover:border-primary/30"
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <button
-                onClick={handlePreferencesContinue}
-                disabled={isSubmitting}
-                className="w-full text-center text-sm font-semibold text-on-primary grad-brand px-4 py-2.5 rounded-full shadow-glow hover:shadow-glow-hover transition-all disabled:opacity-50"
-              >
-                Continue
-              </button>
+            // One tap: picking an answer saves it and moves on. Replaced the
+            // old experience-level + team questions (two answers and a
+            // Continue button for data nothing read) on 2026-11-19.
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+              {INTENDED_USE_OPTIONS.map(opt => (
+                <button
+                  key={opt.id}
+                  onClick={() => handleIntendedUse(opt.id)}
+                  disabled={savingUse}
+                  aria-pressed={pickedUse === opt.id}
+                  className={`text-sm font-semibold px-3.5 py-3 rounded-[var(--radius-card)] border transition-colors disabled:opacity-50 ${
+                    pickedUse === opt.id
+                      ? "bg-brand text-on-primary border-brand"
+                      : "bg-panel text-ink border-card-border hover:border-primary/30"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
             </div>
           ) : resumeProject ? (
             <>
@@ -243,7 +221,7 @@ export function WelcomeScreen({ firstName, resumeProject, onStartTour, onClose }
           {(step === "goal" || step === "preferences") && (
             <div className="mt-6 text-center">
               <button
-                onClick={step === "goal" ? handleSkip : () => setStep("tour-offer")}
+                onClick={step === "goal" ? handleSkip : afterQuestion}
                 disabled={isSubmitting}
                 className="text-xs text-fg-subtle hover:text-ink-soft transition-colors disabled:opacity-50"
               >

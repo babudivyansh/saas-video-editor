@@ -82,7 +82,8 @@ describe("POST /api/auth/register/verify", () => {
       }),
     }));
     expect(clearPendingSignup).toHaveBeenCalledWith("new@test.com");
-    expect(sendWelcomeEmail).toHaveBeenCalledWith("new@test.com", "New", 10);
+    // The welcome email shows the Clip Minutes actually granted (the mocked grant's total).
+    expect(sendWelcomeEmail).toHaveBeenCalledWith("new@test.com", "New", 30);
     expect(notifyAdminsOfSignup).toHaveBeenCalledWith({
       userId: "new-user-1", email: "new@test.com", name: "New User", method: "email", referralCode: undefined,
     });

@@ -122,8 +122,9 @@
 */15 * * * * curl -s -H "Authorization: Bearer $ASSET_CLEANUP_SECRET" https://clipiro.com/api/cron/asset-cleanup
 0 5 * * * curl -s -H "Authorization: Bearer $ASSET_CLEANUP_SECRET" https://clipiro.com/api/cron/asset-cleanup?job=retention
 
-# Onboarding email sequence (day 1 / 3 / 7 after signup)
-0 9 * * * curl -s -H "Authorization: Bearer $CRON_SECRET" https://clipiro.com/api/cron/onboarding
+# Onboarding email sequence (day 1 / 3 / 7 after signup + first-clips upsell).
+# Hourly so each email lands ~N days after signup; *SentAt flags stop repeats.
+5 * * * * curl -s -H "Authorization: Bearer $CRON_SECRET" https://clipiro.com/api/cron/onboarding
 
 # Re-engagement (7d/30d inactive win-back) + mid-month unused-credits nudge
 0 9 * * 1 curl -s -H "Authorization: Bearer $CRON_SECRET" https://clipiro.com/api/cron/reengagement

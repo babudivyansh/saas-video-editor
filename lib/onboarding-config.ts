@@ -27,6 +27,19 @@ export const PRIMARY_GOALS = [
 
 export type PrimaryGoalId = typeof PRIMARY_GOALS[number]["id"];
 
+// "What do you make?" on the welcome screen, saved to User.intendedUse through
+// PATCH /api/auth/profile (which validates against the same ids). Asked
+// because 137 of 138 signups in Oct–Nov 2026 had no intendedUse — it was only
+// ever asked in Settings — so nobody could say who was signing up.
+export const INTENDED_USE_OPTIONS = [
+  { id: "gaming", label: "Gaming streams" },
+  { id: "podcast", label: "Podcasts" },
+  { id: "education", label: "Talks & lessons" },
+  { id: "content_creator", label: "Vlogs & other videos" },
+  { id: "business_marketing", label: "Business / marketing" },
+  { id: "other", label: "Something else" },
+] as const;
+
 // Which quest (lib/quest-config.ts) corresponds to actually having done the
 // thing a welcome-screen goal selection promised — used by FeatureHint to
 // nudge a user back toward their stated goal if they haven't gotten there yet.

@@ -11,7 +11,11 @@ import { cleanName, validateName } from "@/lib/auth-validation";
 import { resignOwnedMediaUrl } from "@/lib/source-url";
 
 const GENDERS = ["male", "female", "unspecified"] as const;
-const INTENDED_USES = ["content_creator", "business_marketing", "personal", "other"] as const;
+// Also asked on the welcome screen ("What do you make?") — keep in step with
+// lib/onboarding-config.ts INTENDED_USE_OPTIONS.
+const INTENDED_USES = [
+  "gaming", "podcast", "education", "content_creator", "business_marketing", "personal", "other",
+] as const;
 
 // An avatar URL typed by the client may only point at our own bucket (what
 // /api/upload returns) or Google's avatar host (what Google sign-in stores).
