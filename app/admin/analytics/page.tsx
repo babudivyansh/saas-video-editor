@@ -1,6 +1,7 @@
 "use client";
 
-// Growth analytics: signup cohorts with activation/paid conversion, coupon
+// Growth analytics: the activation funnel, retention and failures
+// (FunnelPanel), signup cohorts with activation/paid conversion, coupon
 // impact, and the affiliate funnel — the slices the executive dashboard
 // doesn't carry. Every table exports to CSV client-side.
 
@@ -11,6 +12,7 @@ import { useAuth } from "@/app/components/AuthContext";
 import { TypeBars } from "@/app/components/charts";
 import { Button } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
+import { FunnelPanel } from "./_components/FunnelPanel";
 
 interface Growth {
   cohorts: Array<{ month: string; signups: number; activated: number; paid: number }>;
@@ -64,6 +66,8 @@ export default function AdminAnalyticsPage() {
 
   return (
     <AdminShell title="Analytics">
+      <FunnelPanel token={token} />
+
       {/* Cohorts */}
       <Card shadow padding="lg">
         <div className="flex items-baseline justify-between gap-2 mb-1 flex-wrap">
@@ -76,7 +80,7 @@ export default function AdminAnalyticsPage() {
             Export CSV
           </Button>
         </div>
-        <p className="text-xs text-fg-subtle mb-4">Activation = made ≥1 generation (lifetime). Paid = made ≥1 purchase (lifetime).</p>
+        <p className="text-xs text-fg-subtle mb-4">Activation = started an AutoClip run or used an AI tool (lifetime). Paid = made ≥1 paid purchase (lifetime).</p>
         <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>

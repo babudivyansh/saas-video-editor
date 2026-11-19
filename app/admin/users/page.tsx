@@ -1,5 +1,6 @@
 "use client";
-import { useState, useEffect, Fragment } from "react";
+import { useState, useEffect, Fragment, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AdminShell from "../AdminShell";
 import { ErrorCard } from "../dashboard/ui";
@@ -113,15 +114,31 @@ function planChangePreview(user: AdminUser | null, plan: PlanRef | null): string
 }
 
 
+// Filters arrive in the URL from Admin → Analytics ("See who"), so the list
+// opens already narrowed. useSearchParams needs a Suspense boundary.
 export default function AdminUsersPage() {
+  return (
+    <Suspense fallback={null}>
+      <AdminUsers />
+    </Suspense>
+  );
+}
+
+function AdminUsers() {
+  const sp = useSearchParams();
   const { token, user } = useAuth();
   const { showToast } = useToast();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [searchInput, setSearchInput] = useState("");
   const search = useDebouncedValue(searchInput);
-  const [filter, setFilter] = useState("");
-  const [funnel, setFunnel] = useState<Record<FunnelParam, string>>({ journey: "", joined: "", method: "", active: "" });
+  const [filter, setFilter] = useState(() => sp.get("filter") ?? "");
+  const [funnel, setFunnel] = useState<Record<FunnelParam, string>>(() => ({
+    journey: sp.get("journey") ?? "",
+    joined: sp.get("joined") ?? "",
+    method: sp.get("method") ?? "",
+    active: sp.get("active") ?? "",
+  }));
   const [exporting, setExporting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulk, setBulk] = useState<BulkAction | null>(null);
