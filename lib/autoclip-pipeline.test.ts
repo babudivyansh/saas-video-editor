@@ -52,6 +52,7 @@ vi.mock("@/lib/redis", () => ({
 
 const notify = vi.fn(async () => {});
 vi.mock("@/lib/notify", () => ({ notify }));
+vi.mock("@/lib/admin/staff-alerts", () => ({ noteAutoClipFailure: vi.fn(async () => {}) }));
 
 const sendClipsReadyEmail = vi.fn(async () => {});
 vi.mock("@/lib/email", () => ({ sendClipsReadyEmail }));

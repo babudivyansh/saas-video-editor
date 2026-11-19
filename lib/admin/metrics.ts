@@ -394,6 +394,7 @@ const CRON_STALE_AFTER_SEC: Record<CronRunId, number> = {
   "review-prompts": 36 * 3600,
   "subscription-reminder": 36 * 3600,
   "admin-digest": 9 * 24 * 3600, // weekly
+  "admin-daily-digest": 36 * 3600, // daily, 09:00 IST
   reengagement: 9 * 24 * 3600, // weekly
   "feature-announcements": 36 * 3600, // daily
   // A missed day is a permanent hole in the MRR series — nothing can fill it
