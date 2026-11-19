@@ -10,6 +10,7 @@ import { grantFreeTierMinutes, signupGrantAllowedForIp } from "@/lib/minutes";
 import { attributeReferral } from "@/lib/affiliate";
 import { getClientIp } from "@/lib/rate-limit";
 import { notifyAdminsOfSignup } from "@/lib/admin/signup-alerts";
+import { recordSignupEvent } from "@/lib/user-events";
 import { canonicalEmail } from "@/lib/email-canonical";
 import { FETCH_TIMEOUT } from "@/lib/fetch-timeout";
 
@@ -110,6 +111,8 @@ export async function signInWithGoogleProfile(req: NextRequest, profile: GoogleP
 
     // Staff "new signup" email (Admin → Operations → Notifications). Never throws.
     void notifyAdminsOfSignup({ userId: user.id, email, name, method: "google" });
+    // Admin activity timeline. Never throws.
+    await recordSignupEvent(user.id, { method: "google" });
   } else {
     // Existing account. If its address was never verified, whoever created
     // it may not own the inbox — they could have registered this address

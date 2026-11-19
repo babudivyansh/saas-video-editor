@@ -52,7 +52,7 @@ export async function accountExportJob(payload: AccountExportPayload): Promise<v
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new Error(`User ${userId} not found`);
 
-    const [projects, assets, purchases, loginEvents, notificationPreference, socialAccounts, competitorProfiles, socialGoals, clipCollections] = await Promise.all([
+    const [projects, assets, purchases, loginEvents, activityEvents, notificationPreference, socialAccounts, competitorProfiles, socialGoals, clipCollections] = await Promise.all([
       prisma.project.findMany({
         where: { userId },
         include: { clips: { select: { id: true, title: true, startSec: true, endSec: true, status: true, videoUrl: true, createdAt: true } } },
@@ -60,6 +60,7 @@ export async function accountExportJob(payload: AccountExportPayload): Promise<v
       prisma.asset.findMany({ where: { userId }, select: { id: true, name: true, kind: true, size: true, s3Key: true, createdAt: true } }),
       prisma.purchase.findMany({ where: { userId } }),
       prisma.loginEvent.findMany({ where: { userId }, orderBy: { createdAt: "desc" }, take: LOGIN_HISTORY_LIMIT }),
+      prisma.userEvent.findMany({ where: { userId }, orderBy: { createdAt: "desc" }, select: { type: true, meta: true, createdAt: true } }),
       prisma.notificationPreference.findUnique({ where: { userId } }),
       // Never accessTokenEnc/refreshTokenEnc — same treatment assets already
       // gets for s3Key below. Everything else here is metadata, not secrets.
@@ -114,6 +115,8 @@ export async function accountExportJob(payload: AccountExportPayload): Promise<v
       assets: assetsWithUrls.map(({ s3Key, ...a }) => { void s3Key; return a; }), // internal key excluded, url is the useful field
       purchases,
       loginHistory: loginEvents,
+      // Signup and download records (lib/user-events.ts).
+      activity: activityEvents,
       notificationPreferences: notificationPreference,
       social: {
         accounts: socialAccounts,

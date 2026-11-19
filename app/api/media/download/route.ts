@@ -3,6 +3,7 @@ import { getAuthUser, getServerAuthUser } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { attachmentDisposition } from "@/utils/content-disposition";
+import { recordDownloadEvent } from "@/lib/user-events";
 import { getPresignedDownloadUrl, sanitizeS3Key, verifyPresignedReadUrl } from "@/utils/s3-upload";
 
 // GET /api/media/download?src=<media URL we handed out>&name=<file name>
@@ -47,7 +48,10 @@ async function handleGET(req: NextRequest) {
     return NextResponse.json({ error: "This download link has expired — reload the page and try again." }, { status: 410 });
   }
 
-  const url = await getPresignedDownloadUrl(key, attachmentDisposition(safeFileName(searchParams.get("name"), key)));
+  const fileName = safeFileName(searchParams.get("name"), key);
+  const url = await getPresignedDownloadUrl(key, attachmentDisposition(fileName));
+  // Admin activity timeline, once per user per file. Never throws.
+  await recordDownloadEvent(auth.userId, key, fileName);
   return NextResponse.redirect(url, { status: 302, headers: { "Cache-Control": "no-store" } });
 }
 
