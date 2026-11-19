@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
-import { markDelivery, suppress } from "@/lib/email/suppression";
+import { suppress } from "@/lib/email/suppression";
+import { applyAll, parseResendDelivery } from "@/lib/email/router/webhooks";
 import { parseResendEvent, verifySvixSignature, type ResendEvent } from "@/lib/email/resend-webhook";
 
 // Bounce and complaint feedback from Resend.
@@ -10,8 +11,9 @@ import { parseResendEvent, verifySvixSignature, type ResendEvent } from "@/lib/e
 // user table and every cron mailed it again, forever. That is the fastest way to
 // lose sending reputation, and it is invisible until deliverability collapses.
 //
-// Configure at https://resend.com/webhooks for email.bounced, email.complained
-// and email.delivered, pointing at /api/webhooks/resend.
+// Configure at https://resend.com/webhooks for email.sent, email.delivered,
+// email.delivery_delayed, email.bounced, email.complained and email.failed,
+// pointing at /api/webhooks/resend.
 
 export async function POST(req: NextRequest) {
   // The raw body, not req.json() — the signature covers the exact bytes sent,
@@ -42,21 +44,27 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const parsed = parseResendEvent(event);
-
-  if (parsed.kind === "ignored") {
+  // Shared with the Brevo/Mailjet routes (lib/email/router/webhooks.ts):
+  // deduped on the svix-id, moves the EmailMessage status forward only,
+  // updates EmailLog, and suppresses on a hard bounce or complaint.
+  const delivery = parseResendDelivery(req.headers.get("svix-id") ?? "", event as Parameters<typeof parseResendDelivery>[1]);
+  if (!delivery || delivery.kind === "ignored") {
     // Acknowledged deliberately. Returning an error for an event type we simply
     // do not act on would make Resend retry it and eventually disable the hook.
     return NextResponse.json({ ok: true, ignored: event.type });
   }
 
-  if (parsed.messageId) {
-    await markDelivery(parsed.messageId, parsed.kind === "delivered" ? "delivered" : parsed.kind);
+  try {
+    await applyAll([delivery], "webhook:resend");
+  } catch {
+    return NextResponse.json({ error: "Processing failed" }, { status: 500 });
   }
 
+  // A message to several recipients (none today) — suppress every one, as before.
+  const parsed = parseResendEvent(event);
   if (parsed.permanent) {
     const reason = parsed.kind === "complained" ? "complaint" : "hard_bounce";
-    for (const address of parsed.recipients) {
+    for (const address of parsed.recipients.slice(1)) {
       await suppress(address, reason, event.type);
     }
   }

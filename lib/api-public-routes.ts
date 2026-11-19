@@ -65,6 +65,11 @@ const PUBLIC_API_PREFIXES = [
   // dead addresses keep getting mailed, which is the exact failure the webhook
   // exists to prevent.
   "/api/webhooks/resend",
+  // Brevo and Mailjet delivery events (lib/email/router/webhooks.ts). Neither
+  // provider signs payloads; each route checks a shared secret (bearer token /
+  // Basic auth) and fails closed while it is unset.
+  "/api/webhooks/brevo",
+  "/api/webhooks/mailjet",
   // ElevenLabs dubbing completion. Authenticated by its HMAC signature and
   // fails closed while ELEVENLABS_WEBHOOK_SECRET is unset; until it was listed
   // here every callback 401'd at this gate and dubs finished only through the
