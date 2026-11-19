@@ -2,6 +2,18 @@ import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs/config";
 import createNextIntlPlugin from "next-intl/plugin";
 
+// Build workers for "Collecting page data" and static generation. Next's
+// default is os.cpus() - 1, and Hostinger reports the whole server's 48 cores
+// to an account limited to a few, so it started 47 workers — each importing
+// the server bundle and opening Redis/DB clients — beside the live app, under
+// the same account memory/process limits. The 2026-11-18 rebuild of #453 died
+// there with no error printed. 4 is Next's own fallback count. Override with
+// NEXT_BUILD_CPUS (1-64) if a host needs a different number.
+function buildCpus(raw: string | undefined): number {
+  const n = Number.parseInt(raw ?? "", 10);
+  return Number.isFinite(n) && n >= 1 && n <= 64 ? n : 4;
+}
+
 const nextConfig: NextConfig = {
   output: "standalone", // Optimizes build size for Node.js shared hosting
   poweredByHeader: false, // no free framework fingerprint in every response
@@ -65,6 +77,7 @@ const nextConfig: NextConfig = {
     root: __dirname,
   },
   experimental: {
+    cpus: buildCpus(process.env.NEXT_BUILD_CPUS),
     // proxy.ts runs an auth gate on every /api/* request, and this fork
     // buffers the request body (to let both proxy and the route handler read
     // it) up to this limit before silently truncating the rest — the default
