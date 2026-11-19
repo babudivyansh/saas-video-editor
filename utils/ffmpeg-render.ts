@@ -238,6 +238,51 @@ export function toASSTime(ms: number): string {
   return `${h}:${String(m).padStart(2, "0")}:${s}`;
 }
 
+// ── Remote (http) inputs ─────────────────────────────────────────────────────
+
+/** True for an input ffmpeg reads over the network (a presigned S3 URL) rather than from disk. */
+export function isRemoteInput(input: string): boolean {
+  return /^https?:\/\//i.test(input);
+}
+
+/**
+ * Input options for an http(s) input. ffmpeg reads an mp4 over http with
+ * Range requests: the moov atom, then only the byte span an input `-ss/-to`
+ * seek needs, so a 30 s clip of an 81-minute source moves megabytes rather
+ * than the whole 1.1 GB file. These keep that read alive on a flaky link:
+ *   - reconnect / reconnect_on_network_error: reopen the connection (a new
+ *     Range request at the current offset) after a drop or a TCP/TLS error;
+ *   - reconnect_on_http_error 5xx: S3 answers bursts with 503 SlowDown;
+ *   - reconnect_delay_max 5: give up after ~5 s of backoff, not 120;
+ *   - rw_timeout 30 s: a read that hangs errors out (and reconnects) instead
+ *     of holding the render until its 15-minute watchdog.
+ * All present in the pinned production build (6.0-static, checked with
+ * `-h protocol=http`) and in the 6.1 dev build.
+ */
+export const REMOTE_INPUT_OPTIONS: readonly string[] = [
+  "-reconnect", "1",
+  "-reconnect_on_network_error", "1",
+  "-reconnect_on_http_error", "5xx",
+  "-reconnect_delay_max", "5",
+  "-rw_timeout", "30000000",
+];
+
+/** `-i input`, preceded by the reconnect options when the input is remote. */
+export function ffmpegInputArgs(input: string): string[] {
+  return isRemoteInput(input) ? [...REMOTE_INPUT_OPTIONS, "-i", input] : ["-i", input];
+}
+
+/**
+ * Drops the query string from every URL in `text`. ffmpeg prints its input
+ * URL ("Input #0, … from '…'") and http errors name it too; for a presigned
+ * URL the query IS the credential (X-Amz-Signature, valid for hours). Error
+ * messages built from ffmpeg's stderr reach logs and Sentry, so they must
+ * never carry one.
+ */
+export function redactUrlQueries(text: string): string {
+  return text.replace(/(https?:\/\/[^\s'"?]+)\?[^\s'"]*/gi, "$1?[redacted]");
+}
+
 // ── Generic FFmpeg runner ────────────────────────────────────────────────────
 
 export function runFFmpegArgs(args: string[], timeoutMs = DEFAULT_FFMPEG_TIMEOUT_MS): Promise<void> {
@@ -251,7 +296,7 @@ export function runFFmpegArgs(args: string[], timeoutMs = DEFAULT_FFMPEG_TIMEOUT
     proc.on("close", (code) => {
       clearWatchdog();
       if (code === 0) resolve();
-      else reject(new Error(`FFmpeg exited ${code}:\n${stderrBuf.slice(-2000)}`));
+      else reject(new Error(`FFmpeg exited ${code}:\n${redactUrlQueries(stderrBuf.slice(-2000))}`));
     });
     proc.on("error", (err) => { clearWatchdog(); reject(err); });
   });
@@ -294,7 +339,7 @@ export function probeMediaDuration(filePath: string, timeoutMs = 30_000): Promis
       return;
     }
 
-    const proc = spawnFfmpeg(ffmpegBin!, ["-i", filePath], { stdio: ["ignore", "ignore", "pipe"] });
+    const proc = spawnFfmpeg(ffmpegBin!, ffmpegInputArgs(filePath), { stdio: ["ignore", "ignore", "pipe"] });
     const clearWatchdog = killAfterTimeout(proc, timeoutMs, () =>
       resolve({ durationSec: null, reason: `probe timed out after ${timeoutMs}ms`, stderrTail: "", fileBytes }));
 
@@ -416,7 +461,7 @@ export function trimAudioForProvider(inputPath: string, outputPath: string, maxS
 // "dimensions unknown" and skip anything that depends on them).
 export function getMediaDimensions(filePath: string, timeoutMs = 30_000): Promise<{ w: number; h: number }> {
   return new Promise((resolve) => {
-    const proc = spawnFfmpeg(ffmpegBin!, ["-i", filePath], { stdio: ["ignore", "ignore", "pipe"] });
+    const proc = spawnFfmpeg(ffmpegBin!, ffmpegInputArgs(filePath), { stdio: ["ignore", "ignore", "pipe"] });
     const clearWatchdog = killAfterTimeout(proc, timeoutMs, () => resolve({ w: 0, h: 0 }));
     let stderrBuf = "";
     proc.stderr.on("data", (chunk: Buffer) => { stderrBuf += chunk.toString(); });
@@ -458,7 +503,7 @@ export function parseVideoStreamInfo(stderr: string): VideoStreamInfo {
 
 export function probeVideoStream(filePath: string, timeoutMs = 30_000): Promise<VideoStreamInfo> {
   return new Promise((resolve) => {
-    const proc = spawnFfmpeg(ffmpegBin!, ["-i", filePath], { stdio: ["ignore", "ignore", "pipe"] });
+    const proc = spawnFfmpeg(ffmpegBin!, ffmpegInputArgs(filePath), { stdio: ["ignore", "ignore", "pipe"] });
     let stderrBuf = "";
     const empty: VideoStreamInfo = { codec: null, pixFmt: null, rotated: false, hasAudio: false };
     const clearWatchdog = killAfterTimeout(proc, timeoutMs, () => resolve(empty));
@@ -474,7 +519,7 @@ export function probeVideoStream(filePath: string, timeoutMs = 30_000): Promise<
  */
 export function getMediaFps(filePath: string, timeoutMs = 30_000): Promise<number> {
   return new Promise((resolve) => {
-    const proc = spawnFfmpeg(ffmpegBin!, ["-i", filePath], { stdio: ["ignore", "ignore", "pipe"] });
+    const proc = spawnFfmpeg(ffmpegBin!, ffmpegInputArgs(filePath), { stdio: ["ignore", "ignore", "pipe"] });
     const clearWatchdog = killAfterTimeout(proc, timeoutMs, () => resolve(0));
     let stderrBuf = "";
     proc.stderr.on("data", (chunk: Buffer) => { stderrBuf += chunk.toString(); });
@@ -542,7 +587,7 @@ export function runFFmpegWithProgress(
         .filter((l) => /^\s*(Input #|Output #|Stream #|Stream mapping|Duration:)/.test(l))
         .slice(0, 24)
         .join("\n");
-      return `${setup ? `${setup}\n…\n` : ""}${stderrBuf.slice(-2000)}`;
+      return redactUrlQueries(`${setup ? `${setup}\n…\n` : ""}${stderrBuf.slice(-2000)}`);
     };
     const clearWatchdog = killAfterTimeout(proc, timeoutMs, () => {
       reject(new Error(`FFmpeg timed out after ${timeoutMs}ms and was killed:\n${tail()}`));
