@@ -12,7 +12,7 @@ import { readPendingSignup, clearPendingSignup } from "@/lib/signup-pending";
 import { normalizeEmail } from "@/lib/auth-validation";
 import { greetingName } from "@/lib/display-name";
 import { notifyAdminsOfSignup } from "@/lib/admin/signup-alerts";
-import { recordSignupEvent } from "@/lib/user-events";
+import { recordSignupEvent, signupUtm } from "@/lib/user-events";
 import { canonicalEmail } from "@/lib/email-canonical";
 
 // Same brute-force ceiling as the sign-in code: 5 guesses per address per
@@ -140,8 +140,10 @@ export async function POST(req: NextRequest) {
       referralCode: referralOutcome?.applied ? referralOutcome.code : undefined,
     });
     // Admin activity timeline. Never throws.
+    const utm = signupUtm(req);
     await recordSignupEvent(user.id, {
       method: "email",
+      ...(utm ? { utm } : {}),
       ...(referralOutcome?.applied ? { referralCode: referralOutcome.code } : {}),
     });
 

@@ -10,14 +10,24 @@ import { createHash } from "crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { ATTRIBUTION_COOKIE, parseAttributionCookie, type UtmTuple } from "@/lib/marketing-attribution";
 
 export type UserEventType = "signup" | "download";
 
 export interface SignupEventMeta {
   method: "email" | "google";
   referralCode?: string;
-  /** "web" or "mobile" when known. */
-  client?: string;
+  /**
+   * First-touch campaign tags (the mkt_attr cookie). Until now these were only
+   * counted per day (MarketingEventDaily), so no single signup could be traced
+   * to its campaign.
+   */
+  utm?: UtmTuple;
+}
+
+/** The signup's campaign tags, if the browser arrived through a tagged link. */
+export function signupUtm(req: { cookies: { get(name: string): { value: string } | undefined } }): UtmTuple | undefined {
+  return parseAttributionCookie(req.cookies.get(ATTRIBUTION_COOKIE)?.value) ?? undefined;
 }
 
 export interface DownloadEventMeta {

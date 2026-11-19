@@ -205,7 +205,18 @@ export async function getUserTimeline(userId: string, opts: { limit?: number; be
   return { items: page, nextBefore: more && page.length ? page[page.length - 1].at : null };
 }
 
+export interface SignupAttribution {
+  method: "email" | "google";
+  intendedUse: string | null;
+  referralCode: string | null;
+  utm: { source: string; medium: string; campaign: string } | null;
+  /** From the first recorded login (signup signs the user in). Approximate, IP-based. */
+  country: string | null;
+  device: string | null;
+}
+
 export interface ActivitySummary {
+  attribution: SignupAttribution | null;
   signedUpAt: string | null;
   lastLoginAt: string | null;
   logins: number;
@@ -223,8 +234,8 @@ export interface ActivitySummary {
 }
 
 export async function getUserActivitySummary(userId: string): Promise<ActivitySummary> {
-  const [user, logins, uploads, runsByStatus, firstRun, clips, gens, genFails, downloads, paid] = await Promise.all([
-    prisma.user.findUnique({ where: { id: userId }, select: { createdAt: true, lastLoginAt: true } }),
+  const [user, logins, uploads, runsByStatus, firstRun, clips, gens, genFails, downloads, paid, signup, firstLogin] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId }, select: { createdAt: true, lastLoginAt: true, hasPassword: true, intendedUse: true } }),
     prisma.loginEvent.count({ where: { userId } }),
     prisma.asset.count({ where: { userId, sourceFeature: { in: ["upload", "url-import"] } } }),
     prisma.project.groupBy({ by: ["status"], where: { userId, productType: AUTOCLIP }, _count: { _all: true } }),
@@ -234,9 +245,22 @@ export async function getUserActivitySummary(userId: string): Promise<ActivitySu
     prisma.generation.count({ where: { userId, status: { in: ["failed", "refunded"] } } }),
     prisma.userEvent.count({ where: { userId, type: "download" } }),
     prisma.purchase.aggregate({ where: { userId, status: "captured", currency: "INR" }, _sum: { amountInPaise: true }, _count: { _all: true } }),
+    prisma.userEvent.findFirst({ where: { userId, type: "signup" }, select: { meta: true } }),
+    prisma.loginEvent.findFirst({ where: { userId }, orderBy: { createdAt: "asc" }, select: { country: true, device: true } }),
   ]);
+  const meta = (signup?.meta ?? {}) as { referralCode?: string; utm?: SignupAttribution["utm"] };
   const runCount = (pred: (s: string) => boolean) => runsByStatus.filter((r) => pred(r.status)).reduce((n, r) => n + r._count._all, 0);
   return {
+    attribution: user
+      ? {
+          method: user.hasPassword ? "email" : "google",
+          intendedUse: user.intendedUse,
+          referralCode: meta.referralCode ?? null,
+          utm: meta.utm ?? null,
+          country: firstLogin?.country ?? null,
+          device: firstLogin?.device ?? null,
+        }
+      : null,
     signedUpAt: user?.createdAt.toISOString() ?? null,
     lastLoginAt: user?.lastLoginAt?.toISOString() ?? null,
     logins,

@@ -25,7 +25,11 @@ const lt = <T extends { createdAt: Date }>(list: T[], where: { createdAt?: { lt:
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     user: { findUnique: vi.fn(async () => rows.user) },
-    loginEvent: { findMany: vi.fn(async ({ where }) => lt(rows.logins, where)), count: vi.fn(async () => 4) },
+    loginEvent: {
+      findMany: vi.fn(async ({ where }) => lt(rows.logins, where)),
+      count: vi.fn(async () => 4),
+      findFirst: vi.fn(async () => ({ country: "IN", device: "Chrome on Windows" })),
+    },
     asset: { findMany: vi.fn(async ({ where }) => lt(rows.uploads, where)), count: vi.fn(async () => 1) },
     project: {
       findMany: vi.fn(async ({ where }) => {
@@ -42,7 +46,11 @@ vi.mock("@/lib/prisma", () => ({
       aggregate: vi.fn(async () => ({ _sum: { amountInPaise: 79900 }, _count: { _all: 1 } })),
     },
     subscriptionEvent: { findMany: vi.fn(async ({ where }) => lt(rows.subEvents, where)) },
-    userEvent: { findMany: vi.fn(async ({ where }) => lt(rows.events, where)), count: vi.fn(async () => 1) },
+    userEvent: {
+      findMany: vi.fn(async ({ where }) => lt(rows.events, where)),
+      count: vi.fn(async () => 1),
+      findFirst: vi.fn(async () => ({ meta: { method: "google", referralCode: "AARAV20", utm: { source: "instagram", medium: "social", campaign: "gta6" } } })),
+    },
   },
 }));
 
@@ -86,6 +94,10 @@ describe("getUserTimeline", () => {
 describe("getUserActivitySummary", () => {
   it("counts runs by outcome and paid total", async () => {
     const s = await getUserActivitySummary("u1");
+    expect(s.attribution).toEqual({
+      method: "google", intendedUse: "gaming", referralCode: "AARAV20",
+      utm: { source: "instagram", medium: "social", campaign: "gta6" }, country: "IN", device: "Chrome on Windows",
+    });
     expect(s).toMatchObject({ autoClipRuns: 2, autoClipReady: 1, autoClipFailed: 1, clips: 6, logins: 4, downloads: 1, paidTotalInPaise: 79900, payments: 1 });
   });
 });
