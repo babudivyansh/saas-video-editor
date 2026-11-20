@@ -231,7 +231,16 @@ export default function AdminPricingPage() {
                 <div>
                   <label className="text-xs font-semibold text-fg-subtle block mb-1">Price (paise)</label>
                   <input type="number" className={input} value={p.priceInPaise} onChange={e => edit(p.id, { priceInPaise: Number(e.target.value) })} />
-                  <p className="text-[10px] text-fg-subtle mt-1">= ₹{(p.priceInPaise / 100).toLocaleString("en-IN")}</p>
+                  {/* Both prices a customer can be charged: rupees for India,
+                      the USD price book (or its FX fallback) for everyone else.
+                      This used to show ₹ only, so a $29 plan never read as $29. */}
+                  <p className="text-[10px] text-fg-subtle mt-1">
+                    = ₹{(p.priceInPaise / 100).toLocaleString("en-IN")}
+                    {(() => {
+                      const usd = currencyQuery.data?.plans.find((c) => c.slug === p.slug);
+                      return usd ? <> · <span className="font-semibold text-fg-muted">${(usd.usdPriceInCents / 100).toFixed(2)}</span> USD</> : null;
+                    })()}
+                  </p>
                   {p.kind === "subscription" && (p.razorpayPlanIdInr || p.razorpayPlanIdUsd) && (
                     <p className="text-[10px] text-warning mt-1">
                       Saving a new price mints a replacement Razorpay plan. Existing subscribers keep the price they bought at.

@@ -24,6 +24,8 @@ export const GET = withAdmin(async (req) => {
         name: true,
         credits: true,
         monthlyCredits: true,
+        minutes: true,
+        monthlyMinutes: true,
         role: true,
         createdAt: true,
         subscriptionEndsAt: true,

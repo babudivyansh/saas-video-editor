@@ -14,6 +14,7 @@ vi.mock("@/lib/prisma", () => ({
     user: { findUnique: vi.fn(async () => ({ id: "u1", email: "pat@example.com", razorpaySubscriptionId: null })) },
     purchase: { findMany: vi.fn(async () => []), count: vi.fn(async () => 0) },
     generation: { findMany: vi.fn(async () => []), aggregate: vi.fn(async () => ({ _sum: { creditsCost: 0 }, _count: 0 })) },
+    minuteTransaction: { aggregate: vi.fn(async () => ({ _sum: { delta: -42 } })) },
     socialAccount: { findMany: vi.fn(async () => []) },
     affiliate: { findUnique: vi.fn(async () => null) },
     loginEvent: { findMany: vi.fn(async () => []) },

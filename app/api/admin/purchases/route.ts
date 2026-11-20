@@ -32,7 +32,10 @@ export const GET = withAdmin(async (req) => {
   const select = {
     id: true,
     amountInPaise: true,
+    // Minor units of THIS currency — cents for a USD payment, not paise.
+    currency: true,
     credits: true,
+    minutes: true,
     status: true,
     createdAt: true,
     user: { select: { id: true, email: true, name: true } },
@@ -45,7 +48,7 @@ export const GET = withAdmin(async (req) => {
     const encoder = new TextEncoder();
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
-        controller.enqueue(encoder.encode("ID,User Email,User Name,Plan,Kind,Amount (INR),Credits,Status,Date\n"));
+        controller.enqueue(encoder.encode("ID,User Email,User Name,Plan,Kind,Amount,Currency,Credits,Clip Minutes,Status,Date\n"));
         let cursor: string | undefined;
         for (;;) {
           const batch = await prisma.purchase.findMany({
@@ -65,7 +68,9 @@ export const GET = withAdmin(async (req) => {
                 p.plan?.name ?? "",
                 p.plan?.kind ?? "",
                 (p.amountInPaise / 100).toFixed(2),
+                p.currency,
                 p.credits,
+                p.minutes,
                 p.status,
                 new Date(p.createdAt).toISOString().split("T")[0],
               ]

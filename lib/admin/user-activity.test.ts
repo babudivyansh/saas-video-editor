@@ -46,7 +46,9 @@ vi.mock("@/lib/prisma", () => ({
     generation: { findMany: vi.fn(async () => rows.generations), count: vi.fn(async () => 0) },
     purchase: {
       findMany: vi.fn(async ({ where }) => lt(rows.purchases, where)),
-      aggregate: vi.fn(async () => ({ _sum: { amountInPaise: 79900 }, _count: { _all: 1 } })),
+      // INR first, then USD (getUserActivitySummary asks for each currency separately).
+      aggregate: vi.fn(async (args: { where: { currency: string } }) =>
+        args.where.currency === "USD" ? { _sum: { amountInPaise: 2900 }, _count: { _all: 1 } } : { _sum: { amountInPaise: 79900 }, _count: { _all: 1 } }),
     },
     subscriptionEvent: { findMany: vi.fn(async ({ where }) => lt(rows.subEvents, where)) },
     userEvent: {
@@ -113,6 +115,6 @@ describe("getUserActivitySummary", () => {
     rows.user.signupSource = null;
     expect(s.attribution?.utm).toEqual({ source: "youtube", medium: "video", campaign: "launch" });
     expect(s.attribution?.referralCode).toBeNull();
-    expect(s).toMatchObject({ autoClipRuns: 2, autoClipReady: 1, autoClipFailed: 1, clips: 6, logins: 4, downloads: 1, paidTotalInPaise: 79900, payments: 1 });
+    expect(s).toMatchObject({ autoClipRuns: 2, autoClipReady: 1, autoClipFailed: 1, clips: 6, logins: 4, downloads: 1, paidTotalInPaise: 79900, paidUsdCents: 2900, payments: 2 });
   });
 });

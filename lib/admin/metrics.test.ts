@@ -94,15 +94,50 @@ describe("kpisSection MRR", () => {
   });
 });
 
+describe("kpisSection — USD payments", () => {
+  // amountInPaise is minor units of the row's own currency. A $29 payment is
+  // 2900 CENTS; it used to be summed with the paise and shown as ₹29.
+  it("converts USD cents to INR at the FX rate instead of adding them as paise", async () => {
+    prismaMock.purchase.aggregate.mockImplementation((async (args: { where?: { AND?: Array<{ currency?: unknown }> } }) => {
+      const cur = args.where?.AND?.[1]?.currency;
+      return cur === "USD"
+        ? { _sum: { amountInPaise: 2_900 }, _count: { _all: 1 } } // $29
+        : { _sum: { amountInPaise: 99_900 } }; // ₹999
+    }) as never);
+    const k = await kpisSection(30);
+    // FX default is ₹88/$ (no fx_rates Config row in the mock): 2900 × 88 = 255,200 paise.
+    expect(k.revenueTodayInPaise).toBe(99_900 + 255_200);
+    expect(k.revenueRangeUsdCents).toBe(2_900);
+    expect(k.revenueRangeUsdCount).toBe(1);
+    expect(k.fxInrPerUsd).toBe(88);
+    prismaMock.purchase.aggregate.mockImplementation((async () => ({ _sum: { amountInPaise: 0 } })) as never);
+  });
+
+  it("counts a USD subscriber's MRR at the USD price book, converted", async () => {
+    prismaMock.user.groupBy.mockResolvedValueOnce([
+      { planId: "pro", subscriptionCurrency: "USD", _count: 1 },
+      { planId: "pro", subscriptionCurrency: "INR", _count: 1 },
+    ]);
+    prismaMock.plan.findMany.mockResolvedValueOnce([
+      { id: "pro", slug: "sub_pro_1mo", priceInPaise: 249_900, intervalMonths: 1 },
+    ]);
+    const k = await kpisSection(30);
+    // INR subscriber ₹2,499 + USD subscriber $29 (price book) × 88
+    expect(k.mrrUsdCents).toBe(2_900);
+    expect(k.mrrInPaise).toBe(249_900 + 2_900 * 88);
+  });
+});
+
 describe("revenueSection sources + AOV", () => {
   it("builds the sources donut from real slices and computes AOV from the series", async () => {
-    // Promise.all order: daily series ($queryRaw#1), signup series (#2), then
-    // groupBys/aggregates; byKind is $queryRaw#3.
+    // Promise.all order: daily series ($queryRaw#1), signup series (#2),
+    // byPlan (#3, INR-normalised in SQL now), byKind (#4).
     prismaMock.$queryRaw
       .mockResolvedValueOnce([
         { day: new Date("2026-07-10"), revenue: 100_000n, refunds: 10_000n, purchases: 2n },
         { day: new Date("2026-07-11"), revenue: 50_000n, refunds: 0n, purchases: 1n },
       ] as never)
+      .mockResolvedValueOnce([] as never)
       .mockResolvedValueOnce([] as never)
       .mockResolvedValueOnce([
         { kind: "subscription", revenue: 120_000n, purchases: 2n },

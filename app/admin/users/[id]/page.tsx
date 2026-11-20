@@ -25,6 +25,8 @@ import { AccountSecurity } from "../_components/AccountSecurity";
 import { useAccountAction } from "../_components/useAccountAction";
 import { DataExport } from "../_components/DataExport";
 import { UserJourney } from "../_components/UserJourney";
+import { UserUsage } from "../_components/UserUsage";
+import { formatStoredMoney } from "@/lib/currency-shared";
 import { AuditTimeline } from "../../audit/_components/AuditTimeline";
 import { ContentBrowser } from "../../_components/ContentBrowser";
 
@@ -40,9 +42,9 @@ interface Detail {
     plan: { id: string; name: string; slug: string; kind: string } | null;
   };
   purchaseCount: number;
-  purchases: Array<{ id: string; amountInPaise: number; credits: number; minutes?: number; status: string; createdAt: string; plan: { name: string; kind: string } | null }>;
+  purchases: Array<{ id: string; amountInPaise: number; currency?: string; credits: number; minutes?: number; status: string; createdAt: string; plan: { name: string; kind: string } | null }>;
   generations: Array<{ id: string; toolSlug: string; modelId: string | null; creditsCost: number; status: string; createdAt: string }>;
-  generationTotals: { count: number; creditsConsumed: number };
+  generationTotals: { count: number; creditsConsumed: number; minutesConsumed?: number };
   socialAccounts: Array<{ id: string; provider: string; status: string; username: string | null; displayName: string | null; followers: number | null; lastSyncedAt: string | null }>;
   affiliate: { code: string; status: string; commissionRate: number; totalEarned: number; totalPaid: number } | null;
   loginEvents: Array<{ ip: string | null; device: string | null; country: string | null; createdAt: string }>;
@@ -50,7 +52,6 @@ interface Detail {
   activeSessionCount?: number;
 }
 
-const inr = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN")}`;
 const dt = (iso: string | null) => (iso ? new Date(iso).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "—");
 
 export default function AdminUserDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -136,7 +137,8 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
         <div className="grid grid-cols-2 gap-2 text-sm">
           <div className="bg-surface-2 rounded-lg p-2.5"><p className="text-xs text-fg-subtle">Credits</p><p className="font-bold text-fg">{d.user.credits}</p></div>
           <div className="bg-surface-2 rounded-lg p-2.5"><p className="text-xs text-fg-subtle">Clip Minutes</p><p className="font-bold text-fg">{d.user.minutes ?? 0}{d.user.monthlyMinutes ? <span className="text-xs font-normal text-fg-subtle"> / {d.user.monthlyMinutes} mo</span> : null}</p></div>
-          <div className="bg-surface-2 rounded-lg p-2.5"><p className="text-xs text-fg-subtle">Consumed (all time)</p><p className="font-bold text-fg">{d.generationTotals.creditsConsumed}</p></div>
+          <div className="bg-surface-2 rounded-lg p-2.5"><p className="text-xs text-fg-subtle">Credits used (all time)</p><p className="font-bold text-fg">{d.generationTotals.creditsConsumed}</p></div>
+          <div className="bg-surface-2 rounded-lg p-2.5"><p className="text-xs text-fg-subtle">Minutes used (all time)</p><p className="font-bold text-fg">{d.generationTotals.minutesConsumed ?? 0}</p></div>
           <div className="bg-surface-2 rounded-lg p-2.5"><p className="text-xs text-fg-subtle">Devices signed in</p><p className="font-bold text-fg">{d.activeSessionCount ?? (d.hasActiveSession ? "1+" : 0)}</p></div>
           <div className="bg-surface-2 rounded-lg p-2.5 col-span-2">
             <p className="text-xs text-fg-subtle">Subscription</p>
@@ -240,7 +242,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
                     <td className="py-1.5 text-fg">{p.plan?.name ?? "—"}</td>
                     <td className="py-1.5 text-xs text-fg-subtle whitespace-nowrap">{new Date(p.createdAt).toLocaleDateString("en-IN")}</td>
                     <td className="py-1.5 text-right text-fg-muted whitespace-nowrap">{p.minutes ? `+${p.minutes} min` : `+${p.credits} cr`}</td>
-                    <td className="py-1.5 text-right font-semibold text-fg whitespace-nowrap">{inr(p.amountInPaise)}</td>
+                    <td className="py-1.5 text-right font-semibold text-fg whitespace-nowrap">{formatStoredMoney(p.amountInPaise, p.currency)}</td>
                     <td className={`py-1.5 text-right text-xs ${p.status === "refunded" ? "text-error font-semibold" : "text-fg-subtle"}`}>{p.status}</td>
                     <td className="py-1.5 pl-3 text-right">
                       {p.status !== "refunded" && (
@@ -315,6 +317,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
         label="Account"
         items={[
           { id: "overview", label: "Overview", content: overview },
+          { id: "usage", label: "Usage", content: <UserUsage userId={id} headers={headers} /> },
           { id: "journey", label: "Journey", content: <UserJourney userId={id} headers={headers} /> },
           { id: "security", label: "Security", content: <AccountSecurity user={d.user} loginEvents={d.loginEvents} headers={headers} /> },
           { id: "billing", label: "Billing", content: billing },
@@ -365,7 +368,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
       <ConfirmDialog
         open={!!refundTarget}
         title="Record a refund"
-        message={refundTarget ? `Mark the ${inr(refundTarget.amountInPaise)} ${refundTarget.plan?.name ?? ""} purchase as refunded. Send the money back in the Razorpay dashboard — this records it here.` : ""}
+        message={refundTarget ? `Mark the ${formatStoredMoney(refundTarget.amountInPaise, refundTarget.currency)} ${refundTarget.plan?.name ?? ""} purchase as refunded. Send the money back in the Razorpay dashboard — this records it here.` : ""}
         confirmLabel="Record refund"
         danger
         requireReason
