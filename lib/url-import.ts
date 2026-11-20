@@ -151,6 +151,15 @@ async function downloadWithRetries(url: string, baseFlags: YtDlpFlags, tmpPath: 
   throw lastErr;
 }
 
+/** yt-dlp format selector for URL imports: H.264 ≤1080p, then any mp4 ≤1080p, then anything. */
+export const URL_IMPORT_FORMAT = [
+  "bestvideo[height<=1080][ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]",
+  "best[height<=1080][ext=mp4][vcodec^=avc1]",
+  "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]",
+  "best[height<=1080][ext=mp4]",
+  "best",
+].join("/");
+
 export async function importSourceFromUrl(args: {
   url: string;
   userId: string;
@@ -190,7 +199,13 @@ export async function importSourceFromUrl(args: {
   try {
     const baseFlags = {
       output: tmpPath,
-      format: "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080][ext=mp4]/best",
+      // H.264 first. `[ext=mp4]` alone does not exclude AV1 — YouTube ships
+      // av01 in mp4 too, and yt-dlp ranks it above avc1 — and a 1080p60 AV1
+      // source decoded at 3.5 fps on the production host, so every AutoClip
+      // render of it hit the 15-min watchdog (Sentry CLIPIRO-WEB-20). VP9
+      // (webm) is skipped for the same reason; AV1/other mp4 stay as the
+      // fallback for sources that offer nothing else.
+      format: URL_IMPORT_FORMAT,
       mergeOutputFormat: "mp4",
       ...SITE_EXTRACTORS_ONLY,
       noPlaylist: true,

@@ -79,12 +79,22 @@ describe("Mailjet adapter", () => {
   it("posts v3.1 with CustomID = our message id, filtering custom headers", async () => {
     respond(200, { Messages: [{ Status: "success", To: [{ Email: "person@example.com", MessageUUID: "u", MessageID: 576460 }] }] });
     const r = await mailjetProvider.send(EMAIL);
-    expect(r).toMatchObject({ ok: true, providerMessageId: "576460" });
+    expect(r).toMatchObject({ ok: true, providerMessageId: "u" });
     expect(calls[0].url).toBe("https://api.mailjet.com/v3.1/send");
     expect((calls[0].init.headers as Record<string, string>).Authorization).toBe(`Basic ${Buffer.from("mjpub:mjsec").toString("base64")}`);
     const m = JSON.parse(calls[0].init.body as string).Messages[0];
     expect(m).toMatchObject({ CustomID: EMAIL.messageId, To: [{ Email: "person@example.com" }], ReplyTo: { Email: "support@clipiro.com" } });
     expect(m.Headers).toEqual({ "List-Unsubscribe": "<https://x>" });
+  });
+
+  // CLIPIRO-WEB-1W: two Mailjet MessageIDs a few apart parse to one double.
+  it("keys the message on MessageUUID, never the precision-losing MessageID", async () => {
+    const a = JSON.parse('{"id":1152921536419791137}').id;
+    const b = JSON.parse('{"id":1152921536419791141}').id;
+    expect(a).toBe(b);
+    respond(200, { Messages: [{ Status: "success", To: [{ Email: "a@b.c", MessageUUID: "uuid-2", MessageID: b }] }] });
+    const r = await mailjetProvider.send(EMAIL);
+    expect(r).toMatchObject({ ok: true, providerMessageId: "uuid-2" });
   });
 
   it("treats a 200 with Status error as a failure", async () => {

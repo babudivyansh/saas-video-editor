@@ -122,7 +122,10 @@ export function parseBrevoEvent(raw: Record<string, unknown>): DeliveryEvent | n
 export function parseMailjetEvent(raw: Record<string, unknown>): DeliveryEvent | null {
   const event = str(raw.event);
   if (!event) return null;
-  const providerMessageId = str(raw.MessageID);
+  // Message_GUID = the MessageUUID our adapter stores. MessageID is an integer
+  // above 2^53 that JSON.parse has already rounded, so two different messages
+  // can share it (see providers/mailjet.ts); it is only a last resort.
+  const providerMessageId = str(raw.Message_GUID) ?? str(raw.MessageID);
   const time = typeof raw.time === "number" ? raw.time : null;
   const hard = raw.hard_bounce === true;
   const kind: DeliveryKind = ({
@@ -133,7 +136,7 @@ export function parseMailjetEvent(raw: Record<string, unknown>): DeliveryEvent |
   } as Record<string, DeliveryKind>)[event] ?? "ignored";
   return {
     provider: "mailjet",
-    eventKey: `${providerMessageId ?? str(raw.Message_GUID) ?? "?"}:${event}:${time ?? ""}`,
+    eventKey: `${providerMessageId ?? "?"}:${event}:${time ?? ""}`,
     eventType: event,
     kind,
     providerMessageId,

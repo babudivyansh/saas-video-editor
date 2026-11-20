@@ -70,8 +70,47 @@ vi.mock("@/lib/autoclip-rerender", () => ({ refundFailedRerender: vi.fn(async ()
 const {
   sliceWordsForClip, rebaseClipWords, computeCreditCost, getAutoClipPricing, AUTOCLIP_PRICING_DEFAULTS,
   buildBrollFilterComplex, computeKeeps, enforceNonOverlapping, rerenderJob, notifyRenderOutcome,
-  wordsOnRenderedTimeline, SOURCE_AUDIO_MAP,
+  wordsOnRenderedTimeline, SOURCE_AUDIO_MAP, fitSegmentToBand, renderFpsCap, pickJob,
 } = await import("./autoclip-pipeline");
+
+// CLIPIRO-WEB-20: a 1080p60 source rendered at 60 fps ran at 0.059x realtime.
+describe("renderFpsCap", () => {
+  it("brings sources above 30 fps down to 30", () => {
+    expect(renderFpsCap(59.94, 30)).toBe(30);
+    expect(renderFpsCap(60, 30)).toBe(30);
+  });
+  it("leaves 30 fps and below, and unknown rates, alone", () => {
+    for (const fps of [30, 29.97, 25, 24, 0, Number.NaN]) expect(renderFpsCap(fps, 30)).toBeNull();
+  });
+});
+
+// CLIPIRO-WEB-10: short picks were dropped, emptying the whole run.
+describe("fitSegmentToBand", () => {
+  it("stretches a pick shorter than minDuration forward", () => {
+    expect(fitSegmentToBand(100, 108, 600, 15, 60)).toEqual({ start: 100, end: 115 });
+  });
+  it("stretches backward at the end of the source", () => {
+    expect(fitSegmentToBand(595, 599, 600, 15, 60)).toEqual({ start: 585, end: 600 });
+  });
+  it("still caps at maxDuration", () => {
+    expect(fitSegmentToBand(10, 3600, 4000, 15, 60)).toEqual({ start: 10, end: 70 });
+  });
+  it("keeps an in-band pick as-is", () => {
+    expect(fitSegmentToBand(20, 50, 600, 15, 60)).toEqual({ start: 20, end: 50 });
+  });
+});
+
+// CLIPIRO-WEB-1V/-C: a project with no source must not be retried.
+describe("pickJob on a missing project", () => {
+  it("fails permanently and quietly instead of retrying", async () => {
+    const { prisma } = await import("@/lib/prisma");
+    vi.mocked(prisma.project.findUnique).mockResolvedValueOnce(null as never);
+    const { NonRetryableError } = await import("./job-queue");
+    const err = await pickJob({ projectId: "gone" } as never).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(NonRetryableError);
+    expect((err as InstanceType<typeof NonRetryableError>).expected).toBe(true);
+  });
+});
 
 describe("sliceWordsForClip", () => {
   const words = [

@@ -110,7 +110,13 @@ export const mailjetProvider: EmailProvider = {
 
     if (status === 200 && first?.Status === "success") {
       const to = first.To?.[0];
-      const id = to?.MessageID != null ? String(to.MessageID) : to?.MessageUUID ?? null;
+      // MessageUUID, not MessageID: MessageID is an ~18-digit integer, above
+      // 2^53, and JSON.parse rounds it to the nearest double. Two sends a few
+      // ms apart (the login alert and welcome email on a first Google sign-in)
+      // got adjacent ids that rounded to the SAME number, and EmailLog's
+      // unique providerMessageId refused the second row (CLIPIRO-WEB-1W).
+      // Webhooks carry the same value as Message_GUID.
+      const id = to?.MessageUUID ?? null;
       return { ok: true, providerMessageId: id, latencyMs: attempt.latencyMs };
     }
     const c = classifyMailjet(status, body);

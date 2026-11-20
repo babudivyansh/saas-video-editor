@@ -26,16 +26,38 @@ export const DB_POOL_IDLE_MS = 10_000;
 /** Fail a request that cannot get a connection, rather than hang forever. */
 export const DB_POOL_ACQUIRE_TIMEOUT_MS = 20_000;
 
-export function dbPoolMax(raw: string | undefined): number {
+// Transaction mode (port 6543, production since 2026-11-19). A client
+// connection no longer pins a server connection, so the 15-client ceiling and
+// the reason for the tiny cap and the 10s idle release are gone. Keeping them
+// cost a fresh TCP + TLS + SCRAM handshake, Mumbai -> Tokyo (~120 ms RTT), on
+// almost every request after a quiet spell; whenever Supavisor was slow to
+// authenticate, those handshakes failed as "(EAUTHTIMEOUT) timeout while
+// waiting for message" and the queue behind six slots ran into the 20s acquire
+// timeout ("timeout exceeded when trying to connect") — CLIPIRO-WEB-9/-1Z/-1Y.
+// So connections are kept warm for minutes and the cap is the pooler's
+// default pool size.
+export const TRANSACTION_POOL_MAX = 15;
+export const TRANSACTION_POOL_IDLE_MS = 5 * 60_000;
+
+/** True for Supabase's transaction-mode pooler (port 6543). */
+export function isTransactionPooler(url: string | undefined): boolean {
+  return !!url && /:6543(?:[/?]|$)/.test(url);
+}
+
+export function dbPoolMax(raw: string | undefined, fallback = DEFAULT_DB_POOL_MAX): number {
   const n = Number.parseInt(raw ?? "", 10);
-  return Number.isFinite(n) && n >= 1 && n <= 100 ? n : DEFAULT_DB_POOL_MAX;
+  return Number.isFinite(n) && n >= 1 && n <= 100 ? n : fallback;
 }
 
 export function dbPoolOptions(env: { DATABASE_URL?: string; DATABASE_POOL_MAX?: string }) {
+  const txn = isTransactionPooler(env.DATABASE_URL);
   return {
     connectionString: env.DATABASE_URL,
-    max: dbPoolMax(env.DATABASE_POOL_MAX),
-    idleTimeoutMillis: DB_POOL_IDLE_MS,
+    max: dbPoolMax(env.DATABASE_POOL_MAX, txn ? TRANSACTION_POOL_MAX : DEFAULT_DB_POOL_MAX),
+    idleTimeoutMillis: txn ? TRANSACTION_POOL_IDLE_MS : DB_POOL_IDLE_MS,
     connectionTimeoutMillis: DB_POOL_ACQUIRE_TIMEOUT_MS,
+    // A warm connection that sits idle for minutes must survive NAT/LB idle
+    // reaping between Hostinger and the pooler.
+    keepAlive: true,
   };
 }

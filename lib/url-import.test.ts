@@ -23,7 +23,18 @@ vi.mock("@/utils/s3-upload", () => ({ uploadFileToS3: vi.fn(async () => "https:/
 vi.mock("@/lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 vi.mock("@/lib/ensure-executable", () => ({ ensureExecutable: vi.fn() }));
 
-const { importSourceFromUrl, isAllowedSourceUrl, probeSourceUrl, removeDownloadArtifacts } = await import("./url-import");
+const { importSourceFromUrl, isAllowedSourceUrl, probeSourceUrl, removeDownloadArtifacts, URL_IMPORT_FORMAT } = await import("./url-import");
+
+// CLIPIRO-WEB-20: `[ext=mp4]` alone let YouTube's AV1-in-mp4 win.
+describe("URL_IMPORT_FORMAT", () => {
+  it("asks for H.264 before any other mp4, and keeps a fallback", () => {
+    const alts = URL_IMPORT_FORMAT.split("/");
+    expect(alts[0]).toContain("[vcodec^=avc1]");
+    expect(alts[0]).toContain("[height<=1080]");
+    expect(alts.findIndex((a) => !a.includes("avc1"))).toBeGreaterThan(0);
+    expect(alts.at(-1)).toBe("best");
+  });
+});
 
 beforeEach(() => {
   calls.length = 0;
