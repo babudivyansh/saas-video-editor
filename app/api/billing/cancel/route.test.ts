@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-// Cancelling inside the 7-day trial must cancel the Razorpay subscription
+// Cancelling inside the trial must cancel the Razorpay subscription
 // OUTRIGHT: it is still `authenticated` (no billing cycle yet), and Razorpay
 // refuses cancel-at-cycle-end for that state — so the old call failed and the
 // customer was charged on day 7 anyway.

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import crypto from "crypto";
 import { Prisma } from "@prisma/client";
+import { TRIAL_CREDITS, TRIAL_MINUTES } from "@/lib/plans/tiers";
 
 // The webhook is the highest-risk file in billing — it is the path money
 // actually arrives on — and had no test coverage at all. These cover signature
@@ -181,7 +182,7 @@ describe("subscription.activated", () => {
     expect(user.planId).toBe("plan-pro");
     expect(user.razorpaySubscriptionId).toBe("sub_1");
     expect(user.monthlyCredits).toBe(160);
-    expect(grants).toEqual([{ amount: 25, reason: "grant:trial" }]);
+    expect(grants).toEqual([{ amount: TRIAL_CREDITS, reason: "grant:trial" }]);
   });
 
   // Regression: this branch had no RazorpayEvent claim, so a Razorpay retry or
@@ -247,8 +248,8 @@ describe("subscription.activated", () => {
 });
 
 // The trial starts when the mandate is AUTHENTICATED (day 0), not on
-// activation (day 7, alongside the first charge) — see lib/billing/trial.ts.
-describe("subscription.authenticated (7-day trial)", () => {
+// activation (the day it ends, alongside the first charge) — see lib/billing/trial.ts.
+describe("subscription.authenticated (trial)", () => {
   const START_AT = Math.floor(Date.now() / 1000) + 7 * 86400;
   const authenticated = (subId = "sub_t", notes: Record<string, string> = {}) => ({
     event: "subscription.authenticated",
@@ -257,15 +258,15 @@ describe("subscription.authenticated (7-day trial)", () => {
     } } },
   });
 
-  it("starts the trial immediately: Pro access until the first charge, 25 credits once", async () => {
+  it("starts the trial immediately: Pro access until the first charge, TRIAL_CREDITS once", async () => {
     const res = await post(authenticated());
     expect(res.status).toBe(200);
     expect(user).toMatchObject({ planId: "plan-pro", razorpaySubscriptionId: "sub_t", monthlyCredits: 160 });
     expect(user.subscriptionEndsAt).toEqual(new Date(START_AT * 1000));
     expect(user.trialEndsAt).toEqual(new Date(START_AT * 1000));
     expect(user.trialUsedAt).toBeInstanceOf(Date);
-    expect(grants).toEqual([{ amount: 25, reason: "grant:trial" }]);
-    expect(minuteGrants.at(-1)).toEqual({ amount: 60, reason: "grant:trial" });
+    expect(grants).toEqual([{ amount: TRIAL_CREDITS, reason: "grant:trial" }]);
+    expect(minuteGrants.at(-1)).toEqual({ amount: TRIAL_MINUTES, reason: "grant:trial" });
     expect(cancelled).toEqual([]);
     // They authorised a mandate while paying ₹0 — say when the first charge is.
     expect(trialStartedEmails).toEqual([{ to: "trial@test.com", endsAt: new Date(START_AT * 1000) }]);
@@ -332,6 +333,6 @@ describe("subscription.authenticated (7-day trial)", () => {
     expect(res.status).toBe(500);
     updateShouldFail = false;
     expect((await post(authenticated())).status).toBe(200);
-    expect(grants).toEqual([{ amount: 25, reason: "grant:trial" }]);
+    expect(grants).toEqual([{ amount: TRIAL_CREDITS, reason: "grant:trial" }]);
   });
 });

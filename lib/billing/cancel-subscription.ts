@@ -39,7 +39,7 @@ export async function cancelSubscriptionForUser(
   // never auto-charge — the term just lapses at subscriptionEndsAt via the
   // refill-credits cron — so there's nothing to call Razorpay for; marking
   // subscriptionCancelledAt below is purely informational for those.
-  // Inside the 7-day trial the subscription is still `authenticated` — its
+  // Inside the trial the subscription is still `authenticated` — its
   // first billing cycle hasn't begun — and Razorpay REFUSES cancel-at-cycle-end
   // for it. Cancel it outright instead: nothing has been charged, nothing ever
   // will be, and Pro access still runs to the trial's end (subscriptionEndsAt).

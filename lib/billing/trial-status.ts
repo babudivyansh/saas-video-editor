@@ -1,4 +1,4 @@
-// Is this account in its 7-day free trial right now? One answer, shared by the
+// Is this account in its free trial right now? One answer, shared by the
 // billing overview, Manage Subscription, the header chip and the post-checkout
 // banner, so no two screens can disagree. Client-safe.
 //

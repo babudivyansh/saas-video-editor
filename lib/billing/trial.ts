@@ -1,13 +1,13 @@
-// The 7-day Pro trial — who gets it, and what happens when it starts.
+// The Pro trial — who gets it, and what happens when it starts.
 //
 // HOW RAZORPAY RUNS A TRIAL. Checkout creates a subscription with start_at =
-// now + 7 days. The customer authorises a ₹5 (auto-refunded) payment, which
+// now + TRIAL_DAYS. The customer authorises a ₹5 (auto-refunded) payment, which
 // registers the mandate and moves the subscription to `authenticated` —
 // firing `subscription.authenticated`. It then SITS in `authenticated` until
 // start_at, when Razorpay makes the first real charge and fires
 // `subscription.activated` + `subscription.charged` together.
 //
-// The trial used to be granted on `activated`, i.e. on day 7, at the same
+// The trial used to be granted on `activated`, i.e. on the last day, at the same
 // moment as the first charge: a trial customer got no credits and no Pro
 // access for the whole trial, and their "trial" began the day it was billed.
 // It is now granted here, on `authenticated`.

@@ -8,6 +8,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { TRIAL_DAYS } from "@/lib/plans/tiers";
 
 let user: { tier: string; trialUsedAt: string | null; hasPurchased?: boolean } | null;
 vi.mock("@/app/components/AuthContext", () => ({ useAuth: () => ({ user }) }));
@@ -36,7 +37,7 @@ afterEach(() => vi.restoreAllMocks());
 describe("WatermarkUpgradeBanner", () => {
   it("offers the Pro trial to a free user who hasn't used it", async () => {
     render(<WatermarkUpgradeBanner />);
-    const cta = await screen.findByRole("button", { name: "Try Pro free for 7 days" });
+    const cta = await screen.findByRole("button", { name: `Try Pro free for ${TRIAL_DAYS} days` });
     await userEvent.click(cta);
     expect(openPlans).toHaveBeenCalledTimes(1);
   });
@@ -86,7 +87,7 @@ describe("WatermarkDownloadGateProvider", () => {
   it("the upgrade button opens the plans view instead of downloading", async () => {
     renderGate();
     await userEvent.click(screen.getByText("Download"));
-    await userEvent.click(screen.getByRole("button", { name: "Try Pro free for 7 days" }));
+    await userEvent.click(screen.getByRole("button", { name: `Try Pro free for ${TRIAL_DAYS} days` }));
     expect(openPlans).toHaveBeenCalledTimes(1);
   });
 

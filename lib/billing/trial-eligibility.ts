@@ -1,4 +1,4 @@
-// Who gets the 7-day Pro trial. Kept apart from lib/billing/trial.ts (which
+// Who gets the Pro trial. Kept apart from lib/billing/trial.ts (which
 // grants credits, and so loads lib/credits and Redis) so checkout can ask the
 // question without pulling the whole grant path into its module graph.
 

@@ -145,7 +145,7 @@ Legend for the screen table (§2):
   | Studio | $59 | 1000 | 400 |
 
   - Yearly is 33% off.
-  - Trial: 7 days, monthly Pro only (`lib/billing/trial.ts`). The "3-day" in the design is the money-back guarantee, which is correct.
+  - Trial: 3 days (TRIAL_DAYS), monthly Pro only (`lib/billing/trial.ts`). The "3-day" in the design is the money-back guarantee, which is correct.
 - **Packs** (USD prices are converted from INR, not set in a price book):
   - Credit packs: 30 / 100 / 280 / 640 credits for $6.99 / $17.99 / $44.99 / $101.99.
   - Minute packs: 100 / 300 / 1000 minutes for $11.99 / $29.99 / $89.99.

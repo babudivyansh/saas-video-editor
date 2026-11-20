@@ -292,7 +292,7 @@ export const EMAIL_REGISTRY: Record<string, TemplateEntry<never>> = {
     title: "Trial started",
     group: "billing",
     category: "transactional",
-    trigger: "subscription.authenticated webhook for a 7-day trial subscription",
+    trigger: "subscription.authenticated webhook for a trial subscription",
     build: billing.trialStarted,
     samples: {
       default: { name: "Divyansh", planName: "Pro", priceInPaise: 219900, trialCredits: 25, endsAt: SOON },

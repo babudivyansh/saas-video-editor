@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
   // Subscription lifecycle events (recurring flow) — handled before
   // payment.captured so a subscription-invoice payment doesn't also get
   // routed to the one-time fulfillPayment path below (double grant guard).
-  // A trial subscription (start_at = now + 7 days) reaches `authenticated` the
+  // A trial subscription (start_at = now + TRIAL_DAYS) reaches `authenticated` the
   // moment the customer approves the mandate, and only becomes `activated` on
   // day 7 together with its first charge — so this, not activation, is when a
   // trial starts. See lib/billing/trial.ts. Non-trial subscriptions start
@@ -123,9 +123,9 @@ export async function POST(req: NextRequest) {
       }
       if (plan && user) {
         const endsAt = new Date();
-        endsAt.setDate(endsAt.getDate() + 7); // covers the trial window; extended for real on first charge
+        endsAt.setDate(endsAt.getDate() + 7); // grace term until the charge event extends it for real
         // Activation of a trial subscription means the trial is OVER — this is
-        // day 7, and the first charge arrives alongside. The trial itself was
+        // the day it ends, and the first charge arrives alongside. The trial itself was
         // granted on subscription.authenticated (lib/billing/trial.ts), which
         // set trialUsedAt, so this only still grants for a trial that was
         // authenticated before that handler existed. Either way trialEndsAt is

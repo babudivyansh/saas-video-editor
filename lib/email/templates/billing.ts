@@ -5,6 +5,7 @@ import type { EmailDocument } from "../layout";
 import { html } from "../html";
 import { formatDate, formatDateShort, formatMinor, formatPaise, greet, plural } from "../format";
 import { APP_URL, PRODUCT_NAME } from "../tokens";
+import { TRIAL_DAYS } from "@/lib/plans/tiers";
 
 const BILLING_URL = `${APP_URL}/dashboard?billing=1`;
 const PRICING_URL = `${APP_URL}/pricing`;
@@ -187,7 +188,7 @@ export function trialStarted(p: {
     subject: `Your ${PRODUCT_NAME} free trial has started`,
     preheader: `${gift} added. Free until ${when}${amount ? `, then ${amount}/month` : ""}.`,
     blocks: [
-      { kind: "heading", text: `Your 7-day ${p.planName} trial has started` },
+      { kind: "heading", text: `Your ${TRIAL_DAYS}-day ${p.planName} trial has started` },
       {
         kind: "paragraph",
         text: minutes > 0

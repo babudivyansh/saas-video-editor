@@ -24,7 +24,7 @@ import { UsageBarChart } from "@/app/components/ui/UsageBarChart";
 import { formatDate, formatINR } from "@/lib/format";
 import { formatMoney, inferCurrencyFromLocale, type Currency } from "@/lib/currency-shared";
 import { trialStatus, trialDaysLeftLabel, type TrialStatus } from "@/lib/billing/trial-status";
-import { TRIAL_CREDITS, TRIAL_MINUTES } from "@/lib/plans/tiers";
+import { TRIAL_CREDITS, TRIAL_DAYS, TRIAL_MINUTES } from "@/lib/plans/tiers";
 
 interface DbPlan {
   id: string;
@@ -418,7 +418,7 @@ export function BillingPanel({
           </svg>
           {trialStarted
             ? trial
-              ? `Your 7-day free trial has started — ${TRIAL_MINUTES} Clip Minutes and ${TRIAL_CREDITS} credits added. It's free until ${formatDate(trial.endsAt.toISOString())}; cancel before then and you won't be charged.`
+              ? `Your ${TRIAL_DAYS}-day free trial has started — ${TRIAL_MINUTES} Clip Minutes and ${TRIAL_CREDITS} credits added. It's free until ${formatDate(trial.endsAt.toISOString())}; cancel before then and you won't be charged.`
               : "Starting your free trial — this takes a few seconds…"
             : "Payment successful — credits will appear in your account shortly!"}
         </div>
@@ -582,10 +582,10 @@ function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used, 
   onGoToTopup: () => void;
   onCancelClick: () => void;
   currency: Currency;
-  /** Set while the account is in its 7-day free trial. */
+  /** Set while the account is in its free trial. */
   trial: TrialStatus | null;
 }) {
-  // A trial ends in 7 days by design — that isn't "expiring soon" in red.
+  // A trial ends within days by design — that isn't "expiring soon" in red.
   const expiringSoon = hasActivePlan && daysLeft <= 7 && !trial;
   const memberSince = user?.createdAt ? formatDate(user.createdAt) : "—";
   const cancelled = !!user?.subscriptionCancelledAt;

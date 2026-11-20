@@ -10,7 +10,7 @@ import { ToastProvider, useToast } from "@/app/components/ui/Toast";
 import { useAuth } from "@/app/components/AuthContext";
 import { useRazorpayCheckout } from "@/app/components/useRazorpayCheckout";
 import {
-  PURCHASABLE_TIER_ORDER, TIER_LABEL, TRIAL_CREDITS, TRIAL_MINUTES, isTrialPlan, renewalNeedsApproval,
+  PURCHASABLE_TIER_ORDER, TIER_LABEL, TRIAL_CREDITS, TRIAL_DAYS, TRIAL_MINUTES, isTrialPlan, renewalNeedsApproval,
   AUTOCLIP_RERUN_FREE_WINDOW_DAYS, FREE_TIER_MONTHLY_BONUS_CREDITS, FREE_TIER_MONTHLY_BONUS_MINUTES, FREE_TIER_SIGNUP_MINUTES, SUBSCRIPTION_ROLLOVER_CAP_MULTIPLIER,
 } from "@/lib/plans/tiers";
 import { IMAGE_MODELS } from "@/lib/models/imageModels";
@@ -164,7 +164,7 @@ function PricingPageInner({ initialPlans }: { initialPlans: DbPlan[] }) {
   const hasActivePlan =
     !!user?.subscriptionEndsAt && new Date(user.subscriptionEndsAt) > new Date();
 
-  // The 7-day trial is a first-purchase offer on the monthly Pro plan — the
+  // The trial is a first-purchase offer on the monthly Pro plan — the
   // same rule /api/billing/checkout enforces (lib/billing/trial.ts). Signed-out
   // visitors see it too — a new account is always eligible — and are sent to
   // register first.
@@ -299,7 +299,7 @@ function PricingPageInner({ initialPlans }: { initialPlans: DbPlan[] }) {
                   // Recommended plan first on phones, where only one card is on screen.
                   className={isPro ? "max-sm:order-first" : ""}
                   onSelect={p => selectPlan(p, offerTrial)}
-                  ctaLabel={offerTrial ? "Start 7-day free trial" : undefined}
+                  ctaLabel={offerTrial ? `Start ${TRIAL_DAYS}-day free trial` : undefined}
                   footer={
                     offerTrial ? (
                       <p className="text-center text-xs text-fg-muted">
@@ -431,7 +431,7 @@ function PricingPageInner({ initialPlans }: { initialPlans: DbPlan[] }) {
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="text-sm font-semibold text-fg">{TIER_LABEL[stickyPlan.tier as keyof typeof TIER_LABEL] ?? stickyPlan.name}</p>
-              <p className="text-xs text-fg-muted">{stickyPerMonth}/mo{stickyTrial ? " · 7-day free trial" : ""}</p>
+              <p className="text-xs text-fg-muted">{stickyPerMonth}/mo{stickyTrial ? ` · ${TRIAL_DAYS}-day free trial` : ""}</p>
             </div>
             <Button onClick={() => selectPlan(stickyPlan, stickyTrial)}>{stickyTrial ? "Start free trial" : "Get started"}</Button>
           </div>
