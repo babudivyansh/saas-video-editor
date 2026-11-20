@@ -223,6 +223,31 @@ function PrimaryBtn({ enabled, loading, children }: { enabled: boolean; loading?
   );
 }
 
+// Google leads both the sign-in and sign-up pages: one tap, no password to
+// make up, so it's the primary path; the email form sits under the divider.
+function GoogleButton({ label, href }: { label: string; href: string }) {
+  return (
+    <button
+      type="button"
+      onClick={() => { window.location.href = href; }}
+      className="w-full flex items-center justify-center gap-2.5 bg-fg hover:bg-fg/90 active:scale-[0.99] rounded-full py-3 text-sm font-semibold text-surface transition-all shadow-md shadow-black/30 outline-none focus-visible:ring-2 focus-visible:ring-brand/60 focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
+    >
+      <GoogleIcon />
+      {label}
+    </button>
+  );
+}
+
+function EmailDivider() {
+  return (
+    <div className="flex items-center gap-3 my-5">
+      <div className="flex-1 h-px bg-surface-3" />
+      <span className="text-xs text-fg-subtle font-medium">or continue with email</span>
+      <div className="flex-1 h-px bg-surface-3" />
+    </div>
+  );
+}
+
 interface AuthFormProps {
   initialMode: "login" | "register";
   onSuccess?: (token: string) => void;
@@ -746,6 +771,10 @@ export default function AuthForm({
           <p className="mt-1 text-sm text-fg-muted">Start making viral videos with AI today.</p>
         </div>
 
+        <GoogleButton label="Sign up with Google" href={withNextParam("/api/auth/google", next)} />
+
+        <EmailDivider />
+
         <form onSubmit={handleRegister} className="space-y-3">
           {/* Name */}
           <div className="relative">
@@ -845,21 +874,6 @@ export default function AuthForm({
           </PrimaryBtn>
         </form>
 
-        <div className="flex items-center gap-3 my-5">
-          <div className="flex-1 h-px bg-surface-3" />
-          <span className="text-xs text-fg-subtle font-medium">or</span>
-          <div className="flex-1 h-px bg-surface-3" />
-        </div>
-
-        <button
-          type="button"
-          onClick={() => window.location.href = "/api/auth/google"}
-          className="w-full flex items-center justify-center gap-2.5 border border-line hover:border-line-strong hover:bg-surface-2 active:bg-surface-3 rounded-full py-3 text-sm font-medium text-fg transition-all shadow-sm"
-        >
-          <GoogleIcon />
-          Continue with Google
-        </button>
-
         <p className="text-center text-[13px] text-fg-muted mt-5">
           Already have an account?{" "}
           <button type="button" onClick={toggleMode} className="text-brand-deep font-semibold hover:underline bg-transparent border-none p-0 cursor-pointer">
@@ -898,6 +912,10 @@ export default function AuthForm({
             <p className="mt-1 text-sm text-fg-muted">Sign in to your Clipiro account</p>
           </div>
 
+          <GoogleButton label="Sign in with Google" href={withNextParam("/api/auth/google", next)} />
+
+          <EmailDivider />
+
           <form onSubmit={handleIdentifierContinue} className="space-y-3">
             <div className="relative">
               <span className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none">
@@ -921,21 +939,6 @@ export default function AuthForm({
               Continue
             </PrimaryBtn>
           </form>
-
-          <div className="flex items-center gap-3 my-5">
-            <div className="flex-1 h-px bg-surface-3" />
-            <span className="text-xs text-fg-subtle font-medium">or</span>
-            <div className="flex-1 h-px bg-surface-3" />
-          </div>
-
-          <button
-            type="button"
-            onClick={() => window.location.href = withNextParam("/api/auth/google", next)}
-            className="w-full flex items-center justify-center gap-2.5 border border-line hover:border-line-strong hover:bg-surface-2 active:bg-surface-3 rounded-full py-3 text-sm font-medium text-fg transition-all shadow-sm"
-          >
-            <GoogleIcon />
-            Continue with Google
-          </button>
 
           <p className="text-center text-[13px] text-fg-muted mt-5">
             Don&apos;t have an account?{" "}
