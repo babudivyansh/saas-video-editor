@@ -34,13 +34,13 @@ export const GET = withAdmin<{ id: string }>(async (_req, { admin, params }) => 
   });
   if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
-  const [purchases, generations, socialAccounts, affiliate, loginEvents, sessions, generationTotals] =
+  const [purchases, generations, socialAccounts, affiliate, loginEvents, sessions, generationTotals, minuteSpend] =
     await Promise.all([
       prisma.purchase.findMany({
         where: { userId: id },
         orderBy: { createdAt: "desc" },
         take: 20,
-        select: { id: true, amountInPaise: true, credits: true, minutes: true, status: true, createdAt: true, plan: { select: { name: true, kind: true } } },
+        select: { id: true, amountInPaise: true, currency: true, credits: true, minutes: true, status: true, createdAt: true, plan: { select: { name: true, kind: true } } },
       }),
       prisma.generation.findMany({
         where: { userId: id },
@@ -66,6 +66,11 @@ export const GET = withAdmin<{ id: string }>(async (_req, { admin, params }) => 
       // panel reported "no active session" for every user regardless.
       listSessions(id),
       prisma.generation.aggregate({ _sum: { creditsCost: true }, _count: true, where: { userId: id } }),
+      // Clip Minutes used, net of refunds — AutoClip's meter, invisible in creditsCost.
+      prisma.minuteTransaction.aggregate({
+        _sum: { delta: true },
+        where: { userId: id, OR: [{ reason: { startsWith: "spend:" } }, { reason: { startsWith: "refund" } }] },
+      }),
     ]);
 
   const { razorpaySubscriptionId, ...rest } = user;
@@ -75,7 +80,11 @@ export const GET = withAdmin<{ id: string }>(async (_req, { admin, params }) => 
     purchaseCount: await prisma.purchase.count({ where: { userId: id } }),
     purchases,
     generations,
-    generationTotals: { count: generationTotals._count, creditsConsumed: generationTotals._sum.creditsCost ?? 0 },
+    generationTotals: {
+      count: generationTotals._count,
+      creditsConsumed: generationTotals._sum.creditsCost ?? 0,
+      minutesConsumed: Math.max(0, -(minuteSpend._sum.delta ?? 0)),
+    },
     socialAccounts,
     affiliate,
     loginEvents,

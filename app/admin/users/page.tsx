@@ -32,6 +32,9 @@ interface AdminUser {
   name: string | null;
   credits: number;
   monthlyCredits: number;
+  /** Clip Minutes balance (AutoClip's meter) and the monthly refill. */
+  minutes: number;
+  monthlyMinutes: number;
   role: "USER" | "ADMIN";
   createdAt: string;
   subscriptionEndsAt: string | null;
@@ -393,6 +396,7 @@ function AdminUsers() {
                     <th className="py-3.5 px-3">User</th>
                     <th className="py-3.5 px-3">Credits</th>
                     <th className="py-3.5 px-3">Mo. Credits</th>
+                    <th className="py-3.5 px-3">Minutes</th>
                     <th className="py-3.5 px-3">Plan</th>
                     <th className="py-3.5 px-3">Sub Expires</th>
                     <th className="py-3.5 px-3">Role</th>
@@ -426,6 +430,10 @@ function AdminUsers() {
                           </td>
                           <td className="py-3 px-3 font-semibold text-fg">{u.credits}</td>
                           <td className="py-3 px-3 text-fg-muted">{u.monthlyCredits > 0 ? u.monthlyCredits : "—"}</td>
+                          <td className="py-3 px-3 font-semibold text-fg" title={u.monthlyMinutes > 0 ? `${u.monthlyMinutes} min / month` : undefined}>
+                            {(u.minutes ?? 0).toLocaleString("en-IN")}
+                            {u.monthlyMinutes > 0 && <span className="block text-[10px] font-normal text-fg-subtle">{u.monthlyMinutes}/mo</span>}
+                          </td>
                           {/* Showed `plan.name` with no expiry check, so an account whose
                               subscription term was missing or past looked identical to a
                               paying one — the admin had no way to see that the user's own
@@ -480,7 +488,7 @@ function AdminUsers() {
                         </tr>
                         {expandedId === u.id && (
                           <tr key={`${u.id}-expand`} className="bg-tint-blue/60 border-b border-line">
-                            <td colSpan={10} className="px-5 py-4">
+                            <td colSpan={11} className="px-5 py-4">
                               <div className="flex flex-wrap items-end gap-4">
                                 <div>
                                   <label className="text-[10px] font-semibold text-fg-subtle block mb-1">Display Name</label>

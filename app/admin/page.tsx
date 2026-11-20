@@ -31,16 +31,19 @@ import {
   PlaceholderChart, RevenueAreaChart, SparkArea, StackedBars,
 } from "./dashboard/charts";
 import { DashboardHeader } from "./dashboard/DashboardHeader";
+import { formatMoney, formatStoredMoney } from "@/lib/currency-shared";
 
 // ── Payload types (mirror lib/admin/metrics.ts) ──────────────────────────────
 interface Spark { date: string; value: number }
 interface Overview {
   mrrInPaise: number; arrInPaise: number; activeSubscribers: number;
+  /** All money totals are INR-equivalent; USD converted at this rate. Optional for cached older payloads. */
+  fxInrPerUsd?: number; mrrUsdCents?: number; revenueRangeUsdCents?: number; revenueRangeUsdCount?: number;
   revenueTodayInPaise: number; revenueMtdInPaise: number; revenueGrowthPct: number | null;
   newUsers: number; dauProxy: number; conversionPct: number | null; churnProxyPct: number | null;
   arpuInPaise: number | null; refundRatePct: number | null; totalUsers: number;
   aiCostUsd: number; revenueRangeInPaise: number;
-  sparklines: { revenue: Spark[]; signups: Spark[]; generations: Spark[]; creditsConsumed: Spark[] };
+  sparklines: { revenue: Spark[]; signups: Spark[]; generations: Spark[]; creditsConsumed: Spark[]; minutesConsumed?: Spark[] };
 }
 interface Revenue {
   series: Array<{ date: string; revenueInPaise: number; refundsInPaise: number; purchases: number }>;
@@ -85,6 +88,15 @@ interface Credits {
   sources: Array<{ label: string; value: number }>;
   netInRange: number;
 }
+interface Minutes {
+  series: DayRow[];
+  sinks: Array<{ label: string; value: number; runs: number }>;
+  sources: Array<{ label: string; value: number }>;
+  grantedInRange: number;
+  consumedInRange: number;
+  estCostUsd?: number;
+  outstanding: { total: number; subscription: number; purchased: number; bonus: number };
+}
 interface Pipeline {
   generations: DayRow[];
   latency: DayRow[];
@@ -108,7 +120,8 @@ interface Acquisition {
 interface Top {
   topCreditUsers: Array<{ userId: string; label: string; credits: number; generations: number }>;
   topRevenueUsers: Array<{ userId: string; label: string; revenueInPaise: number; purchases: number }>;
-  recentPurchases: Array<{ id: string; amountInPaise: number; status: string; createdAt: string; user: { id: string; email: string } | null; plan: { name: string } | null }>;
+  topMinuteUsers?: Array<{ userId: string; label: string; minutes: number; runs: number }>;
+  recentPurchases: Array<{ id: string; amountInPaise: number; currency?: string; minutes?: number; status: string; createdAt: string; user: { id: string; email: string } | null; plan: { name: string } | null }>;
   countries: Array<{ label: string; count: number }>;
   devices: Array<{ label: string; count: number }>;
   loginDataSince: string | null;
@@ -177,7 +190,7 @@ export default function AdminDashboardPage() {
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
-  const [board, setBoard] = useState<"revenue" | "credits" | "cost" | "recent">("revenue");
+  const [board, setBoard] = useState<"revenue" | "minutes" | "credits" | "cost" | "recent">("revenue");
 
   useEffect(() => {
     const r = Number(new URLSearchParams(window.location.search).get("range"));
@@ -207,6 +220,7 @@ export default function AdminDashboardPage() {
   const [revenue, revenueRef] = useSection<Revenue>("revenue", range, refreshKey, { compare: true });
   const [lifecycle, lifecycleRef] = useSection<Lifecycle>("lifecycle", range, refreshKey);
   const [credits, creditsRef] = useSection<Credits>("credits", range, refreshKey);
+  const [minutes, minutesRef] = useSection<Minutes>("minutes", range, refreshKey);
   const [ai, aiRef] = useSection<Ai>("ai", range, refreshKey);
   const [pipeline, pipelineRef] = useSection<Pipeline>("pipeline", range, refreshKey);
   const [acquisition, acquisitionRef] = useSection<Acquisition>("acquisition", range, refreshKey);
@@ -229,9 +243,10 @@ export default function AdminDashboardPage() {
 
   const boards = {
     revenue: { label: "Top revenue", items: top.data?.topRevenueUsers.map((u) => ({ label: u.label, value: inr(u.revenueInPaise), sub: `${u.purchases} purchases`, href: `/admin/users/${u.userId}` })) ?? [] },
+    minutes: { label: "Top minutes", items: top.data?.topMinuteUsers?.map((u) => ({ label: u.label, value: `${compact(u.minutes)} min`, sub: `${u.runs} AutoClip run${u.runs === 1 ? "" : "s"}`, href: `/admin/users/${u.userId}` })) ?? [] },
     credits: { label: "Top credits", items: top.data?.topCreditUsers.map((u) => ({ label: u.label, value: `${compact(u.credits)} cr`, sub: `${u.generations} generations`, href: `/admin/users/${u.userId}` })) ?? [] },
     cost: { label: "Highest AI cost", items: ai.data?.topCostUsers.map((u) => ({ label: u.email, value: `$${u.costUsd.toFixed(2)}`, sub: `${u.generations} generations`, href: `/admin/users/${u.userId}` })) ?? [] },
-    recent: { label: "Recent purchases", items: top.data?.recentPurchases.map((p) => ({ label: p.user?.email ?? "?", value: inr(p.amountInPaise), sub: `${p.plan?.name ?? "credits"} · ${timeAgo(p.createdAt)}${p.status === "refunded" ? " · REFUNDED" : ""}`, href: p.user ? `/admin/users/${p.user.id}` : undefined })) ?? [] },
+    recent: { label: "Recent purchases", items: top.data?.recentPurchases.map((p) => ({ label: p.user?.email ?? "?", value: formatStoredMoney(p.amountInPaise, p.currency), sub: `${p.plan?.name ?? "credits"} · ${timeAgo(p.createdAt)}${p.status === "refunded" ? " · REFUNDED" : ""}`, href: p.user ? `/admin/users/${p.user.id}` : undefined })) ?? [] },
   } as const;
 
   return (
@@ -272,7 +287,10 @@ export default function AdminDashboardPage() {
                       <p className="text-2xl font-extrabold text-fg leading-none tracking-tight">
                         <CountUp value={o.mrrInPaise} format={inr} />
                       </p>
-                      <p className="text-[10px] text-fg-subtle mt-1.5">ARR {inr(o.arrInPaise)}</p>
+                      <p className="text-[10px] text-fg-subtle mt-1.5">
+                        ARR {inr(o.arrInPaise)}
+                        {(o.mrrUsdCents ?? 0) > 0 && <> · incl. {formatMoney(o.mrrUsdCents!, "USD")}/mo USD</>}
+                      </p>
                       <span className="mt-auto pt-3 text-[9px] font-bold uppercase tracking-wider text-fg-subtle border border-dashed border-line-strong rounded-full px-2 py-0.5 self-start">
                         trend needs a snapshot table
                       </span>
@@ -280,7 +298,8 @@ export default function AdminDashboardPage() {
                   </div>
                   <div className={SPAN[3]}>
                     <Kpi icon={<CreditCard size={13} />} label={`Revenue · ${rangeLabel}`} value={o.revenueRangeInPaise} format={inr}
-                      delta={o.revenueGrowthPct} sub={`today ${inr(o.revenueTodayInPaise)} · MTD ${inr(o.revenueMtdInPaise)}`}
+                      delta={o.revenueGrowthPct}
+                      sub={`today ${inr(o.revenueTodayInPaise)} · MTD ${inr(o.revenueMtdInPaise)}${(o.revenueRangeUsdCents ?? 0) > 0 ? ` · incl. ${formatMoney(o.revenueRangeUsdCents!, "USD")} USD (${o.revenueRangeUsdCount} payment${o.revenueRangeUsdCount === 1 ? "" : "s"}) at ₹${o.fxInrPerUsd}/$` : ""}`}
                       spark={<SparkArea data={o.sparklines.revenue} />} />
                   </div>
                   <div className={SPAN[3]}>
@@ -345,7 +364,8 @@ export default function AdminDashboardPage() {
               Array.from({ length: 6 }).map((_, i) => <div key={i} className={SPAN[2]}><Skeleton h="h-[76px]" /></div>)
             ) : (
               <>
-                <div className={SPAN[2]}><MiniKpi label="Credits consumed" value={o.sparklines.creditsConsumed.reduce((s, p) => s + p.value, 0)} format={compact} sub="last 30 days" /></div>
+                <div className={SPAN[2]}><MiniKpi label="Credits consumed" value={o.sparklines.creditsConsumed.reduce((s, p) => s + p.value, 0)} format={compact}
+                  sub={`last 30 days · ${compact((o.sparklines.minutesConsumed ?? []).reduce((s, p) => s + p.value, 0))} Clip Minutes`} /></div>
                 <div className={SPAN[2]}><MiniKpi label={`AI cost · ${rangeLabel}`} value={o.aiCostUsd} format={(n) => `$${n.toFixed(2)}`} sub="tracked tools only" /></div>
                 <div className={SPAN[2]}><MiniKpi label={`ARPU · ${rangeLabel}`} value={o.arpuInPaise} format={inr} sub="per paying user" /></div>
                 <div className={SPAN[2]}><MiniKpi label="Refund rate" value={o.refundRatePct} format={(n) => `${n.toFixed(1)}%`} sub="of all purchases" /></div>
@@ -431,6 +451,46 @@ export default function AdminDashboardPage() {
                   <div className={SPAN[4]}>
                     <ChartContainer title="Credit sink by tool" subtitle="Where spend actually goes">
                       <HBars items={credits.data.sinks} />
+                    </ChartContainer>
+                  </div>
+                </>
+              )}
+            </div>
+          </Band>
+
+          {/* ── Clip Minutes economy ───────────────────────────────────────
+              AutoClip bills minutes of source video, not credits (2026-09-26),
+              so none of the credit charts above can see it. */}
+          <Band ariaLabel="Clip Minutes economy" label="Clip Minutes">
+            <div ref={minutesRef} className={LAZY_GROUP}>
+              {minutes.error ? (
+                <div className={SPAN[12]}><ErrorCard onRetry={minutes.retry} /></div>
+              ) : !minutes.data ? (
+                <><div className={SPAN[8]}><Skeleton h="h-72" /></div><div className={SPAN[4]}><Skeleton h="h-72" /></div></>
+              ) : (
+                <>
+                  <div className={SPAN[3]}><MiniKpi label={`Minutes used · ${rangeLabel}`} value={minutes.data.consumedInRange} format={compact} sub="net of refunded runs" /></div>
+                  <div className={SPAN[3]}><MiniKpi label={`Minutes granted · ${rangeLabel}`} value={minutes.data.grantedInRange} format={compact} sub="plans, packs, bonuses" /></div>
+                  <div className={SPAN[3]}><MiniKpi label="Unspent balance" value={minutes.data.outstanding.total} format={compact}
+                    sub={`${compact(minutes.data.outstanding.subscription)} plan · ${compact(minutes.data.outstanding.purchased)} bought · ${compact(minutes.data.outstanding.bonus)} bonus`} /></div>
+                  <div className={SPAN[3]}><MiniKpi label={`AutoClip cost · ${rangeLabel}`} value={minutes.data.estCostUsd ?? ai.data?.clipMinutes?.estCostUsd ?? null} format={(n) => `$${n.toFixed(2)}`} sub="estimated, per source minute" /></div>
+                  <div className={SPAN[8]}>
+                    <ChartContainer title="Minutes granted vs used" subtitle="MinuteTransaction ledger, diverging around zero"
+                      csv={{ filename: "minutes.csv", rows: minutes.data.series as unknown as Array<Record<string, string | number>> }}>
+                      <DivergingArea
+                        data={minutes.data.series}
+                        up={{ key: "granted", name: "Granted", color: PALETTE[1] }}
+                        down={{ key: "spent", name: "Used", color: PALETTE[3] }}
+                      />
+                    </ChartContainer>
+                  </div>
+                  <div className={SPAN[4]}>
+                    <ChartContainer title="Minutes by feature" subtitle="Where the minutes actually go">
+                      {minutes.data.sinks.length === 0 ? (
+                        <p className="text-xs text-fg-subtle py-6 text-center">No minutes used in range.</p>
+                      ) : (
+                        <HBars items={minutes.data.sinks.map((s) => ({ label: s.label, value: s.value }))} valueFmt={(n) => `${compact(n)} min`} />
+                      )}
                     </ChartContainer>
                   </div>
                 </>

@@ -7,6 +7,7 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { Card } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
+import { formatMoneyTotals } from "@/lib/currency-shared";
 
 type Tone = "neutral" | "success" | "warning" | "error";
 
@@ -43,6 +44,7 @@ interface Summary {
   toolFailures: number;
   downloads: number;
   paidTotalInPaise: number;
+  paidUsdCents?: number;
   payments: number;
 }
 
@@ -160,7 +162,7 @@ export function UserJourney({ userId, headers }: { userId: string; headers: () =
               <Stat label="AI tool uses" value={s.toolUses} hint={s.toolFailures ? `${s.toolFailures} failed` : undefined} />
               <Stat label="Downloads" value={s.downloads} hint="since 19 Nov 2026" />
               <Stat label="Logins" value={s.logins} hint={`last ${dt(s.lastLoginAt)}`} />
-              <Stat label="Paid (INR)" value={`₹${(s.paidTotalInPaise / 100).toLocaleString("en-IN")}`} hint={`${s.payments} payment${s.payments === 1 ? "" : "s"}`} />
+              <Stat label="Paid" value={formatMoneyTotals({ INR: s.paidTotalInPaise, USD: s.paidUsdCents ?? 0 })} hint={`${s.payments} payment${s.payments === 1 ? "" : "s"}`} />
             </div>
           </Card>
         )}

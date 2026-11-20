@@ -19,6 +19,27 @@ export function formatMoney(minorUnits: number, currency: Currency): string {
   return `₹${Math.round(major).toLocaleString("en-IN")}`;
 }
 
+/** Format a stored Purchase amount (minor units of its own currency). Unknown
+ *  or missing currency strings fall back to INR, the column's default. */
+export function formatStoredMoney(minorUnits: number, currency: string | null | undefined): string {
+  return formatMoney(minorUnits, parseCurrency(currency) ?? "INR");
+}
+
+/** Sum stored amounts per currency — never across them. */
+export function totalsByCurrency(rows: Array<{ amountInPaise: number; currency?: string | null }>): Record<Currency, number> {
+  const out: Record<Currency, number> = { INR: 0, USD: 0 };
+  for (const r of rows) out[parseCurrency(r.currency) ?? "INR"] += r.amountInPaise;
+  return out;
+}
+
+/** "₹12,340 + $58" — each currency in its own symbol, zero ones dropped. */
+export function formatMoneyTotals(totals: Partial<Record<Currency, number>>): string {
+  const parts = (["INR", "USD"] as const)
+    .filter((c) => (totals[c] ?? 0) !== 0)
+    .map((c) => formatMoney(totals[c]!, c));
+  return parts.length ? parts.join(" + ") : formatMoney(0, "INR");
+}
+
 /** Best-effort currency inference from a browser locale string (e.g.
  * navigator.language). No IP geolocation — a UI nicety only; checkout always
  * re-resolves currency server-side. */

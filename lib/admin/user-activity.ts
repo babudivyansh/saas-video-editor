@@ -234,6 +234,8 @@ export interface ActivitySummary {
   toolFailures: number;
   downloads: number;
   paidTotalInPaise: number;
+  /** Captured USD payments, in cents — kept apart, never added to the paise. */
+  paidUsdCents: number;
   payments: number;
 }
 
@@ -244,7 +246,7 @@ function parseSignupSource(v: string | null): SignupAttribution["utm"] {
 }
 
 export async function getUserActivitySummary(userId: string): Promise<ActivitySummary> {
-  const [user, logins, uploads, runsByStatus, firstRun, clips, gens, genFails, downloads, paid, signup, firstLogin] = await Promise.all([
+  const [user, logins, uploads, runsByStatus, firstRun, clips, gens, genFails, downloads, paid, signup, firstLogin, paidUsd] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId }, select: {
       createdAt: true, lastLoginAt: true, hasPassword: true, intendedUse: true,
       signupSource: true, signupReferrer: true, signupLandingPath: true,
@@ -260,6 +262,8 @@ export async function getUserActivitySummary(userId: string): Promise<ActivitySu
     prisma.purchase.aggregate({ where: { userId, status: "captured", currency: "INR" }, _sum: { amountInPaise: true }, _count: { _all: true } }),
     prisma.userEvent.findFirst({ where: { userId, type: "signup" }, select: { meta: true } }),
     prisma.loginEvent.findFirst({ where: { userId }, orderBy: { createdAt: "asc" }, select: { country: true, device: true } }),
+    // USD payments were simply left out of "Paid" before — a $29 subscriber read as ₹0.
+    prisma.purchase.aggregate({ where: { userId, status: "captured", currency: "USD" }, _sum: { amountInPaise: true }, _count: { _all: true } }),
   ]);
   const meta = (signup?.meta ?? {}) as { referralCode?: string; utm?: SignupAttribution["utm"] };
   const runCount = (pred: (s: string) => boolean) => runsByStatus.filter((r) => pred(r.status)).reduce((n, r) => n + r._count._all, 0);
@@ -291,6 +295,7 @@ export async function getUserActivitySummary(userId: string): Promise<ActivitySu
     toolFailures: genFails,
     downloads,
     paidTotalInPaise: paid._sum.amountInPaise ?? 0,
-    payments: paid._count._all,
+    paidUsdCents: paidUsd?._sum.amountInPaise ?? 0,
+    payments: paid._count._all + (paidUsd?._count._all ?? 0),
   };
 }

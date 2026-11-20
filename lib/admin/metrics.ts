@@ -15,13 +15,55 @@ import { getCronRunStatuses, type CronRunId } from "@/lib/cron-tracking";
 import { getCronPauses } from "@/lib/cron-dispatch";
 import { runIdForPath } from "@/lib/cron-catalog";
 import { mrrHistory } from "./mrr-snapshot";
+import { Prisma } from "@prisma/client";
+import { getFxConfig, getPlanPriceMinor } from "@/lib/currency";
+import { formatMoney, parseCurrency } from "@/lib/currency-shared";
+
+// ── Money across currencies ──────────────────────────────────────────────────
+// Purchase.amountInPaise is MINOR UNITS OF Purchase.currency — paise for INR,
+// cents for USD. Every revenue sum here used to add the raw column across
+// currencies, so a $29 payment (2900 cents) was counted as ₹29. Totals are now
+// INR-equivalent (USD converted at the admin-editable fx_rates row), and the
+// USD share is reported alongside so the UI can say how much of it was dollars.
+// Individual payments keep their own currency and are formatted in it.
+
+async function inrPerUsd(): Promise<number> {
+  return (await getFxConfig()).inrPerUsd;
+}
+
+/** INR-paise SQL expression for a Purchase row, optionally table-aliased. */
+function inrPaiseSql(fx: number, alias?: string): Prisma.Sql {
+  const col = (c: string) => Prisma.raw(alias ? `${alias}."${c}"` : `"${c}"`);
+  return Prisma.sql`(CASE WHEN ${col("currency")} = 'USD' THEN ROUND(${col("amountInPaise")} * ${fx}::float8) ELSE ${col("amountInPaise")} END)`;
+}
+
+export interface CurrencySplit {
+  /** Whole total in INR paise, USD converted at `fx`. */
+  inrEquivPaise: number;
+  /** The USD part, unconverted, in cents. */
+  usdCents: number;
+  usdCount: number;
+}
+
+/** Purchase revenue matching `where`, split by currency and normalised to INR. */
+async function revenueSplit(where: Prisma.PurchaseWhereInput, fx: number): Promise<CurrencySplit> {
+  // Two aggregates rather than a groupBy: anything that isn't USD is paise
+  // (the column defaults to INR), so "not USD" is the INR bucket.
+  const [nonUsd, usd] = await Promise.all([
+    prisma.purchase.aggregate({ _sum: { amountInPaise: true }, where: { AND: [where, { currency: { not: "USD" } }] } }),
+    prisma.purchase.aggregate({ _sum: { amountInPaise: true }, _count: { _all: true }, where: { AND: [where, { currency: "USD" }] } }),
+  ]);
+  const inrPaise = nonUsd?._sum?.amountInPaise ?? 0;
+  const usdCents = usd?._sum?.amountInPaise ?? 0;
+  return { inrEquivPaise: inrPaise + Math.round(usdCents * fx), usdCents, usdCount: usd?._count?._all ?? 0 };
+}
 
 export type MetricsSection =
   | "kpis" | "revenue" | "ai" | "social" | "infra" | "growth"
   | "overview" | "top" | "activity"
   // NOTE: this list and the z.enum in lib/admin/schemas.ts's metricsQuerySchema
   // are separate and BOTH have to change when a section is added.
-  | "lifecycle" | "credits" | "pipeline" | "acquisition";
+  | "lifecycle" | "credits" | "minutes" | "pipeline" | "acquisition";
 const DAY_MS = 86400_000;
 
 // ── KPIs ─────────────────────────────────────────────────────────────────────
@@ -33,50 +75,63 @@ export async function kpisSection(rangeDays: number) {
   const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const notRefunded = { status: { not: "refunded" } };
 
+  const fx = await inrPerUsd();
   const [subsByPlan, plans, revToday, revMtd, revPrevMonth, newUsers, dau, payingUsers, totalUsers, expired30d, activeSubs, revRange, purchasersRange, refunded, totalPurchases] =
     await Promise.all([
+      // By billing currency too: a USD subscriber pays the USD price book
+      // ($29), not the INR plan price converted back.
       prisma.user.groupBy({
-        by: ["planId"],
+        by: ["planId", "subscriptionCurrency"],
         _count: true,
         where: { subscriptionEndsAt: { gt: now }, planId: { not: null } },
       }),
-      prisma.plan.findMany({ where: { kind: "subscription" }, select: { id: true, priceInPaise: true, intervalMonths: true } }),
-      prisma.purchase.aggregate({ _sum: { amountInPaise: true }, where: { ...notRefunded, createdAt: { gte: todayStart } } }),
-      prisma.purchase.aggregate({ _sum: { amountInPaise: true }, where: { ...notRefunded, createdAt: { gte: mtdStart } } }),
-      prisma.purchase.aggregate({ _sum: { amountInPaise: true }, where: { ...notRefunded, createdAt: { gte: prevMonthStart, lt: mtdStart } } }),
+      prisma.plan.findMany({ where: { kind: "subscription" }, select: { id: true, slug: true, priceInPaise: true, intervalMonths: true } }),
+      revenueSplit({ ...notRefunded, createdAt: { gte: todayStart } }, fx),
+      revenueSplit({ ...notRefunded, createdAt: { gte: mtdStart } }, fx),
+      revenueSplit({ ...notRefunded, createdAt: { gte: prevMonthStart, lt: mtdStart } }, fx),
       prisma.user.count({ where: { createdAt: { gte: rangeStart } } }),
       prisma.user.count({ where: { lastLoginAt: { gte: new Date(now.getTime() - DAY_MS) } } }),
       prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(DISTINCT "userId") AS count FROM "Purchase"`,
       prisma.user.count(),
       prisma.user.count({ where: { subscriptionEndsAt: { gte: new Date(now.getTime() - 30 * DAY_MS), lte: now } } }),
       prisma.user.count({ where: { subscriptionEndsAt: { gt: now } } }),
-      prisma.purchase.aggregate({ _sum: { amountInPaise: true }, where: { ...notRefunded, createdAt: { gte: rangeStart } } }),
+      revenueSplit({ ...notRefunded, createdAt: { gte: rangeStart } }, fx),
       prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(DISTINCT "userId") AS count FROM "Purchase" WHERE "createdAt" >= ${rangeStart}`,
       prisma.purchase.count({ where: { status: "refunded" } }),
       prisma.purchase.count(),
     ]);
 
   // MRR: each active subscriber contributes their plan's price normalized to
-  // one month (a ₹2,997 3-month plan contributes ₹999/mo).
+  // one month (a ₹2,997 3-month plan contributes ₹999/mo). USD subscribers
+  // contribute the USD price they actually pay, converted to INR.
   const planById = new Map(plans.map((p) => [p.id, p]));
   let mrrInPaise = 0;
+  let mrrUsdCents = 0;
   for (const row of subsByPlan) {
     const plan = row.planId ? planById.get(row.planId) : undefined;
     if (!plan) continue; // pack plans / stale planIds contribute no recurring revenue
-    mrrInPaise += Math.round((plan.priceInPaise / (plan.intervalMonths ?? 1)) * row._count);
+    const months = plan.intervalMonths ?? 1;
+    if (parseCurrency(row.subscriptionCurrency) === "USD") {
+      const cents = (await getPlanPriceMinor(plan.slug, plan.priceInPaise, "USD")) / months * row._count;
+      mrrUsdCents += Math.round(cents);
+      mrrInPaise += Math.round(cents * fx);
+    } else {
+      mrrInPaise += Math.round((plan.priceInPaise / months) * row._count);
+    }
   }
 
   const paying = Number(payingUsers[0]?.count ?? 0);
   const payersRange = Number(purchasersRange[0]?.count ?? 0);
-  const revRangeSum = revRange._sum.amountInPaise ?? 0;
-  const prevSum = revPrevMonth._sum.amountInPaise ?? 0;
-  const mtdSum = revMtd._sum.amountInPaise ?? 0;
+  const revRangeSum = revRange.inrEquivPaise;
+  const prevSum = revPrevMonth.inrEquivPaise;
+  const mtdSum = revMtd.inrEquivPaise;
 
   return {
     mrrInPaise,
+    mrrUsdCents,
     arrInPaise: mrrInPaise * 12,
     activeSubscribers: activeSubs,
-    revenueTodayInPaise: revToday._sum.amountInPaise ?? 0,
+    revenueTodayInPaise: revToday.inrEquivPaise,
     revenueMtdInPaise: mtdSum,
     revenueGrowthPct: prevSum > 0 ? ((mtdSum - prevSum) / prevSum) * 100 : null,
     newUsers,
@@ -86,6 +141,11 @@ export async function kpisSection(rangeDays: number) {
     arpuInPaise: payersRange > 0 ? Math.round(revRangeSum / payersRange) : null,
     refundRatePct: totalPurchases > 0 ? (refunded / totalPurchases) * 100 : null,
     totalUsers,
+    /** INR per 1 USD used for every INR-equivalent total in this payload. */
+    fxInrPerUsd: fx,
+    /** The USD part of the range revenue, unconverted. */
+    revenueRangeUsdCents: revRange.usdCents,
+    revenueRangeUsdCount: revRange.usdCount,
     // Not derivable — no marketing-spend or cohort-event data. UI renders
     // these as labeled "needs instrumentation" placeholders.
     cac: null,
@@ -95,11 +155,12 @@ export async function kpisSection(rangeDays: number) {
 
 // Daily revenue/refund/purchase buckets for an arbitrary window — shared by
 // the main series, the compare-previous-period overlay, and KPI sparklines.
-async function dailyRevenueSeries(from: Date, to: Date) {
+async function dailyRevenueSeries(from: Date, to: Date, fx: number) {
+  const amount = inrPaiseSql(fx);
   const rows = await prisma.$queryRaw<Array<{ day: Date; revenue: bigint; refunds: bigint; purchases: bigint }>>`
     SELECT date_trunc('day', "createdAt") AS day,
-           COALESCE(SUM("amountInPaise") FILTER (WHERE status <> 'refunded'), 0) AS revenue,
-           COALESCE(SUM("amountInPaise") FILTER (WHERE status = 'refunded'), 0) AS refunds,
+           COALESCE(SUM(${amount}) FILTER (WHERE status <> 'refunded'), 0) AS revenue,
+           COALESCE(SUM(${amount}) FILTER (WHERE status = 'refunded'), 0) AS refunds,
            COUNT(*) FILTER (WHERE status <> 'refunded') AS purchases
     FROM "Purchase"
     WHERE "createdAt" >= ${from} AND "createdAt" < ${to}
@@ -117,22 +178,22 @@ export async function revenueSection(rangeDays: number, compare = false) {
   const now = new Date();
   const rangeStart = new Date(now.getTime() - rangeDays * DAY_MS);
   const prevStart = new Date(rangeStart.getTime() - rangeDays * DAY_MS);
+  const fx = await inrPerUsd();
 
   const [series, previousSeries, signupSeries, byPlan, byKind, creditsSold, creditsConsumed, affiliate, couponDiscount, mrrSeries] = await Promise.all([
-    dailyRevenueSeries(rangeStart, now),
-    compare ? dailyRevenueSeries(prevStart, rangeStart) : Promise.resolve(null),
+    dailyRevenueSeries(rangeStart, now, fx),
+    compare ? dailyRevenueSeries(prevStart, rangeStart, fx) : Promise.resolve(null),
     prisma.$queryRaw<Array<{ day: Date; users: bigint }>>`
       SELECT date_trunc('day', "createdAt") AS day, COUNT(*) AS users
       FROM "User" WHERE "createdAt" >= ${rangeStart}
       GROUP BY 1 ORDER BY 1`,
-    prisma.purchase.groupBy({
-      by: ["planId"],
-      _sum: { amountInPaise: true },
-      _count: true,
-      where: { createdAt: { gte: rangeStart }, status: { not: "refunded" } },
-    }),
+    prisma.$queryRaw<Array<{ planId: string | null; revenue: bigint; purchases: bigint }>>`
+      SELECT "planId", COALESCE(SUM(${inrPaiseSql(fx)}),0) AS revenue, COUNT(*) AS purchases
+      FROM "Purchase"
+      WHERE "createdAt" >= ${rangeStart} AND status <> 'refunded'
+      GROUP BY 1`,
     prisma.$queryRaw<Array<{ kind: string | null; revenue: bigint; purchases: bigint }>>`
-      SELECT pl.kind AS kind, COALESCE(SUM(p."amountInPaise"),0) AS revenue, COUNT(*) AS purchases
+      SELECT pl.kind AS kind, COALESCE(SUM(${inrPaiseSql(fx, "p")}),0) AS revenue, COUNT(*) AS purchases
       FROM "Purchase" p LEFT JOIN "Plan" pl ON pl.id = p."planId"
       WHERE p."createdAt" >= ${rangeStart} AND p.status <> 'refunded'
       GROUP BY 1`,
@@ -158,11 +219,12 @@ export async function revenueSection(rangeDays: number, compare = false) {
     series,
     previousSeries, // null unless ?compare=1
     signupSeries: signupSeries.map((r) => ({ date: r.day.toISOString().slice(0, 10), value: Number(r.users) })),
-    byPlan: byPlan
+    byPlan: (Array.isArray(byPlan) ? byPlan : [])
+      .filter((p) => p.revenue !== undefined)
       .map((p) => ({
         planName: p.planId ? (planNames.get(p.planId) ?? "Unknown") : "No plan",
-        revenueInPaise: p._sum.amountInPaise ?? 0,
-        purchases: p._count,
+        revenueInPaise: Number(p.revenue),
+        purchases: Number(p.purchases),
       }))
       .sort((a, b) => b.revenueInPaise - a.revenueInPaise),
     byKind: byKind.map((k) => ({ kind: k.kind ?? "unknown", revenueInPaise: Number(k.revenue), purchases: Number(k.purchases) })),
@@ -172,6 +234,7 @@ export async function revenueSection(rangeDays: number, compare = false) {
     sources: [
       { name: "Subscriptions", inPaise: kindRevenue("subscription") },
       { name: "Credit packs", inPaise: kindRevenue("pack") },
+      { name: "Minute packs", inPaise: kindRevenue("minute_pack") },
       { name: "Affiliate payouts", inPaise: Math.round(affiliatePaid * 100), isCost: true },
       { name: "Coupon discounts", inPaise: couponDiscount._sum.discountInPaise ?? 0, isCost: true },
     ],
@@ -521,9 +584,10 @@ export async function overviewSection(rangeDays: number) {
   const now = new Date();
   const sparkStart = new Date(now.getTime() - 30 * DAY_MS);
 
-  const [kpis, revenueSpark, signupSpark, genSpark, aiCost, revenueRange] = await Promise.all([
+  const fx = await inrPerUsd();
+  const [kpis, revenueSpark, signupSpark, genSpark, aiCost, revenueRange, minuteSpark] = await Promise.all([
     kpisSection(rangeDays),
-    dailyRevenueSeries(sparkStart, now),
+    dailyRevenueSeries(sparkStart, now, fx),
     prisma.$queryRaw<Array<{ day: Date; n: bigint }>>`
       SELECT date_trunc('day', "createdAt") AS day, COUNT(*) AS n
       FROM "User" WHERE "createdAt" >= ${sparkStart} GROUP BY 1 ORDER BY 1`,
@@ -535,10 +599,14 @@ export async function overviewSection(rangeDays: number) {
       _sum: { estimatedCostUsd: true },
       where: { createdAt: { gte: new Date(now.getTime() - rangeDays * DAY_MS) }, estimatedCostUsd: { not: null } },
     }),
-    prisma.purchase.aggregate({
-      _sum: { amountInPaise: true },
-      where: { createdAt: { gte: new Date(now.getTime() - rangeDays * DAY_MS) }, status: { not: "refunded" } },
-    }),
+    revenueSplit({ createdAt: { gte: new Date(now.getTime() - rangeDays * DAY_MS) }, status: { not: "refunded" } }, fx),
+    // Clip Minutes consumed per day (spends net of refunds) — AutoClip's
+    // meter, which the credits sparkline above can never see.
+    prisma.$queryRaw<Array<{ day: Date; minutes: bigint }>>`
+      SELECT date_trunc('day', "createdAt") AS day, COALESCE(SUM(-delta), 0) AS minutes
+      FROM "MinuteTransaction"
+      WHERE "createdAt" >= ${sparkStart} AND (reason LIKE 'spend:%' OR reason LIKE 'refund%')
+      GROUP BY 1 ORDER BY 1`,
   ]);
 
   const day = (d: Date) => d.toISOString().slice(0, 10);
@@ -547,12 +615,15 @@ export async function overviewSection(rangeDays: number) {
     aiCostUsd: aiCost._sum.estimatedCostUsd ?? 0,
     // Margin proxy: revenue vs tracked provider cost, deliberately currency-
     // separate (₹ revenue, $ cost) — the UI labels it, never a fake percent.
-    revenueRangeInPaise: revenueRange._sum.amountInPaise ?? 0,
+    revenueRangeInPaise: revenueRange.inrEquivPaise,
     sparklines: {
       revenue: revenueSpark.map((r) => ({ date: r.date, value: r.revenueInPaise })),
       signups: signupSpark.map((r) => ({ date: day(r.day), value: Number(r.n) })),
       generations: genSpark.map((r) => ({ date: day(r.day), value: Number(r.n) })),
       creditsConsumed: genSpark.map((r) => ({ date: day(r.day), value: Number(r.credits) })),
+      minutesConsumed: (Array.isArray(minuteSpark) ? minuteSpark : [])
+        .filter((r) => r.day instanceof Date)
+        .map((r) => ({ date: day(r.day), value: Math.max(0, Number(r.minutes)) })),
     },
   };
 }
@@ -560,8 +631,9 @@ export async function overviewSection(rangeDays: number) {
 // ── Top lists (Row 8) ────────────────────────────────────────────────────────
 export async function topSection(rangeDays: number) {
   const rangeStart = new Date(Date.now() - rangeDays * DAY_MS);
+  const fx = await inrPerUsd();
 
-  const [creditUsersRaw, revenueUsersRaw, recentPurchases, countries, devices, firstLoginEvent] = await Promise.all([
+  const [creditUsersRaw, revenueUsersRaw, recentPurchases, countries, devices, firstLoginEvent, minuteUsersRaw] = await Promise.all([
     prisma.generation.groupBy({
       by: ["userId"],
       _sum: { creditsCost: true },
@@ -570,19 +642,15 @@ export async function topSection(rangeDays: number) {
       orderBy: { _sum: { creditsCost: "desc" } },
       take: 10,
     }),
-    prisma.purchase.groupBy({
-      by: ["userId"],
-      _sum: { amountInPaise: true },
-      _count: true,
-      where: { status: { not: "refunded" } },
-      orderBy: { _sum: { amountInPaise: "desc" } },
-      take: 10,
-    }),
+    prisma.$queryRaw<Array<{ userId: string; revenue: bigint; purchases: bigint }>>`
+      SELECT "userId", COALESCE(SUM(${inrPaiseSql(fx)}), 0) AS revenue, COUNT(*) AS purchases
+      FROM "Purchase" WHERE status <> 'refunded'
+      GROUP BY 1 ORDER BY 2 DESC LIMIT 10`,
     prisma.purchase.findMany({
       orderBy: { createdAt: "desc" },
       take: 8,
       select: {
-        id: true, amountInPaise: true, credits: true, status: true, createdAt: true,
+        id: true, amountInPaise: true, currency: true, credits: true, minutes: true, status: true, createdAt: true,
         user: { select: { id: true, email: true, name: true } },
         plan: { select: { name: true } },
       },
@@ -590,9 +658,18 @@ export async function topSection(rangeDays: number) {
     prisma.loginEvent.groupBy({ by: ["country"], _count: true, where: { country: { not: null } }, orderBy: { _count: { country: "desc" } }, take: 8 }),
     prisma.loginEvent.groupBy({ by: ["device"], _count: true, where: { device: { not: null } }, orderBy: { _count: { device: "desc" } }, take: 8 }),
     prisma.loginEvent.findFirst({ orderBy: { createdAt: "asc" }, select: { createdAt: true } }),
+    // Clip Minutes consumed per user in range, net of refunds.
+    prisma.$queryRaw<Array<{ userId: string; minutes: bigint; runs: bigint }>>`
+      SELECT "userId", SUM(-delta) AS minutes,
+             COUNT(*) FILTER (WHERE reason LIKE 'spend:%') AS runs
+      FROM "MinuteTransaction"
+      WHERE "createdAt" >= ${rangeStart} AND (reason LIKE 'spend:%' OR reason LIKE 'refund%')
+      GROUP BY 1 HAVING SUM(-delta) > 0 ORDER BY 2 DESC LIMIT 10`,
   ]);
 
-  const ids = [...new Set([...creditUsersRaw.map((u) => u.userId), ...revenueUsersRaw.map((u) => u.userId)])];
+  const revenueUsers = Array.isArray(revenueUsersRaw) ? revenueUsersRaw.filter((u) => typeof u.userId === "string") : [];
+  const minuteUsers = Array.isArray(minuteUsersRaw) ? minuteUsersRaw.filter((u) => typeof u.userId === "string") : [];
+  const ids = [...new Set([...creditUsersRaw.map((u) => u.userId), ...revenueUsers.map((u) => u.userId), ...minuteUsers.map((u) => u.userId)])];
   const users = ids.length
     ? await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, email: true, name: true } })
     : [];
@@ -603,8 +680,11 @@ export async function topSection(rangeDays: number) {
     topCreditUsers: creditUsersRaw.map((u) => ({
       userId: u.userId, label: label(u.userId), credits: u._sum.creditsCost ?? 0, generations: u._count,
     })),
-    topRevenueUsers: revenueUsersRaw.map((u) => ({
-      userId: u.userId, label: label(u.userId), revenueInPaise: u._sum.amountInPaise ?? 0, purchases: u._count,
+    topRevenueUsers: revenueUsers.map((u) => ({
+      userId: u.userId, label: label(u.userId), revenueInPaise: Number(u.revenue), purchases: Number(u.purchases),
+    })),
+    topMinuteUsers: minuteUsers.map((u) => ({
+      userId: u.userId, label: label(u.userId), minutes: Number(u.minutes), runs: Number(u.runs),
     })),
     recentPurchases,
     // Login analytics accrue from the LoginEvent deploy — the UI shows since-when.
@@ -635,7 +715,7 @@ export async function activitySection() {
     prisma.purchase.findMany({
       orderBy: { createdAt: "desc" },
       take: PER_SOURCE,
-      select: { id: true, amountInPaise: true, status: true, createdAt: true, user: { select: { id: true, email: true } }, plan: { select: { name: true } } },
+      select: { id: true, amountInPaise: true, currency: true, status: true, createdAt: true, user: { select: { id: true, email: true } }, plan: { select: { name: true } } },
     }),
     prisma.generation.findMany({
       where: { status: "failed" },
@@ -666,7 +746,7 @@ export async function activitySection() {
     ...purchases.map((p) => ({
       kind: p.status === "refunded" ? ("refund" as const) : ("purchase" as const),
       at: p.createdAt.toISOString(),
-      title: `${p.user?.email ?? "?"} ${p.status === "refunded" ? "refunded" : "purchased"} ${p.plan?.name ?? "credits"} (${inr(p.amountInPaise)})`,
+      title: `${p.user?.email ?? "?"} ${p.status === "refunded" ? "refunded" : "purchased"} ${p.plan?.name ?? "credits"} (${formatMoney(p.amountInPaise, parseCurrency(p.currency) ?? "INR")})`,
       href: "/admin/purchases",
     })),
     ...failedGens.map((g) => ({
@@ -818,6 +898,77 @@ export async function creditsSection(rangeDays: number) {
     sinks: sinks.map((s) => ({ label: s.tool || "unknown", value: Number(s.spent) })),
     sources: sources.map((s) => ({ label: s.reason, value: Number(s.granted) })),
     netInRange: series.reduce((a, r) => a + r.granted - r.spent, 0),
+  };
+}
+
+// ── Clip Minutes economy ─────────────────────────────────────────────────────
+// The second meter (2026-09-26): AutoClip bills minutes of source video, not
+// credits. Same ledger shape as CreditTransaction, so the same questions —
+// granted vs consumed per day, which feature consumed them, where they came
+// from — and the same shape of answer. Refunds are netted into "spent" so a
+// failed run that was refunded counts as nothing.
+export async function minutesSection(rangeDays: number) {
+  const rangeStart = new Date(Date.now() - rangeDays * DAY_MS);
+
+  const [daily, sinks, sources, balances] = await Promise.all([
+    prisma.$queryRaw<Array<{ d: Date; granted: bigint; spent: bigint }>>`
+      SELECT date_trunc('day', "createdAt") AS d,
+             COALESCE(SUM(delta) FILTER (WHERE delta > 0 AND reason NOT LIKE 'refund%'), 0) AS granted,
+             COALESCE(SUM(-delta) FILTER (WHERE reason LIKE 'spend:%' OR reason LIKE 'refund%'), 0) AS spent
+      FROM "MinuteTransaction" WHERE "createdAt" >= ${rangeStart}
+      GROUP BY 1 ORDER BY 1`,
+    // Net of each run's own refunds (same refId), so a failed-and-refunded
+    // run doesn't show up as consumption. Spends are collapsed per refId first
+    // — one spend can write a row per bucket it drained.
+    prisma.$queryRaw<Array<{ tool: string; spent: bigint; runs: bigint }>>`
+      WITH spends AS (
+        SELECT COALESCE("refId", id) AS ref, MIN(substring(reason from 7)) AS tool, SUM(-delta) AS spent
+        FROM "MinuteTransaction"
+        WHERE "createdAt" >= ${rangeStart} AND delta < 0 AND reason LIKE 'spend:%'
+        GROUP BY 1
+      ),
+      refunds AS (
+        SELECT "refId" AS ref, SUM(delta) AS refunded
+        FROM "MinuteTransaction"
+        WHERE reason LIKE 'refund%' AND "refId" IS NOT NULL AND delta > 0
+        GROUP BY 1
+      )
+      SELECT s.tool, SUM(s.spent - LEAST(COALESCE(r.refunded, 0), s.spent)) AS spent, COUNT(*) AS runs
+      FROM spends s LEFT JOIN refunds r ON r.ref = s.ref
+      GROUP BY 1 HAVING SUM(s.spent - LEAST(COALESCE(r.refunded, 0), s.spent)) > 0
+      ORDER BY 2 DESC LIMIT 10`,
+    prisma.$queryRaw<Array<{ reason: string; granted: bigint }>>`
+      SELECT reason, SUM(delta) AS granted
+      FROM "MinuteTransaction"
+      WHERE "createdAt" >= ${rangeStart} AND delta > 0 AND reason NOT LIKE 'refund%'
+      GROUP BY 1 ORDER BY 2 DESC LIMIT 8`,
+    prisma.user.aggregate({
+      _sum: { minutes: true, subscriptionMinutes: true, purchasedMinutes: true, bonusMinutes: true },
+    }),
+  ]);
+
+  const series = fill(
+    rangeDays,
+    daily.map((r) => ({ date: day(r.d), granted: Number(r.granted), spent: Math.max(0, Number(r.spent)) })),
+    { granted: 0, spent: 0 },
+  );
+
+  return {
+    series,
+    sinks: sinks.map((s) => ({ label: s.tool || "unknown", value: Number(s.spent), runs: Number(s.runs) })),
+    sources: sources.map((s) => ({ label: s.reason, value: Number(s.granted) })),
+    grantedInRange: series.reduce((a, r) => a + r.granted, 0),
+    consumedInRange: series.reduce((a, r) => a + r.spent, 0),
+    // Same estimate as aiSection's clipMinutes.estCostUsd, carried here so the
+    // band's cost tile doesn't wait for the AI-cost band at the bottom to load.
+    estCostUsd: series.reduce((a, r) => a + r.spent, 0) * ((await import("@/lib/tool-costs")).TOOL_COSTS["auto-clip"]?.costUsd ?? 0),
+    /** Unspent minutes across every account right now, by bucket. */
+    outstanding: {
+      total: balances._sum.minutes ?? 0,
+      subscription: balances._sum.subscriptionMinutes ?? 0,
+      purchased: balances._sum.purchasedMinutes ?? 0,
+      bonus: balances._sum.bonusMinutes ?? 0,
+    },
   };
 }
 
@@ -1036,6 +1187,7 @@ export async function computeSection(section: MetricsSection, rangeDays: number,
     case "activity": return activitySection();
     case "lifecycle": return lifecycleSection(rangeDays);
     case "credits": return creditsSection(rangeDays);
+    case "minutes": return minutesSection(rangeDays);
     case "pipeline": return pipelineSection(rangeDays);
     case "acquisition": return acquisitionSection(rangeDays);
   }

@@ -9,11 +9,16 @@ import { useToast } from "@/app/components/ui/Toast";
 import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
 import { Button } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
+import { formatMoneyTotals, formatStoredMoney, totalsByCurrency } from "@/lib/currency-shared";
 
 interface Purchase {
   id: string;
+  /** Minor units of `currency` — cents for USD, paise for INR. */
   amountInPaise: number;
+  currency: string;
   credits: number;
+  /** Clip Minutes this payment granted. */
+  minutes: number;
   status: string;
   createdAt: string;
   user: { id: string; email: string; name: string | null } | null;
@@ -96,7 +101,9 @@ export default function AdminPurchasesPage() {
   const total = data?.total ?? 0;
   const plans = data?.plans ?? [];
   const totalPages = Math.max(1, Math.ceil(total / LIMIT));
-  const totalRevenue = purchases.reduce((s, p) => s + p.amountInPaise, 0);
+  // Per currency, never summed across: a $29 payment is 2900 cents, which
+  // used to be added to the paise and shown as ₹29.
+  const totalRevenue = totalsByCurrency(purchases.filter((p) => p.status !== "refunded"));
   const inputCls = "bg-panel border border-line rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 shadow-sm";
 
   return (
@@ -134,7 +141,7 @@ export default function AdminPurchasesPage() {
             <p className="text-xs text-fg-subtle mt-0.5">Transactions</p>
           </Card>
           <Card shadow padding="md">
-            <p className="text-2xl font-extrabold text-brand">₹{Math.round(totalRevenue / 100).toLocaleString("en-IN")}</p>
+            <p className="text-2xl font-extrabold text-brand">{formatMoneyTotals(totalRevenue)}</p>
             <p className="text-xs text-fg-subtle mt-0.5">Revenue (this page)</p>
           </Card>
         </div>
@@ -161,6 +168,7 @@ export default function AdminPurchasesPage() {
                     <th className="py-3.5 px-3">Kind</th>
                     <th className="py-3.5 px-3">Amount</th>
                     <th className="py-3.5 px-3">Credits</th>
+                    <th className="py-3.5 px-3">Minutes</th>
                     <th className="py-3.5 px-3">Status</th>
                     <th className="py-3.5 px-3">Date</th>
                     <th className="py-3.5 px-3">Actions</th>
@@ -182,8 +190,12 @@ export default function AdminPurchasesPage() {
                           {p.plan?.kind ?? "—"}
                         </span>
                       </td>
-                      <td className="py-3 px-3 font-semibold text-fg">₹{Math.round(p.amountInPaise / 100).toLocaleString("en-IN")}</td>
-                      <td className="py-3 px-3 text-fg-muted">+{p.credits}</td>
+                      <td className="py-3 px-3 font-semibold text-fg whitespace-nowrap">
+                        {formatStoredMoney(p.amountInPaise, p.currency)}
+                        <span className="ml-1 text-[10px] font-normal text-fg-subtle">{p.currency}</span>
+                      </td>
+                      <td className="py-3 px-3 text-fg-muted">{p.credits > 0 ? `+${p.credits}` : "—"}</td>
+                      <td className="py-3 px-3 text-fg-muted">{p.minutes > 0 ? `+${p.minutes} min` : "—"}</td>
                       <td className="py-3 px-3">
                         <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize ${
                           p.status === "captured" ? "text-success bg-success/15" :
@@ -227,7 +239,7 @@ export default function AdminPurchasesPage() {
         message={(() => {
           const target = purchases.find((p) => p.id === refundingId);
           if (!target) return "";
-          const amount = `₹${Math.round(target.amountInPaise / 100).toLocaleString("en-IN")}`;
+          const amount = formatStoredMoney(target.amountInPaise, target.currency);
           return `Refund ${amount} for ${target.user?.email ?? "this user"}? Credits are clawed back immediately — complete the money refund in the Razorpay dashboard separately.`;
         })()}
         confirmLabel="Refund"
