@@ -198,7 +198,7 @@ async function handleGET(req: NextRequest) {
   }
 
   // ── 5. Trial ending tomorrow ─────────────────────────────────────────────
-  // trialEndsAt has been stored since the 7-day Pro trial shipped, but nothing
+  // trialEndsAt has been stored since the Pro trial shipped, but nothing
   // ever read it — trials converted to a paid charge with no warning at all,
   // which is both a support burden and, for a card-on-file trial, the kind of
   // surprise that earns a chargeback.

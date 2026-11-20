@@ -14,6 +14,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { Modal } from "@/app/components/ui/Modal";
 import { formatMoney, type Currency } from "@/lib/currency-shared";
 import { minorUnits } from "@/lib/plans/display";
+import { TRIAL_DAYS } from "@/lib/plans/tiers";
 import { DIWALI, diwaliDiscountMinor, diwaliMonthlyBonus, diwaliMonthlyBonusApplies, diwaliOfferApplies } from "@/lib/campaigns/diwali";
 import { creatorDiscountApplies } from "@/app/components/billing/useCreatorDiscount";
 import type { DbPlan } from "./types";
@@ -67,7 +68,7 @@ export function CheckoutModal(props: {
             <div className="flex items-center justify-between gap-4 rounded-2xl border border-primary bg-surface-2 p-5">
               <div className="flex min-w-0 flex-col gap-1">
                 <span className="font-mono text-[11px] uppercase tracking-[0.1em] text-primary">
-                  {trial ? "7-day free trial" : "Selected plan"}
+                  {trial ? `${TRIAL_DAYS}-day free trial` : "Selected plan"}
                 </span>
                 <span className="truncate text-lg font-semibold text-fg">{plan.name}</span>
                 <span className="text-[13px] text-fg-muted">
@@ -150,7 +151,7 @@ export function CheckoutModal(props: {
               </div>
               {trial && (
                 <p className="mt-1.5 text-xs text-fg-muted">
-                  Free for 7 days, then {formatMoney(priceMinor, currency)}/{months > 1 ? `${months} mo` : "mo"}. Cancel any time before it ends.
+                  Free for {TRIAL_DAYS} days, then {formatMoney(priceMinor, currency)}/{months > 1 ? `${months} mo` : "mo"}. Cancel any time before it ends.
                 </p>
               )}
             </div>

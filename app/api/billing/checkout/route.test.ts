@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { TRIAL_DAYS } from "@/lib/plans/tiers";
 
 // resumeFromPeriodEnd: set only by the billing dunning banner's "View plans"
 // (a failed-payment retry). The new subscription should start at the user's
@@ -125,7 +126,7 @@ describe("POST /api/billing/checkout — resumeFromPeriodEnd", () => {
 // The trial is a first-purchase offer on the monthly Pro plan. An ineligible
 // request used to fall through to an ordinary subscription that charged the
 // full price at once — after a modal that said "Due today ₹0".
-describe("POST /api/billing/checkout — 7-day trial", () => {
+describe("POST /api/billing/checkout — trial", () => {
   const fresh = () => findUniqueUser.mockImplementation(async () => ({ trialUsedAt: null, subscriptionEndsAt }));
 
   it("defers the first charge 7 days for a first-time customer", async () => {
@@ -135,7 +136,7 @@ describe("POST /api/billing/checkout — 7-day trial", () => {
     expect((await res.json()).trial).toBe(true);
     const call = subscriptionsCreate.mock.calls[0][0] as { start_at: number; notes: { trial: string } };
     expect(call.notes.trial).toBe("1");
-    expect(call.start_at - Math.floor(Date.now() / 1000)).toBeGreaterThanOrEqual(7 * 86400 - 5);
+    expect(call.start_at - Math.floor(Date.now() / 1000)).toBeGreaterThanOrEqual(TRIAL_DAYS * 86400 - 5);
   });
 
   it.each([

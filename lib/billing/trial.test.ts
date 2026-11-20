@@ -17,7 +17,7 @@ const prisma = {
   $transaction: vi.fn(async (fn: (t: typeof tx) => unknown) => fn(tx)),
 };
 vi.mock("@/lib/prisma", () => ({ prisma }));
-vi.mock("@/lib/plans/tiers", () => ({ isTrialPlan: () => true, TRIAL_CREDITS: 100, TRIAL_DAYS: 7, TRIAL_MINUTES: 60 }));
+vi.mock("@/lib/plans/tiers", () => ({ isTrialPlan: () => true, TRIAL_CREDITS: 100, TRIAL_DAYS: 3, TRIAL_MINUTES: 30 }));
 vi.mock("./trial-eligibility", () => ({ trialEligibility: vi.fn(async () => null) }));
 const cancel = vi.fn(async () => ({ ok: true }));
 vi.mock("./subscription-switch", () => ({ cancelExistingSubscriptionForSwitch: cancel }));

@@ -60,7 +60,7 @@ model User {
   // INR subscriber on an en-US browser was told "First charge $29".
   subscriptionCurrency     String?
   razorpayCustomerId       String?
-  // 7-day Pro trial: once per account, card-authorized upfront.
+  // Pro trial (TRIAL_DAYS): once per account, card-authorized upfront.
   trialUsedAt              DateTime?
   trialEndsAt              DateTime?
   // Set when the user requests cancel-at-cycle-end (POST /api/billing/cancel).

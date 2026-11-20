@@ -35,7 +35,7 @@ export interface StartCheckoutArgs {
   addonIds?: string[];
   /** Optional coupon code applied to the order total at checkout. */
   couponCode?: string;
-  /** Request the 7-day Pro trial (server validates eligibility/tier). */
+  /** Request the Pro trial (server validates eligibility/tier). */
   trial?: boolean;
   /** Checkout currency; defaults server-side to INR. */
   currency?: "INR" | "USD";

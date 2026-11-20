@@ -10,7 +10,7 @@ import { syncRazorpayPlan, SYNC_CURRENCIES } from "@/lib/billing/razorpay-plans"
 // Provisions the Razorpay Plan(s) a subscription row needs for the recurring
 // Subscriptions flow. Until a plan has one for the requested currency, checkout
 // silently falls back to a one-time order: no auto-renewal, and a requested
-// 7-day trial is dropped after the UI has already promised it. This used to be
+// trial is dropped after the UI has already promised it. This used to be
 // reachable only by running scripts/razorpay-sync-plans.ts on a shell, so a
 // plan created through /admin/pricing could never be put on recurring billing
 // from the admin panel at all.

@@ -6,7 +6,7 @@
 // Free clips are watermarked and capped at 720p (lib/plans/tiers.ts), which
 // is the clearest reason to pay — but until 2026-11-19 nothing in the app said
 // so; Upgrade and trial buttons lived only on the plans page. Of 20 users who
-// got clips in Oct–Nov 2026, none started the 7-day Pro trial.
+// got clips in Oct–Nov 2026, none started the Pro trial.
 //
 // Both pieces open the plans view in place (useOpenPlans). Neither blocks a
 // download: the dialog's "Download anyway" is always one click away.

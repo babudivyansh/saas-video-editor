@@ -214,18 +214,21 @@ export function overflowCreditsFor(minutesShort: number): number {
   return minutesShort > 0 ? Math.ceil(minutesShort / OVERFLOW_MINUTES_PER_CREDIT) : 0;
 }
 
-// Credits granted once when the 7-day Pro trial starts (the mandate is
+// Credits granted once when the Pro trial starts (the mandate is
 // authenticated — see lib/billing/trial.ts). Hard-capped and deliberately NOT a
 // subscription-bucket base for rollover. Exported so the pricing CTA can state
 // the figure instead of offering an unquantified "free trial".
-export const TRIAL_CREDITS = 25;
+export const TRIAL_CREDITS = 15;
 
 /** Clip Minutes granted with the Pro trial (2026-09-26 model). Without them a
  *  trial user met Pro's headline feature, Auto Clips, with a zero balance. Same
  *  one-off, subscription-bucket treatment as TRIAL_CREDITS. */
-export const TRIAL_MINUTES = 60;
+export const TRIAL_MINUTES = 30;
 
-export const TRIAL_DAYS = 7;
+/** Length of the Pro trial. 7 -> 3 on 2026-11-20 (with 60 -> 30 minutes and
+ *  25 -> 15 credits): a shorter window adds urgency, and the first charge
+ *  lands while the trial is still fresh. */
+export const TRIAL_DAYS = 3;
 
 /** Only the MONTHLY Pro plan carries a trial — an annual Pro trial would end in
  *  a ₹19,791 auto-debit, above RBI's ₹15,000 no-OTP e-mandate limit, which the

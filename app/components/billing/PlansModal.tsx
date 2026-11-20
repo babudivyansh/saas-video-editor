@@ -63,7 +63,7 @@ export function PlansModal({ onPurchaseSuccess, resumeFromPeriodEnd = false, onM
   }, [subscriptionCurrency]);
 
   const [checkoutPlan, setCheckoutPlan] = useState<DbPlan | null>(null);
-  // Whether the open checkout is the 7-day Pro trial (then it uses /pricing's
+  // Whether the open checkout is the Pro trial (then it uses /pricing's
   // CheckoutModal, which shows "₹0 due today" and "Start free trial").
   const [checkoutTrial, setCheckoutTrial] = useState(false);
   const [checkoutError, setCheckoutError] = useState("");
@@ -92,7 +92,7 @@ export function PlansModal({ onPurchaseSuccess, resumeFromPeriodEnd = false, onM
     if (currentInterval) setTerm(currentInterval);
   }, [currentInterval]);
 
-  // The 7-day Pro trial, on the same terms /pricing and /api/billing/checkout
+  // The Pro trial, on the same terms /pricing and /api/billing/checkout
   // use (lib/billing/trial.ts): once per account, first purchase only, never
   // over a running plan. Every in-app "Try Pro free" button opens this view,
   // which until 2026-11-19 had no trial at all — only /pricing did.
