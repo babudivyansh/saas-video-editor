@@ -227,7 +227,7 @@ export async function sendLowCreditsEmail(
 }
 
 export async function sendLowMinutesEmail(
-  to: string, name: string, minutesLeft: number, tier: "free" | "lite" | "creator" | "pro" | "studio",
+  to: string, name: string, minutesLeft: number, tier: "free" | "creator" | "pro" | "studio",
 ): Promise<{ status: string }> {
   return sendTemplate("low-minutes", to, { name, minutesLeft, tier });
 }

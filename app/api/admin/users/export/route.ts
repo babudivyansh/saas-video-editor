@@ -57,7 +57,7 @@ export const GET = withAdmin(async (req, { admin }) => {
     const p = paidBy.get(u.id);
     return [
       u.id, u.email, u.name, iso(u.createdAt), u.hasPassword ? "email" : "google", u.intendedUse,
-      u.signupReferrer, u.signupLandingPath, u.signupSource, u.plan?.name ?? "Free",
+      u.signupReferrer, u.signupLandingPath, u.signupSource, u.plan?.name ?? "Starter",
       iso(u.subscriptionEndsAt), iso(u.lastLoginAt), u.role, u.suspendedAt ? "yes" : "no", u._count.projects,
       p ? ((p._sum.amountInPaise ?? 0) / 100).toFixed(2) : "0.00", p?._count._all ?? 0,
     ];

@@ -62,7 +62,7 @@ describe("yearly discount parity between currencies", () => {
   // because the yearly slugs were missing from the price book and fell through
   // to raw FX. Assert the discount, not the price, so a deliberate repricing
   // that keeps parity stays green.
-  const TIERS = ["lite", "creator", "pro", "studio"] as const;
+  const TIERS = ["creator", "pro", "studio"] as const;
   const TARGET_PCT = 25;
 
   for (const tier of TIERS) {

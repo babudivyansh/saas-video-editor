@@ -292,7 +292,6 @@ export default function AdminPricingPage() {
                       <label className="text-xs font-semibold text-fg-subtle block mb-1">Tier</label>
                       <select className={input} value={p.tier ?? ""} onChange={e => edit(p.id, { tier: e.target.value || null })}>
                         <option value="">— none —</option>
-                        <option value="lite">lite</option>
                         <option value="creator">creator</option>
                         <option value="pro">pro</option>
                         <option value="studio">studio</option>
@@ -487,7 +486,6 @@ export default function AdminPricingPage() {
                     <label className="text-xs font-semibold text-fg-subtle block mb-1">Tier</label>
                     <select className={input} value={form.tier} onChange={e => setForm({ ...form, tier: e.target.value })}>
                       <option value="">— none —</option>
-                      <option value="lite">lite</option>
                       <option value="creator">creator</option>
                       <option value="pro">pro</option>
                       <option value="studio">studio</option>

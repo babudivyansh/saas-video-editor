@@ -49,7 +49,7 @@ export interface EditModelEntry {
   hiRes?: { input: Record<string, unknown>; costUsd: number; creditCost: number; label: string };
 }
 
-const ALL: readonly TierId[] = ["free", "lite", "creator", "pro", "studio"];
+const ALL: readonly TierId[] = ["free", "creator", "pro", "studio"];
 const CREATOR_UP: readonly TierId[] = ["creator", "pro", "studio"];
 const PRO_UP: readonly TierId[] = ["pro", "studio"];
 

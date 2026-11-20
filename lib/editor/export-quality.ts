@@ -59,7 +59,7 @@ export interface QualityRefusal {
 export function checkExportQuality(q: ExportQuality, tier: TierId, durationSec: number): QualityRefusal | null {
   if (q !== "4k") return null;
   if (!tierAtLeast(tier, EXPORT_4K_MIN_TIER)) {
-    return { status: 403, body: { error: "quality_locked", message: "4K export is on the Pro and Studio plans.", requiredTier: EXPORT_4K_MIN_TIER } };
+    return { status: 403, body: { error: "quality_locked", message: "4K export is on the Pro and Agency plans.", requiredTier: EXPORT_4K_MIN_TIER } };
   }
   if (durationSec > EXPORT_4K_MAX_SECONDS) {
     return { status: 400, body: { error: "quality_too_long", message: `4K export takes videos up to ${EXPORT_4K_MAX_SECONDS / 60} minutes. Export this one in 1080p, or trim it.` } };

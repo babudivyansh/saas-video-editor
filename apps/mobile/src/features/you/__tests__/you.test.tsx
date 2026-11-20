@@ -58,7 +58,7 @@ describe("You", () => {
   it("shows plan, level and balances, and links to the rest of the tab", async () => {
     const r = open("/you");
     expect(await screen.findByText("Maya Okafor")).toBeOnTheScreen();
-    expect(screen.getByRole("button", { name: "Plan: Studio, Yearly. Manage" })).toBeOnTheScreen();
+    expect(screen.getByRole("button", { name: "Plan: Agency, Yearly. Manage" })).toBeOnTheScreen();
     expect(screen.getByLabelText("Level Pro Creator, 1,450 of 2,600 XP")).toBeOnTheScreen();
     expect(screen.getByLabelText("1,171 ai credits")).toBeOnTheScreen();
     press(/^Notifications, 2 unread/);
@@ -196,7 +196,7 @@ describe("Credits and Subscription", () => {
     expect(screen.queryByText(/\/mo|Most popular/)).toBeNull();
     press("Cancel subscription");
     fireEvent.press(screen.getAllByRole("button", { name: "Cancel subscription" }).at(-1)!);
-    expect(await screen.findByText("Ends on Mar 14, 2027 · then you move to Free")).toBeOnTheScreen();
+    expect(await screen.findByText("Ends on Mar 14, 2027 · then you move to Starter")).toBeOnTheScreen();
     press("Keep my plan");
     expect(await screen.findByText("Renews on Mar 14, 2027")).toBeOnTheScreen();
   });

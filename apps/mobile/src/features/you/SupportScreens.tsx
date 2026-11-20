@@ -50,7 +50,7 @@ const FAQ: { topic: Topic; q: string; a: string }[] = [
   {
     topic: "billing",
     q: "Can I cancel anytime?",
-    a: "Yes. Your plan stays active until the end of the period you paid for, then you move to the Free plan.",
+    a: "Yes. Your plan stays active until the end of the period you paid for, then you move to the free Starter plan.",
   },
   {
     topic: "billing",

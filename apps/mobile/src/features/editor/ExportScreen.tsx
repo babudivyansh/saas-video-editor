@@ -215,7 +215,7 @@ export function ExportScreen() {
               {doc.tracks.caption.length ? " · captions on" : ""}
             </Text>
             <Text style={type(12, "medium", { color: free ? colors.warning : colors.emeraldBright })}>
-              {free ? "Free plan: 720p with a Clipiro watermark" : "No watermark on your plan"}
+              {free ? "Starter plan: 720p with a Clipiro watermark" : "No watermark on your plan"}
             </Text>
           </View>
         </View>

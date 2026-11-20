@@ -281,9 +281,10 @@ function PricingPageInner({ initialPlans }: { initialPlans: DbPlan[] }) {
         ) : cards.length === 0 ? (
           <p className="py-12 text-center text-sm text-fg-muted">Pricing is being updated. Please check back shortly.</p>
         ) : (
-          // items-stretch so all five cards share the tallest height; each card
-          // uses the same section order, so price, CTA and bullets line up.
-          <div className="grid items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          // items-stretch so all four cards (Starter + three paid) share the
+          // tallest height; each card uses the same section order, so price,
+          // CTA and bullets line up.
+          <div className="grid items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <FreeCard currency={currency} />
             {cards.map(plan => {
               const isPro = plan.tier === "pro";

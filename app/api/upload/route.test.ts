@@ -58,7 +58,7 @@ vi.mock("@/lib/plans/tiers", () => ({
   maxUploadBytesForTier: () => 10 ** 12,
   ALLOWED_UPLOAD_MIME: /^(video|audio|image)\/(mp4|mpeg|quicktime|webm|x-matroska|mp3|wav|ogg|png|jpeg|jpg|webp|gif)$/,
   formatBytes: (n: number) => `${n} bytes`,
-  TIER_LABEL: { creator: "Creator", pro: "Pro", studio: "Studio" },
+  PLAN_NAME: { free: "Starter", creator: "Creator", pro: "Pro", studio: "Agency" },
 }));
 // Pass the handler through untouched so the test hits it directly.
 vi.mock("@/lib/with-rate-limit", () => ({ withRateLimit: (h: unknown) => h }));

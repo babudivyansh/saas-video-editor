@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { sourceDurationError, sourceFileError, sourceLimitsHint } from "./autoclip-source";
 import { MAX_UPLOAD_BYTES_BY_TIER, TIER_MAX_AUTOCLIP_SOURCE_SECONDS, type TierId } from "@/lib/plans/tiers";
 
-const TIERS: TierId[] = ["free", "lite", "creator", "pro", "studio"];
+const TIERS: TierId[] = ["free", "creator", "pro", "studio"];
 const mp4 = (size: number) => ({ type: "video/mp4", name: "stream.mp4", size });
 
 describe("sourceFileError", () => {
@@ -21,7 +21,7 @@ describe("sourceFileError", () => {
 
   it("names the plan and its limit", () => {
     expect(sourceFileError(mp4(300 * 1024 ** 2), "free")).toBe(
-      "That video is over 250 MB, the Free plan's limit. Trim or compress it, or upgrade for larger files.",
+      "That video is over 250 MB, the Starter plan's limit. Trim or compress it, or upgrade for larger files.",
     );
     expect(sourceFileError(mp4(2 * 1024 ** 3), "creator")).toMatch(/over 1 GB, the Creator plan's limit/);
   });
@@ -51,7 +51,7 @@ describe("sourceDurationError", () => {
   });
 
   it("formats the limit as the plan page does", () => {
-    expect(sourceDurationError(31 * 60, "free")).toMatch(/over 30 min, the Free plan's limit/);
+    expect(sourceDurationError(31 * 60, "free")).toMatch(/over 30 min, the Starter plan's limit/);
     expect(sourceDurationError(5 * 3600, "pro")).toMatch(/over 4 h, the Pro plan's limit/);
   });
 

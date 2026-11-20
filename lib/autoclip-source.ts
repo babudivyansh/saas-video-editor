@@ -3,7 +3,7 @@
 // Shared by the AutoClip page and Home's launch box so they can't drift.
 
 import {
-  TIER_LABEL,
+  PLAN_NAME,
   TIER_MAX_AUTOCLIP_SOURCE_SECONDS,
   formatBytes,
   maxUploadBytesForTier,
@@ -21,7 +21,7 @@ export const MIN_SOURCE_SEC = 60;
 // still loading) the check defers to the server rather than guess low.
 const UNKNOWN_PLAN: TierId = "studio";
 
-const planLabel = (tier: TierId) => (tier === "free" ? "Free" : TIER_LABEL[tier]);
+const planLabel = (tier: TierId) => PLAN_NAME[tier];
 
 /** "30 min" / "1 h" / "2 h 30 min". */
 function formatLength(sec: number): string {

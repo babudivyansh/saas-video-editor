@@ -14,7 +14,7 @@ import { Input } from "@/app/components/ui/Field";
 import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
 import { useToast } from "@/app/components/ui/Toast";
 
-type Tier = "lite" | "creator" | "pro" | "studio";
+type Tier = "creator" | "pro" | "studio";
 
 interface Settings {
   enabled: boolean;
@@ -41,10 +41,9 @@ interface CreatorRow {
 }
 
 const TIERS: { id: Tier; label: string }[] = [
-  { id: "lite", label: "Lite" },
   { id: "creator", label: "Creator" },
   { id: "pro", label: "Pro" },
-  { id: "studio", label: "Studio" },
+  { id: "studio", label: "Agency" },
 ];
 
 const STAGE: Record<CreatorRow["stage"], { label: string; cls: string }> = {

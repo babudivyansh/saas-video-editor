@@ -101,9 +101,9 @@ describe("syncRazorpayPlan", () => {
   });
 
   it("replaces a stored id the current keys don't know (test/live switch)", async () => {
-    const res = await syncRazorpayPlan(makePlan({ slug: "sub_lite_1mo", priceInPaise: 49900, razorpayPlanIdInr: "plan_from_live" }), "INR");
+    const res = await syncRazorpayPlan(makePlan({ slug: "sub_creator_1mo", priceInPaise: 99900, razorpayPlanIdInr: "plan_from_live" }), "INR");
     expect(res).toMatchObject({ ok: true, created: true, razorpayPlanId: "plan_rzp_1" });
-    expect(created[0]).toMatchObject({ amount: 49900, currency: "INR" });
+    expect(created[0]).toMatchObject({ amount: 99900, currency: "INR" });
     expect(planUpdates[0]).toEqual({ razorpayPlanIdInr: "plan_rzp_1" });
   });
 

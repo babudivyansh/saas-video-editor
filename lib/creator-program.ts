@@ -28,7 +28,7 @@ import type { TierId } from "@/lib/plans/tiers";
 
 export const CREATOR_PROGRAM_KEY = "creator_program";
 
-export type QualifyingTier = Extract<TierId, "lite" | "creator" | "pro" | "studio">;
+export type QualifyingTier = Extract<TierId, "creator" | "pro" | "studio">;
 
 export interface CreatorProgramSettings {
   /** Master switch: off = no discount, no new qualifying sales counted. */
@@ -53,7 +53,7 @@ export const DEFAULT_CREATOR_PROGRAM: CreatorProgramSettings = {
   qualifyingTiers: ["pro", "studio"],
 };
 
-const ALL_TIERS: readonly QualifyingTier[] = ["lite", "creator", "pro", "studio"];
+const ALL_TIERS: readonly QualifyingTier[] = ["creator", "pro", "studio"];
 export const OFFER_ID_RE = /^offer_[A-Za-z0-9]{14}$/;
 
 /** Coerce anything stored (or posted) into valid settings, field by field. */

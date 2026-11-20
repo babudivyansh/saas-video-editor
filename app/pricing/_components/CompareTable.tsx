@@ -6,7 +6,7 @@
 
 import { useState } from "react";
 import {
-  TIER_ORDER, TIER_LABEL, TIER_MAX_AUTOCLIP_SOURCE_SECONDS, STORAGE_LIMIT_GB,
+  TIER_ORDER, PLAN_NAME, TIER_MAX_AUTOCLIP_SOURCE_SECONDS, STORAGE_LIMIT_GB,
   FREE_TIER_MONTHLY_BONUS_CREDITS, FREE_TIER_MONTHLY_BONUS_MINUTES, tierAtLeast, type TierId,
 } from "@/lib/plans/tiers";
 import { TOOL_COSTS } from "@/lib/tool-costs";
@@ -59,7 +59,7 @@ function buildGroups(subs: DbPlan[], term: number): { core: Group; more: Group[]
       { label: "Watermark-free exports", cells: byTier(t => t !== "free") },
       { label: "AI image models", cells: byTier(t => String(modelsFor(t))) },
       { label: "Asset storage", cells: byTier(t => storage(STORAGE_LIMIT_GB[t])) },
-      { label: "Rendering", cells: { free: "Standard", lite: "Standard", creator: "Standard", pro: "Priority", studio: "Fastest" } },
+      { label: "Rendering", cells: { free: "Standard", creator: "Standard", pro: "Priority", studio: "Fastest" } },
     ],
   };
 
@@ -119,7 +119,7 @@ export function CompareTable({ subs, term }: { subs: DbPlan[]; term: number }) {
   const [open, setOpen] = useState(false);
   const { core, more } = buildGroups(subs, term);
   const groups = open ? [core, ...more] : [core];
-  const tierName = (t: TierId) => (t === "free" ? "Free" : TIER_LABEL[t]);
+  const tierName = (t: TierId) => PLAN_NAME[t];
 
   return (
     <section id="compare" className="mx-auto max-w-6xl scroll-mt-24 px-4 py-20 sm:px-6 sm:py-28 lg:px-8">

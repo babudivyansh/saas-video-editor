@@ -30,7 +30,7 @@ import { apiErrorMessage as errorMessage } from "@/lib/errors";
 import { IconChip, Label, ReferralSheet } from "./bits";
 import { useAccount, youKeys } from "./queries";
 
-export const planName = (a: Account) => PLANS.find((p) => p.tier === a.plan.tier)?.name ?? "Free";
+export const planName = (a: Account) => PLANS.find((p) => p.tier === a.plan.tier)?.name ?? "Starter";
 export const termName = (a: Account) =>
   a.plan.term === "yearly" ? "Yearly" : a.plan.term === "monthly" ? "Monthly" : null;
 const n = (v: number) => v.toLocaleString("en-US");

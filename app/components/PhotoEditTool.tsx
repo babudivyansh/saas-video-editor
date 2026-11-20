@@ -372,7 +372,7 @@ export default function PhotoEditTool() {
             <option value="auto">Auto (best fit, {creditLabel(quote({ action: "edit", model: "auto" })!.creditsPerImage)})</option>
             {pickableModels.map((m) => (
               <option key={m.id} value={m.id}>
-                {m.displayName} ({creditLabel(m.creditCost)}{m.allowedTiers[0] === "studio" ? ", Studio only" : m.allowedTiers[0] !== "free" ? `, ${m.allowedTiers[0][0].toUpperCase()}${m.allowedTiers[0].slice(1)}+` : ""})
+                {m.displayName} ({creditLabel(m.creditCost)}{m.allowedTiers[0] === "studio" ? ", Agency only" : m.allowedTiers[0] !== "free" ? `, ${m.allowedTiers[0][0].toUpperCase()}${m.allowedTiers[0].slice(1)}+` : ""})
               </option>
             ))}
           </select>
@@ -447,7 +447,7 @@ export default function PhotoEditTool() {
         {working ? "Working…" : <>{runLabel} {action === "edit" && <kbd className="ml-1 hidden rounded bg-black/15 px-1.5 py-0.5 text-[11px] font-semibold sm:inline-block">{modKey}+Enter</kbd>}</>}
       </Button>
       {!user && <p className="text-center text-[12px] text-fg-subtle">You&apos;ll be asked to sign in to edit.</p>}
-      {user && <p className="text-center text-[11.5px] text-fg-subtle">Free plan: up to {FREE_DAILY_EDITS} edits a day. Every result is saved to your Assets.</p>}
+      {user && <p className="text-center text-[11.5px] text-fg-subtle">Starter plan: up to {FREE_DAILY_EDITS} edits a day. Every result is saved to your Assets.</p>}
     </>
   );
 

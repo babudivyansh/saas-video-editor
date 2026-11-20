@@ -30,7 +30,7 @@ export const IMAGE_MODELS: readonly ImageModelEntry[] = [
     integration: "direct-gemini",
     costUsd: 0.04, // Google direct API
     creditCost: 2, // ceil(0.04*3/0.0784); default/free model, raised from 1
-    allowedTiers: ["free", "lite", "creator", "pro", "studio"],
+    allowedTiers: ["free", "creator", "pro", "studio"],
     supportedParameters: ["prompt", "aspectRatio"],
     defaultValues: { aspectRatio: "1:1" },
     aspectRatios: ["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3", "21:9"], // generationConfig.imageConfig.aspectRatio
@@ -186,7 +186,7 @@ export const IMAGE_MODELS: readonly ImageModelEntry[] = [
     falEndpoint: "fal-ai/qwen-image-2/text-to-image",
     costUsd: 0.035, // fal Qwen Image 2.0 (2026-08 audit): $0.035/image
     creditCost: 2, // raised from 1: at $0.035 real, 1 credit was only 2.8x
-    allowedTiers: ["free", "lite", "creator", "pro", "studio"],
+    allowedTiers: ["free", "creator", "pro", "studio"],
     supportedParameters: ["prompt", "negativePrompt", "aspectRatio", "seed"], // no cfg_scale input
     defaultValues: { aspectRatio: "1:1" },
     aspectRatios: ["1:1", "4:3", "3:4", "16:9", "9:16"],

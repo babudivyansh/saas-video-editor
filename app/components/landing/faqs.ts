@@ -13,6 +13,6 @@ export const HOME_FAQS: { q: string; a: string }[] = [
   { q: "How accurate are the captions?", a: "Captions are generated with word-level timing and are highly accurate across accents and languages. You can edit any word and restyle the look to match your brand." },
   { q: "Can I edit clips manually?", a: "Absolutely. Every AI suggestion is fully editable — adjust trims, captions, framing, hooks, and brand styles in the editor before exporting." },
   { q: "Do you support multiple languages?", a: `Yes. Voiceovers come in ${VOICE_LANGUAGE_COUNT} languages, AI dubbing translates a clip's speech into ${DUB_LANGUAGES.length}, and captions can be translated into ${CAPTION_LANGUAGES.length}, including Hindi, Tamil, Telugu, Marathi, Bengali, Spanish, French, German and Portuguese.` },
-  { q: "What video formats are supported?", a: "You can work with common formats like MP4, MOV, and more, and export publish-ready clips in 1080p (or 4K on Pro and Studio) across multiple aspect ratios." },
+  { q: "What video formats are supported?", a: "You can work with common formats like MP4, MOV, and more, and export publish-ready clips in 1080p (or 4K on Pro and Agency) across multiple aspect ratios." },
   { q: "Can I keep clips on-brand?", a: "Yes. Save your fonts, caption colours and styles as brand kits and apply them to any clip, so everything you publish looks consistent." },
 ];

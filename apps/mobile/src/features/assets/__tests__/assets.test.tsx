@@ -46,14 +46,14 @@ beforeEach(() => {
 describe("Assets", () => {
   it("shows storage against the plan and counts by type", async () => {
     open("/projects/assets");
-    expect(await screen.findByText("Studio storage")).toBeOnTheScreen();
+    expect(await screen.findByText("Agency storage")).toBeOnTheScreen();
     expect(screen.getByText(/17 files · up to 5 GB each/)).toBeOnTheScreen();
     expect(await screen.findByRole("button", { name: "Podcast raw, 2 files" })).toBeOnTheScreen();
   });
 
   it("filters by type and opens a folder", async () => {
     open("/projects/assets");
-    await screen.findByText("Studio storage");
+    await screen.findByText("Agency storage");
     fireEvent.press(screen.getByRole("button", { name: "Images" }));
     expect(screen.getAllByRole("button", { name: /, image/ })).toHaveLength(2);
     fireEvent.press(await screen.findByRole("button", { name: /^B-roll, 2 files/ }));
@@ -62,7 +62,7 @@ describe("Assets", () => {
 
   it("creates a folder and rejects a duplicate name", async () => {
     open("/projects/assets");
-    await screen.findByText("Studio storage");
+    await screen.findByText("Agency storage");
     press("New folder");
     fireEvent.changeText(screen.getByLabelText("Folder name"), "b-roll");
     press("Create folder");
@@ -96,7 +96,7 @@ describe("Assets", () => {
     setMockScenario("account", "empty"); // Free: 250 MB per file, 0.5 GB total
     pickDocument.mockResolvedValue({ canceled: false, assets: [{ name: "huge.mp4", size: 300 * MB, mimeType: "video/mp4", uri: "file:///huge.mp4" }] });
     open("/projects/assets");
-    await screen.findByText("Free storage");
+    await screen.findByText("Starter storage");
     press("Upload");
     expect(await screen.findByText(/huge\.mp4: That file is bigger than your plan allows/)).toBeOnTheScreen();
   });
@@ -105,7 +105,7 @@ describe("Assets", () => {
     setQueueIO({ readPart: async () => "file:///cache/part", putPart: async (_p, _u, onBytes) => (onBytes(1), { status: 200, etag: '"e1"' }), fileExists: () => true, load: async () => null, save: async () => {} });
     pickDocument.mockResolvedValue({ canceled: false, assets: [{ name: "clip.mp4", size: 20 * MB, mimeType: "video/mp4", uri: "file:///clip.mp4" }] });
     open("/projects/assets");
-    await screen.findByText("Studio storage");
+    await screen.findByText("Agency storage");
     press("Upload");
     expect(await screen.findByRole("button", { name: /^clip\.mp4, video, processing/ })).toBeOnTheScreen();
   });

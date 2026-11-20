@@ -278,17 +278,16 @@ function BrowseStep({ plansLoading, subs, packs, minutePacks, term, onTermChange
       </div>
 
       {plansLoading ? (
-        <div className="grid items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {[0, 1, 2, 3].map(i => <div key={i} className="h-[480px] animate-pulse rounded-[var(--radius-card)] border border-line bg-surface-2" />)}
+        <div className="grid items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {[0, 1, 2].map(i => <div key={i} className="h-[480px] animate-pulse rounded-[var(--radius-card)] border border-line bg-surface-2" />)}
         </div>
       ) : cards.length === 0 ? (
         <p className="text-center text-fg-subtle text-sm py-12">Pricing is being updated. Please check back shortly.</p>
       ) : (
-        // Same card, same look and same four-across row as /pricing. This was
-        // a three-column grid with its own white-outline styling, so the fourth
-        // tier (Lite, 2026-10-30) pushed Studio onto a row of its own, and the
-        // "Most popular" badge sat on Creator here but on Pro on /pricing.
-        <div className="grid items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        // Same card and look as /pricing (which adds a Starter card in front),
+        // three paid tiers across. Lite (2026-10-30) briefly made this four
+        // and was retired 2026-11-20. "Most popular" sits on Pro in both.
+        <div className="grid items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {cards.map(plan => {
             const cta = planCta(plan, currentPlan, hasActivePlan);
             const isCurrent = currentPlan?.slug === plan.slug;

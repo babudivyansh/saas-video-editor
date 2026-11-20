@@ -6,7 +6,7 @@ import sharp from "sharp";
 // Gemini (keyword fallback), what reaches fal, and that a failure refunds the
 // full multi-image price.
 
-let tier: "free" | "lite" | "creator" | "pro" | "studio" = "free";
+let tier: "free" | "creator" | "pro" | "studio" = "free";
 vi.mock("@/lib/auth", () => ({
   getAuthUser: vi.fn(async () => ({ userId: "u1" })),
   getUserTier: vi.fn(async () => tier),

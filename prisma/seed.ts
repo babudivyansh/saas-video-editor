@@ -28,7 +28,7 @@ interface SeedPlan {
   minutes?: number;
   /** Defaults to true. Minute packs ship inactive until the UI shows minutes. */
   active?: boolean;
-  tier?: "lite" | "creator" | "pro" | "studio"; // subscription rows only; see lib/plans/tiers.ts
+  tier?: "creator" | "pro" | "studio"; // subscription rows only; see lib/plans/tiers.ts
 }
 
 // ── Subscriptions ───────────────────────────────────────────────────────────
@@ -63,24 +63,20 @@ const yearly = (monthlyPaise: number) => Math.round((monthlyPaise * 12 * (1 - YE
 // for: renewals read the plan row (fulfillment.ts), but the refill cron reads
 // User.monthlyCredits, which only changes on their next purchase or renewal —
 // an annual subscriber keeps 60 or 160 a month until their year is up.
-// 2026-10-30 restructure: Lite (₹499) added below Creator; Creator's minutes
+// 2026-10-30 restructure: Lite (₹499) added below Creator (retired 2026-11-20); Creator's minutes
 // 150 -> 200 at the same price; Studio's credits 400 -> 300 (agency usage is
 // minutes-heavy, and the credits were most of Studio yearly's cost exposure).
 // Same grandfathering as switch day: only new purchases and renewals read these.
 const SUBSCRIPTIONS: SeedPlan[] = [
-  // Lite — 60 Clip Minutes + 20 AI credits /mo (₹499/mo). No watermark, 1080p,
-  // 1-hour uploads; creator-gated tools stay locked.
-  { slug: "sub_lite_1mo",  name: "Lite (Monthly)", priceInPaise: 49900,            intervalMonths: 1,  monthlyCredits: 20,  monthlyMinutes: 60, sortOrder: 5, tier: "lite" as const, features: ["No watermark", "1080p exports"] },
-  { slug: "sub_lite_12mo", name: "Lite (Yearly)",  priceInPaise: yearly(49900),    intervalMonths: 12, monthlyCredits: 20,  monthlyMinutes: 60, sortOrder: 8, tier: "lite" as const, features: ["No watermark", "1080p exports"] },
   // Creator — 200 Clip Minutes + 50 AI credits /mo (₹999/mo).
   { slug: "sub_creator_1mo",  name: "Creator (Monthly)", priceInPaise: 99900,            intervalMonths: 1,  monthlyCredits: 50,  monthlyMinutes: 200, sortOrder: 10, tier: "creator" as const, features: ["All AI tools", "1080p exports"] },
   { slug: "sub_creator_12mo", name: "Creator (Yearly)",  priceInPaise: yearly(99900),    intervalMonths: 12, monthlyCredits: 50,  monthlyMinutes: 200, sortOrder: 13, tier: "creator" as const, features: ["All AI tools", "1080p exports"] },
   // Pro — 400 Clip Minutes + 150 AI credits /mo (₹2,199/mo).
   { slug: "sub_pro_1mo",  name: "Pro (Monthly)", priceInPaise: 219900,           intervalMonths: 1,  monthlyCredits: 150, monthlyMinutes: 400, sortOrder: 20, tier: "pro" as const, features: ["All AI tools", "Priority rendering"] },
   { slug: "sub_pro_12mo", name: "Pro (Yearly)",  priceInPaise: yearly(219900),   intervalMonths: 12, monthlyCredits: 150, monthlyMinutes: 400, sortOrder: 23, tier: "pro" as const, features: ["All AI tools", "Priority rendering"] },
-  // Studio — 1,000 Clip Minutes + 300 AI credits /mo (₹4,999/mo).
-  { slug: "sub_studio_1mo",  name: "Studio (Monthly)", priceInPaise: 499900,          intervalMonths: 1,  monthlyCredits: 300, monthlyMinutes: 1000, sortOrder: 30, tier: "studio" as const, features: ["Priority rendering", "Dedicated support"] },
-  { slug: "sub_studio_12mo", name: "Studio (Yearly)",  priceInPaise: yearly(499900),  intervalMonths: 12, monthlyCredits: 300, monthlyMinutes: 1000, sortOrder: 33, tier: "studio" as const, features: ["Priority rendering", "Dedicated support"] },
+  // Studio (shown as "Agency" since 2026-11-20) — 1,000 Clip Minutes + 300 AI credits /mo (₹4,999/mo).
+  { slug: "sub_studio_1mo",  name: "Agency (Monthly)", priceInPaise: 499900,          intervalMonths: 1,  monthlyCredits: 300, monthlyMinutes: 1000, sortOrder: 30, tier: "studio" as const, features: ["Priority rendering", "Dedicated support"] },
+  { slug: "sub_studio_12mo", name: "Agency (Yearly)",  priceInPaise: yearly(499900),  intervalMonths: 12, monthlyCredits: 300, monthlyMinutes: 1000, sortOrder: 33, tier: "studio" as const, features: ["Priority rendering", "Dedicated support"] },
 ].map(p => ({ ...p, kind: "subscription" as const, credits: p.monthlyCredits * p.intervalMonths }));
 
 // Old 3-month / 6-month terms are retired. Deactivate them (keep rows for
@@ -92,14 +88,16 @@ const RETIRED_SUB_SLUGS = [
   "sub_pro_3mo", "sub_pro_6mo",
   "sub_studio_3mo", "sub_studio_6mo",
   "pack_veo3_5", "addon_veo3",
+  // Lite (₹499) was retired 2026-11-20; nobody had ever bought it.
+  "sub_lite_1mo", "sub_lite_12mo",
 ];
 
 // ── Top-up packs (open to all users) ────────────────────────────────────────
 const PACKS: SeedPlan[] = [
   { slug: "pack_mini",    name: "Mini Pack",    priceInPaise:  59900, credits:  30, sortOrder: 40, kind: "pack", features: ["30 credits", "One-time top-up", "Never expires"] },
-  { slug: "pack_starter", name: "Starter Pack", priceInPaise: 159900, credits: 100, sortOrder: 41, kind: "pack", features: ["100 credits", "One-time top-up", "Never expires"] },
+  { slug: "pack_starter", name: "Plus Pack",    priceInPaise: 159900, credits: 100, sortOrder: 41, kind: "pack", features: ["100 credits", "One-time top-up", "Never expires"] },
   { slug: "pack_pro",     name: "Pro Pack",     priceInPaise: 399900, credits: 280, sortOrder: 42, kind: "pack", features: ["280 credits", "One-time top-up", "Never expires"] },
-  { slug: "pack_studio",  name: "Studio Pack",  priceInPaise: 899900, credits: 640, sortOrder: 43, kind: "pack", features: ["640 credits", "Best value", "Never expires"] },
+  { slug: "pack_studio",  name: "Agency Pack", priceInPaise: 899900, credits: 640, sortOrder: 43, kind: "pack", features: ["640 credits", "Best value", "Never expires"] },
 ];
 
 // ── Clip Minutes packs (2026-09-26 pricing plan) ────────────────────────────
