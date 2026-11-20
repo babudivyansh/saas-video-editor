@@ -44,7 +44,7 @@ describe("UrlImportField", () => {
     tier = "free";
     probeReturns({ title: "Six hours", durationSec: 6 * 3600, isLive: false });
     await checkLink("https://www.twitch.tv/videos/1");
-    expect(await screen.findByText(/over 30 min, the Free plan's limit/)).toBeTruthy();
+    expect(await screen.findByText(/over 30 min, the Starter plan's limit/)).toBeTruthy();
   });
 
   it("says a live channel can be imported once the VOD is up", async () => {

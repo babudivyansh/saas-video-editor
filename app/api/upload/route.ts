@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser, getUserTier } from "@/lib/auth";
 import { withRateLimit } from "@/lib/with-rate-limit";
-import { ALLOWED_UPLOAD_MIME, TIER_LABEL, formatBytes, maxUploadBytesForTier } from "@/lib/plans/tiers";
+import { ALLOWED_UPLOAD_MIME, PLAN_NAME, formatBytes, maxUploadBytesForTier } from "@/lib/plans/tiers";
 import { readMultipartWithin, MULTIPART_OVERHEAD_BYTES } from "@/lib/upload-policy";
 import { extensionForMime, sanitizeS3Key, uploadBufferToS3 } from "@/utils/s3-upload";
 import { serializeOneAsset } from "@/lib/asset-serialize";
@@ -31,7 +31,7 @@ async function handlePOST(req: NextRequest) {
   const tier = await getUserTier(auth.userId);
   const planMax = maxUploadBytesForTier(tier);
   const formData = await readMultipartWithin(req, planMax + MULTIPART_OVERHEAD_BYTES, () => ({
-    error: `Your ${tier === "free" ? "Free" : TIER_LABEL[tier]} plan supports files up to ${formatBytes(planMax)}. Upgrade to upload larger files.`,
+    error: `Your ${PLAN_NAME[tier]} plan supports files up to ${formatBytes(planMax)}. Upgrade to upload larger files.`,
     limitBytes: planMax,
   }));
   if (formData instanceof NextResponse) return formData;

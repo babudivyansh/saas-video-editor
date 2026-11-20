@@ -144,7 +144,7 @@ describe("AutoClip", () => {
     open("/create/autoclip");
     fireEvent.press(await screen.findByRole("button", { name: /^Upload video/ }));
     await act(async () => fireEvent.press(screen.getByRole("radio", { name: /^Files/ })));
-    expect(await screen.findByText(/over your Free plan's 250 MB limit/)).toBeOnTheScreen();
+    expect(await screen.findByText(/over your Starter plan's 250 MB limit/)).toBeOnTheScreen();
     expect(useAutoClipDraft.getState().source).toBeNull();
   });
 
@@ -155,7 +155,7 @@ describe("AutoClip", () => {
     open("/create/autoclip");
     fireEvent.press(await screen.findByRole("button", { name: /^Upload video/ }));
     await act(async () => fireEvent.press(screen.getByRole("radio", { name: /^Gallery/ })));
-    expect(await screen.findByText(/over your Free plan's 30 min limit/)).toBeOnTheScreen();
+    expect(await screen.findByText(/over your Starter plan's 30 min limit/)).toBeOnTheScreen();
   });
 
   it("uploads a picked file, then starts the run from it", async () => {

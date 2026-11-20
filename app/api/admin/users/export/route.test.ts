@@ -55,7 +55,7 @@ describe("/api/admin/users/export", () => {
     const [header, row] = (await res.text()).replace(/^\uFEFF/, "").trim().split("\r\n");
     expect(header.split(",")).toContain("autoclip_runs");
     // Formula injection is neutralised.
-    expect(row).toBe(`u1,priya@x.co,"'=HYPERLINK(""evil"")",2026-11-10T10:00:00.000Z,google,gaming,instagram.com,/gta-6-clip-maker,,Free,,,USER,no,2,799.00,1`);
+    expect(row).toBe(`u1,priya@x.co,"'=HYPERLINK(""evil"")",2026-11-10T10:00:00.000Z,google,gaming,instagram.com,/gta-6-clip-maker,,Starter,,,USER,no,2,799.00,1`);
     expect(auditAdminAction).toHaveBeenCalledWith("admin-1", "users.exported", undefined, expect.objectContaining({
       after: { rows: 1, truncated: false, filters: { journey: "ran", joined: "30d" } },
     }));

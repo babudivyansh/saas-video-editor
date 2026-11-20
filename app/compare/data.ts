@@ -21,10 +21,9 @@ export const COMPETITORS_CHECKED_ON = "2026-11-04";
 
 /** Monthly list prices in rupees and Clip Minutes per month, as seeded (data.test.ts). */
 export const CLIPIRO_PLANS = [
-  { name: "Lite", monthlyInr: 499, minutes: 60 },
   { name: "Creator", monthlyInr: 999, minutes: 200 },
   { name: "Pro", monthlyInr: 2199, minutes: 400 },
-  { name: "Studio", monthlyInr: 4999, minutes: 1000 },
+  { name: "Agency", monthlyInr: 4999, minutes: 1000 },
 ] as const;
 
 const inr = (n: number) => `₹${n.toLocaleString("en-IN")}`;
@@ -43,10 +42,10 @@ export const CLIPIRO_FACTS = {
   paidPlans: CLIPIRO_PLANS.map((p) => `${p.name} ${inr(p.monthlyInr)}/mo (${p.minutes.toLocaleString("en-IN")} min)`).join(" · "),
   billingUnit: "1 Clip Minute per minute of source video, however many clips",
   currency: "Indian rupees, with a GST tax invoice",
-  sourceLength: `Up to ${hours(TIER_MAX_AUTOCLIP_SOURCE_SECONDS.free)} free, up to ${hours(TIER_MAX_AUTOCLIP_SOURCE_SECONDS.studio)} on Studio`,
+  sourceLength: `Up to ${hours(TIER_MAX_AUTOCLIP_SOURCE_SECONDS.free)} free, up to ${hours(TIER_MAX_AUTOCLIP_SOURCE_SECONDS.studio)} on Agency`,
   captions: `${CAPTION_TEMPLATES.length} caption templates, including Devanagari Hindi and Hinglish`,
   dubbing: `AI dubbing into ${DUB_LANGUAGES.length} languages`,
-  export: "1080p on paid plans; 4K from the editor on Pro and Studio",
+  export: "1080p on paid plans; 4K from the editor on Pro and Agency",
 };
 
 export interface CompareRow {
@@ -77,7 +76,7 @@ export const COMPETITORS: Competitor[] = [
     name: "Opus Clip",
     pricingUrl: "https://www.opus.pro/pricing",
     summary:
-      "Opus Clip and Clipiro both turn long videos into captioned vertical clips. Opus Clip bills in US dollars, from $15 a month for Starter and $29 for Pro. Clipiro bills in rupees with GST invoices, from ₹499 a month, and charges one Clip Minute per minute of source video.",
+      "Opus Clip and Clipiro both turn long videos into captioned vertical clips. Opus Clip bills in US dollars, from $15 a month for Starter and $29 for Pro. Clipiro bills in rupees with GST invoices, from ₹999 a month, and charges one Clip Minute per minute of source video.",
     metaDescription:
       "Opus Clip vs Clipiro: prices, billing currency, free plans, captions and dubbing compared side by side, with figures from each tool's own pricing page.",
     rows: [
@@ -102,7 +101,7 @@ export const COMPETITORS: Competitor[] = [
       {
         question: "Is Clipiro cheaper than Opus Clip?",
         answer:
-          "It depends on how much video you clip and which currency you pay in. Clipiro's Lite plan is ₹499 a month for 60 Clip Minutes and Opus Clip's Starter is $15 a month. Compare the minutes each plan includes against how many hours you upload, using each tool's current pricing page.",
+          "It depends on how much video you clip and which currency you pay in. Clipiro's Creator plan is ₹999 a month for 200 Clip Minutes and Opus Clip's Starter is $15 a month. Compare the minutes each plan includes against how many hours you upload, using each tool's current pricing page.",
       },
       {
         question: "Can I move from Opus Clip to Clipiro?",
@@ -116,7 +115,7 @@ export const COMPETITORS: Competitor[] = [
     name: "Vizard",
     pricingUrl: "https://vizard.ai/pricing",
     summary:
-      "Vizard and Clipiro both clip long videos into shorts and both meter usage by minutes of uploaded video. Vizard's free plan gives 60 upload minutes a month at 720p, and its paid plans start at 600 minutes in US dollars. Clipiro bills in rupees with GST invoices, from ₹499 a month.",
+      "Vizard and Clipiro both clip long videos into shorts and both meter usage by minutes of uploaded video. Vizard's free plan gives 60 upload minutes a month at 720p, and its paid plans start at 600 minutes in US dollars. Clipiro bills in rupees with GST invoices, from ₹999 a month.",
     metaDescription:
       "Vizard vs Clipiro: free plans, upload minutes, export quality, billing currency and captions compared, with figures from each tool's own pricing page.",
     rows: [
@@ -154,7 +153,7 @@ export const COMPETITORS: Competitor[] = [
     name: "2short",
     pricingUrl: "https://2short.ai/#pricing",
     summary:
-      "2short is a low-cost clipper built around YouTube Shorts, with a free tier of 30 minutes of analysis a month and paid plans from $9.90. Clipiro clips any uploaded video for Shorts, Reels and Facebook, bills in rupees with GST invoices from ₹499 a month, and adds dubbing and AI tools.",
+      "2short is a low-cost clipper built around YouTube Shorts, with a free tier of 30 minutes of analysis a month and paid plans from $9.90. Clipiro clips any uploaded video for Shorts, Reels and Facebook, bills in rupees with GST invoices from ₹999 a month, and adds dubbing and AI tools.",
     metaDescription:
       "2short vs Clipiro: free tiers, monthly analysis minutes, billing currency, captions and dubbing compared, with figures from each tool's own pricing page.",
     rows: [

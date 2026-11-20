@@ -450,7 +450,7 @@ function AdminUsers() {
                                 )}
                               </span>
                             ) : (
-                              <span className="text-fg-muted">Free</span>
+                              <span className="text-fg-muted">Starter</span>
                             )}
                           </td>
                           <td className={`py-3 px-3 text-xs ${subExpired ? "text-fg-subtle" : "text-fg-muted"}`}>

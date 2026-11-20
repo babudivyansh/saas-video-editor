@@ -64,7 +64,7 @@ const VALUES = [
 const TIMELINE = [
   { when: "June 2026", what: "Work on Clipiro starts: AutoClip, the browser editor and the first AI tools." },
   { when: "September 2026", what: "AutoClip moves to Clip Minutes, one per minute of source video, and GST tax invoices go live for Indian customers." },
-  { when: "October 2026", what: `The caption library reaches ${CAPTION_TEMPLATES.length} templates, including Hindi and Hinglish styles, and Pro and Studio get 4K export.` },
+  { when: "October 2026", what: `The caption library reaches ${CAPTION_TEMPLATES.length} templates, including Hindi and Hinglish styles, and Pro and Agency get 4K export.` },
   { when: "November 2026", what: `The voice library grows to ${VOICE_COUNT_LABEL} voices in ${VOICE_LANGUAGE_COUNT} languages, ahead of the public launch.` },
 ];
 

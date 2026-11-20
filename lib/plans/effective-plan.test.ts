@@ -51,6 +51,10 @@ describe("effectivePlan", () => {
 
   // Plan.tier is nullable, so a misconfigured subscription row is possible.
   // The term is genuinely running; only the entitlement is unresolvable.
+  it("reads a retired tier (Lite) as Creator instead of throwing", () => {
+    expect(effectivePlan({ plan: { name: "Lite (Monthly)", tier: "lite" }, subscriptionEndsAt: FUTURE }).tier).toBe("creator");
+  });
+
   it("resolves a live term with a null tier to free while staying active", () => {
     const state = effectivePlan({ plan: { name: "Mystery", tier: null }, subscriptionEndsAt: FUTURE });
     expect(state.tier).toBe("free");

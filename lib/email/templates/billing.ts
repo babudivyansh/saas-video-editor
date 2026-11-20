@@ -370,7 +370,7 @@ export function subscriptionExpired(p: {
 export function clipMinutesLaunch(p: {
   name: string;
   /** "free" or the subscription tier. */
-  tier: "free" | "lite" | "creator" | "pro" | "studio";
+  tier: "free" | "creator" | "pro" | "studio";
   /** The Clip Minutes the account now receives each month. */
   monthlyMinutes: number;
   /** Clip Minutes in the account right now (the switch-day grant included). */

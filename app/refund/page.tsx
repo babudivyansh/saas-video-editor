@@ -35,7 +35,7 @@ const doc: LegalDoc = {
           </p>
           <ul>
             <li>
-              <strong>A subscription</strong> (Lite, Creator, Pro or Studio), billed monthly or yearly. It gives you a
+              <strong>A subscription</strong> (Creator, Pro or Agency), billed monthly or yearly. It gives you a
               monthly allowance of Clip Minutes and credits and renews automatically until you cancel.
             </li>
             <li>

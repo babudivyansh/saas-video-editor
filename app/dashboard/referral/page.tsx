@@ -41,7 +41,7 @@ interface AffiliateStats {
   };
 }
 
-const TIER_NAMES: Record<string, string> = { lite: "Lite", creator: "Creator", pro: "Pro", studio: "Studio" };
+const TIER_NAMES: Record<string, string> = { creator: "Creator", pro: "Pro", studio: "Agency" };
 
 function CreatorProgress({ c }: { c: NonNullable<AffiliateStats["creator"]> }) {
   const pct = Math.min(100, Math.round((c.qualified / c.goal) * 100));

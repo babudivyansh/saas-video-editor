@@ -97,7 +97,7 @@ const planFields = {
   // one-time minute_pack grants.
   monthlyMinutes: z.number().int().min(0).max(1_000_000).nullable(),
   minutes: z.number().int().min(0).max(1_000_000),
-  tier: z.enum(["lite", "creator", "pro", "studio"]).nullable(),
+  tier: z.enum(["creator", "pro", "studio"]).nullable(),
 };
 export const planCreateSchema = z
   .object({
@@ -345,7 +345,7 @@ export const creatorProgramSchema = z
       .regex(/^offer_[A-Za-z0-9]{14}$/, "Must look like offer_XXXXXXXXXXXXXX")
       .nullable(),
     goal: z.number().int().min(1).max(1000),
-    qualifyingTiers: z.array(z.enum(["lite", "creator", "pro", "studio"])).min(1),
+    qualifyingTiers: z.array(z.enum(["creator", "pro", "studio"])).min(1),
   })
   .strict();
 

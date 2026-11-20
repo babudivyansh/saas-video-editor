@@ -72,7 +72,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
   {
     slug: "free-plan-limits",
     category: "Credits & billing",
-    title: "Free plan limits",
+    title: "Starter (free) plan limits",
     summary: "What's included free, and what upgrading unlocks.",
     metaDescription: `The free plan includes ${FREE_TIER_MONTHLY_BONUS_MINUTES} watermarked Clip Minutes and ${FREE_TIER_MONTHLY_BONUS_CREDITS} AI credits a month, the free utilities and 720p exports. Paid plans remove the watermark.`,
     updatedAt: "2026-11-04",
@@ -104,11 +104,11 @@ export const HELP_ARTICLES: HelpArticle[] = [
     category: "Tools & editor",
     title: "Exporting and render quality",
     summary: "Formats, resolutions, and why an export might look different from the preview.",
-    metaDescription: "Clipiro exports H.264 MP4 in full resolution, or 4K from the editor on Pro and Studio. Free exports are 720p with a small watermark. Why previews can differ.",
+    metaDescription: "Clipiro exports H.264 MP4 in full resolution, or 4K from the editor on Pro and Agency. Starter (free) exports are 720p with a small watermark. Why previews can differ.",
     updatedAt: "2026-11-04",
     paragraphs: [
       { text: "Exports render server-side with FFmpeg at your project's aspect ratio — 1080×1920 for 9:16 — as H.264 MP4 with AAC audio, ready for every major platform." },
-      { lead: "Free plan.", text: "Exports are capped at 720p with a corner watermark. Paid plans export full-resolution and clean, and Pro and Studio can export editor projects in 4K." },
+      { lead: "Starter plan.", text: "Exports are capped at 720p with a corner watermark. Paid plans export full-resolution and clean, and Pro and Agency can export editor projects in 4K." },
       { lead: "Preview vs export.", text: "The editor canvas approximates some things (text shadows blur softer in preview, effects use CSS stand-ins), but positions, timings, captions, filters, effects, and transitions are all burned into the export for real." },
       { text: "Renders run on a queue — you can leave the page and the job keeps going. Finished clips appear in your Clips library with a download link." },
     ],

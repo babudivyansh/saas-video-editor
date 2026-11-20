@@ -2,12 +2,13 @@
 // subscription" (or an expired one), exactly as today's code already treats
 // it implicitly (see requireSubscriber in lib/auth.ts). It exists in
 // TIER_ORDER only so comparisons work uniformly; the pricing page markets
-// four tiers (lite/creator/pro/studio). Lite was added in the 2026-10-30
-// pricing restructure as a ₹499 entry point below Creator: no watermark and
-// 1080p, but none of the creator-gated tools or image models.
-export type TierId = "free" | "lite" | "creator" | "pro" | "studio";
+// four tiers: Free plus three paid ones (creator/pro/studio). A ₹499 "lite"
+// tier existed from 2026-10-30 to 2026-11-20; it never sold and was retired
+// (its Plan rows stay, inactive, for history; see RETIRED_SUB_SLUGS in
+// prisma/seed.ts).
+export type TierId = "free" | "creator" | "pro" | "studio";
 
-export const TIER_ORDER: readonly TierId[] = ["free", "lite", "creator", "pro", "studio"];
+export const TIER_ORDER: readonly TierId[] = ["free", "creator", "pro", "studio"];
 
 export function tierIndex(t: TierId): number {
   const i = TIER_ORDER.indexOf(t);
@@ -26,14 +27,18 @@ export function lowestTier(tiers: readonly TierId[]): TierId {
 // Subset of TIER_ORDER excluding the "free" sentinel — used anywhere a
 // purchasable-plan-per-card layout is needed (pricing page, landing preview,
 // admin tier <select>).
-export const PURCHASABLE_TIER_ORDER: readonly Exclude<TierId, "free">[] = ["lite", "creator", "pro", "studio"];
+export const PURCHASABLE_TIER_ORDER: readonly Exclude<TierId, "free">[] = ["creator", "pro", "studio"];
 
 export const TIER_LABEL: Record<Exclude<TierId, "free">, string> = {
-  lite: "Lite",
   creator: "Creator",
   pro: "Pro",
-  studio: "Studio",
+  studio: "Agency",
 };
+
+/** Customer-facing plan name for every tier, the free one included. Display
+ *  only: ids, Plan.tier and slugs keep free/creator/pro/studio. Renamed
+ *  2026-11-20: Free -> Starter, Studio -> Agency. */
+export const PLAN_NAME: Record<TierId, string> = { free: "Starter", ...TIER_LABEL };
 
 // Per-tier Assets-library storage cap, in GB. Server-enforced via
 // storageLimitBytesForTier in lib/asset-service.ts (assertUnderStorageQuota)
@@ -44,7 +49,6 @@ export const TIER_LABEL: Record<Exclude<TierId, "free">, string> = {
 // popover, not the place this value is displayed.
 export const STORAGE_LIMIT_GB: Record<TierId, number> = {
   free: 0.5,
-  lite: 1,
   creator: 2,
   pro: 5,
   studio: 15,
@@ -64,7 +68,6 @@ export function storageLimitBytesForTier(tier: TierId): number {
 // resolveUploadPolicy). Numbers are business policy and freely tunable.
 export const MAX_UPLOAD_BYTES_BY_TIER: Record<TierId, number> = {
   free: 250 * 1024 ** 2, // 250 MB
-  lite: 500 * 1024 ** 2, // 500 MB
   creator: 1 * 1024 ** 3, // 1 GB
   pro: 2 * 1024 ** 3, // 2 GB
   studio: 5 * 1024 ** 3, // 5 GB
@@ -156,7 +159,6 @@ export const TIER_RENDER_PRIORITY: Record<TierId, number> = {
   studio: 1,
   pro: 2,
   creator: 3,
-  lite: 4,
   free: 5,
 };
 
@@ -168,7 +170,6 @@ export function tierPriority(tier: TierId): number {
 // clean upgrade trigger).
 export const TIER_MAX_AUTOCLIP_SOURCE_SECONDS: Record<TierId, number> = {
   free: 30 * 60,
-  lite: 60 * 60,
   creator: 2 * 60 * 60,
   pro: 4 * 60 * 60,
   studio: 6 * 60 * 60,

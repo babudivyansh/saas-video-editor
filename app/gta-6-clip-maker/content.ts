@@ -73,7 +73,7 @@ export const GTA6_CONTENT: UseCaseContent = {
   benefits: [
     {
       title: "Built for long streams",
-      body: `Free takes ${hours("free")}, Lite ${hours("lite")}, Creator ${hours("creator")}, Pro ${hours("pro")} and Studio ${hours("studio")} — files up to ${formatBytes(MAX_UPLOAD_BYTES_BY_TIER.studio)}. Long enough for a full launch-night session.`,
+      body: `Starter (free) takes ${hours("free")}, Creator ${hours("creator")}, Pro ${hours("pro")} and Agency ${hours("studio")} — files up to ${formatBytes(MAX_UPLOAD_BYTES_BY_TIER.studio)}. Long enough for a full launch-night session.`,
     },
     {
       title: "Straight from Twitch or YouTube",
@@ -119,7 +119,7 @@ export const GTA6_CONTENT: UseCaseContent = {
     },
     {
       question: "How long can my stream be?",
-      answer: `The free plan takes recordings up to ${hours("free")}, Lite up to ${hours("lite")}, Creator up to ${hours("creator")}, Pro up to ${hours("pro")} and Studio up to ${hours("studio")}. For a longer session, trim it into parts first.`,
+      answer: `The free Starter plan takes recordings up to ${hours("free")}, Creator up to ${hours("creator")}, Pro up to ${hours("pro")} and Agency up to ${hours("studio")}. For a longer session, trim it into parts first.`,
     },
     {
       question: "Will my facecam and the gameplay both show?",

@@ -121,7 +121,7 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
       `Drop in a podcast, stream, or interview and AutoClip finds the strongest moments, captions them, and cuts them to vertical. ${FREE_TIER_MONTHLY_BONUS_MINUTES} free minutes a month.`,
     lede: "Drop in a podcast, stream, or interview. AutoClip finds the moments worth posting, captions them, reframes them vertical, and hands back a set of ready-to-upload shorts.",
     steps: [
-      { title: "Add your video", body: `Upload a file or paste a link from YouTube, Twitch, Vimeo, Loom, Google Drive or Dropbox. Paid plans take sources from ${sourceCap("lite")} up to ${sourceCap("studio")}, depending on your plan.` },
+      { title: "Add your video", body: `Upload a file or paste a link from YouTube, Twitch, Vimeo, Loom, Google Drive or Dropbox. Paid plans take sources from ${sourceCap("creator")} up to ${sourceCap("studio")}, depending on your plan.` },
       { title: "AutoClip finds the moments", body: "It scans the transcript and the audio for self-contained, high-energy segments rather than slicing on a fixed timer." },
       { title: "Review and export", body: "Each clip arrives captioned and reframed to vertical. Keep what works, adjust anything in the editor, and export." },
     ],
@@ -131,9 +131,9 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
       { title: "Priced per minute of video, not per clip", body: "One Clip Minute per minute of source, however many clips come out of it. Re-running the same video within 7 days is free." },
     ],
     faqs: [
-      { question: "How long can the source video be?", answer: `The free plan takes videos up to ${sourceCap("free")}, Lite up to ${sourceCap("lite")}, Creator up to ${sourceCap("creator")}, Pro up to ${sourceCap("pro")}, and Studio up to ${sourceCap("studio")}.` },
+      { question: "How long can the source video be?", answer: `The free Starter plan takes videos up to ${sourceCap("free")}, Creator up to ${sourceCap("creator")}, Pro up to ${sourceCap("pro")}, and Agency up to ${sourceCap("studio")}.` },
       // Plan minute grants are DB rows (prisma/seed.ts); content.test.ts checks these against the seed.
-      { question: "How is AutoClip priced?", answer: `In Clip Minutes: one minute per minute of source video, however many clips it produces. Lite includes 60 minutes a month, Creator 200, Pro 400, and Studio 1,000. The free plan gets ${FREE_TIER_MONTHLY_BONUS_MINUTES} watermarked minutes a month.` },
+      { question: "How is AutoClip priced?", answer: `In Clip Minutes: one minute per minute of source video, however many clips it produces. Creator includes 200 minutes a month, Pro 400, and Agency 1,000. The free plan gets ${FREE_TIER_MONTHLY_BONUS_MINUTES} watermarked minutes a month.` },
       { question: "Can I edit the clips afterwards?", answer: "Yes. Every clip opens in the editor, so you can retime the cut, change the caption style, or swap the crop before exporting." },
       { question: "What source videos work best?", answer: "Anything with clear speech — podcasts, interviews, streams, lectures, reaction videos. Clean audio matters more than resolution." },
       { question: "Can I clip a Twitch stream?", answer: "Yes. Paste the link to a past broadcast or highlight and AutoClip imports it; a channel that is still live can be imported once the VOD is up. Streaming GTA 6? See the GTA 6 clip maker page at clipiro.com/gta-6-clip-maker." },
@@ -191,7 +191,7 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
       { question: "What does it cost?", answer: "Transcribing uses Clip Minutes — one per minute of video. Exporting costs one credit for the whole set of shapes you pick, and is refunded if nothing renders. Caption files (SRT and VTT) are free." },
       { question: "Which templates can I use?", answer: `All ${CAPTION_TEMPLATE_COUNT} Clipiro caption templates, including Hindi-ready ones. Some templates need the Creator or Pro plan; the rest are free on every plan.` },
       { question: "Can I get the captions without burning them in?", answer: "Yes — download them as an SRT or VTT file and upload that to YouTube, LinkedIn or anywhere else that takes caption files." },
-      { question: "How many looks can I save?", answer: "One on the free plan, three on Creator, five on Pro and ten on Studio." },
+      { question: "How many looks can I save?", answer: "One on the free plan, three on Creator, five on Pro and ten on Agency." },
       CREDITS_FAQ,
       COMMERCIAL_FAQ,
     ],
@@ -216,7 +216,7 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
       { title: "Goes straight into your videos", body: "Generated images land in your asset library and drop onto the editor timeline directly." },
     ],
     faqs: [
-      { question: "Which models are available?", answer: "Gemini 2.5 Flash Image, Seedream 5.0, GPT Image 2, Flux 2, Nano Banana 2, Ideogram 4, Krea 2, and Qwen Image 2.0. Nano Banana Pro is Studio-only." },
+      { question: "Which models are available?", answer: "Gemini 2.5 Flash Image, Seedream 5.0, GPT Image 2, Flux 2, Nano Banana 2, Ideogram 4, Krea 2, and Qwen Image 2.0. Nano Banana Pro is Agency-only." },
       { question: "How many credits does an image cost?", answer: "It depends on the model — cheaper models cost less per image. The pricing page lists the cost of every model, and the credit calculator estimates a monthly total from your expected usage." },
       COMMERCIAL_FAQ,
       CREDITS_FAQ,
@@ -266,7 +266,7 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
       { title: "Straight into an edit", body: "Results drop into your asset library, ready for the timeline." },
     ],
     faqs: [
-      { question: "Which plans include Face Swap?", answer: "Face Swap is available on Pro and Studio." },
+      { question: "Which plans include Face Swap?", answer: "Face Swap is available on Pro and Agency." },
       { question: "What makes a good reference photo?", answer: "A clear, well-lit, roughly front-facing shot with the whole face visible. Sunglasses, heavy shadow, and extreme angles all reduce quality." },
       { question: "Are there rules about whose face I can use?", answer: "Yes. Only swap faces you have permission to use. Creating misleading or non-consensual content is against the terms of service and will get an account suspended." },
       CREDITS_FAQ,
@@ -292,7 +292,7 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
       { title: "Clear prices", body: "Edits start at 2 credits on Auto, background removal at 1, and you see the price before you press Edit." },
     ],
     faqs: [
-      { question: "Which AI models does it use?", answer: "Auto chooses between Google Gemini 2.5 Flash Image, Qwen Image Edit, FLUX.1 Kontext and Seedream for each instruction. Pro and Studio plans can also pick Nano Banana 2, GPT Image 2 and Nano Banana Pro directly." },
+      { question: "Which AI models does it use?", answer: "Auto chooses between Google Gemini 2.5 Flash Image, Qwen Image Edit, FLUX.1 Kontext and Seedream for each instruction. Pro and Agency plans can also pick Nano Banana 2, GPT Image 2 and Nano Banana Pro directly." },
       { question: "Will it change my face?", answer: "Auto sends edits to people to a model that keeps faces and identity unchanged, and adds \"keep everything else unchanged\" to your instruction. For the most careful results, describe only what should change." },
       { question: "Can I use it on the free plan?", answer: "Yes. Free accounts can make up to 10 edits a day with Auto, paid for with credits like any other tool." },
       { question: "What won't it do?", answer: "It refuses sexual or nude edits, edits of ID documents, money or official seals, and fake scenes of real public figures. A refused edit costs nothing." },
@@ -419,7 +419,7 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
       { title: "Recaption in your own style", body: "Repurpose footage that arrived captioned without ending up with two competing sets of text." },
     ],
     faqs: [
-      { question: "Which plans include it?", answer: "Subtitle Remover is available on Pro and Studio." },
+      { question: "Which plans include it?", answer: "Subtitle Remover is available on Pro and Agency." },
       { question: "Does it work with busy backgrounds?", answer: "The bottom-third and marked-area modes rebuild the area from the pixels around it, so over busy backgrounds you may see a soft smudge. Where the tool offers AI erase, it rebuilds what was behind the text instead. If nothing is found or a run fails, you get your credits back." },
       CREDITS_FAQ,
       COMMERCIAL_FAQ,

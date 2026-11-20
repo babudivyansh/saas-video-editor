@@ -186,7 +186,7 @@ export const EMAIL_REGISTRY: Record<string, TemplateEntry<never>> = {
     samples: {
       subscription: {
         userName: "Divyansh",
-        planName: "Studio Monthly",
+        planName: "Agency Monthly",
         creditsAdded: 500,
         amountInPaise: 129900,
         orderId: "order_QxYz1234abcd",
@@ -220,7 +220,7 @@ export const EMAIL_REGISTRY: Record<string, TemplateEntry<never>> = {
       },
       "with GST invoice": {
         userName: "Divyansh",
-        planName: "Studio Monthly",
+        planName: "Agency Monthly",
         creditsAdded: 500,
         amountInPaise: 129900,
         orderId: "order_QxYz1234abcd",
@@ -308,8 +308,8 @@ export const EMAIL_REGISTRY: Record<string, TemplateEntry<never>> = {
     trigger: "Cron, one day before a trial converts",
     build: billing.trialEnding,
     samples: {
-      default: { name: "Divyansh", planName: "Studio", priceInPaise: 129900, endsAt: SOON },
-      "no price": { name: "Divyansh", planName: "Studio", priceInPaise: 0, endsAt: null },
+      default: { name: "Divyansh", planName: "Agency", priceInPaise: 129900, endsAt: SOON },
+      "no price": { name: "Divyansh", planName: "Agency", priceInPaise: 0, endsAt: null },
       USD: { name: "Divyansh", planName: "Pro", priceInPaise: 2900, endsAt: SOON, currency: "USD" },
     },
   }),
@@ -330,8 +330,8 @@ export const EMAIL_REGISTRY: Record<string, TemplateEntry<never>> = {
     trigger: "Cron at 7, 3 and 1 days before expiry",
     build: billing.subscriptionExpiryWarning,
     samples: {
-      "7 days": { name: "Divyansh", planName: "Studio", daysLeft: 7, expiryDate: SOON },
-      "1 day (urgent)": { name: "Divyansh", planName: "Studio", daysLeft: 1, expiryDate: SOON },
+      "7 days": { name: "Divyansh", planName: "Agency", daysLeft: 7, expiryDate: SOON },
+      "1 day (urgent)": { name: "Divyansh", planName: "Agency", daysLeft: 1, expiryDate: SOON },
     },
   }),
   "subscription-expired": entry({
@@ -341,7 +341,7 @@ export const EMAIL_REGISTRY: Record<string, TemplateEntry<never>> = {
     category: "creditAlerts",
     trigger: "Cron, once the plan has lapsed",
     build: billing.subscriptionExpired,
-    samples: { default: { name: "Divyansh", planName: "Studio", creditsRemaining: 42 } },
+    samples: { default: { name: "Divyansh", planName: "Agency", creditsRemaining: 42 } },
   }),
 
   // ── Credits ───────────────────────────────────────────────────────────────

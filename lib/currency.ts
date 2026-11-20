@@ -30,11 +30,9 @@ export const FX_DEFAULTS: FxConfig = { inrPerUsd: 88 };
  * it was 33%), so the discount reads the same in both currencies; see
  * lib/currency.test.ts, which fails if a future edit breaks that parity. */
 export const USD_PRICE_BOOK_DEFAULTS: Record<string, number> = {
-  sub_lite_1mo: 800,
   sub_creator_1mo: 1500,
   sub_pro_1mo: 2900,
   sub_studio_1mo: 5900,
-  sub_lite_12mo: 7200,     // vs $96 at 12x monthly -> 25% off
   sub_creator_12mo: 13500, // vs $180 -> 25% off
   sub_pro_12mo: 26100,     // vs $348 -> 25% off
   sub_studio_12mo: 53100,  // vs $708 -> 25% off

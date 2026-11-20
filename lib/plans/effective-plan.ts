@@ -75,6 +75,13 @@ function isTermActive(endsAt: Date | string | null | undefined): boolean {
  * misconfigured. Callers that gate on entitlement read `tier`; callers that
  * describe the subscription read `isActive`.
  */
+// Plan rows can carry a tier this code no longer sells: the "lite" rows
+// (retired 2026-11-20) stay in the table, inactive, and the admin users page
+// can still assign an inactive plan. An unknown tier resolves to "creator",
+// the nearest tier still sold, so tierIndex() never throws on it.
+const KNOWN_TIERS: ReadonlySet<string> = new Set<TierId>(["free", "creator", "pro", "studio"]);
+const knownTier = (t: string): TierId => (KNOWN_TIERS.has(t) ? (t as TierId) : "creator");
+
 export function effectivePlan(account: AccountPlanState | null | undefined): EffectivePlan {
   const plan = account?.plan ?? null;
   const isActive = isTermActive(account?.subscriptionEndsAt);
@@ -82,7 +89,7 @@ export function effectivePlan(account: AccountPlanState | null | undefined): Eff
   const name = plan?.name?.trim() || null;
 
   return {
-    tier: isActive && plan?.tier ? (plan.tier as TierId) : "free",
+    tier: isActive && plan?.tier ? knownTier(plan.tier) : "free",
     isActive,
     isExpired: hasPlan && !isActive,
     activePlanName: isActive ? name : null,

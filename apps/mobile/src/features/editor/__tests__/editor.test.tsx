@@ -328,7 +328,7 @@ describe("Export", () => {
   it("Free plans get 720p with a watermark", async () => {
     setMockScenario("account", "empty"); // a Free account
     open("/editor/export");
-    expect(await screen.findByText("Free plan: 720p with a Clipiro watermark")).toBeOnTheScreen();
+    expect(await screen.findByText("Starter plan: 720p with a Clipiro watermark")).toBeOnTheScreen();
     expect(screen.getByText("720×1280")).toBeOnTheScreen();
   });
 

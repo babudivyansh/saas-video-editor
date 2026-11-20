@@ -23,7 +23,7 @@ export function FreeCard({ currency }: { currency: Currency }) {
   return (
     <div className="row-span-4 grid grid-rows-subgrid gap-y-5 rounded-[var(--radius-card)] border border-line bg-surface-1 p-7">
       <div className="flex flex-col gap-1.5">
-        <p className="text-[15px] font-semibold text-fg">Free</p>
+        <p className="text-[15px] font-semibold text-fg">Starter</p>
         <p className="text-[13px] text-fg-muted">{TIER_TAGLINE.free}</p>
       </div>
 

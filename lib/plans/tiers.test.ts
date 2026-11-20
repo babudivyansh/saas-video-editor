@@ -70,10 +70,10 @@ describe("2026-10-30 restructure", async () => {
   const tiers = await import("./tiers");
   const { billableCaptionMinutes } = await import("@/lib/autoclip-pricing");
 
-  it("puts Lite between Free and Creator", () => {
-    expect(tiers.TIER_ORDER).toEqual(["free", "lite", "creator", "pro", "studio"]);
-    expect(tiers.tierAtLeast("lite", "creator")).toBe(false);
-    expect(tiers.tierAtLeast("lite", "free")).toBe(true);
+  it("sells exactly three paid tiers above Free (Lite retired 2026-11-20)", () => {
+    expect(tiers.TIER_ORDER).toEqual(["free", "creator", "pro", "studio"]);
+    expect(tiers.PURCHASABLE_TIER_ORDER).toEqual(["creator", "pro", "studio"]);
+    expect(tiers.tierAtLeast("creator", "free")).toBe(true);
   });
 
   it("flags only INR renewals above RBI's ₹15,000 no-OTP limit", () => {

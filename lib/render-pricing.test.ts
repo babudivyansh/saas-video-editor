@@ -20,9 +20,9 @@ describe("localRenderCredits", () => {
 
   it("is free on any paid plan up to the daily allowance, then a credit", async () => {
     for (let i = 0; i < PAID_FREE_RENDERS_PER_DAY; i++) {
-      expect(await localRenderCredits("u1", "lite")).toBe(0);
+      expect(await localRenderCredits("u1", "creator")).toBe(0);
     }
-    expect(await localRenderCredits("u1", "lite")).toBe(LOCAL_RENDER_CREDIT_COST);
+    expect(await localRenderCredits("u1", "creator")).toBe(LOCAL_RENDER_CREDIT_COST);
   });
 
   it("always charges 4K at its own price, without using the allowance", async () => {

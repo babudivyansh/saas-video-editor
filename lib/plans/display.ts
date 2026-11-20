@@ -79,7 +79,6 @@ export function tierSavePct(plan: DisplayPlan, subs: DisplayPlan[], currency: Cu
 /** One-line "who is this for" under each tier name on the plan cards. */
 export const TIER_TAGLINE: Record<TierId, string> = {
   free: "Try every tool, no card",
-  lite: "Clean clips on a budget",
   creator: "For a steady posting habit",
   pro: "Premium models, more output",
   studio: "High volume, fastest queue",
@@ -124,19 +123,6 @@ export function tierHighlights(tier: Exclude<TierId, "free">): TierHighlights {
   const gb = STORAGE_LIMIT_GB[tier];
   const clipHours = hours(TIER_MAX_AUTOCLIP_SOURCE_SECONDS[tier]);
 
-  // Lite unlocks the watermark-free export and nothing tier-gated: every tool
-  // and caption template marked "creator" stays locked, so the copy names only
-  // what is actually different from Free.
-  if (tier === "lite") {
-    return {
-      bullets: [
-        `Auto Clips, ${clipHours}-hour uploads`,
-        "No watermark, full-resolution exports",
-        `${modelCount("lite")} AI image models`,
-        `${gb} GB storage`,
-      ],
-    };
-  }
 
   if (tier === "creator") {
     return {
@@ -172,7 +158,7 @@ export function tierHighlights(tier: Exclude<TierId, "free">): TierHighlights {
   return {
     inherits: "Pro",
     bullets: [
-      "Nano Banana Pro — Studio-only image model",
+      "Nano Banana Pro — Agency-only image model",
       "Fastest rendering — front of the queue",
       `${clipHours}-hour Auto Clip uploads`,
       `${gb} GB asset storage`,

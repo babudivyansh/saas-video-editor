@@ -26,7 +26,7 @@ import { prisma } from "@/lib/prisma";
 import { getUserTier } from "@/lib/auth";
 import {
   type TierId,
-  TIER_LABEL,
+  PLAN_NAME,
   storageLimitBytesForTier,
   maxUploadBytesForTier,
   ALLOWED_UPLOAD_MIME,
@@ -119,7 +119,7 @@ export function getAssetKind(mimeType: string): "video" | "audio" | "image" {
 }
 
 function tierDisplayName(tier: TierId): string {
-  return tier === "free" ? "Free" : TIER_LABEL[tier];
+  return PLAN_NAME[tier];
 }
 
 function assertAllowedMime(mimeType: string): void {

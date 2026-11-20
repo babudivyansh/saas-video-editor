@@ -14,7 +14,7 @@ const PLANS = [
   { id: "p2", slug: "sub_pro_1mo", name: "Pro (Monthly)", priceInPaise: 219900, usdPriceInCents: 2900,
     currency: "INR", credits: 160, features: ["160 credits / month", "All AI tools", "Priority rendering"],
     kind: "subscription", intervalMonths: 1, monthlyCredits: 160, tier: "pro" },
-  { id: "p3", slug: "sub_studio_1mo", name: "Studio (Monthly)", priceInPaise: 499900, usdPriceInCents: 5900,
+  { id: "p3", slug: "sub_studio_1mo", name: "Agency (Monthly)", priceInPaise: 499900, usdPriceInCents: 5900,
     currency: "INR", credits: 400, features: ["400 credits / month", "Priority rendering", "Dedicated support"],
     kind: "subscription", intervalMonths: 1, monthlyCredits: 400, tier: "studio" },
   { id: "p4", slug: "sub_creator_12mo", name: "Creator (Yearly)", priceInPaise: 803200, usdPriceInCents: 11999,
@@ -23,7 +23,7 @@ const PLANS = [
   { id: "p5", slug: "sub_pro_12mo", name: "Pro (Yearly)", priceInPaise: 1768000, usdPriceInCents: 23299,
     currency: "INR", credits: 1920, features: ["160 credits / month", "Save 33% vs monthly"],
     kind: "subscription", intervalMonths: 12, monthlyCredits: 160, tier: "pro" },
-  { id: "p6", slug: "sub_studio_12mo", name: "Studio (Yearly)", priceInPaise: 4019200, usdPriceInCents: 47399,
+  { id: "p6", slug: "sub_studio_12mo", name: "Agency (Yearly)", priceInPaise: 4019200, usdPriceInCents: 47399,
     currency: "INR", credits: 4800, features: ["400 credits / month", "Save 33% vs monthly"],
     kind: "subscription", intervalMonths: 12, monthlyCredits: 400, tier: "studio" },
 ];
@@ -89,7 +89,7 @@ test("the billing plans modal shows the same corrected cards as /pricing", async
 
   // Derived tier copy, not the stale seeded features.
   await expect(modal.getByText("No watermark, full-resolution exports")).toBeVisible();
-  await expect(modal.getByText("Nano Banana Pro — Studio-only image model")).toBeVisible();
+  await expect(modal.getByText("Nano Banana Pro — Agency-only image model")).toBeVisible();
 
   // The claims the audit corrected must not reappear from Plan.features, which
   // still carries them in existing databases.
@@ -102,7 +102,7 @@ test("the billing plans modal shows the same corrected cards as /pricing", async
   // label rather than "Renew Pro"; the other tiers read as up or down moves.
   await expect(modal.getByText("Current", { exact: true })).toBeVisible();
   await expect(modal.getByRole("button", { name: "Your current plan" })).toBeDisabled();
-  await expect(modal.getByRole("button", { name: "Upgrade to Studio" })).toBeVisible();
+  await expect(modal.getByRole("button", { name: "Upgrade to Agency" })).toBeVisible();
   await expect(modal.getByRole("button", { name: "Switch to Creator" })).toBeVisible();
   // The current-plan strip links to Manage subscription without a detour.
   await expect(modal.getByRole("button", { name: "Manage subscription" })).toBeVisible();

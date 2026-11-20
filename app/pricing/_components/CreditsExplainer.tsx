@@ -144,7 +144,7 @@ function Calculator({ subs, term, onChoose }: { subs: DbPlan[]; term: number; on
             </span>
           ) : anyQty ? (
             <span className="max-w-xs text-sm text-warning sm:text-right">
-              More than Studio&apos;s monthly allowance. Add a top-up pack alongside your plan.
+              More than Agency&apos;s monthly allowance. Add a top-up pack alongside your plan.
             </span>
           ) : (
             <span className="text-sm text-fg-muted">Add a model and a quantity to see an estimate.</span>

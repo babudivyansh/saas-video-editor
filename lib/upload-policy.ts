@@ -17,7 +17,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getUserTier, requireAdmin } from "@/lib/auth";
 import {
   type TierId,
-  TIER_LABEL,
+  PLAN_NAME,
   maxUploadBytesForTier,
   ALLOWED_UPLOAD_MIME,
   formatBytes,
@@ -105,7 +105,7 @@ export interface UploadPolicy {
 }
 
 function tierDisplayName(tier: TierId): string {
-  return tier === "free" ? "Free" : TIER_LABEL[tier];
+  return PLAN_NAME[tier];
 }
 
 /**

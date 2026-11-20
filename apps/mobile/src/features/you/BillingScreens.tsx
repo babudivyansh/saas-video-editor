@@ -197,7 +197,7 @@ export function SubscriptionScreen() {
             <Text style={type(12, "regular", { color: colors.fgMuted })}>Your plan</Text>
             <Text style={type(20, "bold")}>{[planName(a), termName(a)].filter(Boolean).join(" · ")}</Text>
             <Text style={type(12, "regular", { color: a.plan.cancelAtPeriodEnd ? colors.warning : colors.fgMuted })}>
-              {!paid ? "Free plan" : a.plan.cancelAtPeriodEnd ? `Ends on ${ends} · then you move to Free` : `Renews on ${ends}`}
+              {!paid ? "Starter plan" : a.plan.cancelAtPeriodEnd ? `Ends on ${ends} · then you move to Starter` : `Renews on ${ends}`}
             </Text>
           </View>
           {includes.length ? (
@@ -255,7 +255,7 @@ export function SubscriptionScreen() {
       <ConfirmSheet
         visible={cancelling}
         title={`Cancel your ${a ? planName(a) : ""} plan?`}
-        body={`It stays active until ${ends ?? "the end of this period"}, then you move to Free. Unused subscription credits expire then; pack credits stay.`}
+        body={`It stays active until ${ends ?? "the end of this period"}, then you move to Starter. Unused subscription credits expire then; pack credits stay.`}
         confirmLabel="Cancel subscription"
         busy={busy}
         onClose={() => setCancelling(false)}
