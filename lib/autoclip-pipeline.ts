@@ -651,13 +651,16 @@ ${sharedRules}`;
   const mapped = raw
     .filter((c) => typeof c.start === "number" && typeof c.end === "number" && c.end > c.start)
     .map((c, i) => {
-      const start = Math.max(0, Math.min(c.start, durationSec - 1));
       // The top of the user's clip-length band is a HARD ceiling, not a hint
       // in the prompt. The create route charged for clips of at most
       // maxDuration and settleRunCost only ever refunds, so a longer segment
       // — a drifting model, or instructions asking for "one clip, 0 to 3600s"
       // — was an hour-long render billed as fifteen seconds.
-      const end = Math.min(c.end, durationSec, start + maxDuration);
+      // The bottom is stretched to rather than enforced by dropping: a pick a
+      // few seconds short of minDuration (common on sparse transcripts) used
+      // to be discarded by enforceNonOverlapping, and a run whose picks were
+      // all short failed with "no valid clip segments" (CLIPIRO-WEB-10).
+      const { start, end } = fitSegmentToBand(c.start, c.end, durationSec, minDuration, maxDuration);
       const brollQuery = (typeof c.brollQuery === "string" && c.brollQuery.trim()) ? c.brollQuery.trim().slice(0, 60) : null;
       const brollOffsetSec = (brollQuery && typeof c.brollOffsetSec === "number" && Number.isFinite(c.brollOffsetSec))
         ? Math.max(0, Math.min(c.brollOffsetSec, end - start))
@@ -696,7 +699,37 @@ ${sharedRules}`;
       };
     });
 
-  return enforceNonOverlapping(mapped, minDuration).slice(0, clipCount);
+  const kept = enforceNonOverlapping(mapped, minDuration).slice(0, clipCount);
+  if (kept.length === 0) {
+    // Says WHICH way an empty pick happened next time, instead of the bare
+    // "no valid clip segments" the job ends with.
+    logger.warn("auto-clip", "Gemini pick kept no clips", {
+      returned: raw.length,
+      wellFormed: mapped.length,
+      durationSec: Math.round(durationSec),
+      band: [minDuration, maxDuration],
+      lengths: mapped.slice(0, 10).map((s) => Math.round(s.end - s.start)),
+    });
+  }
+  return kept;
+}
+
+/**
+ * Bring a model's [start, end] into the source and the user's length band:
+ * capped at maxDuration, stretched (forward, then backward at the end of the
+ * source) up to minDuration. Only a source shorter than minDuration leaves it
+ * short, and the caller's "video is too short" check has already refused that.
+ */
+export function fitSegmentToBand(
+  rawStart: number, rawEnd: number, durationSec: number, minDuration: number, maxDuration: number,
+): { start: number; end: number } {
+  let start = Math.max(0, Math.min(rawStart, durationSec - 1));
+  let end = Math.min(rawEnd, durationSec, start + maxDuration);
+  if (end - start < minDuration) {
+    end = Math.min(durationSec, start + minDuration);
+    start = Math.max(0, end - minDuration);
+  }
+  return { start, end };
 }
 
 /**
@@ -899,7 +932,12 @@ export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATT
     animatedCaptions = false
   } = payload;
   const project = await prisma.project.findUnique({ where: { id: projectId } });
-  if (!project?.uploadedVideoUrl) throw new Error(`Project ${projectId} missing uploadedVideoUrl`);
+  // A deleted project, or one whose source is gone, stays that way: a plain
+  // Error here was retried three times and paged as "exceeded max retries"
+  // (CLIPIRO-WEB-1V / -C).
+  if (!project?.uploadedVideoUrl) {
+    throw new NonRetryableError(`Project ${projectId} ${project ? "has no source video" : "no longer exists"}`, { expected: true });
+  }
 
   // Mark the moment work actually starts. The stale-clip sweep fails runs left
   // on "analyzing", measured from updatedAt; without this touch, time spent
@@ -1268,9 +1306,14 @@ export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATT
     // been refunded for — a retry would render on money already given back.
     if (aborted) throw new NonRetryableError(err instanceof Error ? err.message : "Analysis stopped");
     const final = ctx.isFinal || err instanceof NonRetryableError;
+    // An EXPECTED NonRetryableError (not enough Clip Minutes, video over the
+    // plan's length cap, too short) is the user's situation, not a bug: it
+    // ends the run but must not page (CLIPIRO-WEB-11). Same rule as
+    // lib/job-queue.ts.
+    const pages = final && !(err instanceof NonRetryableError && err.expected);
     // A non-final attempt is retried by the queue; it pages only if the last
     // one fails too (see lib/job-queue.ts).
-    (final ? logger.error : logger.warn)("auto-clip", `pick failed for ${projectId} (attempt ${ctx.attempt})`, err);
+    (pages ? logger.error : logger.warn)("auto-clip", `pick failed for ${projectId} (attempt ${ctx.attempt})`, err);
     // A failed analysis is never billed. Safe on every attempt: the next one
     // takes the analysis charge again before doing any work.
     await refundAnalysis("refund:auto-clip-analysis-failed");
@@ -1403,6 +1446,17 @@ export function buildMultiBrollFilterComplex(
 }
 
 /** Single-window convenience wrapper, kept for the common case. */
+/** Highest frame rate an AutoClip render outputs. AUTOCLIP_MAX_FPS overrides (e.g. 60 for gaming). */
+export function autoclipMaxFps(): number {
+  const n = Number.parseFloat(process.env.AUTOCLIP_MAX_FPS ?? "");
+  return Number.isFinite(n) && n >= 15 && n <= 120 ? n : 30;
+}
+
+/** The fps filter to bring a source down to the cap, or null when it is already at or under it (or unknown). */
+export function renderFpsCap(sourceFps: number, max = autoclipMaxFps()): number | null {
+  return Number.isFinite(sourceFps) && sourceFps > max + 0.5 ? max : null;
+}
+
 export function buildBrollFilterComplex(
   clipDurationSec: number,
   brollStartSec: number,
@@ -1947,24 +2001,31 @@ export async function renderClipFile(
     }
   }
   const brollReady = readyWindows.length > 0;
-  // The source's own frame rate, for the splice to keep (see
-  // buildMultiBrollFilterComplex). Unknown = 30, never ffmpeg's 25 fallback.
-  let spliceFps = 30;
-  if (brollReady) {
-    try {
-      const probed = await getMediaFps(videoPath);
-      if (probed > 0) spliceFps = Math.min(60, Math.round(probed * 1000) / 1000);
-    } catch { /* keep the default */ }
-  }
+  // The source's own frame rate, capped at AUTOCLIP_MAX_FPS (30). A 60 fps
+  // source rendered at 60 doubles every filter and encode pass on a host
+  // whose libx264 is pinned to one thread: a 1080p60 source took 0.059x
+  // realtime and every clip hit the 15-min watchdog (Sentry CLIPIRO-WEB-20).
+  // zoompan reframes already render at ZOOM_FPS = 30. The B-roll splice keeps
+  // the same rate (see buildMultiBrollFilterComplex); unknown = 30, never
+  // ffmpeg's 25 fallback.
+  let sourceFps = 0;
+  try {
+    sourceFps = await getMediaFps(videoPath);
+  } catch { /* unknown: no cap filter, splice uses 30 */ }
+  const capFps = renderFpsCap(sourceFps);
+  const spliceFps = capFps ?? (sourceFps > 0 ? Math.round(sourceFps * 1000) / 1000 : 30);
 
-  const videoSrc = isTrimmed ? "[trimmedv]" : "[0:v]";
+  const videoSrc = isTrimmed ? "[trimmedv]" : capFps ? "[cappedv]" : "[0:v]";
   // Only the FIRST audio stream: a bare `0:a` maps every audio track, and
   // iPhone recordings carry a second spatial-audio (APAC) track FFmpeg has no
   // decoder for — "Decoder (codec none) not found for input stream #0:1"
   // failed every render and re-render of those uploads (Sentry CLIPIRO-WEB-A).
   // `[0:a]` filter labels already resolve to the first matching stream.
   const audioSrc = isTrimmed ? "[trimmeda]" : SOURCE_AUDIO_MAP;
-  const prepends = isTrimmed && selectFilter && aselectFilter ? `[0:v]${selectFilter}[trimmedv];[0:a]${aselectFilter}[trimmeda];` : "";
+  const fpsCapFilter = capFps ? `,fps=${capFps}` : "";
+  const prepends = isTrimmed && selectFilter && aselectFilter
+    ? `[0:v]${selectFilter}${fpsCapFilter}[trimmedv];[0:a]${aselectFilter}[trimmeda];`
+    : capFps ? `[0:v]fps=${capFps}[cappedv];` : "";
   // Every branch exposes its result as [video]; captions and then the
   // free-tier watermark are chained onto it.
   const wmComplex = captionComplex + (watermark ? `;[${captionedLabel}]${watermarkFilterChain()}[videowm]` : "");
@@ -2208,7 +2269,9 @@ export interface RenderPayload { projectId: string }
 export async function renderJob(payload: RenderPayload, ctx: JobContext = SINGLE_ATTEMPT): Promise<void> {
   const { projectId } = payload;
   const project = await prisma.project.findUnique({ where: { id: projectId } });
-  if (!project?.uploadedVideoUrl) throw new Error(`Project ${projectId} missing uploadedVideoUrl`);
+  if (!project?.uploadedVideoUrl) {
+    throw new NonRetryableError(`Project ${projectId} ${project ? "has no source video" : "no longer exists"}`, { expected: true });
+  }
 
   const clips = await prisma.clip.findMany({ where: { projectId, status: "queued" }, orderBy: { index: "asc" } });
   if (clips.length === 0) {
