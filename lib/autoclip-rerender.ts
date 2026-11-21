@@ -388,6 +388,11 @@ async function applyPatch(clip: Clip, patch: RerenderPatch, attempt: number): Pr
   // Project.faceTimeline when it can, and falls back to a static crop when it
   // can't, so dropping them here is always safe.
   if (windowChanged || aspectChanged) data.cropKeyframes = Prisma.JsonNull;
+  // The AI decisions (edit plan, shot labels, subject tracks) are all on the
+  // old window's timeline too. A new window drops them: the clip re-renders
+  // with the face-based framing and the energy zoom, never with edits
+  // landing on the wrong words.
+  if (windowChanged) data.aiMeta = Prisma.JsonNull;
 
   let hasCaptions = clip.hasCaptions;
   if (patch.captionStyleIndex !== undefined) {

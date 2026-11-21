@@ -63,12 +63,12 @@ export async function searchStockImages(query: string, page = 1): Promise<StockI
 export type StockOrientation = "portrait" | "square" | "landscape";
 export const STOCK_ORIENTATIONS: readonly StockOrientation[] = ["portrait", "square", "landscape"];
 
-export async function searchStockVideos(query: string, page = 1, orientation?: StockOrientation): Promise<StockItem[]> {
+export async function searchStockVideos(query: string, page = 1, orientation?: StockOrientation, perPage = 24): Promise<StockItem[]> {
   const key = env.PEXELS_API_KEY;
   if (!key) throw new StockNotConfiguredError("Stock video", "PEXELS_API_KEY");
 
   const res = await fetch(
-    `https://api.pexels.com/videos/search?query=${encodeURIComponent(query)}&per_page=24&page=${page}${orientation ? `&orientation=${orientation}` : ""}`,
+    `https://api.pexels.com/videos/search?query=${encodeURIComponent(query)}&per_page=${Math.min(80, Math.max(1, Math.round(perPage)))}&page=${page}${orientation ? `&orientation=${orientation}` : ""}`,
     { headers: { Authorization: key }, signal: AbortSignal.timeout(FETCH_TIMEOUT.api) },
   );
   if (!res.ok) throw new Error(`Pexels video search failed (${res.status})`);

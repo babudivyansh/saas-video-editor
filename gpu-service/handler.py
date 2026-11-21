@@ -1,8 +1,10 @@
 """
-GPU media service — one container, two workloads.
+GPU media service — one container, four workloads.
 
   kind="asd"     active-speaker detection (Light-ASD) over a source video
   kind="render"  NVENC ffmpeg encode of one clip
+  kind="embed"   SigLIP text/image embeddings (AutoClip B-roll ranking)
+  kind="track"   SAM 2 subject tracking from a seed box (AutoClip reframing)
 
 Design rules, and the reason each exists:
 
@@ -194,9 +196,152 @@ def handle_asd(job_input, workdir):
     }
 
 
+# ── Workload: embeddings (SigLIP) ───────────────────────────────────────────
+#
+# AutoClip B-roll ranking and the creator's library search
+# (lib/autoclip-ai/broll-rank.ts). Embeddings are L2-normalised, so the caller
+# scores with a plain dot product: p = sigmoid(cos * logitScale + logitBias),
+# which is SigLIP's own pairwise probability.
+
+SIGLIP_MODEL_ID = os.environ.get("SIGLIP_MODEL", "google/siglip-base-patch16-224")
+# Baked into the image under weights/ (see Dockerfile) so a cold start never
+# downloads them; falls back to the hub id for local development.
+SIGLIP_PATH = os.environ.get("SIGLIP_PATH", "/app/weights/siglip")
+_siglip = None
+
+
+def load_siglip():
+    global _siglip
+    if _siglip is None:
+        import torch
+        from transformers import AutoModel, AutoProcessor
+
+        src = SIGLIP_PATH if os.path.isdir(SIGLIP_PATH) else SIGLIP_MODEL_ID
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        model = AutoModel.from_pretrained(src).to(device).eval()
+        processor = AutoProcessor.from_pretrained(src)
+        _siglip = (model, processor, device)
+    return _siglip
+
+
+def handle_embed(job_input, workdir):
+    import torch
+    from PIL import Image
+
+    model, processor, device = load_siglip()
+    texts = [str(t)[:300] for t in (job_input.get("texts") or [])][:16]
+    urls = list(job_input.get("imageUrls") or [])[:64]
+
+    images = []
+    for i, url in enumerate(urls):
+        try:
+            path = download(url, os.path.join(workdir, f"img{i}"))
+            images.append(Image.open(path).convert("RGB"))
+        except Exception:  # noqa: BLE001 - one bad still must not fail the batch
+            images.append(None)
+
+    def norm(t):
+        return t / t.norm(dim=-1, keepdim=True)
+
+    text_out, image_out = [], []
+    with torch.no_grad():
+        if texts:
+            inputs = processor(text=texts, padding="max_length", truncation=True, return_tensors="pt").to(device)
+            text_out = norm(model.get_text_features(**inputs)).cpu().tolist()
+        valid = [im for im in images if im is not None]
+        if valid:
+            inputs = processor(images=valid, return_tensors="pt").to(device)
+            image_out = norm(model.get_image_features(**inputs)).cpu().tolist()
+
+    it = iter(image_out)
+    r = lambda v: [round(x, 5) for x in v]  # noqa: E731
+    return {
+        "model": SIGLIP_MODEL_ID,
+        "textEmbeddings": [r(v) for v in text_out],
+        "imageEmbeddings": [r(next(it)) if im is not None else None for im in images],
+        "logitScale": float(model.logit_scale.exp().item()),
+        "logitBias": float(model.logit_bias.item()) if getattr(model, "logit_bias", None) is not None else 0.0,
+    }
+
+
+# ── Workload: subject tracking (SAM 2) ──────────────────────────────────────
+#
+# Follows a non-face subject through a shot from one seed box
+# (lib/autoclip-ai/subject-track.ts). Each seed is its own short window of the
+# source; frames are sampled at sampleFps, which is plenty for a camera path
+# that is itself solved at 10 Hz.
+
+SAM2_CONFIG = os.environ.get("SAM2_CONFIG", "configs/sam2.1/sam2.1_hiera_s.yaml")
+SAM2_CHECKPOINT = os.environ.get("SAM2_CHECKPOINT", "/app/weights/sam2.1_hiera_small.pt")
+_sam2 = None
+
+
+def load_sam2():
+    global _sam2
+    if _sam2 is None:
+        import torch
+        from sam2.build_sam import build_sam2_video_predictor
+
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        _sam2 = build_sam2_video_predictor(SAM2_CONFIG, SAM2_CHECKPOINT, device=device)
+    return _sam2
+
+
+def extract_frames(source, start, end, fps, out_dir):
+    os.makedirs(out_dir, exist_ok=True)
+    run_ffmpeg([
+        "-y", "-ss", str(start), "-to", str(end), "-i", source,
+        "-vf", f"fps={fps}", "-q:v", "2", "-start_number", "0",
+        os.path.join(out_dir, "%05d.jpg"),
+    ])
+    return sorted(f for f in os.listdir(out_dir) if f.endswith(".jpg"))
+
+
+def handle_track(job_input, workdir):
+    import numpy as np
+    import torch
+    from PIL import Image
+
+    predictor = load_sam2()
+    source = download(job_input["videoUrl"], os.path.join(workdir, "source.mp4"))
+    fps = max(1, min(15, int(job_input.get("sampleFps", 10))))
+    tracks = []
+    for n, seed in enumerate((job_input.get("seeds") or [])[:40]):
+        start, end = float(seed["startSec"]), float(seed["endSec"])
+        frames_dir = os.path.join(workdir, f"seed{n}")
+        frames = extract_frames(source, start, end, fps, frames_dir)
+        if len(frames) < 2:
+            tracks.append({"startSec": start, "endSec": end, "samples": []})
+            continue
+        with Image.open(os.path.join(frames_dir, frames[0])) as im:
+            fw, fh = im.size
+        b = seed["box"]
+        box = np.array([b["x"] * fw, b["y"] * fh, (b["x"] + b["w"]) * fw, (b["y"] + b["h"]) * fh], dtype=np.float32)
+
+        samples = []
+        with torch.inference_mode():
+            state = predictor.init_state(video_path=frames_dir)
+            predictor.add_new_points_or_box(state, frame_idx=0, obj_id=1, box=box)
+            for frame_idx, _obj_ids, mask_logits in predictor.propagate_in_video(state):
+                mask = (mask_logits[0] > 0).squeeze().cpu().numpy()
+                ys, xs = np.nonzero(mask)
+                if len(xs) == 0:
+                    continue  # lost on this frame; the solver holds through gaps
+                x0, x1, y0, y1 = xs.min(), xs.max(), ys.min(), ys.max()
+                samples.append({
+                    "t": round(start + frame_idx / fps, 3),
+                    "x": round(float(x0) / fw, 4), "y": round(float(y0) / fh, 4),
+                    "w": round(float(x1 - x0 + 1) / fw, 4), "h": round(float(y1 - y0 + 1) / fh, 4),
+                })
+            predictor.reset_state(state)
+        shutil.rmtree(frames_dir, ignore_errors=True)
+        tracks.append({"startSec": start, "endSec": end, "samples": samples})
+    return {"version": 1, "tracks": tracks}
+
+
 # ── Entry point ─────────────────────────────────────────────────────────────
 
-HANDLERS = {"asd": handle_asd, "render": handle_render}
+HANDLERS = {"asd": handle_asd, "render": handle_render, "embed": handle_embed, "track": handle_track}
 
 
 def handler(job):

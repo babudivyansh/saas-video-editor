@@ -37,6 +37,15 @@ RUN pip3 install --no-cache-dir \
 # frame, and it ships its own face detector + tracker so we get stable
 # per-person track ids as well as speaking scores.
 RUN git clone --depth 1 https://github.com/Junhua-Liao/Light-ASD.git /app/Light-ASD
+
+# AutoClip AI (lib/autoclip-ai): SigLIP for B-roll ranking ("embed") and SAM 2
+# for non-face subject tracking ("track"). SAM 2's CUDA extension is optional
+# (it only speeds up mask post-processing), so it is skipped to keep the build
+# independent of a matching nvcc. Check SAM 2's torch requirement against the
+# torch pinned above when bumping either — see README "AutoClip AI workloads".
+RUN pip3 install --no-cache-dir transformers==4.44.2 pillow==10.4.0 sentencepiece==0.2.0 \
+ && git clone --depth 1 https://github.com/facebookresearch/sam2.git /app/sam2 \
+ && SAM2_BUILD_CUDA=0 pip3 install --no-cache-dir -e /app/sam2
 COPY asd_model.py /app/asd_model.py
 COPY handler.py /app/handler.py
 

@@ -89,6 +89,7 @@ const EXACT: Record<string, Row> = {
   "coupon.deactivated": ["Deactivated coupon", "billing", "destructive", "coupon", "The code no longer works."],
   "currency.updated": ["Changed currency settings", "config", "money", "none", "Exchange rate or USD price book changed."],
   "autoclip_pricing.updated": ["Changed AutoClip pricing", "config", "money", "none", "The per-minute AutoClip price changed."],
+  "autoclip_ai.updated": ["Changed AutoClip AI settings", "config", "change", "none", "Which AI B-roll, reframing and keyframing features run, for which plans, and their spend limits."],
 
   // ── Affiliates ──
   "affiliate.updated": ["Edited affiliate", "affiliates", "change", "affiliate", "Status or commission rate changed."],

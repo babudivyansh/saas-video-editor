@@ -11,6 +11,7 @@ import { useAuth } from "@/app/components/AuthContext";
 import { useToast } from "@/app/components/ui/Toast";
 import { Button } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
+import { AutoClipAiCard } from "./AutoClipAiCard";
 
 interface ModelRow {
   id: string;
@@ -115,6 +116,8 @@ export default function AdminModelsPage() {
               </div>
             </Card>
           )}
+
+          <AutoClipAiCard headers={headers} />
         </div>
       )}
     </AdminShell>

@@ -41,6 +41,9 @@ export const autoClipCreateSchema = z
     animatedCaptions: z.boolean().default(false),
     // Opt-in: pay a Clip Minutes shortfall in AI credits (lib/autoclip-minutes.ts).
     allowCreditOverflow: z.boolean().default(false),
+    // Opt-in: AI-generated video B-roll. Only honoured where the autoclip_ai
+    // Config enables it for the tier (Agency/Studio by default, lib/autoclip-ai).
+    aiVideoBroll: z.boolean().default(false),
   })
   .refine((b) => b.minDuration <= b.maxDuration, {
     message: "minDuration must not exceed maxDuration",

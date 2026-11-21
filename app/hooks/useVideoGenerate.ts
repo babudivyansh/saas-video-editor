@@ -125,6 +125,8 @@ export interface RunSettings {
   animatedCaptions?: boolean;
   /** Pay a Clip Minutes shortfall in AI credits (opt-in). */
   allowCreditOverflow?: boolean;
+  /** Opt-in to AI-generated video B-roll (Agency; the server re-checks). */
+  aiVideoBroll?: boolean;
 }
 
 export function useVideoGenerate() {

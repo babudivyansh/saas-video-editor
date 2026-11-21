@@ -72,6 +72,32 @@ job must not disable GPU for every user.
 4. Roll out with the `gpu_service` feature flag (admin → ops) and the
    `gpu_routing` Config row for tier/threshold policy.
 
+## AutoClip AI workloads (`embed`, `track`)
+
+Added for AutoClip's AI B-roll and reframing (`lib/autoclip-ai/`). Both are
+off until the `autoclip_ai` Config row enables `brollRank` (with
+`broll.ranker: "embedding"` or the library source) and `subjectTrack`.
+
+| kind | Input | Output |
+|---|---|---|
+| `embed` | `{ texts[], imageUrls[] }` (presigned or allowlisted stock URLs) | `{ model, textEmbeddings, imageEmbeddings (null per unreadable image), logitScale, logitBias }`, L2-normalised |
+| `track` | `{ videoUrl, seeds: [{ startSec, endSec, box }], sampleFps }` | `{ version, tracks: [{ startSec, endSec, samples: [{ t, x, y, w, h }] }] }`, source seconds, frame fractions |
+
+Weights to place in `weights/` before building:
+
+- `weights/siglip/` — a `save_pretrained` copy of `google/siglip-base-patch16-224`
+  (or set `SIGLIP_MODEL` / `SIGLIP_PATH`). The model id is stored with every
+  library embedding, so changing it re-embeds instead of comparing across models.
+- `weights/sam2.1_hiera_small.pt` — the SAM 2.1 small checkpoint (or set
+  `SAM2_CHECKPOINT` / `SAM2_CONFIG`).
+
+**Not yet built or run on a GPU.** These two handlers were written against the
+SigLIP (transformers) and SAM 2 video-predictor APIs but have not been
+exercised in a container. Build the image, run each kind once by hand, and
+confirm SAM 2's torch requirement is met by the pinned torch before turning
+the features on. Every caller treats a failure as "skip this step", so a broken
+handler costs quality, never a run.
+
 ## Read this before scaling the render pool
 
 NVENC offloads the **encode only**. In this filtergraph, libass subtitle

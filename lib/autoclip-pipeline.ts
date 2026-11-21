@@ -46,6 +46,7 @@ import {
   computeGamingKeyframes,
   buildZoomEnvelope,
   cropSizeFrac,
+  simplifyKeyframes,
   type FaceBox,
   type FaceTimelineResult,
   type StoredCrop,
@@ -69,7 +70,12 @@ import { buildCaptionFilterChain } from "@/lib/captions/engine";
 // mock prisma but have no reason to stand up a Redis connection. It is
 // dynamically imported at its one call site instead.
 import { recommendCaptionPositionY } from "@/lib/captions/position";
-import { buildCameraZoom, applyZoomToKeyframes, ZOOM_STRENGTH_MAX } from "@/lib/camera-motion";
+import { buildCameraZoom, applyZoomToKeyframes, densifyKeyframes, ZOOM_STRENGTH_MAX } from "@/lib/camera-motion";
+import { composeAiCrop, type AiReframeInput, type BaseLayout } from "@/lib/autoclip-ai/reframe-ai";
+import { parseAiMeta } from "@/lib/autoclip-ai/types";
+import { collectVideoBroll } from "@/lib/autoclip-ai/broll-generate";
+import type { BrollWindowRow } from "@/lib/autoclip-ai/broll-select";
+import type { AiRunResult } from "@/lib/autoclip-ai/run";
 import { getFaceTimeline } from "@/lib/asd";
 // P0-3: Project.uploadedVideoUrl is a PRESIGNED url minted at upload time and
 // only valid for 6 hours, so every job that reused it later died on its first
@@ -832,7 +838,13 @@ function computeStoredCrop(
   aspectRatio: Aspect,
   srcW: number,
   srcH: number,
-  options: ReframeOptions = {}
+  options: ReframeOptions = {},
+  /**
+   * A layout forced from outside (the AI edit plan, lib/autoclip-ai): one of
+   * the user's speaker modes, or "cuts" / "wide" for the dialogue-cut and
+   * group framings the "auto" mode would otherwise only reach on its own.
+   */
+  layout?: BaseLayout,
 ): StoredCrop | null {
   if (srcW <= 0 || srcH <= 0) return null;
 
@@ -845,6 +857,14 @@ function computeStoredCrop(
     .filter((f) => f.tSec >= seg.start && f.tSec <= seg.end && f.confidence >= 60)
     .map((f) => ({ ...f, tSec: f.tSec - seg.start }));
   const { w: sceneCropW, h: sceneCropH } = cropSizeFrac(aspectRatio, srcW, srcH);
+  if (layout === "cuts" || layout === "wide") {
+    const forced = layout === "cuts"
+      ? buildCutKeyframes(inWindow, duration, sceneCropW, sceneCropH)
+      : buildGroupKeyframes(inWindow, duration, sceneCropW, sceneCropH);
+    if (forced.length > 1) return { mode: "single", keyframes: forced };
+  } else if (layout) {
+    options = { ...options, speakerMode: layout };
+  }
   const speakerMode0 = options.speakerMode ?? "auto";
 
   if (speakerMode0 === "gaming") {
@@ -894,6 +914,58 @@ function computeStoredCrop(
 
 // ── Phase 1: pick (analyze video, propose clips, no rendering/credits yet) ─
 
+/** The AI inputs a clip's crop is computed from (lib/autoclip-ai/reframe-ai.ts). */
+export type ClipAiReframe = Omit<AiReframeInput, "faces" | "words" | "smoothness" | "trackingSpeed">;
+
+/** What a stored clip's aiMeta says its crop should be computed from, or null. */
+export function aiReframeFromMeta(raw: unknown): ClipAiReframe | null {
+  const meta = parseAiMeta(raw);
+  if (!meta) return null;
+  return {
+    features: meta.features,
+    shots: meta.shots ?? [],
+    scenes: meta.scenes ?? null,
+    tracks: meta.tracks ?? null,
+    planLayout: meta.editPlan?.layout ?? null,
+  };
+}
+
+/**
+ * computeStoredCrop, plus the AI reframe stages when this clip has them. With
+ * `ai` null this IS computeStoredCrop — the path every clip took before.
+ */
+export function computeClipCrop(
+  allFaces: FaceBox[],
+  seg: GeminiSegment,
+  aspectRatio: Aspect,
+  srcW: number,
+  srcH: number,
+  options: ReframeOptions,
+  ai: ClipAiReframe | null,
+): StoredCrop | null {
+  if (!ai) return computeStoredCrop(allFaces, seg, aspectRatio, srcW, srcH, options);
+  const duration = seg.end - seg.start;
+  const words = (options.words ?? null) as WordTiming[] | null;
+  const faces = allFaces
+    .filter((f) => f.tSec >= seg.start && f.tSec <= seg.end)
+    .map((f) => ({ ...f, tSec: f.tSec - seg.start }));
+  return composeAiCrop({
+    durationSec: duration,
+    aspect: aspectRatio,
+    srcW,
+    srcH,
+    userSpeakerMode: options.speakerMode ?? "auto",
+    // A sub-window of the clip (one shot): its own words, re-based to its start.
+    base: (s, e, layout) => computeStoredCrop(allFaces, { ...seg, start: seg.start + s, end: seg.start + e }, aspectRatio, srcW, srcH, {
+      ...options,
+      words: options.words
+        ?.filter((w) => w.end > s * 1000 && w.start < e * 1000)
+        .map((w) => ({ ...w, start: Math.max(0, w.start - s * 1000), end: Math.max(0, w.end - s * 1000) })) ?? null,
+    }, layout),
+    ai: { ...ai, faces, words, smoothness: options.smoothness, trackingSpeed: options.trackingSpeed },
+  });
+}
+
 export interface PickPayload {
   projectId: string;
   minDuration: number;
@@ -921,6 +993,8 @@ export interface PickPayload {
   animatedCaptions?: boolean;
   /** The user opted in to paying a Clip Minutes shortfall in AI credits. */
   allowCreditOverflow?: boolean;
+  /** The user opted in to AI-generated video B-roll (Studio, lib/autoclip-ai). */
+  aiVideoBroll?: boolean;
 }
 
 export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATTEMPT): Promise<void> {
@@ -1109,14 +1183,65 @@ export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATT
       warnings.push(faceResult.failure ? "reframe_failed" : "reframe_unavailable");
     }
 
+    // Speech signal tracks (P2.1) — loudness/pitch/energy envelopes, shot
+    // boundaries and pauses per clip. Computed here, while the source video is
+    // already on local disk, so the render never has to decode it again.
+    // Best-effort: a clip without one simply renders non-reactively. (Before
+    // the B-roll lookup now: the AI stages read its shot boundaries.)
+    const signalTracks = await Promise.all(segments.map(async (seg) => {
+      const words = sliceWordsForClip(wordTimings, seg.start, seg.end);
+      if (words.length === 0) return EMPTY_SIGNAL_TRACK;
+      seg.emphasisWordIndexes = resolveEmphasisIndexes(words, seg.emphasisWords);
+      return buildSignalTrack(videoPath, seg.start, seg.end, words, seg.emphasisWordIndexes);
+    }));
+
+    // AI B-roll, reframing and keyframing (lib/autoclip-ai). Every feature is
+    // off unless the autoclip_ai Config row turns it on for this tier, and
+    // every step is best-effort: null here is exactly the old pipeline.
+    // Dynamically imported for the same reason as the render queue below: it
+    // reaches Redis and the GPU client, which this module's tests don't stand up.
+    let ai: AiRunResult | null = null;
+    if (!aborted) {
+      try {
+        const [{ runAiStages }, { getUserTier }] = await Promise.all([import("@/lib/autoclip-ai/run"), import("@/lib/auth")]);
+        const aiTier = await getUserTier(project.userId);
+        ai = await timeStage("ai", () => runAiStages({
+          tier: aiTier,
+          projectId,
+          userId: project.userId,
+          uploadedVideoUrl: project.uploadedVideoUrl!,
+          sourceAssetId: project.sourceAssetId ?? null,
+          videoPath,
+          aspect: aspectRatio,
+          instructions,
+          allowAiVideo: payload.aiVideoBroll === true,
+          clips: segments.map((seg, i) => ({
+            index: i,
+            start: seg.start,
+            end: seg.end,
+            title: seg.title,
+            words: sliceWordsForClip(wordTimings, seg.start, seg.end),
+            signal: signalTracks[i],
+            brollCues: seg.brollCues,
+            brollQuery: seg.brollQuery,
+            brollOffsetSec: seg.brollOffsetSec,
+          })),
+        }), { meta: { clipCount: segments.length } });
+      } catch (err) {
+        logger.warn("auto-clip", `AI stages failed for ${projectId}; rendering without them`, err);
+        ai = null;
+      }
+    }
+
     // Best-effort B-roll lookup (P2.3) — resolved up front (outside the
     // transaction) since it's a network call; never blocks or fails the pick.
     // B-roll placement. Keyword cues are preferred: an insert that lands on
     // the noun the speaker says reads as illustration, while one dropped at an
     // arbitrary offset reads as the video losing its place. The old
     // single-offset path remains as the fallback for when the model returns no
-    // usable cues.
-    const brollPicks = await Promise.all(segments.map(async (seg) => {
+    // usable cues. Skipped for a clip whose B-roll the AI stages already chose.
+    const brollPicks = await Promise.all(segments.map(async (seg, segIdx) => {
+      if (ai?.clips[segIdx]?.brollWindows !== undefined) return null;
       const clipDuration = seg.end - seg.start;
       const words = sliceWordsForClip(wordTimings, seg.start, seg.end);
 
@@ -1135,17 +1260,6 @@ export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATT
       if (!window) return null;
       const broll = await pickBroll(seg.brollQuery);
       return broll ? [{ ...window, url: broll.downloadUrl, query: seg.brollQuery }] : null;
-    }));
-
-    // Speech signal tracks (P2.1) — loudness/pitch/energy envelopes, shot
-    // boundaries and pauses per clip. Computed here, while the source video is
-    // already on local disk, so the render never has to decode it again.
-    // Best-effort: a clip without one simply renders non-reactively.
-    const signalTracks = await Promise.all(segments.map(async (seg) => {
-      const words = sliceWordsForClip(wordTimings, seg.start, seg.end);
-      if (words.length === 0) return EMPTY_SIGNAL_TRACK;
-      seg.emphasisWordIndexes = resolveEmphasisIndexes(words, seg.emphasisWords);
-      return buildSignalTrack(videoPath, seg.start, seg.end, words, seg.emphasisWordIndexes);
     }));
 
     // Clip creation and the final status flip must succeed or fail together —
@@ -1167,13 +1281,16 @@ export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATT
     const clipRows: Prisma.ClipCreateManyInput[] = segments.map((seg, i) => {
         const words = sliceWordsForClip(wordTimings, seg.start, seg.end);
         const hasCaptions = captionStyleIndex >= 0 && words.length > 0;
-        const broll = brollPicks[i];
+        const aiClip = ai?.clips[i];
+        const broll: BrollWindowRow[] | null = aiClip?.brollWindows !== undefined
+          ? (aiClip.brollWindows.length > 0 ? aiClip.brollWindows : null)
+          : brollPicks[i];
         // B-roll used to disable reframing for the WHOLE clip, so a 2.5s stock
         // insert cost the other ~30 seconds their speaker tracking. The
         // B-roll segments are ordinary crops in the same graph and can carry
         // the same dynamic expressions, so the pan path is computed either way
         // (buildBrollFilterComplex applies it to the main-footage segments).
-        const cropKeyframes = computeStoredCrop(allFaces, seg, aspectRatio, srcW, srcH, {
+        const cropKeyframes = computeClipCrop(allFaces, seg, aspectRatio, srcW, srcH, {
           preset: reframingPreset,
           smartAutoReframe,
           zoomStrength,
@@ -1181,7 +1298,7 @@ export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATT
           smoothness,
           trackingSpeed,
           words,
-        });
+        }, aiClip?.reframe ?? null);
         const sub: SubScores = { hook: seg.hook, pacing: seg.pacing, payoff: seg.payoff, engagement: seg.engagement };
         const initialComposite = Math.round((seg.hook + seg.pacing + seg.payoff + seg.engagement) / 4);
 
@@ -1248,9 +1365,11 @@ export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATT
               // The single-window columns stay populated with the first insert
               // so anything still reading them (older code paths, the results
               // grid's "B-roll" badge) keeps working.
-              brollQuery: broll[0].query, brollUrl: broll[0].url,
+              // (A pending generated video has no URL yet — "" is stored as null.)
+              brollQuery: broll[0].query, brollUrl: broll[0].url || null,
               brollStartSec: broll[0].startSec, brollEndSec: broll[0].endSec,
             } : {}),
+            ...(aiClip ? { aiMeta: aiClip.aiMeta as unknown as Prisma.InputJsonValue } : {}),
         };
       });
 
@@ -1934,12 +2053,29 @@ export async function renderClipFile(
   // crop path the layout produced, so it composes with speaker tracking
   // rather than replacing it — the camera keeps following the subject and
   // tightens around them when the delivery intensifies.
-  if (signal && signal.energy?.length > 0 && stored?.mode === "single" && stored.keyframes.length > 0) {
+  //
+  // The AI edit plan (lib/autoclip-ai/edit-plan.ts), when the clip has one,
+  // leads: its punch-ins and resets are on the ORIGINAL clip timeline, so they
+  // are shifted through the same keeps as everything else.
+  const plan = parseAiMeta(clip.aiMeta)?.editPlan ?? null;
+  const onRendered = (tSec: number) => (isTrimmed && keeps.length > 0 ? shiftTime(tSec * 1000, keeps) / 1000 : tSec);
+  const plannedZooms = (plan?.zooms ?? []).map((z) => ({ ...z, tSec: onRendered(z.tSec) }));
+  const plannedResets = (plan?.resets ?? []).map(onRendered);
+  if ((signal?.energy?.length || plannedZooms.length > 0) && stored?.mode === "single" && stored.keyframes.length > 0) {
     const zoomStrength = (silenceOpts.zoomStrength as "low" | "medium" | "high") ?? "medium";
     const smartOn = silenceOpts.smartAutoReframe !== false;
     if (smartOn) {
-      const curve = buildCameraZoom(signal, finalDurationSec, { maxZoom: ZOOM_STRENGTH_MAX[zoomStrength] });
-      stored = { mode: "single", keyframes: applyZoomToKeyframes(stored.keyframes, curve) };
+      const curve = buildCameraZoom(signal ?? EMPTY_SIGNAL_TRACK, finalDurationSec, {
+        maxZoom: ZOOM_STRENGTH_MAX[zoomStrength],
+        planned: plannedZooms,
+        resets: plannedResets,
+      });
+      // A planned punch-in can fall between two keyframes of a simplified
+      // path, where applyZoomToKeyframes would never see it — resample first.
+      const path = plannedZooms.length > 0 ? densifyKeyframes(stored.keyframes) : stored.keyframes;
+      let zoomed = applyZoomToKeyframes(path, curve);
+      if (plannedZooms.length > 0 && zoomed.length > 64) zoomed = simplifyKeyframes(zoomed, undefined, 64);
+      stored = { mode: "single", keyframes: zoomed };
     }
   }
 
@@ -1984,17 +2120,37 @@ export async function renderClipFile(
   // B-roll downloads are best-effort: any window that fails is dropped and
   // the clip renders with whatever succeeded (or none at all), rather than
   // failing over a stock clip.
-  const plannedWindows: { startSec: number; endSec: number; url: string }[] =
-    (clip.brollWindows as unknown as { startSec: number; endSec: number; url: string }[] | null)
+  const plannedWindows: Pick<BrollWindowRow, "startSec" | "endSec" | "url" | "pending">[] =
+    (clip.brollWindows as unknown as BrollWindowRow[] | null)
     ?? (clip.brollUrl && clip.brollStartSec != null && clip.brollEndSec != null
       ? [{ startSec: clip.brollStartSec, endSec: clip.brollEndSec, url: clip.brollUrl }]
       : []);
+
+  // Inserts the AI stages stored in our own bucket (a generated still, a
+  // cutaway from the source, the creator's library) are private: presign them
+  // as the project owner, exactly like the source video. Everything else is a
+  // third-party stock URL and may only come from an allowlisted host.
+  let ownerUserId: string | null | undefined;
+  const brollUrlFor = async (url: string): Promise<{ url: string; external: boolean }> => {
+    if (!parseS3Url(url)) return { url, external: true };
+    if (ownerUserId === undefined) {
+      ownerUserId = (await prisma.project.findUnique({ where: { id: projectId }, select: { userId: true } }).catch(() => null))?.userId ?? null;
+    }
+    return { url: ownerUserId ? await freshSourceUrl(url, ownerUserId) : url, external: false };
+  };
 
   const readyWindows: { startSec: number; endSec: number; path: string }[] = [];
   for (const [i, w] of plannedWindows.entries()) {
     const dest = i === 0 ? brollPath : `${brollPath}-${i}.mp4`;
     try {
-      await downloadFile(w.url, dest);
+      if (w.pending) {
+        // A generated video submitted during analysis: wait a bounded time.
+        if (await collectVideoBroll(w.pending, dest)) readyWindows.push({ startSec: w.startSec, endSec: w.endSec, path: dest });
+        continue;
+      }
+      if (!w.url) continue;
+      const src = await brollUrlFor(w.url);
+      await downloadFile(src.url, dest, undefined, src.external ? { allowHost: (h: string) => isAllowedStockHost(h, "broll") } : {});
       readyWindows.push({ startSec: w.startSec, endSec: w.endSec, path: dest });
     } catch (err) {
       logger.warn("auto-clip", `B-roll window ${i} failed for clip ${clip.index}, skipping it`, err);
@@ -2445,7 +2601,9 @@ export async function rerenderJob(payload: RerenderPayload): Promise<void> {
       // tracking for B-roll clips (the inserts are ordinary crops in the same
       // graph), but this path still did — so re-rendering such a clip, for any
       // reason, silently froze its camera.
-      const cropKeyframes = computeStoredCrop(allFaces, dummySeg, clip.aspectRatio as Aspect, srcW, srcH, {
+      // The clip's stored AI decisions (shots, scene labels, subject tracks)
+      // are reused rather than recomputed — they were paid for once.
+      const cropKeyframes = computeClipCrop(allFaces, dummySeg, clip.aspectRatio as Aspect, srcW, srcH, {
         preset,
         smartAutoReframe: silenceOpts.smartAutoReframe !== false,
         zoomStrength: silenceOpts.zoomStrength ?? "medium",
@@ -2453,7 +2611,7 @@ export async function rerenderJob(payload: RerenderPayload): Promise<void> {
         smoothness: silenceOpts.smoothness ?? 50,
         trackingSpeed: silenceOpts.trackingSpeed ?? 50,
         words: clip.transcriptJson as unknown as WordTiming[],
-      });
+      }, aiReframeFromMeta(clip.aiMeta));
       updatedClip = await prisma.clip.update({
         where: { id: clipId },
         data: {

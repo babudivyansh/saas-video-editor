@@ -750,6 +750,12 @@ model Clip {
   audioPeaks            Json?
   // Which backend actually encoded this clip ("cpu" | "gpu"), for ops.
   renderTarget          String?
+  // AI decisions for this clip (lib/autoclip-ai/types.ts, AiMeta): the edit
+  // plan, how each B-roll window was chosen, per-shot scene types and subject
+  // tracks, and what the AI calls cost. Stored so a re-render reuses them
+  // instead of paying for them again, and so ops can see WHY a clip looks the
+  // way it does. Null = the clip was picked with every AI feature off.
+  aiMeta                Json?
   // Starred by the user in the clips library.
   isFavorite            Boolean            @default(false)
   // Thumbs-down in the clips view. Mutually exclusive with isFavorite.
@@ -990,6 +996,14 @@ model Asset {
   // Thumbnails — a lightweight extracted frame/preview so the grid never has
   // to stream the full source file just to render a card.
   thumbnailS3Key String?
+
+  // Image embedding of the thumbnail (SigLIP, via the GPU service's "embed"
+  // job) so AutoClip can offer a creator's own footage as B-roll. Filled
+  // lazily the first time a run needs it; aiEmbeddingModel says which model
+  // produced it, so a model change re-embeds instead of comparing across
+  // spaces.
+  aiEmbedding      Json?
+  aiEmbeddingModel String?
 
   // Duplicate detection — SHA-256 of the uploaded bytes, computed server-side.
   checksum String?
