@@ -12,6 +12,7 @@
 // pull in the pipeline to validate a body.
 
 import { z } from "zod";
+import { ZOOM_STYLES, DEFAULT_ZOOM_STYLE } from "@/lib/zoom-style";
 
 export const AUTOCLIP_ASPECTS = ["9:16", "16:9", "1:1"] as const;
 
@@ -44,6 +45,8 @@ export const autoClipCreateSchema = z
     // Opt-in: AI-generated video B-roll. Only honoured where the autoclip_ai
     // Config enables it for the tier (Agency/Studio by default, lib/autoclip-ai).
     aiVideoBroll: z.boolean().default(false),
+    // "jump" cut-zooms (default) or the energy-reactive "smooth" zoom.
+    zoomStyle: z.enum(ZOOM_STYLES).default(DEFAULT_ZOOM_STYLE),
   })
   .refine((b) => b.minDuration <= b.maxDuration, {
     message: "minDuration must not exceed maxDuration",

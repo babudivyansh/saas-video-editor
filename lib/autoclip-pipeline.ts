@@ -71,6 +71,8 @@ import { buildCaptionFilterChain } from "@/lib/captions/engine";
 // dynamically imported at its one call site instead.
 import { recommendCaptionPositionY } from "@/lib/captions/position";
 import { buildCameraZoom, applyZoomToKeyframes, densifyKeyframes, ZOOM_STRENGTH_MAX } from "@/lib/camera-motion";
+import { applyStepZoom, buildJumpZoomSteps, stepsFromPlan, JUMP_LIMITS } from "@/lib/jump-zoom";
+import { storedZoomStyle, type ZoomStyle } from "@/lib/zoom-style";
 import { composeAiCrop, type AiReframeInput, type BaseLayout } from "@/lib/autoclip-ai/reframe-ai";
 import { parseAiMeta } from "@/lib/autoclip-ai/types";
 import { collectVideoBroll } from "@/lib/autoclip-ai/broll-generate";
@@ -995,6 +997,8 @@ export interface PickPayload {
   allowCreditOverflow?: boolean;
   /** The user opted in to AI-generated video B-roll (Studio, lib/autoclip-ai). */
   aiVideoBroll?: boolean;
+  /** "jump" (default for new runs) or "smooth" — lib/zoom-style.ts. */
+  zoomStyle?: ZoomStyle;
 }
 
 export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATTEMPT): Promise<void> {
@@ -1003,7 +1007,9 @@ export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATT
     templateId = null,
     reframingPreset = "balanced", removeSilence = false, silenceThresholdMs = 400, removeFillers = false,
     smartAutoReframe = true, zoomStrength = "medium", speakerMode = "auto", smoothness = 50, trackingSpeed = 50,
-    animatedCaptions = false
+    animatedCaptions = false,
+    // An older queued payload has no style: it was requested under smooth.
+    zoomStyle = "smooth",
   } = payload;
   const project = await prisma.project.findUnique({ where: { id: projectId } });
   // A deleted project, or one whose source is gone, stays that way: a plain
@@ -1329,6 +1335,7 @@ export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATT
               speakerMode,
               smoothness,
               trackingSpeed,
+              zoomStyle,
             } as unknown as Prisma.InputJsonValue,
             ...(cropKeyframes ? { cropKeyframes: cropKeyframes as unknown as Prisma.InputJsonValue } : {}),
             ...(broll && broll.length > 0 ? {
@@ -2032,8 +2039,35 @@ export async function renderClipFile(
   const onRendered = (tSec: number) => (isTrimmed && keeps.length > 0 ? shiftTime(tSec * 1000, keeps) / 1000 : tSec);
   const plannedZooms = (plan?.zooms ?? []).map((z) => ({ ...z, tSec: onRendered(z.tSec) }));
   const plannedResets = (plan?.resets ?? []).map(onRendered);
-  if ((signal?.energy?.length || plannedZooms.length > 0) && stored?.mode === "single" && stored.keyframes.length > 0) {
-    const zoomStrength = (silenceOpts.zoomStrength as "low" | "medium" | "high") ?? "medium";
+  //
+  // Two styles (lib/zoom-style.ts). "jump" snaps between a wide and a tight
+  // framing on new phrases and emphasised words (or on the edit plan's
+  // punch-ins); "smooth" is the energy-reactive push-in below. A clip stored
+  // without a style predates the setting and keeps smooth.
+  const zoomStyle = storedZoomStyle(silenceOpts.zoomStyle);
+  const zoomStrengthSetting = (silenceOpts.zoomStrength as "low" | "medium" | "high") ?? "medium";
+  let jumped = false;
+  if (zoomStyle === "jump" && silenceOpts.smartAutoReframe !== false && stored?.mode === "single" && stored.keyframes.length > 0) {
+    // Built on the ORIGINAL clip timeline — the stored transcript and the
+    // signal track's emphasis indexes both live there — then shifted through
+    // the same keeps as everything else.
+    const sourceWords = (clip.transcriptJson as unknown as WordTiming[] | null) ?? [];
+    const emphasis = ((clip.signalTrack as unknown as SignalTrack | null)?.emphasis) ?? [];
+    const windowSec = clip.endSec - clip.startSec;
+    const rawSteps = (plan?.zooms?.length ?? 0) > 0
+      ? stepsFromPlan(plan!.zooms, windowSec, zoomStrengthSetting)
+      : buildJumpZoomSteps({ words: sourceWords, emphasis, durationSec: windowSec, strength: zoomStrengthSetting });
+    const steps = rawSteps
+      .map((st) => ({ ...st, tSec: onRendered(st.tSec) }))
+      .filter((st) => st.tSec > JUMP_LIMITS.leadInSec && st.tSec < finalDurationSec - 0.5);
+    if (steps.length > 0) {
+      stored = { mode: "single", keyframes: applyStepZoom(stored.keyframes, steps, finalDurationSec) };
+      jumped = true;
+    }
+    // No transcript to cut on: fall through to the smooth zoom below.
+  }
+  if (!jumped && (signal?.energy?.length || plannedZooms.length > 0) && stored?.mode === "single" && stored.keyframes.length > 0) {
+    const zoomStrength = zoomStrengthSetting;
     const smartOn = silenceOpts.smartAutoReframe !== false;
     if (smartOn) {
       const curve = buildCameraZoom(signal ?? EMPTY_SIGNAL_TRACK, finalDurationSec, {

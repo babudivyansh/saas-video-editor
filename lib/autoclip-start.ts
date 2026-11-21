@@ -138,6 +138,7 @@ export async function startAutoClipRun(userId: string, rawBody: unknown): Promis
     animatedCaptions: input.animatedCaptions,
     allowCreditOverflow: input.allowCreditOverflow,
     aiVideoBroll: input.aiVideoBroll,
+    zoomStyle: input.zoomStyle,
   };
 
   try {

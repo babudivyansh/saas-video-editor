@@ -2,7 +2,8 @@
 // Split out of ../page.tsx (stage 7 of the AutoClip audit) — moved, not rewritten.
 import { useRef, useState, useEffect, useReducer, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { REFRAME_PRESETS, ZOOM_STRENGTHS, SPEAKER_MODES } from "@/app/components/auto-clip/ReframeAndCutsControls";
+import { REFRAME_PRESETS, ZOOM_STRENGTHS, SPEAKER_MODES, ZOOM_STYLE_OPTIONS } from "@/app/components/auto-clip/ReframeAndCutsControls";
+import { storedZoomStyle } from "@/lib/zoom-style";
 import { PanelSection, PanelSlider, Segmented, useAccordion } from "@/app/components/auto-clip/PanelSection";
 import { useMenuNav } from "@/app/components/ui/useMenuNav";
 import { LiteEditTab, toLiteEdits, type LiteEdits } from "@/app/components/auto-clip/LiteEditTab";
@@ -371,6 +372,8 @@ export function ClipWorkspace({
     reframingPreset: (silence.reframingPreset as string) ?? "balanced",
     smartAutoReframe: (silence.smartAutoReframe as boolean) ?? true,
     zoomStrength: (silence.zoomStrength as string) ?? "medium",
+    // Clips made before the setting existed used the smooth zoom.
+    zoomStyle: storedZoomStyle(silence.zoomStyle) as string,
     speakerMode: (silence.speakerMode as string) ?? "auto",
     smoothness: (silence.smoothness as number) ?? 50,
     trackingSpeed: (silence.trackingSpeed as number) ?? 50,
@@ -833,11 +836,13 @@ export function ClipWorkspace({
                         </PanelSection>
                         <PanelSection
                           title="Camera feel"
-                          summary={`${REFRAME_PRESETS.find((p) => p.value === reframe.reframingPreset)?.label ?? reframe.reframingPreset} · ${ZOOM_STRENGTHS.find((z) => z.value === reframe.zoomStrength)?.label ?? reframe.zoomStrength} zoom`}
+                          summary={`${REFRAME_PRESETS.find((p) => p.value === reframe.reframingPreset)?.label ?? reframe.reframingPreset} · ${ZOOM_STYLE_OPTIONS.find((z) => z.value === reframe.zoomStyle)?.label ?? reframe.zoomStyle}, ${(ZOOM_STRENGTHS.find((z) => z.value === reframe.zoomStrength)?.label ?? reframe.zoomStrength).toLowerCase()} zoom`}
                           {...rfSec("camera")}
                         >
                           <p className="text-[12px] text-fg-muted">Camera motion</p>
                           <Segmented label="Camera motion" options={REFRAME_PRESETS} value={reframe.reframingPreset} onChange={reframeSetter("reframingPreset")} />
+                          <p className="text-[12px] text-fg-muted">Zoom style</p>
+                          <Segmented label="Zoom style" options={ZOOM_STYLE_OPTIONS} value={reframe.zoomStyle} onChange={reframeSetter("zoomStyle")} />
                           <p className="text-[12px] text-fg-muted">Zoom strength</p>
                           <Segmented label="Zoom strength" options={ZOOM_STRENGTHS} value={reframe.zoomStrength} onChange={reframeSetter("zoomStrength")} />
                         </PanelSection>
