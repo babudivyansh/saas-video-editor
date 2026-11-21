@@ -6,7 +6,13 @@ import { getToolContent } from "@/app/tools/content";
 import { GTA6_CONTENT } from "@/app/gta-6-clip-maker/content";
 import { COMPETITORS } from "@/app/compare/data";
 import { CAPTION_FAMILIES, CAPTION_TEMPLATES } from "@clipiro/shared/caption-templates";
-import { FREE_TIER_MONTHLY_BONUS_MINUTES, TIER_LABEL, PURCHASABLE_TIER_ORDER } from "@/lib/plans/tiers";
+import {
+  FREE_TIER_MONTHLY_BONUS_MINUTES,
+  FREE_TIER_SIGNUP_MINUTES,
+  PLAN_NAME,
+  TIER_LABEL,
+  PURCHASABLE_TIER_ORDER,
+} from "@/lib/plans/tiers";
 
 // /llms.txt (llmstxt.org): a plain-Markdown map of the public site for AI
 // answer engines. Built from the same registries as the sitemap and the tool
@@ -31,7 +37,9 @@ export function GET() {
     "",
     "> Clipiro is a browser-based AI video tool for creators. Its main product, AutoClip, turns long videos (podcasts, interviews, streams, webinars) into short vertical clips with captions for YouTube Shorts, Instagram Reels and Facebook. Around it sit AI tools (image generation, voiceover, voice changing, speech enhancement, background and subtitle removal) and free utilities.",
     "",
-    `- Plans: Free, ${plans}. The free plan needs no card and includes ${FREE_TIER_MONTHLY_BONUS_MINUTES} watermarked AutoClip minutes a month.`,
+    // The free tier is named from PLAN_NAME, not typed: it was renamed Free →
+    // Starter (#472) and this line kept saying "Free" afterwards.
+    `- Plans: ${PLAN_NAME.free} (free), ${plans}. ${PLAN_NAME.free} needs no card: new accounts get ${FREE_TIER_SIGNUP_MINUTES} Clip Minutes at signup, then ${FREE_TIER_MONTHLY_BONUS_MINUTES} watermarked AutoClip minutes a month.`,
     "- AutoClip is billed in Clip Minutes: one minute per minute of source video, however many clips it produces.",
     "- Other AI tools spend credits from one shared balance; the free utilities spend nothing.",
     "- Every paid plan includes a commercial license and exports without a watermark.",

@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     template: "%s · Clipiro",
   },
   description:
-    "Clipiro turns podcasts, interviews, webinars, and YouTube videos into viral short-form clips with AI-powered clipping, captions, and one-click social formatting for Reels and Shorts.",
+    "Clipiro turns podcasts, interviews, streams and webinars into captioned vertical clips for YouTube Shorts and Instagram Reels with AI. Start free, no card.",
   keywords: [
     "AI video clipping",
     "viral shorts generator",

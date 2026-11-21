@@ -24,7 +24,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const author = getAuthorIndex(BLOG_POSTS).get(slug);
   if (!author) return { title: "Author not found" };
 
-  const description = author.bio ?? `Articles written by ${author.name} on the Clipiro blog.`;
+  const description = author.metaDescription ?? author.bio ?? `Articles written by ${author.name} on the Clipiro blog.`;
   return {
     title: author.name,
     description,

@@ -12,7 +12,7 @@ import { ALL_TOOLS, AI_TOOLS, FREE_FEATURES, VIDEO_TOOLS, toolPath } from "@/app
 const DESCRIPTION = `Every tool in the Clipiro workspace — ${ALL_TOOLS.length} of them, sharing one plan and one credit balance.`;
 
 export const metadata: Metadata = {
-  title: "All Tools",
+  title: "AI Video Tools: Clipper, Captions, Voiceover",
   description:
     "Browse every Clipiro tool: AutoClip, the video editor, AI voiceovers, image generation, face swap, background removal, and free compressors and downloaders.",
   alternates: { canonical: "/tools" },

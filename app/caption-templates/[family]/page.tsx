@@ -28,7 +28,9 @@ export async function generateMetadata({ params }: { params: Promise<{ family: s
   const family = getFamily(id);
   if (!family || family.templates.length === 0) return { title: "Templates not found" };
   const title = `${family.name} caption templates`;
-  const description = `${family.templates.length} ${family.name} caption templates for Shorts and Reels. ${family.description}`.slice(0, 160);
+  const full = `${family.templates.length} ${family.name} caption templates for Shorts and Reels. ${family.description}`;
+  // Cut on a word boundary: a hard .slice(0, 160) ended snippets mid-word.
+  const description = full.length <= 160 ? full : `${full.slice(0, 157).replace(/\s+\S*$/, "")}…`;
   const path = `/caption-templates/${family.id}`;
   return { title, description, alternates: { canonical: path }, ...socialMetadata({ title, description, path }) };
 }

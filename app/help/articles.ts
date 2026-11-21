@@ -13,7 +13,10 @@ import {
   FREE_TIER_MONTHLY_BONUS_MINUTES,
   FREE_TIER_SIGNUP_MINUTES,
   OVERFLOW_MINUTES_PER_CREDIT,
+  SUBSCRIPTION_ROLLOVER_CAP_MULTIPLIER,
 } from "@/lib/plans/tiers";
+import { FREE_TOOL_DAILY_CAPS } from "@/lib/free-tools";
+import { MONEY_BACK_DAYS } from "@clipiro/shared";
 
 export interface HelpArticle {
   slug: string;
@@ -104,7 +107,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     category: "Tools & editor",
     title: "Exporting and render quality",
     summary: "Formats, resolutions, and why an export might look different from the preview.",
-    metaDescription: "Clipiro exports H.264 MP4 in full resolution, or 4K from the editor on Pro and Agency. Starter (free) exports are 720p with a small watermark. Why previews can differ.",
+    metaDescription: "Clipiro exports H.264 MP4 at full resolution, or 4K from the editor on Pro and Agency. Starter (free) exports are 720p with a small watermark.",
     updatedAt: "2026-11-04",
     paragraphs: [
       { text: "Exports render server-side with FFmpeg at your project's aspect ratio — 1080×1920 for 9:16 — as H.264 MP4 with AAC audio, ready for every major platform." },
@@ -118,12 +121,17 @@ export const HELP_ARTICLES: HelpArticle[] = [
     category: "Tools & editor",
     title: "The AI tools, at a glance",
     summary: "What each tool in the toolbox does and roughly what it costs.",
-    metaDescription: "What each Clipiro AI tool does and how it's priced: credits by length or per output, shown before you run it. The compressor, MP3 converter and audio balancer are free.",
-    updatedAt: "2026-11-04",
+    metaDescription: "What each Clipiro AI tool does and costs: credits by length or per output, shown before you run it. The compressor, MP3 converter and balancer are free.",
+    updatedAt: "2026-11-21",
     paragraphs: [
       { text: "Beyond Auto Clips, the Tools section covers one-shot jobs: background remover, speech enhancement, vocal remover, voice changer, voiceover generation, image generation, face swap, subtitle remover, and downloaders for your own social content." },
       { lead: "Costs.", text: "Each tool page shows its credit cost before you run it. Duration-based tools (audio/video processing) scale with input length; generation tools charge per output." },
       { lead: "Free tools.", text: "The compressor, MP3 converter, and audio balancer are free and don't touch your credit balance." },
+      { lead: "Video tools.", text: "AutoClip turns a long video into captioned vertical clips and is billed in Clip Minutes, not credits. Caption Studio, Cut & Crop and the browser video editor work on videos you already have; the YouTube and Instagram downloaders bring in videos from your own channels at no cost." },
+      { lead: "AI audio tools.", text: "Voiceover turns a script into speech, the voice changer re-voices a recording, the speech enhancer cleans up noisy audio, and the vocal remover splits vocals from the instrumental. These are priced by length, so a short clip costs less than a long one." },
+      { lead: "AI image and video tools.", text: "The image generator, photo editor, background remover and face swap charge per result. The subtitle remover erases burned-in captions from a video so you can caption it again in your own style. The brainstormer suggests content ideas for your niche." },
+      { lead: "Downloader limits.", text: `The downloaders use no credits on any plan, up to ${FREE_TOOL_DAILY_CAPS["youtube-downloader"]} downloads a day per account. Only download videos you own or have the right to reuse.` },
+      { lead: "Failed jobs.", text: "A failed AutoClip run or export returns its Clip Minutes to your balance automatically. If any tool takes credits and delivers nothing because of an error on our side, contact support and we'll restore them." },
       { text: "If a tool is temporarily disabled you'll see a notice instead of a charge — this happens during upstream provider incidents and resolves without action from you." },
     ],
   },
@@ -133,11 +141,14 @@ export const HELP_ARTICLES: HelpArticle[] = [
     title: "Setting up two-factor authentication",
     summary: "Protect your account with an authenticator app and recovery codes.",
     metaDescription: "Turn on two-factor authentication in Settings → Security with any TOTP app (Google Authenticator, 1Password, Authy), and keep your one-time recovery codes safe.",
-    updatedAt: "2026-11-04",
+    updatedAt: "2026-11-21",
     paragraphs: [
       { text: "Go to Settings → Security and choose Enable two-factor authentication. Scan the QR code with any TOTP app (Google Authenticator, 1Password, Authy) and confirm with a code to switch it on." },
       { lead: "Recovery codes.", text: "You'll get one-time recovery codes at setup — store them somewhere safe. Each works exactly once if you lose access to your authenticator." },
       { lead: "How login changes.", text: "After your password (or Google sign-in), you'll be asked for a 6-digit code. Codes are single-use within their time window." },
+      { lead: "Running low on codes.", text: "You get 10 recovery codes. If you've used some, generate a fresh set from Settings → Security; the new set replaces the old one, so any unused old codes stop working." },
+      { lead: "Turning it off.", text: "Disabling two-factor needs your password (or an emailed code if you sign in with Google) and a current code from your authenticator or a recovery code, so a stolen session alone can't remove it." },
+      { lead: "New phone.", text: "Moving to a new phone? Most authenticator apps can transfer accounts. If yours can't, sign in with a recovery code, turn two-factor off, then turn it on again and scan the new QR code." },
       { text: "Lost both your authenticator and recovery codes? Contact support from your account email and we'll verify ownership manually." },
     ],
   },
@@ -146,11 +157,13 @@ export const HELP_ARTICLES: HelpArticle[] = [
     category: "Account & security",
     title: "Using API keys",
     summary: "Create scoped keys and automate clipping from your own code.",
-    metaDescription: "Create read or read+write Clipiro API keys in Settings → API keys, then create projects, start AutoClip jobs and fetch clips from your own code. Revoke keys any time.",
-    updatedAt: "2026-11-04",
+    metaDescription: "Create read or read+write Clipiro API keys in Settings → API keys, then start AutoClip jobs and fetch clips from your own code. Revoke keys any time.",
+    updatedAt: "2026-11-21",
     paragraphs: [
-      { text: "Settings → API keys lets you mint keys with read or read+write scopes and optional expiry. The full key is shown once at creation — copy it then." },
-      { lead: "What the API covers.", text: "Create projects, start AutoClip analysis jobs, and poll clip status/downloads. See the API docs page for endpoints, examples, and rate limits." },
+      { text: "Settings → API keys lets you mint keys with read or read+write scopes and an optional expiry of 1 to 365 days. You confirm with your password (or an emailed code) before a key is created. The full key is shown once at creation — copy it then." },
+      { lead: "Limits.", text: "You can have up to 10 active keys. Send the key as a Bearer token in the Authorization header. Reading needs the read scope; creating projects and starting runs needs write." },
+      { lead: "What the API covers.", text: "Create a project, start an AutoClip run on it, then poll the project's clips until they're completed and download them. See the API docs page for endpoints, examples, and rate limits." },
+      { lead: "Billing.", text: "An API run is charged exactly like one started in the dashboard: Clip Minutes are taken when you submit it, and a run that fails on our side returns them." },
       { lead: "Safety.", text: "Keys are rate-limited per key and can be revoked instantly from the same page. Revoke immediately if a key leaks — usage counts on the page help you spot anything unexpected." },
     ],
   },
@@ -160,11 +173,14 @@ export const HELP_ARTICLES: HelpArticle[] = [
     title: "Refunds and cancelling your plan",
     summary: "How cancellation works and when purchases are refundable.",
     metaDescription: "Cancel any Clipiro plan from Billing and keep access until the paid period ends. Paid plans carry a 3-day money-back guarantee; refunds return through Razorpay.",
-    updatedAt: "2026-11-04",
+    updatedAt: "2026-11-21",
     paragraphs: [
-      { text: "Cancel any time from the Billing page. Your plan stays active until the end of the paid period; after that you drop to the free plan and unused subscription credits expire per the rollover rules." },
-      { lead: "Refunds.", text: "Every paid plan carries a 3-day money-back guarantee, and purchased minute and credit packs follow the refund policy — broadly, unused purchases within the policy window qualify. Read the full policy for the exact terms." },
-      { text: "Refunds approved by support are returned to the original payment method via Razorpay, typically within 5–7 business days." },
+      { text: "Cancel any time from the Billing page. Your plan stays active until the end of the paid period; after that you move to the free Starter plan. Subscription minutes and credits are removed when the subscription ends, while pack minutes and credits never expire." },
+      { lead: "Money-back window.", text: `A new subscription, a renewal or a pack can be refunded in full within ${MONEY_BACK_DAYS} days if you haven't used any of the minutes or credits it gave you. Read the full refund policy for the exact terms.` },
+      { lead: "Technical failures.", text: "If minutes or credits were taken and no result was delivered because of an error on our side, they come back to your balance automatically. If one didn't, contact support and we'll restore it or refund its value." },
+      { lead: "Rollover.", text: `While you're subscribed, unused monthly minutes and credits roll over up to ${SUBSCRIPTION_ROLLOVER_CAP_MULTIPLIER}× your monthly allowance.` },
+      { lead: "Changing plan.", text: "Switching plans starts a new term on the new plan, and the minutes and credits already on your account come with you. Switching is not refunded in money." },
+      { text: "Approved refunds go back to the payment method you used, through Razorpay: UPI and wallets usually take 1–3 business days, net banking 3–7, and cards 5–10 depending on your bank." },
     ],
   },
 ];

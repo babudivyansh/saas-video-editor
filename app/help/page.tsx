@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { buildBreadcrumbSchema } from "@/app/blog/schema";
+import { JsonLd } from "@/app/components/JsonLd";
 import Link from "next/link";
 import CardGrid from "@/app/components/marketing/CardGrid";
 import LinkCard from "@/app/components/marketing/LinkCard";
@@ -11,7 +13,7 @@ import { socialMetadata } from "@/lib/seo/social";
 import { HELP_ARTICLES, HELP_CATEGORIES } from "./articles";
 
 export const metadata: Metadata = {
-  title: "Help Center",
+  title: "Help Center: Clip Minutes, Billing, Exports",
   description: "Guides for getting started with Clipiro, credits and billing, Auto Clips, the editor, and account security.",
   alternates: { canonical: "/help" },
   ...socialMetadata({
@@ -29,6 +31,12 @@ export default function HelpPage() {
 
   return (
     <MarketingShell>
+      <JsonLd
+        data={buildBreadcrumbSchema([
+          { name: "Home", path: "/" },
+          { name: "Help Center", path: "/help" },
+        ])}
+      />
       <PageHero
         eyebrow="Help Center"
         title="How can we help?"

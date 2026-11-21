@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePricing } from "@/lib/plans/revalidate-pricing";
 import { prisma } from "@/lib/prisma";
 import { withAdmin, parseBody } from "@/lib/admin/api";
 import { auditAdminAction, auditIp } from "@/lib/admin/audit";
@@ -68,6 +69,8 @@ export const PATCH = withAdmin<{ id: string }>(async (req, { admin, params }) =>
     ip: auditIp(req),
   });
 
+  revalidatePricing();
+
   return NextResponse.json({ plan, resynced });
 });
 
@@ -95,6 +98,8 @@ export const DELETE = withAdmin<{ id: string }>(async (req, { admin, params }) =
     after: { active: false, activeSubscribers, recurringSubscribers },
     ip: auditIp(req),
   });
+
+  revalidatePricing();
 
   return NextResponse.json({ plan, activeSubscribers, recurringSubscribers });
 });

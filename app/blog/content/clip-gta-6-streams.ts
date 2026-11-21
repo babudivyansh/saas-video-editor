@@ -12,8 +12,9 @@ export const clipGta6Streams: BlogPost = {
   slug: "how-to-clip-gta-6-streams",
   category: "Guide",
   title: "How to clip GTA 6 streams into Shorts and Reels (launch-week guide)",
+  seoTitle: "How to clip GTA 6 streams into Shorts and Reels",
   metaDescription:
-    "A practical guide to turning GTA 6 streams into Shorts, Reels and TikToks: what to record, how to get the VOD in, clip length, captions, spoilers and Rockstar's video policy.",
+    "How to turn GTA 6 streams into Shorts, Reels and TikToks: what to record, getting the VOD in, clip length, captions, spoilers and Rockstar's video policy.",
   publishedAt: "2026-11-18",
   updatedAt: "2026-11-18",
   author: AUTHORS.founder,

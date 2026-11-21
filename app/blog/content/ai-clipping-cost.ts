@@ -20,7 +20,7 @@ export const aiClippingCost: BlogPost = {
   category: "Growth",
   title: "How much does AI video clipping cost?",
   metaDescription:
-    "What AI clipping tools charge, how the billing units differ (minutes, credits, hours) and how to work out your real cost per hour of video, with current figures.",
+    "What AI clipping tools charge, how their billing units differ (minutes, credits, hours) and how to work out your real cost per hour of video.",
   publishedAt: "2026-11-04",
   updatedAt: "2026-11-04",
   author: AUTHORS.founder,

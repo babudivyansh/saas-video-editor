@@ -13,7 +13,7 @@ import { BLOG_POSTS } from "./posts";
 import { buildBreadcrumbSchema, buildCollectionPageSchema } from "./schema";
 
 export const metadata: Metadata = {
-  title: "Blog",
+  title: "Blog: Short-Form Video and Clipping Guides",
   description:
     "Tips, tutorials, and product updates on AI video clipping, captions, and growing your audience with short-form content.",
   alternates: { canonical: "/blog" },
