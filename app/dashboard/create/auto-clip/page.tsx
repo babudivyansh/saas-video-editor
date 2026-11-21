@@ -95,6 +95,9 @@ function AutoClipFlow() {
     : (pickedAsset?.duration ?? null);
   // Opt-in: pay a minutes shortfall in AI credits instead of being refused.
   const [allowCreditOverflow, setAllowCreditOverflow] = useState(false);
+  // Opt-in: an AI-generated video cutaway when no stock clip fits. Agency only
+  // (the server still checks the plan and its own autoclip_ai switches).
+  const [aiVideoBroll, setAiVideoBroll] = useState(false);
 
   const runCost = useMemo(() => estimateRunCost({ sourceDurationSec }), [sourceDurationSec]);
   const minutesShort = runCost.minutes != null && minutesBalance != null ? Math.max(runCost.minutes - minutesBalance, 0) : 0;
@@ -239,6 +242,7 @@ function AutoClipFlow() {
       reframingPreset, removeSilence, silenceThresholdMs, removeFillers,
       smartAutoReframe, zoomStrength, speakerMode, smoothness, trackingSpeed, animatedCaptions,
       allowCreditOverflow,
+      aiVideoBroll: tier === "studio" && aiVideoBroll,
     };
     if (!file && retryProject) {
       setImportError(null);
@@ -286,7 +290,7 @@ function AutoClipFlow() {
     }
     if (!file) return;
     await generateAutoClip({ file, token, ...settings });
-  }, [file, retryProject, pickedAsset, importedUrl, importedTitle, minDuration, maxDuration, clipCount, aspectRatio, instructions, captionsOn, captionStyleIndex, captionTemplateId, reframingPreset, removeSilence, silenceThresholdMs, removeFillers, smartAutoReframe, zoomStrength, speakerMode, smoothness, trackingSpeed, animatedCaptions, allowCreditOverflow, generateAutoClip, generateAutoClipForProject]);
+  }, [file, retryProject, pickedAsset, importedUrl, importedTitle, minDuration, maxDuration, clipCount, aspectRatio, instructions, captionsOn, captionStyleIndex, captionTemplateId, reframingPreset, removeSilence, silenceThresholdMs, removeFillers, smartAutoReframe, zoomStrength, speakerMode, smoothness, trackingSpeed, animatedCaptions, allowCreditOverflow, aiVideoBroll, tier, generateAutoClip, generateAutoClipForProject]);
 
   const handleGenerate = useCallback(async () => {
     if (submittingRef.current) return;
@@ -536,6 +540,15 @@ function AutoClipFlow() {
                         <label htmlFor="ac-instructions" className="mb-2 block text-[12px] font-bold uppercase tracking-wider text-fg-muted">Instructions (optional)</label>
                         <textarea id="ac-instructions" value={instructions} onChange={(e) => setInstructions(e.target.value)} rows={3} maxLength={MAX_INSTRUCTIONS_CHARS} placeholder="e.g. Focus on funny moments, avoid silent parts, prioritize high-energy sections…" className="w-full resize-none rounded-xl border border-line bg-surface-2 px-3 py-3 text-sm text-fg transition-all placeholder:text-fg-subtle focus:border-primary/60 focus:outline-none focus:ring-2 focus:ring-primary/30" />
                       </div>
+                      {tier === "studio" && (
+                        <Checkbox
+                          className="text-[12px]"
+                          checked={aiVideoBroll}
+                          onChange={setAiVideoBroll}
+                          showLabel
+                          label="AI video B-roll: when no stock clip fits, generate a short AI video cutaway (can add a few minutes)"
+                        />
+                      )}
                     </div>
                   )}
                 </div>

@@ -15,6 +15,11 @@ type HostRule = string | RegExp;
 const PEXELS: HostRule[] = ["images.pexels.com", "videos.pexels.com", "player.vimeo.com"];
 const JAMENDO: HostRule[] = ["prod.jamendo.com", "media.jamendo.com", /\.jamendo\.com$/];
 const GIPHY: HostRule[] = [/\.giphy\.com$/];
+// AutoClip's extra B-roll sources (lib/autoclip-ai/broll-sources.ts) and the
+// fal CDN that generated inserts are served from.
+const PIXABAY: HostRule[] = ["cdn.pixabay.com", "pixabay.com"];
+const COVERR: HostRule[] = [/(^|\.)coverr\.co$/];
+const FAL_CDN: HostRule[] = ["fal.media", /\.fal\.media$/];
 
 export const STOCK_HOSTS = {
   /** Every stock provider — the editor's stock import accepts all of them. */
@@ -23,6 +28,10 @@ export const STOCK_HOSTS = {
   audio: JAMENDO,
   /** Stock footage. */
   video: PEXELS,
+  /** Everything an AutoClip B-roll window may be downloaded from (third-party only; our own bucket is presigned separately). */
+  broll: [...PEXELS, ...PIXABAY, ...COVERR, ...GIPHY, ...FAL_CDN],
+  /** Generated media from fal. */
+  fal: FAL_CDN,
 } as const;
 
 export type StockHostKind = keyof typeof STOCK_HOSTS;

@@ -137,6 +137,7 @@ export async function startAutoClipRun(userId: string, rawBody: unknown): Promis
     trackingSpeed: sanitizeReframePercent(input.trackingSpeed) ?? 50,
     animatedCaptions: input.animatedCaptions,
     allowCreditOverflow: input.allowCreditOverflow,
+    aiVideoBroll: input.aiVideoBroll,
   };
 
   try {

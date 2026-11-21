@@ -15,7 +15,7 @@ import { logger } from "@/lib/logger";
 
 export type PipelineStage =
   | "download" | "transcribe" | "select" | "faces" | "signal"
-  | "render" | "upload" | "lite" | "preview";
+  | "render" | "upload" | "lite" | "preview" | "ai";
 
 export interface StageSample {
   stage: PipelineStage;

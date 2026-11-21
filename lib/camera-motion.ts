@@ -26,7 +26,23 @@ export interface CameraMotionOptions {
   leadOutSec?: number;
   /** Spring stiffness (rad/s). Higher = snappier. */
   omega?: number;
+  /**
+   * Punch-ins the AI edit plan asked for (lib/autoclip-ai/edit-plan.ts), on
+   * the same timeline as the track. When present they LEAD: the energy track
+   * only vetoes a planned push that lands on near-silence, and adds one of its
+   * own only for a spike strong enough that the plan clearly missed it.
+   */
+  planned?: { tSec: number; strength: number; holdSec: number }[];
+  /** Times the plan returns to normal framing; nothing pushes in for a beat after. */
+  resets?: number[];
 }
+
+/** Energy below this at a planned push means the anchor landed on silence. */
+const PLANNED_VETO_ENERGY = 0.1;
+/** With a plan, an energy onset must be at least this strong to be added. */
+const PLANNED_ENERGY_ONSET_MIN = 0.6;
+/** How long a reset holds the camera wide. */
+const RESET_HOLD_SEC = 1.5;
 
 export const ZOOM_STRENGTH_MAX: Record<"low" | "medium" | "high", number> = {
   low: 1.06,
@@ -34,7 +50,7 @@ export const ZOOM_STRENGTH_MAX: Record<"low" | "medium" | "high", number> = {
   high: 1.24, // hard ceiling: past ~1.3 a 1080p source visibly softens
 };
 
-const DEFAULTS: Required<CameraMotionOptions> = {
+const DEFAULTS: Required<Omit<CameraMotionOptions, "planned" | "resets">> = {
   maxZoom: ZOOM_STRENGTH_MAX.medium,
   refractorySec: 4,
   leadInSec: 0.8,
@@ -74,7 +90,30 @@ export function buildZoomTargets(
   const o = { ...DEFAULTS, ...opts };
   const n = Math.max(1, Math.round(durationSec * SIGNAL_HZ));
   const targets = new Array<number>(n).fill(1);
-  if (track.energy.length === 0) return targets;
+  const planned = (o.planned ?? []).filter((p) => p.tSec >= o.leadInSec && p.tSec <= durationSec - o.leadOutSec);
+  const hasPlan = planned.length > 0;
+
+  // Planned pushes: held for the plan's own duration, not for "while energy
+  // stays high" — the plan knows where the thought ends, the envelope doesn't.
+  for (const p of planned) {
+    if (track.energy.length > 0 && sampleAt(track.energy, p.tSec) < PLANNED_VETO_ENERGY) continue;
+    const startIdx = Math.max(0, Math.round(p.tSec * SIGNAL_HZ));
+    const endT = Math.min(durationSec - o.leadOutSec, p.tSec + Math.max(0.5, p.holdSec));
+    for (let i = startIdx; i < n && i / SIGNAL_HZ <= endT; i++) {
+      targets[i] = Math.max(targets[i], 1 + (o.maxZoom - 1) * Math.min(1, Math.max(0, p.strength)));
+    }
+  }
+  const applyResets = () => {
+    for (const r of o.resets ?? []) {
+      const from = Math.max(0, Math.round(r * SIGNAL_HZ));
+      const to = Math.min(n, Math.round((r + RESET_HOLD_SEC) * SIGNAL_HZ));
+      for (let i = from; i < to; i++) targets[i] = 1;
+    }
+  };
+  if (track.energy.length === 0) {
+    applyResets();
+    return targets;
+  }
 
   // Candidate push-ins: a sustained rise in energy above the clip's own
   // midpoint. Using a relative threshold means a consistently loud clip does
@@ -93,8 +132,14 @@ export function buildZoomTargets(
     if (e < threshold) continue;
     const snapped = snapToBeat(t, track);
     if (snapped - lastOnset < o.refractorySec) continue;
+    const strength = Math.min(1, (e - threshold) / Math.max(0.05, 1 - threshold));
+    if (hasPlan) {
+      // The plan leads: only a clearly missed spike, clear of every planned push.
+      if (strength < PLANNED_ENERGY_ONSET_MIN) continue;
+      if (planned.some((p) => Math.abs(p.tSec - snapped) < o.refractorySec)) continue;
+    }
     lastOnset = snapped;
-    onsets.push({ t: snapped, strength: Math.min(1, (e - threshold) / Math.max(0.05, 1 - threshold)) });
+    onsets.push({ t: snapped, strength });
   }
 
   // Each onset holds while energy stays elevated, then releases.
@@ -109,7 +154,44 @@ export function buildZoomTargets(
     }
   }
 
+  applyResets();
   return targets;
+}
+
+/**
+ * Resample a crop path at `hz`, keeping every original keyframe.
+ *
+ * applyZoomToKeyframes reads the zoom curve only AT keyframe times, and a
+ * simplified path can have a few keyframes per clip — so a two-second punch-in
+ * between two of them would simply never be applied. Two keyframes closer
+ * than a frame are a deliberate cut (buildCutKeyframes, shot boundaries):
+ * nothing is interpolated between them, so the jump stays a jump.
+ */
+export function densifyKeyframes<T extends { tSec: number; x: number; y: number; w: number; h: number }>(
+  keyframes: T[],
+  hz = 5,
+): T[] {
+  if (keyframes.length < 2) return keyframes;
+  const sorted = [...keyframes].sort((a, b) => a.tSec - b.tSec);
+  const step = 1 / hz;
+  const out: T[] = [];
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const a = sorted[i], b = sorted[i + 1];
+    out.push(a);
+    const span = b.tSec - a.tSec;
+    if (span <= 1 / 25) continue; // a cut
+    for (let t = a.tSec + step; t < b.tSec - step / 2; t += step) {
+      const f = (t - a.tSec) / span;
+      out.push({
+        ...a,
+        tSec: t,
+        x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f,
+        w: a.w + (b.w - a.w) * f, h: a.h + (b.h - a.h) * f,
+      });
+    }
+  }
+  out.push(sorted[sorted.length - 1]);
+  return out;
 }
 
 /**
