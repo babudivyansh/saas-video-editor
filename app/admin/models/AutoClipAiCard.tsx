@@ -114,11 +114,15 @@ export function AutoClipAiCard({ headers }: { headers: () => Record<string, stri
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         {BROLL_PROVIDERS.map((p) => (
           <div key={p}>
-            <Switch
-              checked={config.broll.providers[p]}
-              onChange={(on) => save.mutate({ broll: { providers: { [p]: on } } })}
-              label={PROVIDER_LABEL[p].label}
-            />
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={config.broll.providers[p]}
+                onChange={(on) => save.mutate({ broll: { providers: { [p]: on } } })}
+                label={PROVIDER_LABEL[p].label}
+              />
+              {/* The Switch's label is for screen readers only. */}
+              <span className="text-sm text-fg">{PROVIDER_LABEL[p].label}</span>
+            </div>
             {missing(PROVIDER_LABEL[p].needs) && (
               <p className="text-[10px] text-fg-subtle mt-1">{missing(PROVIDER_LABEL[p].needs).trim()}</p>
             )}
