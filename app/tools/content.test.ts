@@ -42,6 +42,15 @@ describe("tool marketing content", () => {
     }
   });
 
+  it("opens every tool page with a self-contained definition", () => {
+    for (const tool of ALL_TOOLS) {
+      const { definition } = TOOL_CONTENT[tool.slug];
+      expect(definition, tool.slug).toMatch(/^Clipiro(’s|'s)? .+ is (a|an) /);
+      expect(definition.length, `${tool.slug} definition`).toBeLessThanOrEqual(200);
+      expect(definition.endsWith("."), tool.slug).toBe(true);
+    }
+  });
+
   it("keeps meta descriptions within the length Google renders", () => {
     for (const tool of ALL_TOOLS) {
       const { metaDescription, metaTitle } = TOOL_CONTENT[tool.slug];

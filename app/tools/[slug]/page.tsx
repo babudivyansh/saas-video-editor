@@ -70,7 +70,7 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
       name: tool.title.startsWith("Clipiro") ? tool.title : `Clipiro ${tool.title}`,
       applicationCategory: "MultimediaApplication",
       operatingSystem: "Web",
-      description: content.metaDescription,
+      description: content.definition,
       url: `${SITE_URL}/tools/${slug}`,
       dateModified: content.updatedAt,
       // The @id ties this to the homepage's full Organization node; name and
@@ -119,7 +119,13 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
         badge={isFree ? "Free — no card required" : "3-day money-back guarantee"}
         eyebrow={categoryLabel}
         title={content.h1}
-        lede={content.lede}
+        // The definition goes first: it is the sentence an answer engine can
+        // lift on its own ("Clipiro X is …"); the lede that follows is the pitch.
+        lede={
+          <>
+            <span className="text-ink">{content.definition}</span> {content.lede}
+          </>
+        }
         sideMedia={artwork ? <ToolImage {...artwork.primary} priority /> : undefined}
         media={
           artwork ? (

@@ -61,6 +61,7 @@ export const aiClippingCost: BlogPost = {
       caption: `Figures from each tool's own pricing page, checked ${COMPETITORS_CHECKED_ON}. Prices change; check before you buy.`,
       columns: ["Tool", "Paid plans", "Billed by"],
       rows: competitorPrices,
+      sources: COMPETITORS.map((c) => ({ label: `${c.name} pricing`, href: c.pricingUrl })),
     },
     {
       heading: "How to work out your real cost",

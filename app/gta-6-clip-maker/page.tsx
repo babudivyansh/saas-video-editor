@@ -69,7 +69,11 @@ export default function Gta6ClipMakerPage() {
         badge="3-day money-back guarantee"
         eyebrow="For GTA 6 streamers"
         title={content.h1}
-        lede={content.lede}
+        lede={
+          <>
+            <span className="text-ink">{content.definition}</span> {content.lede}
+          </>
+        }
         sideMedia={artwork ? <ToolImage {...artwork.primary} priority /> : undefined}
       >
         <div className="flex flex-wrap items-center gap-3">

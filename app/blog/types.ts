@@ -55,7 +55,14 @@ export type BlogBlock =
    * reliably than the same numbers spread through prose. `caption` names what
    * is compared and, where it applies, the date and source of the figures.
    */
-  | { type: "table"; caption: string; columns: string[]; rows: string[][] };
+  | {
+      type: "table";
+      caption: string;
+      columns: string[];
+      rows: string[][];
+      /** Where third-party figures came from, linked under the table so a quoted number can be traced. */
+      sources?: { label: string; href: string }[];
+    };
 
 export type CalloutTone = "tip" | "warning" | "note" | "stat";
 

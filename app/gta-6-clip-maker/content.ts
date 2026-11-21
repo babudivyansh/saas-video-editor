@@ -54,6 +54,8 @@ export const GTA6_CONTENT: UseCaseContent = {
   metaTitle: "GTA 6 Clip Maker — Stream VODs to Vertical Clips with AI",
   metaDescription:
     `Paste a Twitch or YouTube VOD of your GTA 6 stream and AutoClip finds the moments worth posting, captions them and cuts them vertical. ${FREE_TIER_MONTHLY_BONUS_MINUTES} free minutes a month.`,
+  definition:
+    "Clipiro's GTA 6 clip maker is AutoClip pointed at stream VODs: it picks the moments worth posting from what you say on stream, captions them and cuts them to vertical.",
   lede:
     "Paste the link to your Twitch or YouTube VOD, or upload the recording. AutoClip finds the moments worth posting, adds captions, cuts them to vertical and hands back clips ready for Shorts, Reels and TikTok.",
   steps: [

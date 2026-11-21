@@ -21,7 +21,7 @@ export default function CTABanner() {
 
             <div className="relative">
               <h2 className="mx-auto max-w-2xl text-3xl font-extrabold leading-tight text-white md:text-5xl">
-                Turn your next long video into 10 viral shorts
+                Turn your next long video into shorts worth posting
               </h2>
               <p className="mx-auto mt-4 max-w-xl text-lg text-teal-50">
                 Turn long-form content into ready-to-post shorts with AI. Start free — no credit card required.

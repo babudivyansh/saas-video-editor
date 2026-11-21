@@ -111,9 +111,12 @@ export default function AboutPage() {
                   Empowering creators to go viral with AI video automation
                 </h1>
                 <p className="max-w-[640px] text-[15px] leading-[1.6] text-ink-soft sm:text-[17px]">
-                  Clipiro was born from a simple realization: creators spend hours editing what AI can do in seconds.
-                  We are building the fastest, smartest workspace to turn raw footage into high-impact short-form
-                  videos.
+                  {/* Facts first: this is the sentence answer engines quote about the
+                      company, so it says who, where and what before the mission line. */}
+                  Clipiro is an AI video workspace for creators, built and run from Noida, India by founder{" "}
+                  {LEGAL.grievanceOfficer.name}. Its AutoClip turns long videos into captioned vertical clips for
+                  YouTube Shorts and Instagram Reels, billed in rupees with GST invoices. We started it because
+                  creators spend hours editing what AI can do in seconds.
                 </p>
                 <div className="flex flex-wrap items-center gap-3">
                   <Button href="/pricing" size="lg">
@@ -235,8 +238,11 @@ function PipelineMockup() {
   ];
 
   return (
+    // data-nosnippet: the mock's sample scores ("92% virality score") are
+    // illustration, not data, and were being extracted as page text.
     <div
       aria-hidden="true"
+      data-nosnippet=""
       className="relative aspect-[4/5] w-full max-w-[420px] rounded-[var(--radius-card)] border border-card-border bg-panel p-4 shadow-card"
     >
       <div className="flex h-full w-full flex-col overflow-hidden rounded-2xl border border-card-border bg-surface">
