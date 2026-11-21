@@ -22,7 +22,7 @@ export const podcastToYoutubeShorts: BlogPost = {
   category: "Guide",
   title: "How to turn a podcast into YouTube Shorts",
   metaDescription:
-    "Turn a podcast episode into YouTube Shorts: pick self-contained moments, cut them vertical with captions, and post them so they lead viewers back to the episode.",
+    "Turn a podcast episode into YouTube Shorts: pick self-contained moments, cut them vertical with captions, and use them to send viewers to the episode.",
   publishedAt: "2026-11-04",
   updatedAt: "2026-11-04",
   author: AUTHORS.founder,
@@ -64,7 +64,7 @@ export const videoToInstagramReels: BlogPost = {
   category: "Guide",
   title: "How to turn long videos into Instagram Reels",
   metaDescription:
-    "Turn a long video into Instagram Reels: choose moments that hook in the first seconds, cut them 9:16 with captions, keep text clear of the Reels interface and post.",
+    "Turn a long video into Instagram Reels: pick moments that hook in the first seconds, cut them 9:16 with captions, and keep text clear of the Reels UI.",
   publishedAt: "2026-11-04",
   updatedAt: "2026-11-04",
   author: AUTHORS.founder,

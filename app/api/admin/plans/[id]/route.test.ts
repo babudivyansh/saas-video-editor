@@ -50,6 +50,10 @@ vi.mock("@/lib/redis", () => ({
   },
 }));
 
+// /pricing is ISR-cached; every plan write must drop the cached copy.
+const revalidatePricing = vi.fn();
+vi.mock("@/lib/plans/revalidate-pricing", () => ({ revalidatePricing: () => revalidatePricing() }));
+
 const { PATCH, DELETE } = await import("./route");
 
 const patch = (body: unknown) =>
@@ -65,6 +69,7 @@ beforeEach(() => {
     credits: 160, monthlyCredits: 160, intervalMonths: 1, tier: "pro",
   };
   resyncMock.mockClear();
+  revalidatePricing.mockClear();
   resyncMock.mockResolvedValue([{ ok: true as const, currency: "INR" as const, razorpayPlanId: "plan_new", created: true }]);
 });
 
@@ -77,6 +82,7 @@ describe("PATCH price changes", () => {
     expect(resyncMock).toHaveBeenCalledWith(expect.objectContaining({ priceInPaise: 249900 }), 219900);
     expect(plan.priceInPaise).toBe(249900);
     expect(await res.json()).toMatchObject({ resynced: ["INR:plan_new"] });
+    expect(revalidatePricing).toHaveBeenCalledTimes(1);
   });
 
   it("refuses the edit entirely when Razorpay rejects the re-mint", async () => {
@@ -158,5 +164,6 @@ describe("DELETE (deactivate)", () => {
     );
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ activeSubscribers: 3, recurringSubscribers: 3 });
+    expect(revalidatePricing).toHaveBeenCalledTimes(1);
   });
 });

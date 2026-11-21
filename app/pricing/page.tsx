@@ -8,10 +8,13 @@ import type { DbPlan } from "./_components/types";
 // used to fetch them after hydration, which meant crawlers (and anyone on a
 // slow connection) saw four skeleton cards and no prices at all.
 //
-// Rendered per request (JsonLd reads the per-request CSP nonce header), so an
-// admin price change shows up immediately; it is two small indexed queries.
-// If the database is unreachable the page still renders, with an empty list
-// the client then fetches itself (and offers a retry if that fails too).
+// ISR-cached rather than rendered per request: force-dynamic sent
+// `private, no-store`, so /pricing was the one public page the CDN and
+// crawlers could never cache. Admin plan writes call revalidatePath("/pricing")
+// (app/api/admin/plans), so a price change still shows on the next visit; the
+// timer below is only a backstop. If the database is unreachable the page
+// still renders, with an empty list the client then fetches itself (and
+// offers a retry if that fails too).
 
 async function loadPlans(): Promise<PublicPlan[]> {
   try {
@@ -22,9 +25,9 @@ async function loadPlans(): Promise<PublicPlan[]> {
   }
 }
 
-// Explicit since JsonLd stopped reading request headers: without it this page
-// would prerender at build time with whatever prices (or none) the build saw.
-export const dynamic = "force-dynamic";
+// Without a revalidate window this page would prerender once at build time
+// with whatever prices (or none) the build saw, and keep them forever.
+export const revalidate = 300;
 
 export default async function PricingPage() {
   const plans = await loadPlans();

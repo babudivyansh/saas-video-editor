@@ -79,6 +79,8 @@ export interface BlogAuthor {
   /** Describes the post's byline, not the author entity — varies per post. */
   role: string;
   bio?: string;
+  /** <meta description> for the author hub when `bio` runs past ~155 chars. */
+  metaDescription?: string;
   avatar?: BlogImage;
   links?: { label: string; href: string }[];
   /**
@@ -93,6 +95,11 @@ export interface BlogPost {
   slug: string;
   category: BlogCategoryLabel;
   title: string;
+  /**
+   * Shorter <title> when `title` plus the " · Clipiro" suffix would run past
+   * ~60 characters and get cut off in search results. The page keeps `title`.
+   */
+  seoTitle?: string;
   /** Distinct from `intro` — used for <meta description>, OG, and Twitter cards. */
   metaDescription: string;
   intro: string;

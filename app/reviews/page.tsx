@@ -16,7 +16,7 @@ import { buildBreadcrumbSchema } from "@/app/blog/schema";
 export const revalidate = 3600;
 
 export const metadata: Metadata = {
-  title: "Reviews",
+  title: { absolute: "Clipiro Reviews: What Creators Say" },
   description: "See what creators are saying about Clipiro — real, verified reviews from people turning long videos into viral clips.",
   alternates: { canonical: "/reviews" },
   ...socialMetadata({

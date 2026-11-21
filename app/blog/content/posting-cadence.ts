@@ -5,6 +5,7 @@ export const postingCadence: BlogPost = {
   slug: "posting-cadence",
   category: "Growth",
   title: "Posting cadence: how often should you publish shorts?",
+  seoTitle: "How often should you post Shorts?",
   metaDescription:
     "How often should you post short-form video? A practical framework for finding your posting cadence across Reels and YouTube Shorts without burning out.",
   publishedAt: "2025-11-03",

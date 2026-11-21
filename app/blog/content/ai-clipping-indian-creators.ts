@@ -13,8 +13,9 @@ export const aiClippingIndianCreators: BlogPost = {
   slug: "ai-clipping-for-indian-creators",
   category: "Guide",
   title: "AI clipping for Indian creators: rupees, GST and Hindi captions",
+  seoTitle: "AI clipping for Indian creators: GST and Hindi",
   metaDescription:
-    "What Indian creators should check in an AI clipping tool: rupee billing, GST invoices, UPI payment, Hindi and Hinglish captions, and dubbing into Indian languages.",
+    "What Indian creators should check in an AI clipping tool: rupee billing, GST invoices, UPI, Hindi and Hinglish captions, and dubbing into Indian languages.",
   publishedAt: "2026-11-04",
   updatedAt: "2026-11-04",
   author: AUTHORS.founder,

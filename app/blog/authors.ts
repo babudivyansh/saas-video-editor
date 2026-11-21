@@ -20,6 +20,8 @@ const FOUNDER = {
   slug: "divyansh-verma",
   name: "Divyansh Verma",
   kind: "Person",
+  metaDescription:
+    "Divyansh Verma founded Clipiro and builds AutoClip. He writes about turning long videos into short clips, based on how creators actually use the product.",
   bio: "Founder and CEO of Clipiro. Divyansh builds AutoClip and the rest of the Clipiro workspace, and writes about turning long videos into short-form content from what creators actually do with the product.",
 } as const;
 
