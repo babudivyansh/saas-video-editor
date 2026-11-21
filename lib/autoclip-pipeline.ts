@@ -85,7 +85,7 @@ import { loadFaceTimeline, saveFaceTimeline } from "@/lib/face-timeline-store";
 import { calibrateScore, getViralityWeights, type SubScores } from "@/lib/virality-score";
 import { parseS3Url } from "@/lib/s3-url";
 import { adoptExistingS3Object } from "@/lib/asset-service";
-import { computeBrollWindow, pickBroll, planBrollWindows, type BrollCue } from "@/lib/broll";
+import { type BrollCue } from "@/lib/broll";
 import { isAllowedStockHost } from "@/lib/stock-hosts";
 
 /** A music bed is a few minutes of MP3; anything past this isn't one. */
@@ -571,7 +571,7 @@ For each clip include:
 - "payoff": 0-99, whether the clip has a clear punchline, insight, or resolution
 - "engagement": 0-99, overall predicted engagement if posted to Reels/Shorts
 - "mood": one of "energetic", "calm", "dramatic", "funny", "neutral" — the dominant emotional tone
-- "brollQuery": a short 2-4 word visual search term for stock B-roll footage (or null if none needed)
+- "brollQuery": a short visual description (4-10 words) of an illustrative cutaway IMAGE for this clip — a concrete scene, object or place, with no people's faces and no text (or null if none needed)
 - "brollOffsetSec": seconds from THIS clip's own start (not the source video) where the B-roll should play — pick a moment where the speaker is describing something visual rather than delivering the hook or punchline (or null if brollQuery is null)
 - "reasoning": 1-2 sentences explaining why this clip has viral potential (curiosity, value, story)
 - "hookExplanation": brief explanation of the initial hook's strength
@@ -582,7 +582,7 @@ For each clip include:
 - "hashtags": array of 3-4 trending hashtags
 - "suggestedCaption": engaging, ready-to-use social caption
 - "emphasisWords": array of up to 6 short strings — the exact words IN THIS CLIP the speaker leans on or that carry the point. Copy them verbatim from the transcript, lowercase, no punctuation.
-- "brollCues": array of up to 3 objects [{"word":"city","query":"city skyline at night"}] — a concrete NOUN the speaker says that a stock shot could illustrate, paired with a 2-4 word search term. Copy "word" verbatim from the transcript. Return [] if the clip is better served by staying on the speaker.
+- "brollCues": array of up to 3 objects [{"word":"city","query":"city skyline at night, aerial view"}] — a concrete NOUN the speaker says that a cutaway image could illustrate, paired with a short visual description of that image (a concrete scene, no faces, no text). Copy "word" verbatim from the transcript. Return [] if the clip is better served by staying on the speaker.
 
 Rules:
 - Return exactly ${clipCount} clip(s)
@@ -1233,35 +1233,6 @@ export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATT
       }
     }
 
-    // Best-effort B-roll lookup (P2.3) — resolved up front (outside the
-    // transaction) since it's a network call; never blocks or fails the pick.
-    // B-roll placement. Keyword cues are preferred: an insert that lands on
-    // the noun the speaker says reads as illustration, while one dropped at an
-    // arbitrary offset reads as the video losing its place. The old
-    // single-offset path remains as the fallback for when the model returns no
-    // usable cues. Skipped for a clip whose B-roll the AI stages already chose.
-    const brollPicks = await Promise.all(segments.map(async (seg, segIdx) => {
-      if (ai?.clips[segIdx]?.brollWindows !== undefined) return null;
-      const clipDuration = seg.end - seg.start;
-      const words = sliceWordsForClip(wordTimings, seg.start, seg.end);
-
-      const planned = planBrollWindows(seg.brollCues, words, clipDuration);
-      if (planned.length > 0) {
-        const resolved = await Promise.all(planned.map(async (p) => {
-          const found = await pickBroll(p.query);
-          return found ? { startSec: p.startSec, endSec: p.endSec, url: found.downloadUrl, query: p.query } : null;
-        }));
-        const usable = resolved.filter((w): w is NonNullable<typeof w> => w !== null);
-        if (usable.length > 0) return usable;
-      }
-
-      if (!seg.brollQuery) return null;
-      const window = computeBrollWindow(clipDuration, seg.brollOffsetSec);
-      if (!window) return null;
-      const broll = await pickBroll(seg.brollQuery);
-      return broll ? [{ ...window, url: broll.downloadUrl, query: seg.brollQuery }] : null;
-    }));
-
     // Clip creation and the final status flip must succeed or fail together —
     // splitting them (as an earlier version did) let a late, unrelated
     // failure (e.g. a transient error right after Gemini) leave real
@@ -1282,10 +1253,10 @@ export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATT
         const words = sliceWordsForClip(wordTimings, seg.start, seg.end);
         const hasCaptions = captionStyleIndex >= 0 && words.length > 0;
         const aiClip = ai?.clips[i];
-        const broll: BrollWindowRow[] | null = aiClip?.brollWindows !== undefined
-          ? (aiClip.brollWindows.length > 0 ? aiClip.brollWindows : null)
-          : brollPicks[i];
-        // B-roll used to disable reframing for the WHOLE clip, so a 2.5s stock
+        // Generated B-roll only (lib/autoclip-ai/broll-select.ts): stock
+        // footage was removed on 2026-11-21.
+        const broll: BrollWindowRow[] | null = aiClip?.brollWindows?.length ? aiClip.brollWindows : null;
+        // B-roll used to disable reframing for the WHOLE clip, so a 2.5s
         // insert cost the other ~30 seconds their speaker tracking. The
         // B-roll segments are ordinary crops in the same graph and can carry
         // the same dynamic expressions, so the pan path is computed either way
@@ -2070,11 +2041,14 @@ export async function renderClipFile(
         planned: plannedZooms,
         resets: plannedResets,
       });
-      // A planned punch-in can fall between two keyframes of a simplified
-      // path, where applyZoomToKeyframes would never see it — resample first.
-      const path = plannedZooms.length > 0 ? densifyKeyframes(stored.keyframes) : stored.keyframes;
-      let zoomed = applyZoomToKeyframes(path, curve);
-      if (plannedZooms.length > 0 && zoomed.length > 64) zoomed = simplifyKeyframes(zoomed, undefined, 64);
+      // Resample first, ALWAYS. applyZoomToKeyframes reads the zoom curve only
+      // at keyframe times, and a still speaker's path simplifies to just its
+      // two end keyframes — so a 2-second punch-in at 1.12x came out as one
+      // 30-second ramp to 1.05x (measured 2026-11-21). With the path resampled
+      // the curve is applied where it rises and falls; simplifying afterwards
+      // keeps those moves (they are exactly the deviations RDP preserves).
+      let zoomed = applyZoomToKeyframes(densifyKeyframes(stored.keyframes), curve);
+      if (zoomed.length > 64) zoomed = simplifyKeyframes(zoomed, undefined, 64);
       stored = { mode: "single", keyframes: zoomed };
     }
   }

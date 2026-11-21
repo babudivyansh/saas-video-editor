@@ -924,7 +924,7 @@ export function ClipWorkspace({
                           <div className="space-y-2.5 text-[12.5px]">
                             {bd?.hookExplanation && <InsightRow label="Why the hook works" value={bd.hookExplanation} />}
                             {bd?.retentionPrediction && <InsightRow label="Retention outlook" value={bd.retentionPrediction} />}
-                            {clip.brollQuery && <InsightRow label="B-roll searched for" value={clip.brollQuery} />}
+                            {clip.brollQuery && <InsightRow label="B-roll idea" value={clip.brollQuery} />}
                           </div>
                         </PanelSection>
                       )}

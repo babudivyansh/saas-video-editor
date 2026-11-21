@@ -546,7 +546,7 @@ function AutoClipFlow() {
                           checked={aiVideoBroll}
                           onChange={setAiVideoBroll}
                           showLabel
-                          label="AI video B-roll: when no stock clip fits, generate a short AI video cutaway (can add a few minutes)"
+                          label="AI video B-roll: use short AI video cutaways instead of AI images (can add a few minutes)"
                         />
                       )}
                     </div>

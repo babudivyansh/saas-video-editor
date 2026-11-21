@@ -3,17 +3,14 @@
 //
 //   Phase A, per clip (bounded concurrency): edit plan, scene vision, subject
 //   tracking. Independent of each other's clips.
-//   Phase B, per clip: B-roll — needs Phase A of EVERY clip, because a shot
-//   Gemini labelled in one clip can be another clip's cutaway.
+//   Phase B, per clip: generated B-roll — after Phase A, because the edit
+//   plan decides where the windows go when it ran.
 //
 // Each phase has a wall-clock budget well inside pickJob's 30-minute watchdog;
 // a clip that hasn't finished by then simply gets no AI for that phase. Every
 // step is best-effort: a failure is recorded in aiMeta.skipped and the clip
 // renders the way it would have without it.
 
-import fs from "fs";
-import os from "os";
-import path from "path";
 import { logger } from "@/lib/logger";
 import { classifySource } from "@/lib/source-url";
 import type { WordTiming } from "@/utils/elevenlabs";
@@ -25,10 +22,7 @@ import { AiBudget } from "@/lib/autoclip-ai/budget";
 import { generateEditPlan, type ResolvedEditPlan } from "@/lib/autoclip-ai/edit-plan";
 import { analyzeClipScenes } from "@/lib/autoclip-ai/scene-vision";
 import { trackClipSubjects } from "@/lib/autoclip-ai/subject-track";
-import { loadLibraryAssets, libraryCandidates, type BrollCandidate } from "@/lib/autoclip-ai/broll-sources";
-import { ensureLibraryEmbeddings } from "@/lib/autoclip-ai/broll-rank";
-import { extractFrame } from "@/lib/autoclip-ai/broll-generate";
-import { resolveClipBroll, type BrollRequest, type BrollWindowRow } from "@/lib/autoclip-ai/broll-select";
+import { resolveClipBroll, type BrollRequest, type BrollRunContext, type BrollWindowRow } from "@/lib/autoclip-ai/broll-select";
 import type { AiMeta, SceneShot, SubjectTrack } from "@/lib/autoclip-ai/types";
 import type { AiReframeInput } from "@/lib/autoclip-ai/reframe-ai";
 
@@ -54,8 +48,8 @@ export interface AiClipResult {
   /** Feed for computeClipCrop. */
   reframe: Omit<AiReframeInput, "faces" | "words" | "smoothness" | "trackingSpeed">;
   /**
-   * B-roll windows chosen by the AI path. `undefined` = this run used the
-   * pick's own B-roll path (both editPlan and brollRank off).
+   * Generated B-roll windows. `undefined` = this clip asked for none, or
+   * B-roll generation is off for this tier — either way, no B-roll.
    */
   brollWindows?: BrollWindowRow[];
 }
@@ -69,8 +63,6 @@ export interface AiRunResult {
 const PHASE_A_MS = 8 * 60 * 1000;
 const PHASE_B_MS = 6 * 60 * 1000;
 const CONCURRENCY = 3;
-const SOURCE_POOL_MAX = 12;
-const SOURCE_CUTAWAY_SEC = 4;
 
 /** Run `work` over `items` with a pool, stopping new work at `deadline`. Unfinished items stay undefined. */
 async function pool<T, R>(items: T[], size: number, deadlineAt: number, work: (item: T, i: number) => Promise<R>): Promise<(R | undefined)[]> {
@@ -162,54 +154,23 @@ export async function runAiStages(args: {
     }
   });
 
-  // ── Phase B: B-roll ──
-  const aiBroll = features.editPlan || features.brollRank;
-  const brollWindows: (BrollWindowRow[] | undefined)[] = args.clips.map(() => (aiBroll ? [] : undefined));
+  // ── Phase B: generated B-roll ──
+  // The only B-roll there is. Off (both generation features off for this
+  // tier) means no B-roll at all.
+  const brollOn = features.brollGenerateImage || (features.brollGenerateVideo && args.allowAiVideo);
+  const brollWindows: (BrollWindowRow[] | undefined)[] = args.clips.map(() => undefined);
   const decisions: AiMeta["broll"][] = args.clips.map(() => undefined);
-  const frameDir = fs.mkdtempSync(path.join(os.tmpdir(), `autoclip-ai-${args.projectId}-`));
-  try {
-    if (aiBroll) {
-      let library: BrollCandidate[] = [];
-      if (features.brollRank && cfg.broll.providers.library) {
-        try {
-          const rows = await loadLibraryAssets(args.userId, args.sourceAssetId);
-          const model = rows.length ? await ensureLibraryEmbeddings({ rows, budget, cfg }) : null;
-          library = model ? libraryCandidates(rows, model) : [];
-        } catch (err) {
-          logger.warn("autoclip-ai", "library B-roll unavailable for this run", err);
-        }
-      }
-      // Shots elsewhere in this video that read as cutaways.
-      const sourcePool: BrollCandidate[] = [];
-      if (features.brollRank && cfg.broll.providers.source) {
-        const shots = args.clips.flatMap((c, i) => (scenes[i] ?? [])
-          .filter((s) => (s.type === "screen" || s.type === "product" || s.type === "broll_like") && s.confidence >= 70 && s.endSec - s.startSec >= 2)
-          .map((s) => ({ startSec: c.start + s.startSec, endSec: c.start + Math.min(s.endSec, s.startSec + SOURCE_CUTAWAY_SEC) })))
-          .slice(0, SOURCE_POOL_MAX);
-        for (const [k, s] of shots.entries()) {
-          const still = path.join(frameDir, `src-${k}.jpg`);
-          if (await extractFrame(args.videoPath, (s.startSec + s.endSec) / 2, still)) {
-            sourcePool.push({
-              provider: "source", externalId: `${s.startSec.toFixed(2)}`, preview: { path: still }, downloadUrl: "",
-              width: 0, height: 0, durationSec: s.endSec - s.startSec, sourceWindow: s,
-            });
-          }
-        }
-      }
-      const ctx = {
-        cfg, features, budget, aspect: args.aspect, userId: args.userId, projectId: args.projectId,
-        videoPath: args.videoPath, used: new Set<string>(), library, sourcePool, allowAiVideo: args.allowAiVideo,
-      };
-      await pool(args.clips, CONCURRENCY, Date.now() + PHASE_B_MS, async (clip, i) => {
-        const requests = brollRequestsFor(clip, plans[i]);
-        if (requests.length === 0) return;
-        const r = await resolveClipBroll(ctx, { index: clip.index, startSec: clip.start, endSec: clip.end }, requests);
-        brollWindows[i] = r.windows;
-        decisions[i] = r.decisions;
-      });
-    }
-  } finally {
-    fs.rmSync(/*turbopackIgnore: true*/ frameDir, { recursive: true, force: true });
+  if (brollOn) {
+    const ctx: BrollRunContext = {
+      cfg, features, budget, aspect: args.aspect, userId: args.userId, projectId: args.projectId, allowAiVideo: args.allowAiVideo,
+    };
+    await pool(args.clips, CONCURRENCY, Date.now() + PHASE_B_MS, async (clip, i) => {
+      const requests = brollRequestsFor(clip, plans[i]);
+      if (requests.length === 0) return;
+      const r = await resolveClipBroll(ctx, { index: clip.index, startSec: clip.start, endSec: clip.end }, requests);
+      brollWindows[i] = r.windows;
+      decisions[i] = r.decisions;
+    });
   }
 
   const clips: AiClipResult[] = args.clips.map((clip, i) => ({

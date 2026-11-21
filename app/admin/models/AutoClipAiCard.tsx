@@ -1,38 +1,29 @@
 "use client";
 
 // Admin switches for AutoClip's AI B-roll, reframing and keyframing
-// (lib/autoclip-ai/config.ts, /api/admin/autoclip-ai). Every feature ships OFF;
-// this is where one is turned on for a tier, watched, and widened.
+// (lib/autoclip-ai/config.ts, /api/admin/autoclip-ai). Every feature ships OFF
+// except generated B-roll, which replaced stock B-roll; this is where a
+// feature is turned on for a tier, watched, and widened.
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/app/components/ui/Card";
 import { Switch } from "@/app/components/ui/Switch";
 import { Checkbox } from "@/app/components/ui/Checkbox";
 import { useToast } from "@/app/components/ui/Toast";
-import { AI_FEATURES, BROLL_PROVIDERS, type AiFeature, type AutoClipAiConfig, type BrollProviderId } from "@/lib/autoclip-ai/config-shared";
+import { AI_FEATURES, type AiFeature, type AutoClipAiConfig } from "@/lib/autoclip-ai/config-shared";
 import { PLAN_NAME, TIER_ORDER, type TierId } from "@/lib/plans/tiers";
 
-type Keys = Record<"gemini" | "pexels" | "pixabay" | "coverr" | "giphy" | "fal" | "gpu", boolean>;
+type Keys = Record<"gemini" | "fal" | "gpu", boolean>;
 
 const FEATURE_LABEL: Record<AiFeature, { label: string; hint: string; needs?: keyof Keys }> = {
-  editPlan: { label: "AI edit plan", hint: "Gemini plans punch-ins, resets and B-roll timing per clip", needs: "gemini" },
-  brollRank: { label: "Multi-source B-roll ranking", hint: "Search every source, let AI pick — or pick nothing", needs: "gemini" },
-  brollGenerateImage: { label: "Generated still B-roll", hint: "AI image with a slow pan when no stock fits", needs: "fal" },
-  brollGenerateVideo: { label: "Generated video B-roll", hint: "AI video insert; the user must also opt in per run", needs: "fal" },
+  editPlan: { label: "AI edit plan", hint: "Gemini plans punch-ins, resets and where B-roll goes, per clip", needs: "gemini" },
+  brollGenerateImage: { label: "Generated still B-roll", hint: "AI image with a slow camera move for each B-roll window", needs: "fal" },
+  brollGenerateVideo: { label: "Generated video B-roll", hint: "AI video instead of a still; the user must also opt in per run", needs: "fal" },
   shotAwareReframe: { label: "Shot-aware reframing", hint: "Restart the crop at every hard cut" },
   sceneVision: { label: "Scene vision", hint: "Gemini labels each shot: screen, gameplay, product…", needs: "gemini" },
   subjectTrack: { label: "Subject tracking", hint: "SAM 2 follows a non-face subject (needs scene vision)", needs: "gpu" },
   cameraPath: { label: "Camera path solver", hint: "Hold-then-ease camera instead of following every drift" },
   speakerLead: { label: "Speaker lead", hint: "Cut to the next speaker just before they talk" },
-};
-
-const PROVIDER_LABEL: Record<BrollProviderId, { label: string; needs?: keyof Keys }> = {
-  pexels: { label: "Pexels", needs: "pexels" },
-  pixabay: { label: "Pixabay", needs: "pixabay" },
-  coverr: { label: "Coverr", needs: "coverr" },
-  giphy: { label: "Giphy (reactions)", needs: "giphy" },
-  library: { label: "User's library", needs: "gpu" },
-  source: { label: "Same-video cutaways" },
 };
 
 export function AutoClipAiCard({ headers }: { headers: () => Record<string, string> }) {
@@ -68,7 +59,7 @@ export function AutoClipAiCard({ headers }: { headers: () => Record<string, stri
     <Card shadow padding="lg">
       <h2 className="text-base font-bold text-fg mb-1">AutoClip AI: B-roll, reframing and keyframing</h2>
       <p className="text-xs text-fg-subtle mb-4">
-        Each feature is off until switched on here, and only runs for the plans ticked. Changes apply to the next run, no deploy.
+        Generated B-roll is on for every plan; every other feature is off until switched on here. Each runs only for the plans ticked. Changes apply to the next run, no deploy.
         Every step is best-effort: if one fails, the clip renders the way it did before.
       </p>
 
@@ -110,42 +101,13 @@ export function AutoClipAiCard({ headers }: { headers: () => Record<string, stri
         </table>
       </div>
 
-      <h3 className="text-sm font-bold text-fg mt-6 mb-2">B-roll sources</h3>
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-        {BROLL_PROVIDERS.map((p) => (
-          <div key={p}>
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={config.broll.providers[p]}
-                onChange={(on) => save.mutate({ broll: { providers: { [p]: on } } })}
-                label={PROVIDER_LABEL[p].label}
-              />
-              {/* The Switch's label is for screen readers only. */}
-              <span className="text-sm text-fg">{PROVIDER_LABEL[p].label}</span>
-            </div>
-            {missing(PROVIDER_LABEL[p].needs) && (
-              <p className="text-[10px] text-fg-subtle mt-1">{missing(PROVIDER_LABEL[p].needs).trim()}</p>
-            )}
-          </div>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
-        <NumberField label="Ranker threshold (0-100)" value={config.broll.threshold} onSave={(v) => save.mutate({ broll: { threshold: v } })} />
-        <NumberField label="Library bonus" value={config.broll.libraryBonus} onSave={(v) => save.mutate({ broll: { libraryBonus: v } })} />
-        <NumberField label="Generated inserts / clip" value={config.broll.maxGeneratedPerClip} onSave={(v) => save.mutate({ broll: { maxGeneratedPerClip: v } })} />
-        <div>
-          <label className="text-xs font-semibold text-fg-subtle block mb-1" htmlFor="autoclip-ai-ranker">Stock ranker</label>
-          <select
-            id="autoclip-ai-ranker"
-            value={config.broll.ranker}
-            onChange={(e) => save.mutate({ broll: { ranker: e.target.value } })}
-            className="w-full border border-line rounded-lg px-3 py-2 text-sm bg-transparent"
-          >
-            <option value="gemini">Gemini vision</option>
-            <option value="embedding">Embeddings (GPU)</option>
-          </select>
-        </div>
+      <h3 className="text-sm font-bold text-fg mt-6 mb-2">Generated B-roll</h3>
+      <p className="text-xs text-fg-subtle mb-3">
+        AutoClip&apos;s only B-roll: an AI still per B-roll window with a slow camera move (push in, pull out or pan).
+        Stock footage was removed. Each still is about ${config.unitCostUsd.falImage.toFixed(3)}, inside the run&apos;s cap below.
+      </p>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <NumberField label="Inserts per clip (0-3)" value={config.broll.maxGeneratedPerClip} onSave={(v) => save.mutate({ broll: { maxGeneratedPerClip: v } })} />
       </div>
 
       <h3 className="text-sm font-bold text-fg mt-6 mb-2">Most a run may spend on AI extras (USD)</h3>
