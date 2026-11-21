@@ -104,3 +104,34 @@ describe("camera path solver", () => {
     expect(runs[1][0].x).toBeCloseTo(0.6, 3);
   });
 });
+
+describe("energy zoom on a still speaker (regression, 2026-11-21)", () => {
+  // A speaker who barely moves simplifies to two keyframes. Applying the zoom
+  // curve to those alone turned three 2s punch-ins at ~1.12x into one 30s
+  // ramp to 1.05x. The render now resamples the path first.
+  it("applies the punch-ins at their own times and strength", async () => {
+    const { simplifyKeyframes } = await import("@/lib/reframe");
+    const { buildCameraZoom, applyZoomToKeyframes } = await import("@/lib/camera-motion");
+    const dur = 30;
+    const raw = Array.from({ length: 61 }, (_, i) => ({ tSec: i * 0.5, x: 0.34, y: 0, w: 0.3164, h: 1 }));
+    const path = simplifyKeyframes(raw);
+    expect(path.length).toBe(2);
+
+    // Quiet speech with three loud moments: the camera should push in on
+    // each and release between them.
+    const energy = new Array(dur * SIGNAL_HZ).fill(0.1);
+    for (const s of [6, 14, 22]) for (let i = s * SIGNAL_HZ; i < (s + 2) * SIGNAL_HZ; i++) energy[i] = 0.9;
+    const curve = buildCameraZoom({ ...EMPTY_SIGNAL_TRACK, energy }, dur, { maxZoom: 1.14 });
+    const peak = Math.max(...curve);
+
+    const zoomOf = (k: CropKeyframe) => 0.3164 / k.w;
+    const before = applyZoomToKeyframes(path, curve);
+    expect(Math.max(...before.map(zoomOf))).toBeLessThan(peak - 0.05); // the bug
+
+    const after = simplifyKeyframes(applyZoomToKeyframes(densifyKeyframes(path), curve), undefined, 64);
+    expect(Math.max(...after.map(zoomOf))).toBeGreaterThan(peak - 0.01);
+    // Back to normal framing between the pushes, not one long ramp.
+    const at = (t: number) => after.reduce((best, k) => (Math.abs(k.tSec - t) < Math.abs(best.tSec - t) ? k : best));
+    expect(zoomOf(at(11))).toBeLessThan(1.02);
+  });
+});

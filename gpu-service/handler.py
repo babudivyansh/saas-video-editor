@@ -1,9 +1,8 @@
 """
-GPU media service — one container, four workloads.
+GPU media service — one container, three workloads.
 
   kind="asd"     active-speaker detection (Light-ASD) over a source video
   kind="render"  NVENC ffmpeg encode of one clip
-  kind="embed"   SigLIP text/image embeddings (AutoClip B-roll ranking)
   kind="track"   SAM 2 subject tracking from a seed box (AutoClip reframing)
 
 Design rules, and the reason each exists:
@@ -196,74 +195,6 @@ def handle_asd(job_input, workdir):
     }
 
 
-# ── Workload: embeddings (SigLIP) ───────────────────────────────────────────
-#
-# AutoClip B-roll ranking and the creator's library search
-# (lib/autoclip-ai/broll-rank.ts). Embeddings are L2-normalised, so the caller
-# scores with a plain dot product: p = sigmoid(cos * logitScale + logitBias),
-# which is SigLIP's own pairwise probability.
-
-SIGLIP_MODEL_ID = os.environ.get("SIGLIP_MODEL", "google/siglip-base-patch16-224")
-# Baked into the image under weights/ (see Dockerfile) so a cold start never
-# downloads them; falls back to the hub id for local development.
-SIGLIP_PATH = os.environ.get("SIGLIP_PATH", "/app/weights/siglip")
-_siglip = None
-
-
-def load_siglip():
-    global _siglip
-    if _siglip is None:
-        import torch
-        from transformers import AutoModel, AutoProcessor
-
-        src = SIGLIP_PATH if os.path.isdir(SIGLIP_PATH) else SIGLIP_MODEL_ID
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        model = AutoModel.from_pretrained(src).to(device).eval()
-        processor = AutoProcessor.from_pretrained(src)
-        _siglip = (model, processor, device)
-    return _siglip
-
-
-def handle_embed(job_input, workdir):
-    import torch
-    from PIL import Image
-
-    model, processor, device = load_siglip()
-    texts = [str(t)[:300] for t in (job_input.get("texts") or [])][:16]
-    urls = list(job_input.get("imageUrls") or [])[:64]
-
-    images = []
-    for i, url in enumerate(urls):
-        try:
-            path = download(url, os.path.join(workdir, f"img{i}"))
-            images.append(Image.open(path).convert("RGB"))
-        except Exception:  # noqa: BLE001 - one bad still must not fail the batch
-            images.append(None)
-
-    def norm(t):
-        return t / t.norm(dim=-1, keepdim=True)
-
-    text_out, image_out = [], []
-    with torch.no_grad():
-        if texts:
-            inputs = processor(text=texts, padding="max_length", truncation=True, return_tensors="pt").to(device)
-            text_out = norm(model.get_text_features(**inputs)).cpu().tolist()
-        valid = [im for im in images if im is not None]
-        if valid:
-            inputs = processor(images=valid, return_tensors="pt").to(device)
-            image_out = norm(model.get_image_features(**inputs)).cpu().tolist()
-
-    it = iter(image_out)
-    r = lambda v: [round(x, 5) for x in v]  # noqa: E731
-    return {
-        "model": SIGLIP_MODEL_ID,
-        "textEmbeddings": [r(v) for v in text_out],
-        "imageEmbeddings": [r(next(it)) if im is not None else None for im in images],
-        "logitScale": float(model.logit_scale.exp().item()),
-        "logitBias": float(model.logit_bias.item()) if getattr(model, "logit_bias", None) is not None else 0.0,
-    }
-
-
 # ── Workload: subject tracking (SAM 2) ──────────────────────────────────────
 #
 # Follows a non-face subject through a shot from one seed box
@@ -341,7 +272,7 @@ def handle_track(job_input, workdir):
 
 # ── Entry point ─────────────────────────────────────────────────────────────
 
-HANDLERS = {"asd": handle_asd, "render": handle_render, "embed": handle_embed, "track": handle_track}
+HANDLERS = {"asd": handle_asd, "render": handle_render, "track": handle_track}
 
 
 def handler(job):

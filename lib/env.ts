@@ -116,10 +116,6 @@ const schema = z.object({
   // and fills the background). Unset = that mode is hidden and refused.
   PIAPI_API_KEY: z.string().optional(),
   PEXELS_API_KEY: z.string().optional(),
-  // Extra AutoClip B-roll sources (lib/autoclip-ai/broll-sources.ts). Each is
-  // optional: an unset key just leaves that provider out of the search.
-  PIXABAY_API_KEY: z.string().optional(),
-  COVERR_API_KEY: z.string().optional(),
   // ipinfo.io Lite (free, commercial use allowed, HTTPS) — the country on
   // login history and new-sign-in emails. Unset: no location lookup at all.
   IPINFO_TOKEN: z.string().optional(),

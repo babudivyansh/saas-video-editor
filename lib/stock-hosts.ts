@@ -15,10 +15,7 @@ type HostRule = string | RegExp;
 const PEXELS: HostRule[] = ["images.pexels.com", "videos.pexels.com", "player.vimeo.com"];
 const JAMENDO: HostRule[] = ["prod.jamendo.com", "media.jamendo.com", /\.jamendo\.com$/];
 const GIPHY: HostRule[] = [/\.giphy\.com$/];
-// AutoClip's extra B-roll sources (lib/autoclip-ai/broll-sources.ts) and the
-// fal CDN that generated inserts are served from.
-const PIXABAY: HostRule[] = ["cdn.pixabay.com", "pixabay.com"];
-const COVERR: HostRule[] = [/(^|\.)coverr\.co$/];
+// The fal CDN that AutoClip's generated B-roll is served from.
 const FAL_CDN: HostRule[] = ["fal.media", /\.fal\.media$/];
 
 export const STOCK_HOSTS = {
@@ -28,8 +25,13 @@ export const STOCK_HOSTS = {
   audio: JAMENDO,
   /** Stock footage. */
   video: PEXELS,
-  /** Everything an AutoClip B-roll window may be downloaded from (third-party only; our own bucket is presigned separately). */
-  broll: [...PEXELS, ...PIXABAY, ...COVERR, ...GIPHY, ...FAL_CDN],
+  /**
+   * Third-party hosts an AutoClip B-roll window may be downloaded from (our
+   * own bucket is presigned separately). New windows are generated (fal);
+   * Pexels stays only so clips made before stock B-roll was removed still
+   * re-render with their inserts.
+   */
+  broll: [...PEXELS, ...FAL_CDN],
   /** Generated media from fal. */
   fal: FAL_CDN,
 } as const;

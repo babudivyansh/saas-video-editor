@@ -17,7 +17,7 @@ import { redis } from "@/lib/redis";
 import { logger } from "@/lib/logger";
 import { createHmac } from "crypto";
 
-export type GpuJobKind = "asd" | "render" | "embed" | "track";
+export type GpuJobKind = "asd" | "render" | "track";
 
 /**
  * How a GPU job failed, which decides what the caller does next:
@@ -190,28 +190,6 @@ export function runAsd(videoUrl: string, opts?: { sampleFps?: number; deadlineMs
     // and Gemini, so a generous deadline (and a cold start) costs nothing
     // user-visible.
     { deadlineMs: opts?.deadlineMs ?? 20 * 60 * 1000, pollIntervalMs: 3000 },
-  );
-}
-
-// ── Workload: image/text embeddings (SigLIP) ────────────────────────────────
-// AutoClip B-roll: scores stock thumbnails and the creator's own library
-// against the sentence being illustrated (lib/autoclip-ai/broll-rank.ts).
-
-export interface EmbedResult {
-  /** Model id, stored with every embedding so a model change re-embeds. */
-  model: string;
-  textEmbeddings: number[][];
-  imageEmbeddings: (number[] | null)[];
-  /** SigLIP's learned temperature and bias: p = sigmoid(cos * scale + bias). */
-  logitScale: number;
-  logitBias: number;
-}
-
-export function runEmbed(input: { texts: string[]; imageUrls: string[] }, opts?: { deadlineMs?: number }): Promise<EmbedResult> {
-  return runGpuJob<EmbedResult>(
-    "embed",
-    { texts: input.texts.slice(0, 16), imageUrls: input.imageUrls.slice(0, 64) },
-    { deadlineMs: opts?.deadlineMs ?? 90_000, pollIntervalMs: 1500 },
   );
 }
 

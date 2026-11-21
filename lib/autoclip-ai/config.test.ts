@@ -5,30 +5,37 @@ import {
 import { AiBudget } from "@/lib/autoclip-ai/budget";
 
 describe("autoclip_ai config", () => {
-  it("ships every feature off, so an absent row is the old pipeline", () => {
-    for (const f of AI_FEATURES) expect(AUTOCLIP_AI_DEFAULTS.features[f].enabled).toBe(false);
+  it("ships every feature off except generated B-roll (which replaced stock B-roll)", () => {
+    for (const f of AI_FEATURES) {
+      expect(AUTOCLIP_AI_DEFAULTS.features[f].enabled).toBe(f === "brollGenerateImage");
+    }
     const all = resolveAiFeatures(mergeAutoClipAiConfig(null), "studio");
-    expect(Object.values(all).some(Boolean)).toBe(false);
+    expect(Object.entries(all).filter(([, on]) => on).map(([f]) => f)).toEqual(["brollGenerateImage"]);
   });
 
   it("turns a feature on only for the tiers listed", () => {
     const cfg = mergeAutoClipAiConfig({ features: { editPlan: { enabled: true, tiers: ["pro", "studio"] } } });
     expect(aiFeatureOn(cfg, "editPlan", "pro")).toBe(true);
     expect(aiFeatureOn(cfg, "editPlan", "free")).toBe(false);
-    expect(aiFeatureOn(cfg, "brollRank", "pro")).toBe(false);
+    expect(aiFeatureOn(cfg, "sceneVision", "pro")).toBe(false);
+  });
+
+  it("ignores settings for features and sources that no longer exist", () => {
+    const cfg = mergeAutoClipAiConfig({ features: { brollRank: { enabled: true, tiers: ["pro"] } }, broll: { providers: { pexels: true } } });
+    expect("brollRank" in cfg.features).toBe(false);
+    expect("providers" in cfg.broll).toBe(false);
   });
 
   it("drops unknown tiers and clamps numbers instead of storing junk", () => {
     const cfg = mergeAutoClipAiConfig({
+      v: 2,
       features: { cameraPath: { enabled: true, tiers: ["pro", "lite", 7] } },
-      broll: { threshold: 400, maxGeneratedPerClip: -2, imageModel: "bad model id!", ranker: "magic" },
+      broll: { maxGeneratedPerClip: -2, imageModel: "bad model id!" },
       costCeilingUsd: { free: -1, pro: 99 },
     });
     expect(cfg.features.cameraPath.tiers).toEqual(["pro"]);
-    expect(cfg.broll.threshold).toBe(100);
     expect(cfg.broll.maxGeneratedPerClip).toBe(0);
     expect(cfg.broll.imageModel).toBe(AUTOCLIP_AI_DEFAULTS.broll.imageModel);
-    expect(cfg.broll.ranker).toBe("gemini");
     expect(cfg.costCeilingUsd.free).toBe(AUTOCLIP_AI_DEFAULTS.costCeilingUsd.free);
     expect(cfg.costCeilingUsd.pro).toBe(20);
   });
@@ -41,10 +48,10 @@ describe("autoclip_ai config", () => {
 
   it("deep-merges an admin patch over the current row", () => {
     const current = mergeAutoClipAiConfig({ features: { editPlan: { enabled: true, tiers: ["pro"] } } });
-    const next = mergeAutoClipAiConfig(deepMergeConfig(current, { features: { editPlan: { tiers: ["pro", "studio"] } }, broll: { providers: { coverr: true } } }));
+    const next = mergeAutoClipAiConfig(deepMergeConfig(current, { features: { editPlan: { tiers: ["pro", "studio"] } }, broll: { maxGeneratedPerClip: 2 } }));
     expect(next.features.editPlan).toEqual({ enabled: true, tiers: ["pro", "studio"] });
-    expect(next.broll.providers.coverr).toBe(true);
-    expect(next.broll.providers.pexels).toBe(true);
+    expect(next.broll.maxGeneratedPerClip).toBe(2);
+    expect(next.broll.imageModel).toBe(AUTOCLIP_AI_DEFAULTS.broll.imageModel);
   });
 });
 
@@ -60,5 +67,26 @@ describe("AiBudget", () => {
 
   it("a zero ceiling refuses everything", () => {
     expect(new AiBudget(0).tryReserve("x", 0.0001)).toBe(false);
+  });
+});
+
+describe("config versioning", () => {
+  it("ignores a pre-v2 row's B-roll settings, so generated B-roll really turns on", () => {
+    const v1Row = {
+      features: { brollGenerateImage: { enabled: false, tiers: ["creator"] }, editPlan: { enabled: true, tiers: ["pro"] } },
+      broll: { maxGeneratedPerClip: 2 },
+    };
+    const cfg = mergeAutoClipAiConfig(v1Row);
+    expect(cfg.v).toBe(2);
+    expect(cfg.features.brollGenerateImage).toEqual(AUTOCLIP_AI_DEFAULTS.features.brollGenerateImage);
+    expect(cfg.broll.maxGeneratedPerClip).toBe(3);
+    // Everything else in the old row still counts.
+    expect(cfg.features.editPlan).toEqual({ enabled: true, tiers: ["pro"] });
+  });
+
+  it("respects an admin's choice once the row is saved under v2", () => {
+    const cfg = mergeAutoClipAiConfig({ v: 2, features: { brollGenerateImage: { enabled: false } }, broll: { maxGeneratedPerClip: 1 } });
+    expect(cfg.features.brollGenerateImage.enabled).toBe(false);
+    expect(cfg.broll.maxGeneratedPerClip).toBe(1);
   });
 });

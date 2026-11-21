@@ -25,14 +25,10 @@ const patchSchema = z
   .strict()
   .refine((v) => Object.keys(v).length > 0, { message: "Nothing to update" });
 
-/** Which provider keys exist on this server, so the page can say why a source never wins. */
+/** Which provider keys exist on this server, so the page can say why a feature never runs. */
 function keyStatus() {
   return {
     gemini: Boolean(env.GEMINI_API_KEY),
-    pexels: Boolean(env.PEXELS_API_KEY),
-    pixabay: Boolean(env.PIXABAY_API_KEY),
-    coverr: Boolean(env.COVERR_API_KEY),
-    giphy: Boolean(env.GIPHY_API_KEY),
     fal: Boolean(env.FAL_KEY),
     gpu: isGpuConfigured(),
   };

@@ -997,14 +997,6 @@ model Asset {
   // to stream the full source file just to render a card.
   thumbnailS3Key String?
 
-  // Image embedding of the thumbnail (SigLIP, via the GPU service's "embed"
-  // job) so AutoClip can offer a creator's own footage as B-roll. Filled
-  // lazily the first time a run needs it; aiEmbeddingModel says which model
-  // produced it, so a model change re-embeds instead of comparing across
-  // spaces.
-  aiEmbedding      Json?
-  aiEmbeddingModel String?
-
   // Duplicate detection — SHA-256 of the uploaded bytes, computed server-side.
   checksum String?
 
