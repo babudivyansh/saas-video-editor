@@ -53,6 +53,12 @@ export interface ToolContent {
   updatedAt: string;
   metaTitle: string;
   metaDescription: string;
+  /**
+   * One self-contained "Clipiro X is …" sentence, shown first in the hero.
+   * AI answer engines quote the first sentence that stands on its own; the
+   * lede is a pitch, so it never did that job.
+   */
+  definition: string;
   lede: string;
   steps: [ToolStep, ToolStep, ToolStep];
   benefits: ToolBenefit[];
@@ -94,6 +100,8 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
     metaTitle: "Online Video Editor — Multi-Track Timeline",
     metaDescription:
       "Edit video in your browser with a multi-track timeline. Trim, layer, caption, and export in full resolution. No download, no install.",
+    definition:
+      "Clipiro's Video Editor is a multi-track timeline editor that runs in the browser: trim, layer audio, caption and export at full resolution with nothing to install.",
     lede: "A real multi-track timeline in a browser tab. Cut, layer audio, caption, and export at full resolution without downloading a thing.",
     steps: [
       { title: "Open the editor", body: "Start a project and drop in video, audio, or images — or pull something you already made from your asset library." },
@@ -119,6 +127,8 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
     metaTitle: "AutoClip — Long Video to Short Clips with AI",
     metaDescription:
       `Drop in a podcast, stream, or interview and AutoClip finds the strongest moments, captions them, and cuts them to vertical. ${FREE_TIER_MONTHLY_BONUS_MINUTES} free minutes a month.`,
+    definition:
+      "Clipiro AutoClip is an AI clipper that turns a long video, such as a podcast, stream or interview, into captioned vertical clips, charging one Clip Minute per minute of source video.",
     lede: "Drop in a podcast, stream, or interview. AutoClip finds the moments worth posting, captions them, reframes them vertical, and hands back a set of ready-to-upload shorts.",
     steps: [
       { title: "Add your video", body: `Upload a file or paste a link from YouTube, Twitch, Vimeo, Loom, Google Drive or Dropbox. Paid plans take sources from ${sourceCap("creator")} up to ${sourceCap("studio")}, depending on your plan.` },
@@ -147,6 +157,8 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
     metaTitle: "Cut & Crop — Trim and Reframe Video Online",
     metaDescription:
       "Trim video to the exact moment and crop it to vertical, square, or wide. A fast single-purpose tool for when you already know the cut you want.",
+    definition:
+      "Clipiro's Cut & Crop is a single-purpose tool that trims a video to set in and out points and crops it to vertical, square or wide, with no timeline to set up.",
     lede: "For when you already know the ten seconds you want. Set the in and out points, pick an aspect ratio, export. No timeline to set up.",
     steps: [
       { title: "Upload your clip", body: "Drop in a file or reuse something from your asset library." },
@@ -176,6 +188,8 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
     metaTitle: "Caption Studio — Templates, Edited Word by Word",
     metaDescription:
       `Upload a video in any shape, pick one of ${CAPTION_TEMPLATE_COUNT} caption templates, then edit, recolour and time every word. Export vertical, square and wide versions in one go.`,
+    definition:
+      `Clipiro's Caption Studio is a caption editor: pick one of ${CAPTION_TEMPLATE_COUNT} templates, fix and time every word, and export vertical, square and wide versions in one go.`,
     lede: "Auto-captions get you most of the way. Caption Studio is for the rest: pick a template, fix any word, make the ones that matter stand out, and export every shape you post in.",
     steps: [
       { title: "Bring your video", body: "Upload it or pick it from your asset library — vertical, horizontal, square or an odd crop. Choose the shape to work in, or keep its own." },
@@ -204,6 +218,8 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
     metaTitle: "AI Image Generator — Nine Models, One Balance",
     metaDescription:
       "Generate images with Flux 2, Seedream 5.0, GPT Image 2, Ideogram 4, Nano Banana Pro, and more — all from one credit balance, no separate subscriptions.",
+    definition:
+      "Clipiro's AI Image Generator is a text-to-image tool that runs nine models, including Flux 2, Seedream 5.0, GPT Image 2 and Ideogram 4, from one prompt box and one credit balance.",
     lede: "Nine models behind one prompt box and one credit balance — Flux 2, Seedream 5.0, GPT Image 2, Ideogram 4 and more, with no separate plan for each.",
     steps: [
       { title: "Write your prompt", body: "Describe the image. The built-in prompt enhancer will expand a short idea into something more specific, free of charge." },
@@ -229,6 +245,8 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
     metaTitle: `AI Voiceover Generator — ${VOICE_COUNT_FLOOR}+ Voices`,
     metaDescription:
       `Turn a script into a natural-sounding voiceover with ${VOICE_COUNT_FLOOR}+ voices in ${VOICE_LANGUAGE_COUNT} languages. Captions sync in the editor.`,
+    definition:
+      `Clipiro's AI Voiceover is a text-to-speech tool that turns a script into natural-sounding audio, with ${VOICE_COUNT_FLOOR}+ voices in ${VOICE_LANGUAGE_COUNT} languages.`,
     lede: `Paste a script, pick from ${VOICE_COUNT_FLOOR}+ voices in ${VOICE_LANGUAGE_COUNT} languages, and get natural-sounding audio back in seconds — ready to caption in the editor.`,
     steps: [
       { title: "Paste your script", body: "Type or paste the text. Punctuation shapes the delivery, so commas and full stops are worth getting right." },
@@ -254,6 +272,8 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
     metaTitle: "AI Face Swap for Photos",
     metaDescription:
       "Put one face onto the person in another photo with AI. Upload two images, confirm you have permission, and get the swapped photo back in seconds.",
+    definition:
+      "Clipiro's AI Face Swap is a photo tool that puts the face from one image onto the person in another, for images you have permission to use.",
     lede: "Put one face onto the person in another photo. Use clear, front-facing shots and the result blends into the original image.",
     steps: [
       { title: "Upload the target", body: "Add the photo you want to change." },
@@ -279,6 +299,8 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
     metaTitle: "AI Photo Editor — Edit Photos With a Prompt",
     metaDescription:
       "Upload a photo and describe the change. Swap backgrounds, fix lighting, erase objects, expand to 9:16 and upscale, with every version kept.",
+    definition:
+      "Clipiro's AI Photo Editor is a prompt-based photo editor: upload a photo, describe the change, and get the edited version back, with every version kept in your Assets.",
     lede: "Upload a photo, type what you want changed, and get the edited version back in seconds. Auto picks the right AI model for each instruction, and every version stays in your Assets.",
     steps: [
       { title: "Add a photo", body: "Upload a JPG, PNG or WebP up to 20 MB, or pick an image you already have in Assets." },
@@ -307,6 +329,8 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
     metaTitle: "AI Background Remover for Images",
     metaDescription:
       "Cut the background out of a photo automatically — clean edges around hair, transparent PNG output ready to composite.",
+    definition:
+      "Clipiro's Background Remover is an AI tool that cuts the background out of a photo in one pass and returns a transparent PNG with clean edges around hair.",
     lede: "Remove the background from a photo in one pass, with edges clean enough around hair to composite straight onto something else.",
     steps: [
       { title: "Upload", body: "Add a PNG, JPG or WEBP image up to 10 MB." },
@@ -332,6 +356,8 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
     metaTitle: "AI Voice Changer — Transform Recorded Audio",
     metaDescription:
       "Convert a recording into a different voice while keeping your original delivery, timing, and emotion intact.",
+    definition:
+      "Clipiro's AI Voice Changer is a speech-to-speech tool that converts a recording into a different voice while keeping your timing, pauses and emphasis.",
     lede: "Record it yourself, then swap the voice. Your timing, pauses and emphasis survive the conversion — only the timbre changes.",
     steps: [
       { title: "Upload your recording", body: "Add audio or a video file. Clean input gives a cleaner conversion." },
@@ -357,6 +383,8 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
     metaTitle: "AI Vocal Remover — Separate Vocals and Instrumental",
     metaDescription:
       "Split a track into clean vocal and instrumental stems with AI. Works on audio files and on the audio inside a video.",
+    definition:
+      "Clipiro's AI Vocal Remover is a stem splitter that separates a track into a clean vocal stem and an instrumental stem, from an audio file or a video's audio.",
     lede: "One pass gives you both stems: a clean backing track to build on, and an acapella lifted out of the finished mix.",
     steps: [
       { title: "Upload the track", body: "Add an audio file, or a video and it will work on the audio inside it." },
@@ -382,6 +410,8 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
     metaTitle: "AI Speech Enhancer — Remove Noise, Improve Clarity",
     metaDescription:
       "Strip background noise, room echo, and hiss from a recording and bring the voice forward — rescue audio recorded in a bad room.",
+    definition:
+      "Clipiro's AI Speech Enhancer is an audio cleanup tool that removes background noise, room echo and hiss from a recording and brings the voice forward.",
     lede: "Background noise, echo and hiss come out; the voice comes forward. One pass, no EQ curves or compressor settings to learn.",
     steps: [
       { title: "Upload the recording", body: "Audio or video — it will work on the speech either way." },
@@ -407,6 +437,8 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
     metaTitle: "AI Subtitle Remover — Erase Hardcoded Captions",
     metaDescription:
       "Remove hardcoded subtitles from a video: AI finds the captions, or you mark them anywhere on screen. Recaption in your own style. Videos up to 10 minutes.",
+    definition:
+      "Clipiro's Subtitle Remover is an AI tool that erases burned-in subtitles from a video, found automatically or marked by you, so you can recaption it. Videos up to 10 minutes.",
     lede: "AI finds the burned-in captions and cleans them out where they appear — or you mark the text yourself, anywhere in the frame — so you can recaption in your own style instead of stacking text on text.",
     steps: [
       { title: "Upload the video", body: "Add the clip with the burned-in subtitles." },
@@ -432,6 +464,8 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
     metaTitle: "AI Content Idea Generator for Creators",
     metaDescription:
       "Generate video ideas, hooks, and angles tailored to your niche and format — free, with a daily allowance on every plan.",
+    definition:
+      "Clipiro's AI Brainstormer is an idea generator that turns a description of your niche into short-form video ideas, each with a hook and an angle.",
     lede: "Describe your niche and get back ideas with hooks and angles written for short-form — not a list of topics you still have to figure out.",
     steps: [
       { title: "Describe your channel", body: "Your niche, your audience, the format you post in." },
@@ -458,6 +492,8 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
     metaTitle: "Free Audio Balancer — Fix Uneven Stereo",
     metaDescription:
       "Fix audio that plays louder in one ear or only on one side. Free, no credits, no watermark.",
+    definition:
+      "Clipiro's Audio Balancer is a free tool that fixes audio playing louder in one ear or on only one side, returning both channels even. It uses no credits.",
     lede: "Playing loud in one ear, or missing a channel entirely? Upload the file and get both channels back, even. Free, and it costs no credits.",
     steps: [
       { title: "Upload", body: "Add the audio or video file with the uneven channels." },
@@ -483,6 +519,8 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
     metaTitle: "Free Video Compressor — Reduce File Size Online",
     metaDescription:
       "Compress video to get under an upload limit while keeping it looking good. Free, no credits, no watermark.",
+    definition:
+      "Clipiro's Video Compressor is a free tool that shrinks a video file to fit an upload limit, with you choosing how much quality to trade for size. It uses no credits.",
     lede: "Large file slowing you down? Shrink it to share or upload — you choose how much quality to trade for size. Free, and it costs no credits.",
     steps: [
       { title: "Upload your video", body: "Drop in the file you need to make smaller." },
@@ -508,6 +546,8 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
     metaTitle: "Free MP3 Converter — Video and Audio to MP3",
     metaDescription:
       "Pull the audio out of a video or convert between audio formats. Free, no credits, no watermark.",
+    definition:
+      "Clipiro's MP3 Converter is a free tool that extracts the audio from a video, or converts any audio format, to MP3 at up to 320 kbps. It uses no credits.",
     lede: "Convert a video or any audio format to MP3 at the bitrate you choose, up to 320 kbps. Free, and it costs no credits.",
     steps: [
       { title: "Upload", body: "Add a video or an audio file in any common format." },
@@ -537,6 +577,8 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
     metaTitle: "Import a YouTube Video for Clipping",
     metaDescription:
       "Bring a video from your own YouTube channel into Clipiro by link, then clip, caption and edit it. Free on every plan, no credits used.",
+    definition:
+      "Clipiro's YouTube Downloader is a free import tool that brings a video you own or have rights to into Clipiro by link, as video or MP3, ready to clip or edit.",
     lede: "Paste the link to a video you own or have the rights to, and get the file at the quality you choose, or just its audio as MP3, ready for AutoClip or the editor.",
     steps: [
       { title: "Paste the link", body: "Drop in the YouTube URL." },
@@ -563,6 +605,8 @@ export const TOOL_CONTENT: Record<string, ToolContent> = {
     metaTitle: "Import Instagram Reels and Posts for Editing",
     metaDescription:
       "Import your own public Instagram Reels, posts and IGTV videos by link at the best quality available, then recut and recaption them. Free, no credits used.",
+    definition:
+      "Clipiro's Instagram Downloader is a free import tool that brings your own public Reels, posts and IGTV videos into Clipiro by link, as the source file.",
     lede: "Paste the link to a public Reel, post or IGTV video you own or have the rights to, and import the source file rather than a screen capture. Free on every plan.",
     steps: [
       { title: "Paste the link", body: "Drop in the Instagram URL for a Reel, post, or IGTV video." },

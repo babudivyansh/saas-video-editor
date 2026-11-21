@@ -187,7 +187,23 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
                 return (
                   <div key={i} className="my-8 overflow-x-auto rounded-xl border border-line">
                     <table className="w-full min-w-[480px] border-collapse text-left text-[14px]">
-                      <caption className="caption-bottom px-4 py-3 text-left text-[12.5px] text-fg-muted">{block.caption}</caption>
+                      <caption className="caption-bottom px-4 py-3 text-left text-[12.5px] text-fg-muted">
+                        {block.caption}
+                        {block.sources && block.sources.length > 0 && (
+                          <>
+                            {" "}Sources:{" "}
+                            {block.sources.map((s, j) => (
+                              <span key={s.href}>
+                                {j > 0 && ", "}
+                                <a href={s.href} rel="noopener" target="_blank" className="underline hover:text-fg">
+                                  {s.label}
+                                </a>
+                              </span>
+                            ))}
+                            .
+                          </>
+                        )}
+                      </caption>
                       <thead>
                         <tr className="bg-surface-2">
                           {block.columns.map((c) => (
