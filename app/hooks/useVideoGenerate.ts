@@ -127,6 +127,8 @@ export interface RunSettings {
   allowCreditOverflow?: boolean;
   /** Opt-in to AI-generated video B-roll (Agency; the server re-checks). */
   aiVideoBroll?: boolean;
+  /** "jump" (default) or "smooth" — lib/zoom-style.ts. */
+  zoomStyle?: "jump" | "smooth";
 }
 
 export function useVideoGenerate() {

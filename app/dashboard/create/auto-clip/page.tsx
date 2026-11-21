@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import CaptionStyleGrid from "@/app/components/auto-clip/CaptionStyleGrid";
 import { ReframeAndCutsControls } from "@/app/components/auto-clip/ReframeAndCutsControls";
+import { DEFAULT_ZOOM_STYLE, type ZoomStyle } from "@/lib/zoom-style";
 import { discardDraftProject } from "@/lib/discard-draft-project";
 import { useInsufficientCredits } from "@/app/components/billing/CreditModalContext";
 import { useBillingOverlay } from "@/app/components/billing/BillingOverlayContext";
@@ -98,6 +99,7 @@ function AutoClipFlow() {
   // Opt-in: an AI-generated video cutaway when no stock clip fits. Agency only
   // (the server still checks the plan and its own autoclip_ai switches).
   const [aiVideoBroll, setAiVideoBroll] = useState(false);
+  const [zoomStyle, setZoomStyle] = useState<ZoomStyle>(DEFAULT_ZOOM_STYLE);
 
   const runCost = useMemo(() => estimateRunCost({ sourceDurationSec }), [sourceDurationSec]);
   const minutesShort = runCost.minutes != null && minutesBalance != null ? Math.max(runCost.minutes - minutesBalance, 0) : 0;
@@ -243,6 +245,7 @@ function AutoClipFlow() {
       smartAutoReframe, zoomStrength, speakerMode, smoothness, trackingSpeed, animatedCaptions,
       allowCreditOverflow,
       aiVideoBroll: tier === "studio" && aiVideoBroll,
+      zoomStyle,
     };
     if (!file && retryProject) {
       setImportError(null);
@@ -290,7 +293,7 @@ function AutoClipFlow() {
     }
     if (!file) return;
     await generateAutoClip({ file, token, ...settings });
-  }, [file, retryProject, pickedAsset, importedUrl, importedTitle, minDuration, maxDuration, clipCount, aspectRatio, instructions, captionsOn, captionStyleIndex, captionTemplateId, reframingPreset, removeSilence, silenceThresholdMs, removeFillers, smartAutoReframe, zoomStrength, speakerMode, smoothness, trackingSpeed, animatedCaptions, allowCreditOverflow, aiVideoBroll, tier, generateAutoClip, generateAutoClipForProject]);
+  }, [file, retryProject, pickedAsset, importedUrl, importedTitle, minDuration, maxDuration, clipCount, aspectRatio, instructions, captionsOn, captionStyleIndex, captionTemplateId, reframingPreset, removeSilence, silenceThresholdMs, removeFillers, smartAutoReframe, zoomStrength, speakerMode, smoothness, trackingSpeed, animatedCaptions, allowCreditOverflow, aiVideoBroll, zoomStyle, tier, generateAutoClip, generateAutoClipForProject]);
 
   const handleGenerate = useCallback(async () => {
     if (submittingRef.current) return;
@@ -529,6 +532,7 @@ function AutoClipFlow() {
                         smartAutoReframe={smartAutoReframe} setSmartAutoReframe={setSmartAutoReframe}
                         reframingPreset={reframingPreset} setReframingPreset={setReframingPreset}
                         zoomStrength={zoomStrength} setZoomStrength={setZoomStrength}
+                        zoomStyle={zoomStyle} setZoomStyle={setZoomStyle}
                         speakerMode={speakerMode} setSpeakerMode={setSpeakerMode}
                         smoothness={smoothness} setSmoothness={setSmoothness}
                         trackingSpeed={trackingSpeed} setTrackingSpeed={setTrackingSpeed}

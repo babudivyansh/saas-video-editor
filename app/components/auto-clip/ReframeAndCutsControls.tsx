@@ -4,6 +4,7 @@
 // state, kept here as one component so the two surfaces can't drift again.
 import { Switch } from "@/app/components/ui/Switch";
 import type { SpeakerMode } from "@/lib/speaker-modes";
+import type { ZoomStyle } from "@/lib/zoom-style";
 
 export type ZoomStrength = "low" | "medium" | "high";
 
@@ -16,6 +17,11 @@ export const REFRAME_PRESETS = [
 
 export const ZOOM_STRENGTHS: { value: ZoomStrength; label: string }[] = [
   { value: "low", label: "Low" }, { value: "medium", label: "Medium" }, { value: "high", label: "High" },
+];
+
+export const ZOOM_STYLE_OPTIONS: { value: ZoomStyle; label: string; hint: string }[] = [
+  { value: "jump", label: "Jump", hint: "Snaps in and out on new sentences and key words" },
+  { value: "smooth", label: "Smooth", hint: "Slow push-ins when the delivery gets louder" },
 ];
 
 export const SPEAKER_MODES: { value: SpeakerMode; label: string }[] = [
@@ -78,6 +84,9 @@ export interface ReframeAndCutsSetters {
   setRemoveSilence: (v: boolean) => void;
   setSilenceThresholdMs: (v: number) => void;
   setRemoveFillers: (v: boolean) => void;
+  /** Optional: only surfaces that store a zoom style pass these. */
+  zoomStyle?: ZoomStyle;
+  setZoomStyle?: (v: ZoomStyle) => void;
 }
 
 export function ReframeAndCutsControls(props: ReframeAndCutsValues & ReframeAndCutsSetters) {
@@ -86,7 +95,7 @@ export function ReframeAndCutsControls(props: ReframeAndCutsValues & ReframeAndC
     zoomStrength, setZoomStrength, speakerMode, setSpeakerMode,
     smoothness, setSmoothness, trackingSpeed, setTrackingSpeed,
     removeSilence, setRemoveSilence, silenceThresholdMs, setSilenceThresholdMs,
-    removeFillers, setRemoveFillers,
+    removeFillers, setRemoveFillers, zoomStyle, setZoomStyle,
   } = props;
 
   return (
@@ -110,6 +119,18 @@ export function ReframeAndCutsControls(props: ReframeAndCutsValues & ReframeAndC
                 ))}
               </div>
             </div>
+
+            {zoomStyle && setZoomStyle && (
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-ink-soft uppercase tracking-wider block">Zoom Style</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {ZOOM_STYLE_OPTIONS.map((z) => (
+                    <Chip key={z.value} active={zoomStyle === z.value} onClick={() => setZoomStyle(z.value)}>{z.label}</Chip>
+                  ))}
+                </div>
+                <p className="text-[11px] text-ink-soft">{ZOOM_STYLE_OPTIONS.find((z) => z.value === zoomStyle)?.hint}</p>
+              </div>
+            )}
 
             <div className="space-y-2">
               <label className="text-xs font-bold text-ink-soft uppercase tracking-wider block">Zoom Strength</label>

@@ -32,6 +32,7 @@ import {
   type RerenderPayload, type Aspect,
 } from "@/lib/autoclip-pipeline";
 import { REFRAME_PRESETS, ZOOM_STRENGTHS, SPEAKER_MODES } from "@/lib/reframe";
+import { ZOOM_STYLES } from "@/lib/zoom-style";
 import { liteEditsSchema } from "@/lib/autoclip-lite";
 import { isKnownTemplateId } from "@clipiro/shared/caption-templates";
 import { checkTemplateChoice } from "@/lib/captions/gate";
@@ -88,6 +89,7 @@ export const silenceSettingsSchema = z.object({
   reframingPreset: z.enum(REFRAME_PRESETS).optional(),
   smartAutoReframe: z.boolean().optional(),
   zoomStrength: z.enum(ZOOM_STRENGTHS).optional(),
+  zoomStyle: z.enum(ZOOM_STYLES).optional(),
   speakerMode: z.enum(SPEAKER_MODES).optional(),
   smoothness: z.number().min(0).max(100).optional(),
   trackingSpeed: z.number().min(0).max(100).optional(),
