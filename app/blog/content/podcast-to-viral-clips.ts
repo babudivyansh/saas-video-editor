@@ -6,7 +6,7 @@ export const podcastToViralClips: BlogPost = {
   category: "Guide",
   title: "How to turn a 1-hour podcast into 10 viral clips",
   metaDescription:
-    "Learn how to turn a 1-hour podcast into 8-12 viral short clips: find clip-worthy moments fast, cut better hooks, and use Clipiro's AutoClip to skip the scrubbing.",
+    "Turn a 1-hour podcast into 8-12 short clips: find clip-worthy moments fast, cut better hooks, and let Clipiro's AutoClip skip the scrubbing.",
   publishedAt: "2025-09-08",
   updatedAt: "2026-11-02",
   author: AUTHORS.founder,

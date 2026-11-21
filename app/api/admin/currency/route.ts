@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { withAdmin, parseBody } from "@/lib/admin/api";
 import { auditAdminAction, auditIp } from "@/lib/admin/audit";
 import { currencyConfigSchema } from "@/lib/admin/schemas";
+import { revalidatePricing } from "@/lib/plans/revalidate-pricing";
 import { getFxConfig, getUsdPriceBook, setFxConfig, setUsdPriceBook } from "@/lib/currency";
 
 // USD pricing had no admin surface at all. lib/currency.ts's setFxConfig and
@@ -57,5 +58,8 @@ export const PATCH = withAdmin(async (req, { admin }) => {
   // NOT touch a plan's existing Razorpay Plan — those are immutable and priced at
   // creation — so after changing a USD price, re-sync the affected plans from
   // /admin/pricing or the recurring flow keeps charging the old amount.
+  // USD prices on /pricing come from this price book.
+  revalidatePricing();
+
   return NextResponse.json({ ...after, resyncRequired: body.priceBook != null || body.inrPerUsd !== undefined });
 });

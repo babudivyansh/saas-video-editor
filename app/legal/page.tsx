@@ -12,7 +12,7 @@ import { LEGAL_DOCS } from "./documents";
 const DESCRIPTION = "Everything that governs your use of Clipiro — the rules, how we handle your data, and how billing works.";
 
 export const metadata: Metadata = {
-  title: "Legal",
+  title: "Legal: Terms, Privacy and Refund Policies",
   description: DESCRIPTION,
   alternates: { canonical: "/legal" },
 };

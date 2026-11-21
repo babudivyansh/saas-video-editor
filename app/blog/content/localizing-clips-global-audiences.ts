@@ -5,6 +5,7 @@ export const localizingClipsGlobalAudiences: BlogPost = {
   slug: "localizing-clips-global-audiences",
   category: "Multi-language",
   title: "Going global: localizing your clips for new audiences",
+  seoTitle: "Localizing clips for global audiences",
   metaDescription:
     "How to localize your best-performing clips for new audiences with AI dubbing in 29 languages — without losing the hook that made them work in the first place.",
   publishedAt: "2025-12-15",

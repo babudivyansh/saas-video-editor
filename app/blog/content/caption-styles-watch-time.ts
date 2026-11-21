@@ -7,7 +7,7 @@ export const captionStylesWatchTime: BlogPost = {
   category: "Captions",
   title: "The caption styles that boost watch-time the most",
   metaDescription:
-    "The caption styles that actually boost watch-time on short-form video — contrast, karaoke-style word highlighting, color-coding, and line-length rules that work.",
+    "Caption styles that boost watch time on short-form video: contrast, karaoke-style word highlighting, color-coding, and line-length rules that work.",
   publishedAt: "2025-11-24",
   updatedAt: "2026-11-04",
   author: AUTHORS.founder,

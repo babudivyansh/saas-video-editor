@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
+import { buildBreadcrumbSchema } from "@/app/blog/schema";
+import { JsonLd } from "@/app/components/JsonLd";
 import { socialMetadata } from "@/lib/seo/social";
 import MarketingShell from "@/app/components/marketing/MarketingShell";
 import AffiliateCTA from "@/app/components/AffiliateCTA";
 import AffiliateFAQ from "@/app/components/AffiliateFAQ";
 
 export const metadata: Metadata = {
-  title: "Affiliate Program",
+  title: "Affiliate Program: Earn 20% on Referrals",
   description:
     "Earn 20% commission for every creator you bring to Clipiro. Share your link, get your friends clipping, and get paid.",
   alternates: { canonical: "/affiliate-program" },
@@ -63,6 +65,12 @@ const DONTS = [
 export default function AffiliateProgramPage() {
   return (
     <MarketingShell>
+        <JsonLd
+          data={buildBreadcrumbSchema([
+            { name: "Home", path: "/" },
+            { name: "Affiliate Program", path: "/affiliate-program" },
+          ])}
+        />
         {/* Hero */}
         <section className="border-b border-card-border bg-surface">
           <div className="mx-auto w-full max-w-screen-xl px-5 py-12 text-center sm:px-6 md:px-12 md:py-16 lg:px-20">

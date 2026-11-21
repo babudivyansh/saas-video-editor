@@ -6,7 +6,7 @@ export const smarterClipDetection: BlogPost = {
   category: "Product",
   title: "What's new in Clipiro: smarter clip detection",
   metaDescription:
-    "Clipiro's AutoClip just got smarter: Smart Auto Reframe presets, Smart Audio Trimming, per-clip caption restyling, a transcript editor, and dubbing that carries captions.",
+    "AutoClip update: Smart Auto Reframe presets, Smart Audio Trimming, per-clip caption restyling, a transcript editor, and dubbing that carries captions.",
   publishedAt: "2025-10-13",
   updatedAt: "2026-11-02",
   author: AUTHORS.founderProduct,

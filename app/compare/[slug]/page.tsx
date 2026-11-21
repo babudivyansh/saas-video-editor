@@ -33,7 +33,9 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const title = `${c.name} vs Clipiro`;
   const path = `/compare/${c.slug}`;
   return {
-    title,
+    // absolute: the layout template would append " · Clipiro" to a title that
+    // already ends in Clipiro ("Vizard vs Clipiro · Clipiro").
+    title: { absolute: `${title}: prices and features compared` },
     description: c.metaDescription,
     alternates: { canonical: path },
     ...socialMetadata({ title: `${title}: prices and features compared`, description: c.metaDescription, path }),

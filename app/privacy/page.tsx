@@ -447,7 +447,8 @@ const doc: LegalDoc = {
 
 export const metadata: Metadata = {
   title: doc.title,
-  description: "How Clipiro collects, uses, and protects your data.",
+  description:
+    "How Clipiro collects, uses, shares and protects your personal data: what we collect, why, which providers process it, and how to access or delete it.",
   alternates: { canonical: doc.slug },
 };
 

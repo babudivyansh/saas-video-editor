@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePricing } from "@/lib/plans/revalidate-pricing";
 import { prisma } from "@/lib/prisma";
 import { withAdmin, parseBody } from "@/lib/admin/api";
 import { auditAdminAction, auditIp } from "@/lib/admin/audit";
@@ -46,6 +47,7 @@ export const POST = withAdmin(async (req, { admin }) => {
   });
 
   await auditAdminAction(admin.userId, "plan.created", plan.id, { after: plan, ip: auditIp(req) });
+  revalidatePricing();
 
   return NextResponse.json({ plan }, { status: 201 });
 });
