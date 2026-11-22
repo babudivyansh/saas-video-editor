@@ -69,7 +69,7 @@ export default async function HomePage() {
         ...(aggregateRating ? { aggregateRating } : {}),
       },
       {
-        // The hero film (components/landing/Hero.tsx).
+        // The product tour film, opened from the hero (components/landing/hero/HeroTour.tsx).
         "@type": "VideoObject",
         name: "Clipiro product film",
         description: "A tour of Clipiro: AutoClip turning a long video into captioned shorts, plus the AI tools, editor and exports.",
