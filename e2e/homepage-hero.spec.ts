@@ -69,10 +69,16 @@ test.describe("homepage hero carousel", () => {
 
   test("reduced-motion visitors get no autoplay", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
+    // A render-time reduced-motion branch hydrates differently from the
+    // server HTML; React then rebuilds the page under other specs' feet.
+    const hydration: string[] = [];
+    page.on("console", (m) => { if (/hydrat/i.test(m.text())) hydration.push(m.text()); });
+    page.on("pageerror", (e) => { if (/hydrat/i.test(e.message)) hydration.push(e.message); });
     await page.goto("/");
     const clipping = page.getByRole("tab", { name: "AI clipping" });
     await page.waitForTimeout(10_000);
     await expect(clipping).toHaveAttribute("aria-selected", "true");
+    expect(hydration).toEqual([]);
   });
 
   test.describe("without JavaScript", () => {

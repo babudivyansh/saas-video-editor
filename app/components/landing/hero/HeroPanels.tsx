@@ -426,11 +426,12 @@ function CaptionsPanel({ active, load, playing }: PanelProps) {
               </div>
             ))}
           </div>
-          {!reduce && (
-            <span ref={cursorRef} className="pointer-events-none absolute left-0 top-0 z-10 block origin-[30%_10%]">
-              <HandCursor />
-            </span>
-          )}
+          {/* Hidden by CSS, not left out, under reduced motion: useReducedMotion
+              is null on the server, so a render-time branch here made the
+              client's HTML differ and React rebuilt the whole page. */}
+          <span ref={cursorRef} className="pointer-events-none absolute left-0 top-0 z-10 block origin-[30%_10%] motion-reduce:hidden">
+            <HandCursor />
+          </span>
         </div>
       </Enter>
     </div>
