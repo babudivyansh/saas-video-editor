@@ -44,6 +44,20 @@ test.describe("homepage hero carousel", () => {
     await expect(page.getByRole("dialog", { name: "Create your account" })).toBeVisible();
   });
 
+  test("the link bar sends a pasted link to AutoClip through sign-up", async ({ page }) => {
+    await page.goto("/");
+    const link = page.getByRole("textbox", { name: "Video link" });
+    await link.fill("not a link");
+    await page.getByRole("button", { name: "Get free clips" }).click();
+    await expect(page.getByRole("alert").filter({ hasText: "Paste a full video link" })).toBeVisible();
+
+    await link.fill("https://www.youtube.com/watch?v=abc123");
+    await page.getByRole("button", { name: "Get free clips" }).click();
+    await expect(page).toHaveURL(/\/register\?next=/);
+    const next = new URL(page.url()).searchParams.get("next");
+    expect(next).toBe(`/dashboard/create/auto-clip?url=${encodeURIComponent("https://www.youtube.com/watch?v=abc123")}`);
+  });
+
   test("the product film only loads when the tour is opened", async ({ page }) => {
     await page.goto("/");
     await expect(page.locator('video[aria-label^="Clipiro product film"]')).toHaveCount(0);

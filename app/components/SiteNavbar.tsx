@@ -8,17 +8,34 @@ import ClipiroLogo from "@/app/components/ClipiroLogo";
 import SiteLaunchTicker, { SITE_TICKER_HEIGHT, useSiteTicker } from "@/app/components/campaign/SiteLaunchTicker";
 import {
   FREE_FEATURES, VIDEO_TOOLS, AI_TOOLS, RESOURCES, toNavLink, toolPath,
-  type NavLink as NavItem,
+  type FeatureLink, type NavLink as NavItem, type ToolIcon as ToolIconName,
 } from "@/app/components/featureLinks";
+import { ToolIcon } from "@/app/components/toolIcons";
 
-// Renders a dropdown row (title + description), handling internal vs external links.
-function DropdownItem({ item, onNavigate }: { item: NavItem; onNavigate: () => void }) {
+/** The tool's glyph on a small tile, ahead of its name in the Features menus. */
+function ToolTile({ name, size = "md" }: { name: ToolIconName; size?: "sm" | "md" }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`flex shrink-0 items-center justify-center rounded-lg bg-surface-2 text-fg ring-1 ring-line transition-colors group-hover:bg-surface-3 group-hover:text-brand-deep ${size === "sm" ? "h-8 w-8" : "h-9 w-9"}`}
+    >
+      <ToolIcon name={name} className={size === "sm" ? "h-4 w-4" : "h-[18px] w-[18px]"} />
+    </span>
+  );
+}
+
+// Renders a dropdown row (an optional icon tile, then title + description),
+// handling internal vs external links.
+function DropdownItem({ item, icon, onNavigate }: { item: NavItem; icon?: ToolIconName; onNavigate: () => void }) {
   const className =
-    "flex flex-col gap-0.5 rounded-xl px-3 py-2.5 transition-colors hover:bg-surface-2 group";
+    "flex items-start gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-surface-2 group";
   const content = (
     <>
-      <span className="text-sm font-semibold text-fg group-hover:text-brand-deep transition-colors">{item.title}</span>
-      <span className="text-xs leading-snug text-fg-muted">{item.desc}</span>
+      {icon && <ToolTile name={icon} />}
+      <span className="flex min-w-0 flex-col gap-0.5">
+        <span className="text-sm font-semibold text-fg group-hover:text-brand-deep transition-colors">{item.title}</span>
+        <span className="text-xs leading-snug text-fg-muted">{item.desc}</span>
+      </span>
     </>
   );
   if (item.external) {
@@ -193,13 +210,13 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
             {/* Features mega-menu — full product surface, grouped. AI Tools has
                 the most entries, so it spans two sub-columns to keep every
                 column roughly the same height (no lopsided gap). */}
-            <NavDropdown label="Features" width={940} align="screen">
+            <NavDropdown label="Features" width={1060} align="screen">
               <div className="grid grid-cols-4 gap-0 p-3">
                 <div className="p-2">
                   <p className="px-3 mb-1 text-[11px] font-bold uppercase tracking-widest text-brand-deep">Video Tools</p>
                   <div className="space-y-0.5">
                     {VIDEO_TOOLS.map((item) => (
-                      <DropdownItem key={item.title} item={toNavLink(item)} onNavigate={() => { }} />
+                      <DropdownItem key={item.title} item={toNavLink(item)} icon={item.icon} onNavigate={() => { }} />
                     ))}
                   </div>
                 </div>
@@ -208,12 +225,12 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
                   <div className="grid grid-cols-2 gap-x-1">
                     <div className="space-y-0.5">
                       {AI_TOOLS.slice(0, Math.ceil(AI_TOOLS.length / 2)).map((item) => (
-                        <DropdownItem key={item.title} item={toNavLink(item)} onNavigate={() => { }} />
+                        <DropdownItem key={item.title} item={toNavLink(item)} icon={item.icon} onNavigate={() => { }} />
                       ))}
                     </div>
                     <div className="space-y-0.5">
                       {AI_TOOLS.slice(Math.ceil(AI_TOOLS.length / 2)).map((item) => (
-                        <DropdownItem key={item.title} item={toNavLink(item)} onNavigate={() => { }} />
+                        <DropdownItem key={item.title} item={toNavLink(item)} icon={item.icon} onNavigate={() => { }} />
                       ))}
                     </div>
                   </div>
@@ -222,7 +239,7 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
                   <p className="px-3 mb-1 text-[11px] font-bold uppercase tracking-widest text-fg-subtle">Free Tools</p>
                   <div className="space-y-0.5">
                     {FREE_FEATURES.map((item) => (
-                      <DropdownItem key={item.title} item={toNavLink(item)} onNavigate={() => { }} />
+                      <DropdownItem key={item.title} item={toNavLink(item)} icon={item.icon} onNavigate={() => { }} />
                     ))}
                   </div>
                 </div>
@@ -303,10 +320,13 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
               {([["Video Tools", VIDEO_TOOLS], ["AI Tools", AI_TOOLS], ["Free Tools", FREE_FEATURES]] as const).map(([group, items]) => (
                 <div key={group}>
                   <p className="text-[10px] font-bold uppercase tracking-widest text-brand-deep mt-2 mb-1">{group}</p>
-                  {items.map((item) => (
-                    <Link key={item.title} href={toolPath(item)} onClick={closeMobile} className="block py-1.5">
-                      <span className="block text-sm font-medium text-fg hover:text-brand-deep">{item.title}</span>
-                      <span className="block text-xs text-fg-subtle">{item.desc}</span>
+                  {items.map((item: FeatureLink) => (
+                    <Link key={item.title} href={toolPath(item)} onClick={closeMobile} className="group flex items-start gap-3 py-1.5">
+                      <ToolTile name={item.icon} size="sm" />
+                      <span className="min-w-0">
+                        <span className="block text-sm font-medium text-fg group-hover:text-brand-deep">{item.title}</span>
+                        <span className="block text-xs text-fg-subtle">{item.desc}</span>
+                      </span>
                     </Link>
                   ))}
                 </div>
