@@ -1,6 +1,45 @@
 @import "tailwindcss";
 @import "./dashboard/editor/editor-theme.css";
 
+/* Hand cursor on everything clickable. Tailwind v4's preflight resets
+   <button> to cursor:default, so links had the hand but buttons, tabs,
+   menu items, <summary> toggles and role="button" divs did not. Kept in
+   @layer base so any cursor-* utility (cursor-grab, cursor-not-allowed,
+   cursor-default on locked items) still wins. */
+@layer base {
+  a[href],
+  button,
+  [role="button"],
+  [role="link"],
+  [role="tab"],
+  [role="menuitem"],
+  [role="menuitemradio"],
+  [role="menuitemcheckbox"],
+  [role="option"],
+  [role="switch"],
+  [role="checkbox"],
+  [role="radio"],
+  summary,
+  label[for],
+  select,
+  input[type="checkbox"],
+  input[type="radio"],
+  input[type="file"],
+  input[type="range"],
+  input[type="color"],
+  input[type="submit"],
+  input[type="button"],
+  input[type="reset"],
+  input[type="file"]::file-selector-button {
+    cursor: pointer;
+  }
+
+  :disabled,
+  [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+}
+
 /* Editor text/caption fonts — bundled locally (public/fonts) so the browser
    preview renders the exact same file the export's ffmpeg drawtext burns in.
    See lib/editor/filtergraph.ts's FONT_FILES for the server-side half. */
