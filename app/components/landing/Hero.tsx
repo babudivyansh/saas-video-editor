@@ -9,6 +9,7 @@ import { MINIMUM_REVIEWS_FOR_RATING } from "@/app/reviews/schema";
 import type { ReviewSummary } from "@/lib/reviews/queries";
 import HeroHeadline from "@/app/components/landing/hero/HeroHeadline";
 import HeroShowcase from "@/app/components/landing/hero/HeroShowcase";
+import HeroLinkBar from "@/app/components/landing/hero/HeroLinkBar";
 import HeroTour from "@/app/components/landing/hero/HeroTour";
 import { HERO_FOOTAGE_CREDIT } from "@/app/components/landing/hero/features";
 
@@ -50,6 +51,10 @@ export default function Hero({ reviewSummary }: HeroProps) {
           Upload a podcast, interview or stream. Clipiro finds the best moments and gives you captioned
           vertical clips, ready for every platform.
         </p>
+
+        {/* Paste a link (or choose to upload) and get clips: hands off to
+            AutoClip through sign-up (hero/HeroLinkBar). */}
+        <HeroLinkBar />
 
         {/* Hero visual: the feature carousel (components/landing/hero). Each
             panel is a real looping demo, and the link box in the AI clipping

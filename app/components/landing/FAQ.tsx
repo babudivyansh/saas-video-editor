@@ -27,9 +27,10 @@ function FaqItem({ q, a }: { q: string; a: string }) {
 }
 
 export default function FAQ() {
+  const half = Math.ceil(FAQS.length / 2);
   return (
     <section id="faq" className="scroll-mt-20 font-sans">
-      <div className="mx-auto w-full max-w-3xl px-4 py-20 md:px-6 lg:py-28">
+      <div className="mx-auto w-full max-w-6xl px-4 py-20 md:px-6 lg:py-28">
         <Reveal>
           <div className="text-center">
             <span className="text-xs font-bold uppercase tracking-widest text-brand-deep">FAQ</span>
@@ -39,9 +40,16 @@ export default function FAQ() {
         </Reveal>
 
         <Reveal>
-          <div className="mt-12 space-y-3">
-            {FAQS.map((f) => (
-              <FaqItem key={f.q} q={f.q} a={f.a} />
+          {/* Two independent columns (not a row grid) so opening an answer
+              only pushes down its own column. On mobile they stack, which
+              keeps the original question order. */}
+          <div className="mt-12 grid gap-3 md:grid-cols-2 md:items-start">
+            {[FAQS.slice(0, half), FAQS.slice(half)].map((col, i) => (
+              <div key={i} className="space-y-3">
+                {col.map((f) => (
+                  <FaqItem key={f.q} q={f.q} a={f.a} />
+                ))}
+              </div>
             ))}
           </div>
         </Reveal>
