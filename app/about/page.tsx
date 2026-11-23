@@ -103,7 +103,7 @@ export default function AboutPage() {
           still come from the same tokens, so it reads as the same system. */}
       <section className="border-b border-card-border">
         <div className={`${CONTAINER} ${HERO_Y}`}>
-          <div className="grid grid-cols-1 items-center gap-12 lg:grid-cols-12 lg:gap-16">
+          <div className="grid grid-cols-1 items-start gap-12 lg:grid-cols-12 lg:gap-16">
             <div className="lg:col-span-7">
               <div className="flex max-w-[820px] flex-col items-start gap-5">
                 <span className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-brand">Our story</span>

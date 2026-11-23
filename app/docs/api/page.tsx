@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import MarketingShell from "@/app/components/marketing/MarketingShell";
 import PageHero from "@/app/components/marketing/PageHero";
-import { CONTAINER, SECTION_Y } from "@/app/components/marketing/styles";
+import { SECTION_Y } from "@/app/components/marketing/styles";
 
 export const metadata: Metadata = {
   title: "API Docs",
@@ -73,7 +73,7 @@ export default function ApiDocsPage() {
       <section>
         {/* Narrower than the standard container: this is reference material, and
             code blocks stay scannable at a doc measure rather than full width. */}
-        <div className={`${CONTAINER} ${SECTION_Y} max-w-4xl`}>
+        <div className={`mx-auto w-full max-w-4xl px-4 md:px-10 ${SECTION_Y}`}>
           <H2>Authentication</H2>
           <p className="mt-2 text-[14px] leading-[1.6] text-ink-soft">
             Send your API key as a bearer token on every request. Requests without a valid key return{" "}

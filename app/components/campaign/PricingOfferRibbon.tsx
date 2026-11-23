@@ -24,7 +24,7 @@ export default function PricingOfferRibbon({ term, onTerm, currency }: { term: n
     `h-11 rounded-xl px-4 text-sm font-bold transition-colors ${active ? "bg-[#0d2a1d] text-[#20d68a]" : "bg-[#00a968] text-[#021a10] hover:bg-[#20d68a]"}`;
 
   return (
-    <section aria-label="Diwali pricing offer" className="mx-auto mt-8 max-w-6xl px-4 sm:px-6 lg:px-8">
+    <section aria-label="Diwali pricing offer" className="mx-auto mt-8 w-full max-w-[80rem] px-4 md:px-10">
       <div className="flex flex-col overflow-hidden rounded-2xl border border-[#5a4614] bg-[#110d05] font-sans text-[#eef5f1]">
         <Toran className="h-4" />
         <div className="flex flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center sm:gap-6 sm:px-7">

@@ -264,7 +264,7 @@ interface ToolWorkspaceProps {
 
 export function ToolWorkspace({ title, icon, badges, description, controls, footer, stageTitle = "Result", stageActions, stage, below, stageFirstOnMobile }: ToolWorkspaceProps) {
   return (
-    <div className="mx-auto w-full max-w-[1440px] px-4 pb-10 sm:px-8">
+    <div className="w-full px-(--page-gutter) pb-10">
       <div className="flex flex-wrap items-stretch gap-5" style={{ minHeight: "calc(100vh - 132px)" }}>
         <aside className="flex min-w-0 flex-[1_1_360px] flex-col gap-5 rounded-2xl border border-line bg-panel p-5 sm:max-w-[460px]">
           <div className="flex items-start gap-3">

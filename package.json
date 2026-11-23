@@ -16,7 +16,7 @@
     "build:no-db": "next build",
     "postbuild": "node scripts/postbuild.js",
     "start": "node .next/standalone/server.js",
-    "lint": "eslint && npm run check:costs && npm run check:theme && npm run check:crons && npm run check:captions",
+    "lint": "eslint && npm run check:costs && npm run check:theme && npm run check:crons && npm run check:captions && npm run check:full-width",
     "check:costs": "node scripts/check-unverified-costs.mjs",
     "check:theme": "node scripts/check-theme-debt.mjs",
     "check:crons": "node scripts/check-cron-coverage.mjs",
@@ -34,7 +34,8 @@
     "typecheck:mobile": "npm --prefix apps/mobile run typecheck",
     "lint:mobile": "npm --prefix apps/mobile run lint",
     "test:mobile": "npm --prefix apps/mobile test",
-    "check:captions": "node scripts/check-caption-templates.mjs"
+    "check:captions": "node scripts/check-caption-templates.mjs",
+    "check:full-width": "node scripts/check-full-width.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

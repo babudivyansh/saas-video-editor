@@ -213,7 +213,7 @@ export default function TestimonialWall({ summary, reviews }: TestimonialWallPro
     <section className="font-sans">
       <div
         ref={ref}
-        className={`mx-auto grid w-full max-w-screen-2xl items-center gap-12 px-4 py-20 md:px-12 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)] lg:gap-[72px] lg:px-[120px] lg:py-28 ${live ? "reviews-live" : ""}`}
+        className={`mx-auto grid w-full items-center gap-12 max-w-[80rem] px-4 md:px-10 py-16 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)] lg:gap-[72px] lg:py-20 ${live ? "reviews-live" : ""}`}
       >
         <div className="flex flex-col gap-7">
           <Reveal>

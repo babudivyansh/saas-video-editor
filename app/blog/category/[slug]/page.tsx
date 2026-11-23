@@ -61,7 +61,7 @@ export default async function BlogCategoryPage({ params }: { params: Promise<{ s
       <SiteNavbar solid />
       <main>
         <section className="border-b border-line bg-gray-50/60">
-          <div className="mx-auto w-full max-w-screen-2xl px-4 py-20 text-center md:px-12 lg:px-[120px]">
+          <div className="mx-auto w-full max-w-[80rem] px-4 md:px-10 py-20 text-center">
             <div className="flex justify-center">
               <Breadcrumbs
                 items={[{ label: "Home", href: "/" }, { label: "Blog", href: "/blog" }, { label: category.label }]}
@@ -75,7 +75,7 @@ export default async function BlogCategoryPage({ params }: { params: Promise<{ s
           </div>
         </section>
 
-        <section className="mx-auto w-full max-w-screen-2xl px-4 py-16 md:px-12 lg:px-[120px]">
+        <section className="mx-auto w-full max-w-[80rem] px-4 md:px-10 py-16">
           {posts.length > 0 ? (
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {posts.map((post) => (

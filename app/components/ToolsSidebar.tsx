@@ -267,7 +267,7 @@ export default function ToolsSidebar({ active = "home" }: { active?: string }) {
   return (
     <aside
       className={`hidden xl:flex flex-col flex-shrink-0 border-r border-line bg-surface-1 ${animate ? "transition-[width] duration-200 ease-out" : ""} ${
-        collapsed ? "w-[72px]" : "w-[260px]"
+        collapsed ? "w-[4.5rem]" : "w-[16.25rem]"
       }`}
     >
       {/* Same height as the header beside it, so the two read as one bar. */}

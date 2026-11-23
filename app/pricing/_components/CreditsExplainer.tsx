@@ -213,7 +213,7 @@ export function CreditsExplainer({ subs, term, toolCosts, onChoose }: {
   if (items.length === 0) return null;
 
   return (
-    <section className="mx-auto grid max-w-6xl gap-8 px-4 py-20 sm:px-6 sm:py-28 lg:grid-cols-12 lg:gap-6 lg:px-8">
+    <section className="mx-auto grid w-full gap-8 max-w-[80rem] px-4 md:px-10 py-20 sm:py-28 lg:grid-cols-12 lg:gap-6">
       <div className="flex flex-col gap-4 lg:col-span-4 lg:pt-2">
         <p className="font-mono text-xs uppercase tracking-[0.12em] text-primary">How credits work</p>
         <h2 className="text-3xl font-semibold leading-tight tracking-[-0.025em] text-fg sm:text-4xl">One balance for every tool.</h2>

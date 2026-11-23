@@ -44,7 +44,7 @@ export default function LaunchHeroBanner() {
         ))}
       </div>
 
-      <div className="relative mx-auto flex max-w-screen-2xl flex-col gap-5 px-5 pb-[92px] pt-12 md:px-12 md:pb-[104px] md:pt-14 lg:px-24">
+      <div className="mx-auto w-full relative flex flex-col gap-5 max-w-[80rem] px-4 md:px-10 pb-[92px] pt-12 md:pb-[104px] md:pt-14">
         <div className="flex flex-wrap items-center gap-3 md:gap-5">
           <ClipiroLogo className="h-7 md:h-10" />
           <span aria-hidden="true" className="hidden h-7 w-px bg-[#2a3a33] md:block" />

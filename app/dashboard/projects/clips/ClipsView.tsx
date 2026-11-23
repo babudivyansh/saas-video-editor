@@ -185,7 +185,7 @@ export function ClipsView({ source }: { source: ClipsSource }) {
     // ProjectRunState renders nothing once there are clips to list.
     if (all.length === 0 || holding || (project?.status === "failed" && all.every((c) => c.status === "failed"))) {
       return (
-        <div className="mx-auto w-full max-w-[1400px] px-4 pt-6 sm:px-8">
+        <div className="w-full px-(--page-gutter) pt-6">
           <Breadcrumbs items={[{ label: "Your projects", href: "/dashboard/projects" }, { label: title || "Project" }]} />
           {state}
         </div>
@@ -197,7 +197,7 @@ export function ClipsView({ source }: { source: ClipsSource }) {
 
   return (
     <WatermarkDownloadGateProvider>
-    <div className="mx-auto w-full max-w-[1400px] space-y-5 px-4 pb-16 pt-6 sm:px-8">
+    <div className="w-full space-y-5 px-(--page-gutter) pb-16 pt-6">
       <Breadcrumbs
         items={[
           { label: "Your projects", href: "/dashboard/projects" },
@@ -287,7 +287,7 @@ export function ClipsView({ source }: { source: ClipsSource }) {
       )}
 
       {!data && !query.error && (
-        <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-5 min-[1920px]:grid-cols-6 min-[2560px]:grid-cols-8">
           {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="aspect-[9/16] rounded-2xl" />)}
         </div>
       )}
@@ -325,7 +325,7 @@ export function ClipsView({ source }: { source: ClipsSource }) {
       )}
 
       {shown.length > 0 && layout === "grid" && (
-        <ol className="grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6" aria-label="Clips">
+        <ol className="grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 min-[1920px]:grid-cols-7 min-[2560px]:grid-cols-8" aria-label="Clips">
           {shown.map((clip) => (
             <li key={clip.id}>
               <ClipGridCard clip={clip} handlers={handlers} onOpen={() => setParams({ preview: clip.id })} />

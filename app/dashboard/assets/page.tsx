@@ -317,7 +317,7 @@ function AssetsPageInner() {
   const previewAsset = previewIndex !== null ? assets[previewIndex] ?? null : null;
 
   return (
-    <div className="mx-auto w-full max-w-[1600px] px-4 sm:px-8 pt-6 pb-12 space-y-5">
+    <div className="w-full px-(--page-gutter) pt-6 pb-12 space-y-5">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>

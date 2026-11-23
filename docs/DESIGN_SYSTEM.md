@@ -183,6 +183,33 @@ page h1     32–44px
 body        15–17.5px, line-height 1.6
 ```
 
+### Layout — two systems
+
+**Marketing pages (landing, pricing, tools, blog, legal …) — OpusClip-style.**
+The header (`SiteNavbar` + launch ticker) spans the full screen with 24px side
+padding (16px on phones): logo hard-left, CTAs hard-right, no `ml-*` offset.
+Everything below sits in a centred column from
+`app/components/marketing/styles.ts`:
+- `CONTENT` (= `CONTAINER`): `max-w-[80rem] px-4 md:px-10` → 1200px of content.
+- `CONTENT_WIDE`: `max-w-[92rem] px-4 md:px-10` → 1392px of content, hero media only.
+- `TEXT`: `max-w-[50rem]` (800px) — headline + intro copy.
+- Footer card sits in `CONTENT`; its wordmark stays full width.
+
+**App pages (dashboard, admin) — full width, phone to TV.** No page-level
+max-width. Frame: `w-full px-(--page-gutter)`; `--page-gutter` is
+`clamp(1rem, 3.5vw, 10rem)` (16px on phones, ≈67px at 1920, ≈134px at 3840).
+
+Both:
+- Big screens: the root font steps up (112.5% ≥2560, 125% ≥3200, 150% ≥3840,
+  editor excluded), so rem-sized text/spacing scales for TVs. Prefer `rem`
+  over fixed `px` for media and reading-column caps so they scale too.
+- App card grids add columns on wide screens (`min-[1920px]:` /
+  `min-[2560px]:`) instead of stretching cards. Marketing grids stay ≤3 cols.
+- Reading columns (`max-w-2xl`, `max-w-[760px]`), focused flows, modals and
+  cards keep their own widths *inside* the frame.
+- Guarded by `npm run check:full-width` (part of `lint`): fails on
+  `max-w-screen-*`, `lg:px-[120px]`, or a hard-coded logo offset.
+
 ---
 
 ## 7. Motion

@@ -48,7 +48,7 @@ export default async function ReviewsPage() {
       <SiteNavbar solid />
       <main>
         <section className="border-b border-line bg-surface-3/60">
-          <div className="mx-auto w-full max-w-screen-2xl px-4 py-16 text-center md:px-12 lg:px-[120px]">
+          <div className="mx-auto w-full max-w-[80rem] px-4 md:px-10 py-16 text-center lg:pt-20">
             <div className="flex justify-center">
               <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Reviews" }]} />
             </div>
@@ -65,7 +65,7 @@ export default async function ReviewsPage() {
           </div>
         </section>
 
-        <section className="mx-auto w-full max-w-screen-2xl px-4 py-14 md:px-12 lg:px-[120px]">
+        <section className="mx-auto w-full max-w-[80rem] px-4 md:px-10 py-14">
           <ReviewsPageClient initialItems={items} initialSummary={summary} initialNextCursor={nextCursor} />
         </section>
 

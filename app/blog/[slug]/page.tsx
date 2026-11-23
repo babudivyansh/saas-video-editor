@@ -92,8 +92,8 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
         {/* No `items-start` here: the aside must stretch to the full row
             height, otherwise it shrinks to its content and the sticky div
             inside it has no room to travel, so sticking never engages. */}
-        <div className="mx-auto w-full max-w-6xl px-4 py-16 md:px-6 xl:grid xl:grid-cols-[minmax(0,1fr)_16rem] xl:gap-12">
-        <article id="blog-article" className="blog-content w-full max-w-3xl">
+        <div className="mx-auto w-full max-w-[80rem] px-4 md:px-10 py-16 xl:grid xl:grid-cols-[minmax(0,1fr)_16rem] xl:gap-12">
+        <article id="blog-article" className="blog-content w-full max-w-3xl xl:mx-auto">
           <Breadcrumbs
             items={[
               { label: "Home", href: "/" },

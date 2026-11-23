@@ -7,7 +7,7 @@ import type { ReactNode } from "react";
  */
 export default function CardGrid({
   children,
-  className = "max-w-[1080px]",
+  className = "",
 }: {
   children: ReactNode;
   className?: string;

@@ -489,6 +489,31 @@ body {
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
+/* ── Full-width app frame (phone → TV) ─────────────────────────────────────
+   Dashboard/admin page frames are width:100% with NO max-width. Side padding
+   is fluid: 16px on phones, ~3.5% of the viewport after that (≈67px at 1920,
+   ≈134px at 3840), 160px ceiling. Use it via `px-(--page-gutter)`.
+   Marketing pages use the centred CONTENT column in marketing/styles.ts
+   instead (OpusClip-style). Guarded by scripts/check-full-width.mjs. */
+:root {
+  --page-gutter: clamp(1rem, 3.5vw, 10rem);
+}
+
+/* Big monitors and TVs: filling the width isn't enough — at 3840 CSS px,
+   16px text and 300px cards read as tiny from across a room. Step the root
+   font up so everything sized in rem (Tailwind text/spacing scale) grows
+   with the screen and keeps the proportions it has at 1920. The editor is
+   excluded: its timeline mixes rem layout with px pointer math. */
+@media (min-width: 2560px) {
+  html:not(:has(.clipiro-editor)) { font-size: 112.5%; }
+}
+@media (min-width: 3200px) {
+  html:not(:has(.clipiro-editor)) { font-size: 125%; }
+}
+@media (min-width: 3840px) {
+  html:not(:has(.clipiro-editor)) { font-size: 150%; }
+}
+
 /* ── Dark-surface essentials ───────────────────────────────────────────────
    Scoped to `.theme-emerald` so an unmigrated light page is untouched. */
 

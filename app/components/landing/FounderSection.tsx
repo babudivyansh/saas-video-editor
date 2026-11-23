@@ -6,7 +6,7 @@ import Reveal from "@/app/components/Reveal";
 export default function FounderSection() {
   return (
     <section className="font-sans">
-      <div className="mx-auto w-full max-w-screen-2xl px-4 py-20 md:px-12 lg:px-[120px] lg:py-28">
+      <div className="mx-auto w-full max-w-[80rem] px-4 md:px-10 py-16 lg:py-20">
         <Reveal>
           <div className="mx-auto flex max-w-4xl flex-col items-center gap-10 rounded-3xl border border-card-border bg-gradient-to-br from-brand-deep/[0.04] to-brand/[0.06] p-8 md:flex-row md:p-12">
             {/* Photo / avatar */}

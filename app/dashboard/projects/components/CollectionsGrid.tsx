@@ -21,7 +21,7 @@ export function CollectionsGrid({
   onMenu: (e: React.MouseEvent, c: CollectionRow) => void;
 }) {
   return (
-    <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3" aria-label="Collections">
+    <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 min-[1920px]:grid-cols-5 min-[2560px]:grid-cols-6 gap-3" aria-label="Collections">
       <li>
         <button type="button" onClick={onNew} className={`${TILE} w-full border-dashed bg-transparent text-left`}>
           <IcPlus className="w-5 h-5 text-fg-muted" />

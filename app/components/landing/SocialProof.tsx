@@ -20,7 +20,7 @@ const ASPECTS = ["9:16", "1:1", "16:9"];
 export default function SocialProof() {
   return (
     <section className="py-14 font-sans">
-      <div className="mx-auto w-full max-w-screen-2xl px-4 md:px-12 lg:px-[120px]">
+      <div className="mx-auto w-full max-w-[80rem] px-4 md:px-10">
         {/* Stats */}
         <Reveal>
           <div className="grid grid-cols-2 gap-6 md:grid-cols-4">

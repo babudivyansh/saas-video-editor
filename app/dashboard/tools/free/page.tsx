@@ -18,8 +18,8 @@ const FREE_TOOLS = [
 
 export default function FreeToolsPage() {
   return (
-    <div className="mx-auto w-full max-w-[1440px] px-4 sm:px-8 pt-6 pb-12">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+    <div className="w-full px-(--page-gutter) pt-6 pb-12">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 min-[1920px]:grid-cols-4 min-[2560px]:grid-cols-5 gap-5">
         {FREE_TOOLS.map((t, i) => (
           <Link
             key={i}

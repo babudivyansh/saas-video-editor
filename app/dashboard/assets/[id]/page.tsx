@@ -77,7 +77,7 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
 
   if (isLoading) {
     return (
-      <div className="mx-auto w-full max-w-5xl px-4 sm:px-8 pt-6 pb-12 space-y-6">
+      <div className="w-full px-(--page-gutter) pt-6 pb-12 space-y-6">
         <Skeleton className="h-4 w-32" />
         <Skeleton className="h-[45vh] w-full rounded-2xl" />
         <Skeleton className="h-24 w-full rounded-2xl" />
@@ -87,7 +87,7 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
 
   if (error || !data) {
     return (
-      <div className="mx-auto w-full max-w-5xl px-4 sm:px-8 pt-16 pb-12 text-center space-y-4">
+      <div className="w-full px-(--page-gutter) pt-16 pb-12 text-center space-y-4">
         <h1 className="text-lg font-bold text-ink">We couldn&apos;t open this asset</h1>
         <p className="text-sm text-ink-soft">
           It may have been deleted, or it belongs to a different account.
@@ -105,7 +105,7 @@ export default function AssetDetailPage({ params }: { params: Promise<{ id: stri
     related.derivedFrom !== null;
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 sm:px-8 pt-6 pb-12 space-y-6">
+    <div className="w-full px-(--page-gutter) pt-6 pb-12 space-y-6">
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0">
           <Link href="/dashboard/assets" className="text-xs font-semibold text-brand hover:underline">
