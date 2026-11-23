@@ -80,7 +80,7 @@ function ArrowButton({
   );
 }
 const PRE_MEASURE =
-  "relative mx-auto aspect-[1/1.32] max-h-[600px] w-full max-w-[1000px] md:aspect-[1000/590] md:max-h-none md:w-[68%]";
+  "relative mx-auto aspect-[1/1.32] max-h-[600px] w-full max-w-[62.5rem] md:aspect-[1000/590] md:max-h-none md:w-[68%]";
 
 /** How many places a panel sits from the stage (negative: to the left). */
 function offsetOf(i: number, active: number): number {
@@ -113,7 +113,9 @@ export default function HeroShowcase() {
   useEffect(() => {
     const el = rootRef.current;
     if (!el) return;
-    const io = new IntersectionObserver(([e]) => setInView(e.isIntersecting), { threshold: 0.25 });
+    // 10%, not more: with the opus.pro hero spacing only ~24% of the stage is
+    // above the fold on a 1280×720 laptop, and the demo should already play there.
+    const io = new IntersectionObserver(([e]) => setInView(e.isIntersecting), { threshold: 0.1 });
     io.observe(el);
     return () => io.disconnect();
   }, []);
@@ -124,6 +126,61 @@ export default function HeroShowcase() {
     setActive(idx);
     setLoaded((prev) => near(idx, prev));
   }, []);
+
+  // Two-finger horizontal swipe on a trackpad (and shift+wheel on a mouse)
+  // turns the carousel, like opus.pro's hero. Vertical scrolling is left
+  // alone, so the page still scrolls normally. Native listener because
+  // React's onWheel is passive (can't preventDefault, which also stops the
+  // browser's back/forward swipe).
+  //
+  // A trackpad keeps firing decaying "inertia" wheel events for a second or
+  // more after the fingers lift, so one swipe = one step: after a step the
+  // carousel is locked until EITHER the events pause (120ms) OR a new swipe
+  // starts — detected the way Swiper does it, as a delta clearly bigger than
+  // the recent (decaying) ones. Without the second rule a swipe made during
+  // the previous swipe's inertia never registered and the carousel looked
+  // stuck. The 350ms floor stops the ramp-up of the same swipe counting twice.
+  const activeRef = useRef(active);
+  useEffect(() => { activeRef.current = active; }, [active]);
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    let acc = 0;
+    let locked = false;
+    let lastEvent = 0;
+    let lastStep = 0;
+    const recent: number[] = [];
+    const onWheel = (e: WheelEvent) => {
+      const dx = e.shiftKey && e.deltaX === 0 ? e.deltaY : e.deltaX;
+      if (Math.abs(dx) <= Math.abs(e.shiftKey ? 0 : e.deltaY)) return;
+      e.preventDefault();
+      const now = performance.now();
+      const mag = Math.abs(dx);
+      const avg = recent.length ? recent.reduce((a, b) => a + b, 0) / recent.length : 0;
+      const paused = now - lastEvent > 120;
+      const newSwipe = recent.length >= 3 && mag > 6 && mag > avg * 1.5;
+      lastEvent = now;
+      recent.push(mag);
+      if (recent.length > 6) recent.shift();
+      if (paused) { acc = 0; locked = false; recent.length = 0; recent.push(mag); }
+      else if (locked && newSwipe && now - lastStep > 350) { acc = 0; locked = false; }
+      if (locked) return;
+      acc += dx;
+      if (Math.abs(acc) >= 30) {
+        // Stop at the ends like the arrows and touch drag do — no wrapping
+        // from the last panel back to the first (only autoplay loops). The
+        // event is still swallowed there so the browser doesn't take the
+        // swipe as back/forward navigation.
+        const to = activeRef.current + (acc > 0 ? 1 : -1);
+        if (to >= 0 && to < N) go(to);
+        locked = true;
+        lastStep = now;
+        acc = 0;
+      }
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [go]);
 
   useEffect(() => {
     if (reduce || touched || hovering || !inView) return;

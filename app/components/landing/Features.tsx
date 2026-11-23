@@ -124,20 +124,20 @@ function PillarCard({ pillar }: { pillar: Pillar }) {
 export default function Features() {
   return (
     <section id="features" className="scroll-mt-20 font-sans">
-      <div className="mx-auto w-full max-w-screen-2xl px-4 py-20 md:px-12 lg:px-[120px] lg:py-28">
+      <div className="mx-auto w-full max-w-[80rem] px-4 md:px-10 py-16 lg:py-20">
         <Reveal>
           <div className="mx-auto max-w-2xl text-center">
             <span className="text-xs font-bold uppercase tracking-widest text-brand-deep">Everything you need</span>
             <h2 className="mt-3 text-3xl font-extrabold text-ink md:text-5xl">
               One tool, the whole short-form workflow
             </h2>
-            <p className="mt-4 text-lg text-ink-soft">
+            <p className="mt-3 text-lg text-ink-soft">
               From raw footage to scroll-stopping clips — Clipiro handles clipping, captions, formatting, and export.
             </p>
           </div>
         </Reveal>
 
-        <div className="mt-14 grid grid-cols-1 gap-6 md:grid-cols-3">
+        <div className="mt-12 grid grid-cols-1 gap-6 md:grid-cols-3">
           {PILLARS.map((pillar, i) => (
             <Reveal key={pillar.title} delay={i * 80} className="h-full">
               <PillarCard pillar={pillar} />

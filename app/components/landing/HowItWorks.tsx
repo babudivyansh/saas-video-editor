@@ -14,16 +14,16 @@ const STEPS = [
 export default function HowItWorks() {
   return (
     <section id="how-it-works" className="scroll-mt-20 font-sans">
-      <div className="mx-auto w-full max-w-screen-2xl px-4 py-20 md:px-12 lg:px-[120px] lg:py-28">
+      <div className="mx-auto w-full max-w-[80rem] px-4 md:px-10 py-16 lg:py-20">
         <Reveal>
           <div className="mx-auto max-w-2xl text-center">
             <span className="text-xs font-bold uppercase tracking-widest text-brand-deep">How it works</span>
             <h2 className="mt-3 text-3xl font-extrabold text-fg md:text-5xl">From long video to viral short in 4 steps</h2>
-            <p className="mt-4 text-lg text-fg-muted">No editing skills required. Go from upload to published in minutes.</p>
+            <p className="mt-3 text-lg text-fg-muted">No editing skills required. Go from upload to published in minutes.</p>
           </div>
         </Reveal>
 
-        <div className="relative mt-16">
+        <div className="relative mt-12">
           {/* Connecting line (desktop) */}
           <div className="absolute left-0 right-0 top-7 hidden h-px bg-gradient-to-r from-transparent via-brand/30 to-transparent lg:block" />
 

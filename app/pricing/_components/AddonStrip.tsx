@@ -41,7 +41,7 @@ export function AddonStrip({ packs, currency, buyingPack, onBuy, unit = "credits
     minorUnits(b, currency) / qty(b) < minorUnits(a, currency) / qty(a) ? b : a);
 
   return (
-    <section className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+    <section className="mx-auto w-full max-w-[80rem] px-4 md:px-10">
       <div className="flex flex-col gap-6 rounded-[var(--radius-card)] border border-line bg-surface-1 p-6 sm:p-8 lg:flex-row lg:items-center lg:gap-10">
         <div className="flex flex-col gap-2 lg:w-72 lg:flex-shrink-0">
           <h2 className="text-xl font-semibold tracking-[-0.015em] text-fg sm:text-2xl">{copy.title}</h2>

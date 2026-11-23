@@ -240,23 +240,8 @@ function PricingPageInner({ initialPlans }: { initialPlans: DbPlan[] }) {
       {/* Diwali 2026 offer — nothing outside 8–15 Nov. */}
       <PricingOfferRibbon term={term} onTerm={setTerm} currency={currency} />
 
-      {/* ── How billing works ── the one passage answer engines quote for
-          "how does Clipiro pricing work", in plain text above the cards
-          rather than spread across their bullet lists. */}
-      <section aria-labelledby="how-billing-works" className="mx-auto mt-10 max-w-3xl px-4 sm:px-6">
-        <div className="rounded-[var(--radius-card)] border border-line bg-surface-2 px-5 py-4 sm:px-6">
-          <h2 id="how-billing-works" className="text-sm font-semibold text-fg">How Clipiro pricing works</h2>
-          <p className="mt-1.5 text-sm leading-relaxed text-fg-muted">
-            AutoClip is billed in Clip Minutes: one minute per minute of uploaded video, however many clips it makes, and
-            re-running the same video within {AUTOCLIP_RERUN_FREE_WINDOW_DAYS} days is free. The other AI tools share one
-            credit balance, and the free utilities cost nothing. The free plan includes {FREE_TIER_MONTHLY_BONUS_MINUTES}{" "}
-            watermarked Clip Minutes a month with no card{savePct ? `, and yearly billing saves ${savePct}%` : ""}.
-          </p>
-        </div>
-      </section>
-
       {/* ── Plans ── */}
-      <section id="plans" className="relative mx-auto mt-12 max-w-6xl scroll-mt-24 px-4 sm:mt-14 sm:px-6 lg:px-8">
+      <section id="plans" className="mx-auto relative mt-12 w-full scroll-mt-24 max-w-[80rem] px-4 md:px-10 sm:mt-14">
         {plansLoading ? (
           <div className="grid items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {[0, 1, 2, 3].map(i => (
@@ -369,7 +354,7 @@ function PricingPageInner({ initialPlans }: { initialPlans: DbPlan[] }) {
       {!plansLoading && subs.length > 0 && <CompareTable subs={subs} term={term} />}
 
       {/* ── FAQ ── */}
-      <section className="mx-auto grid max-w-6xl gap-8 px-4 pb-20 sm:px-6 sm:pb-28 lg:grid-cols-12 lg:gap-6 lg:px-8">
+      <section className="mx-auto grid w-full gap-8 max-w-[80rem] px-4 md:px-10 pb-20 sm:pb-28 lg:grid-cols-12 lg:gap-6">
         <div className="flex flex-col gap-3 lg:col-span-4">
           <h2 className="text-3xl font-semibold tracking-[-0.025em] text-fg sm:text-4xl">Questions</h2>
           <p className="text-[15px] leading-relaxed text-fg-muted">
@@ -383,8 +368,24 @@ function PricingPageInner({ initialPlans }: { initialPlans: DbPlan[] }) {
         </div>
       </section>
 
+      {/* ── How billing works ── the one passage answer engines quote for
+          "how does Clipiro pricing work", in plain text rather than spread
+          across the cards' bullet lists. Sits right above the closing
+          "Your first clips are free" CTA, at the same width. */}
+      <section aria-labelledby="how-billing-works" className="mx-auto w-full max-w-[80rem] px-4 md:px-10 pb-6">
+        <div className="rounded-[var(--radius-card)] border border-line bg-surface-2 px-5 py-4 sm:px-6">
+          <h2 id="how-billing-works" className="text-sm font-semibold text-fg">How Clipiro pricing works</h2>
+          <p className="mt-1.5 text-sm leading-relaxed text-fg-muted">
+            AutoClip is billed in Clip Minutes: one minute per minute of uploaded video, however many clips it makes, and
+            re-running the same video within {AUTOCLIP_RERUN_FREE_WINDOW_DAYS} days is free. The other AI tools share one
+            credit balance, and the free utilities cost nothing. The free plan includes {FREE_TIER_MONTHLY_BONUS_MINUTES}{" "}
+            watermarked Clip Minutes a month with no card{savePct ? `, and yearly billing saves ${savePct}%` : ""}.
+          </p>
+        </div>
+      </section>
+
       {/* ── Closing CTA ── */}
-      <section className="mx-auto max-w-6xl px-4 pb-24 sm:px-6 lg:px-8">
+      <section className="mx-auto w-full max-w-[80rem] px-4 md:px-10 pb-24">
         <div className="relative flex flex-col gap-6 overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface-2 p-8 sm:flex-row sm:items-center sm:justify-between sm:p-10">
           <div
             aria-hidden="true"

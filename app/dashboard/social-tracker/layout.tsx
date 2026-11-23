@@ -48,7 +48,7 @@ export default async function SocialLayout({ children }: { children: React.React
     // ToastProvider is not mounted globally in this app, and useToast throws
     // without it.
     <ToastProvider>
-      <div className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-5 sm:px-6">
+      <div className="w-full flex-1 px-(--page-gutter) py-5">
         {/* useSearchParams needs a Suspense boundary in a server-rendered tree. */}
         <Suspense fallback={<div className="mb-4 h-10 animate-pulse rounded-xl bg-surface-3" aria-label="Loading" />}>
           <TrackerHeader accounts={header} />

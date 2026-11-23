@@ -197,11 +197,11 @@ export default function SiteNavbar({ solid = false }: { solid?: boolean }) {
           <SiteLaunchTicker onDismiss={ticker.dismiss} />
         </div>
       )}
-      <div className="relative max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 pt-3">
+      <div className="w-full relative px-4 sm:px-6 pt-3">
         <div className="flex items-center justify-between h-16">
 
           {/* Logo */}
-          <Link href="/" className="flex items-center ml-15 md:ml-25" aria-label="Clipiro home">
+          <Link href="/" className="flex items-center" aria-label="Clipiro home">
             <ClipiroLogo className="h-13" />
           </Link>
 

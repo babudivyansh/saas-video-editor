@@ -130,12 +130,12 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
         media={
           artwork ? (
             artwork.secondary && (
-              <div className="mx-auto max-w-[1100px]">
+              <div className="mx-auto max-w-[68.75rem]">
                 <ToolImage {...artwork.secondary} />
               </div>
             )
           ) : (
-            <div className="mx-auto flex max-w-[1100px] flex-col gap-5">
+            <div className="mx-auto flex max-w-[68.75rem] flex-col gap-5">
               <ToolMock slug={slug} label={tool.title} />
               {hasSecondaryMotif(slug) && <ToolMock slug={slug} variant="secondary" label={tool.title} />}
             </div>

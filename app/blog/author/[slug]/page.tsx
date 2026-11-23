@@ -54,7 +54,7 @@ export default async function BlogAuthorPage({ params }: { params: Promise<{ slu
       <SiteNavbar solid />
       <main>
         <section className="border-b border-line bg-gray-50/60">
-          <div className="mx-auto w-full max-w-screen-2xl px-4 py-20 text-center md:px-12 lg:px-[120px]">
+          <div className="mx-auto w-full max-w-[80rem] px-4 md:px-10 py-20 text-center">
             <div className="flex justify-center">
               <Breadcrumbs
                 items={[{ label: "Home", href: "/" }, { label: "Blog", href: "/blog" }, { label: author.name }]}
@@ -98,7 +98,7 @@ export default async function BlogAuthorPage({ params }: { params: Promise<{ slu
           </div>
         </section>
 
-        <section className="mx-auto w-full max-w-screen-2xl px-4 py-16 md:px-12 lg:px-[120px]">
+        <section className="mx-auto w-full max-w-[80rem] px-4 md:px-10 py-16">
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {posts.map((post) => (
               <PostCard key={post.slug} post={post} />

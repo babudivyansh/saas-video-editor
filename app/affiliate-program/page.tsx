@@ -73,8 +73,8 @@ export default function AffiliateProgramPage() {
         />
         {/* Hero */}
         <section className="border-b border-card-border bg-surface">
-          <div className="mx-auto w-full max-w-screen-xl px-5 py-12 text-center sm:px-6 md:px-12 md:py-16 lg:px-20">
-            <span className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-brand">Affiliate Program</span>
+          <div className="mx-auto w-full max-w-[80rem] px-4 md:px-10 py-12 text-center md:py-16 lg:pt-20">
+            <span className="block text-[10.5px] font-semibold uppercase tracking-[0.14em] text-brand">Affiliate Program</span>
             <h1 className="mx-auto mt-4 max-w-3xl text-4xl font-semibold tracking-tight text-ink sm:text-5xl lg:text-[56px] lg:leading-[1.05]">
               Earn 20% for every creator you bring to Clipiro
             </h1>
@@ -89,7 +89,7 @@ export default function AffiliateProgramPage() {
         </section>
 
         {/* Benefits */}
-        <section className="mx-auto w-full max-w-screen-xl px-5 sm:px-6 py-16 md:px-12 lg:px-20">
+        <section className="mx-auto w-full max-w-[80rem] px-4 md:px-10 py-16">
           <div className="grid grid-cols-2 gap-6 md:grid-cols-4">
             {BENEFITS.map((b) => (
               <div key={b.label} className="rounded-2xl border border-brand-soft bg-panel p-6 text-center">
@@ -101,7 +101,7 @@ export default function AffiliateProgramPage() {
         </section>
 
         {/* How it works */}
-        <section className="mx-auto w-full max-w-screen-xl px-5 sm:px-6 pb-8 md:px-12 lg:px-20">
+        <section className="mx-auto w-full max-w-[80rem] px-4 md:px-10 pb-8">
           <div className="text-center">
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-brand">How it works</span>
             <h2 className="mx-auto mt-3 max-w-xl text-[22px] font-semibold leading-[1.2] tracking-tight text-ink sm:text-[26px] lg:text-[28px]">
@@ -122,7 +122,7 @@ export default function AffiliateProgramPage() {
         </section>
 
         {/* Requirements */}
-        <section className="mx-auto w-full max-w-screen-xl px-5 sm:px-6 py-16 md:px-12 lg:px-20">
+        <section className="mx-auto w-full max-w-[80rem] px-4 md:px-10 py-16">
           <div className="text-center">
             <span className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-brand">Requirements</span>
             <h2 className="mx-auto mt-3 max-w-xl text-[22px] font-semibold leading-[1.2] tracking-tight text-ink sm:text-[26px] lg:text-[28px]">
@@ -148,7 +148,7 @@ export default function AffiliateProgramPage() {
         </section>
 
         {/* Do's and don'ts */}
-        <section className="mx-auto w-full max-w-screen-xl px-5 sm:px-6 pb-16 md:px-12 lg:px-20">
+        <section className="mx-auto w-full max-w-[80rem] px-4 md:px-10 pb-16">
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             <div className="rounded-2xl border border-card-border bg-panel p-7 shadow-sm">
               <h3 className="text-base font-bold text-ink">Approved promotion</h3>
@@ -184,7 +184,7 @@ export default function AffiliateProgramPage() {
 
         {/* FAQ */}
         <section id="faq" className="scroll-mt-20 bg-surface">
-          <div className="mx-auto w-full max-w-screen-xl px-5 sm:px-6 py-16 md:px-12 lg:px-20">
+          <div className="mx-auto w-full max-w-[80rem] px-4 md:px-10 py-16">
             <div className="text-center">
               <span className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-brand">FAQ</span>
               <h2 className="mt-3 text-[22px] font-semibold leading-[1.2] tracking-tight text-ink sm:text-[26px] lg:text-[28px]">Frequently asked questions</h2>
@@ -197,7 +197,7 @@ export default function AffiliateProgramPage() {
         </section>
 
         {/* CTA */}
-        <section className="mx-auto w-full max-w-screen-xl px-5 sm:px-6 py-20 text-center md:px-12 lg:px-20">
+        <section className="mx-auto w-full max-w-[80rem] px-4 md:px-10 py-20 text-center">
           <h2 className="mx-auto max-w-xl text-[22px] font-semibold leading-[1.2] tracking-tight text-ink sm:text-[26px] lg:text-[28px]">
             Ready to start earning?
           </h2>

@@ -41,33 +41,37 @@ export default function Hero({ reviewSummary }: HeroProps) {
         <div className="absolute inset-x-0 bottom-0 h-[520px] bg-[radial-gradient(900px_420px_at_50%_100%,var(--glow-hero),transparent_70%)]" />
       </div>
 
-      <div className="mx-auto flex w-full max-w-screen-2xl flex-col items-center gap-6 px-4 pt-8 pb-20 text-center md:px-12 lg:px-[120px] lg:pt-10 lg:pb-28">
+      <div className="mx-auto flex w-full flex-col items-center gap-6 max-w-[92rem] px-4 md:px-10 pt-12 pb-16 text-center md:pt-16 lg:pt-20 lg:pb-24">
         {/* Eyebrow, then the headline with its rotating phrase pill
             (hero/HeroHeadline). Visible, not sr-only: search and answer
             engines discount hidden headings, and the server HTML keeps the h1
             word for word the same as the page title. */}
         <HeroHeadline />
-        <p className="-mt-1 max-w-2xl text-balance text-base leading-relaxed text-fg-muted md:text-[18px]">
+        <p className="max-w-2xl text-balance text-base leading-relaxed text-fg-muted md:text-[18px]">
           Upload a podcast, interview or stream. Clipiro finds the best moments and gives you captioned
           vertical clips, ready for every platform.
         </p>
 
         {/* Paste a link (or choose to upload) and get clips: hands off to
             AutoClip through sign-up (hero/HeroLinkBar). */}
-        <HeroLinkBar />
+        {/* Spacing matches opus.pro (measured 2026-11-23): header→eyebrow 80,
+            eyebrow→h1 24, h1→subtext 24, subtext→link bar ~54, bar→media ~46. */}
+        <div className="flex w-full justify-center md:mt-[1.875rem]">
+          <HeroLinkBar />
+        </div>
 
         {/* Hero visual: the feature carousel (components/landing/hero). Each
             panel is a real looping demo, and the link box in the AI clipping
             one is a mock that replays the demo. Full width of the content column,
             reaching 80px past its padding on lg so the neighbour panels
             peek in from the edges (the section clips overflow). */}
-        <div className="hero-rise w-full lg:w-[calc(100%+160px)]">
+        <div className="hero-rise w-full md:mt-[1.375rem] lg:w-[calc(100%+160px)]">
           <HeroShowcase />
         </div>
 
         {/* The real way in, the reassurance and rating, and the old hero
             film as an opt-in tour. */}
-        <div className="hero-rise hero-rise-late relative z-10 flex flex-col items-center gap-3">
+        <div className="hero-rise hero-rise-late relative z-10 mt-4 flex flex-col items-center gap-3">
           <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3">
             {user ? (
               <Link href="/dashboard" className={CTA_CLASS}>
@@ -99,18 +103,26 @@ export default function Hero({ reviewSummary }: HeroProps) {
           </div>
         </div>
 
-        {/* CC BY asks for credit wherever the footage is shown. */}
-        <p className="text-[11px] text-fg-subtle">
-          {HERO_FOOTAGE_CREDIT.text}{" "}
-          {HERO_FOOTAGE_CREDIT.links.map((l, i) => (
-            <React.Fragment key={l.href}>
-              {i > 0 && " · "}
-              <a href={l.href} target="_blank" rel="noopener noreferrer nofollow" className="underline underline-offset-2 hover:text-fg-muted">
-                {l.label}
-              </a>
-            </React.Fragment>
-          ))}
-        </p>
+        {/* CC BY asks for credit wherever the footage is shown. A one-line
+            disclosure keeps it on the page (links stay in the HTML) without a
+            long row of underlined names under the CTA; it opens on click. */}
+        <details className="group -mt-2 text-[11px] text-fg-subtle">
+          <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded-full px-2 py-1 transition-colors hover:text-fg-muted [&::-webkit-details-marker]:hidden">
+            Demo footage credits (CC BY)
+            <svg viewBox="0 0 24 24" className="h-3 w-3 transition-transform duration-200 group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </summary>
+          <ul className="mx-auto mt-1.5 flex max-w-[44rem] flex-wrap justify-center gap-x-3 gap-y-1">
+            {HERO_FOOTAGE_CREDIT.links.map((l) => (
+              <li key={l.href}>
+                <a href={l.href} target="_blank" rel="noopener noreferrer nofollow" className="underline underline-offset-2 hover:text-fg-muted">
+                  {l.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </details>
       </div>
     </section>
   );

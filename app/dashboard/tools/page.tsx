@@ -227,7 +227,7 @@ export default function ToolsPage() {
   const chips: Filter[] = ["all", ...APP_TOOL_GROUPS];
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 pb-24 pt-10 sm:px-8">
+    <div className="w-full px-(--page-gutter) pb-24 pt-10">
       <Hero toolCount={HUB_TOOLS.length} />
 
       {/* ── Filters + search ── */}

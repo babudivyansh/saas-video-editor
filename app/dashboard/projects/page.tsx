@@ -146,7 +146,7 @@ function ProjectsPageInner() {
       )}
 
       {!projects && !projectsQuery.error && (
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 min-[1920px]:grid-cols-5 min-[2560px]:grid-cols-6">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="space-y-2">
               <Skeleton className="aspect-video rounded-2xl" />
@@ -170,7 +170,7 @@ function ProjectsPageInner() {
       {shown && projects && projects.length > 0 && (
         <>
           {shown.length === 0 && <p className="py-6 text-sm text-fg-muted">No projects match “{query.trim()}”.</p>}
-          <ul className="grid grid-cols-1 gap-x-5 gap-y-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" aria-label="Projects">
+          <ul className="grid grid-cols-1 gap-x-5 gap-y-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 min-[1920px]:grid-cols-5 min-[2560px]:grid-cols-6" aria-label="Projects">
             {!query.trim() && (
               <li>
                 <UploadTile />
@@ -188,7 +188,7 @@ function ProjectsPageInner() {
   );
 
   return (
-    <div className="mx-auto w-full max-w-[1600px] space-y-6 px-4 pb-12 pt-6 sm:px-8">
+    <div className="w-full space-y-6 px-(--page-gutter) pb-12 pt-6">
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-2xl font-semibold tracking-tight text-fg sm:text-3xl">Your projects</h1>
         <Button variant="primary" size="md" href="/dashboard/create/auto-clip" icon={<IcPlus />}>

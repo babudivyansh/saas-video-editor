@@ -40,7 +40,7 @@ export default function BlogPage() {
       <SiteNavbar solid />
       <main>
         <section className="border-b border-line bg-gray-50/60">
-          <div className="mx-auto w-full max-w-screen-2xl px-4 py-20 text-center md:px-12 lg:px-[120px]">
+          <div className="mx-auto w-full max-w-[80rem] px-4 md:px-10 py-20 text-center">
             <div className="flex justify-center">
               <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Blog" }]} />
             </div>
@@ -54,7 +54,7 @@ export default function BlogPage() {
           </div>
         </section>
 
-        <section className="mx-auto w-full max-w-screen-2xl px-4 py-16 md:px-12 lg:px-[120px]">
+        <section className="mx-auto w-full max-w-[80rem] px-4 md:px-10 py-16">
           <nav aria-label="Article categories" className="mb-8 flex flex-wrap justify-center gap-2">
             {BLOG_CATEGORIES.map((c) => (
               <Link

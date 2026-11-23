@@ -354,7 +354,7 @@ function Shell({ email, onSignOut, children }: { email: string; onSignOut: () =>
           <h1 className="text-xl font-bold text-fg truncate flex-1">{title}</h1>
           <NotificationBell />
         </div>
-        <div className={wide ? "px-4 sm:px-6 py-5" : "max-w-6xl mx-auto px-4 sm:px-8 py-6 sm:py-8"}>{children}</div>
+        <div className={wide ? "px-4 sm:px-6 py-5" : "w-full px-(--page-gutter) py-6 sm:py-8"}>{children}</div>
       </main>
     </div>
   );

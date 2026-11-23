@@ -30,12 +30,12 @@ export default function FAQ() {
   const half = Math.ceil(FAQS.length / 2);
   return (
     <section id="faq" className="scroll-mt-20 font-sans">
-      <div className="mx-auto w-full max-w-6xl px-4 py-20 md:px-6 lg:py-28">
+      <div className="mx-auto w-full max-w-[80rem] px-4 md:px-10 py-16 lg:py-20">
         <Reveal>
           <div className="text-center">
             <span className="text-xs font-bold uppercase tracking-widest text-brand-deep">FAQ</span>
             <h2 className="mt-3 text-3xl font-extrabold text-fg md:text-5xl">Frequently asked questions</h2>
-            <p className="mt-4 text-lg text-fg-muted">Everything you need to know about clipping with Clipiro.</p>
+            <p className="mt-3 text-lg text-fg-muted">Everything you need to know about clipping with Clipiro.</p>
           </div>
         </Reveal>
 

@@ -84,9 +84,9 @@ const SOCIALS = [
 
 export default function SiteFooter() {
   return (
-    // Same container as SiteNavbar (max-w-screen-2xl + px-4/6/8), and the same
-    // md:ml-25 the navbar puts on its logo, so the card starts under the logo
-    // and ends under the right-hand CTA. Keep the two in sync.
+    // OpusClip-style: the footer card sits in the same centred 1200px content
+    // column (CONTENT in marketing/styles.ts) as every section above it; the
+    // faint wordmark behind it stays full width.
     <footer className="relative overflow-hidden bg-bg font-sans [container-type:inline-size]">
       {/* Faint echo of the wordmark behind the card, peeking out below it.
           Sized to the footer (full viewport width) via cqw. Decorative. */}
@@ -103,12 +103,12 @@ export default function SiteFooter() {
       </div>
 
       <div
-        className="relative mx-auto max-w-screen-2xl px-4 pt-10 sm:px-6 md:pt-16 lg:px-8"
+        className="mx-auto w-full relative max-w-[80rem] px-4 md:px-10 pt-10 md:pt-16"
         style={{ paddingBottom: "max(2.5rem, 9cqw)" }}
       >
       {/* container-type lets the wordmark size itself to the card, not the viewport */}
       <div
-        className="relative overflow-hidden rounded-3xl border bg-surface-1 md:ml-25 [container-type:inline-size]"
+        className="relative overflow-hidden rounded-3xl border bg-surface-1 [container-type:inline-size]"
         style={{
           // Softer than border-line: a faint light edge, a brighter top
           // highlight, and a deep drop shadow that lifts the card off the echo.

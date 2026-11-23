@@ -57,11 +57,11 @@ export default function HeroHeadline() {
   }, [reduce]);
 
   return (
-    <div className="flex flex-col items-center gap-4 md:gap-5">
+    <div className="flex flex-col items-center gap-4 md:gap-6">
       <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-fg-subtle md:text-[13px]">
         AI video clipper for creators
       </p>
-      <h1 className="max-w-[1100px] text-[34px] font-bold leading-[1.08] tracking-[-0.035em] text-fg sm:text-[44px] md:text-[60px] md:leading-[1.05] lg:text-[66px]">
+      <h1 className="max-w-[68.75rem] text-[34px] font-bold leading-[1.08] tracking-[-0.035em] text-fg sm:text-[44px] md:text-[60px] md:leading-[1.05] lg:text-[4.125rem]">
         <span className="inline-flex flex-wrap items-center justify-center gap-x-[0.28em] gap-y-2">
           <span>Create</span> <PhrasePill phrase={PHRASES[i]} />
         </span>{" "}
