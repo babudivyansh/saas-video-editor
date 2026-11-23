@@ -17,6 +17,7 @@ import fs from "fs";
 import path from "path";
 import { pipeline } from "stream/promises";
 import { env } from "@/lib/env";
+import { isSampleKey } from "@/lib/sample-projects";
 
 export const s3 = new S3Client({
   region: env.AWS_REGION,
@@ -142,6 +143,9 @@ export function s3KeyToPublicUrl(key: string): string {
 }
 
 export async function deleteS3Object(key: string): Promise<void> {
+  // Sample videos are one object shared by every user who picked them
+  // (lib/sample-projects.ts): deleting one user's copy removes only their row.
+  if (isSampleKey(key)) return;
   await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
 }
 
@@ -150,7 +154,7 @@ export async function deleteS3Object(key: string): Promise<void> {
  * deleted. For per-user folders no DB row points at — account exports and
  * asset zips — which key-by-key cleanup cannot find. */
 export async function deleteS3Prefix(prefix: string): Promise<number> {
-  if (!prefix.endsWith("/") || prefix.split("/").filter(Boolean).length < 2) {
+  if (!prefix.endsWith("/") || prefix.split("/").filter(Boolean).length < 2 || isSampleKey(prefix)) {
     throw new Error(`refusing to delete an unscoped S3 prefix: ${prefix}`);
   }
   let deleted = 0;

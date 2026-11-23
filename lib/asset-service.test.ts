@@ -290,6 +290,24 @@ describe("adoptExistingS3Object", () => {
     });
     expect(getS3ObjectSize).toHaveBeenCalledWith("uploads/u1/no-size.mp4");
   });
+
+  it("lets a shared sample past a full quota and the per-file cap, and leaves samples out of the quota sum", async () => {
+    tier = "free";
+    aggregateImpl.mockResolvedValue({ _sum: { size: 0.5 * 1024 ** 3 } }); // already full
+    const result = await adoptExistingS3Object({
+      userId: "u1", s3Key: "samples/vlog.mp4", mimeType: "video/mp4",
+      name: "Sample", size: 290 * 1024 ** 2, sourceFeature: "sample", skipModeration: true,
+    });
+    expect(result.duplicate).toBe(false);
+    // An ordinary file still hits the full quota, and the sum it checks skips samples.
+    await expect(adoptExistingS3Object({
+      userId: "u1", s3Key: "uploads/u1/next.mp4", mimeType: "video/mp4", name: "Next", size: 10, sourceFeature: "url-import",
+    })).rejects.toMatchObject({ kind: "storage_quota" });
+    expect(aggregateImpl).toHaveBeenLastCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ sourceFeature: { not: "sample" }, archivedAt: null }),
+    }));
+    aggregateImpl.mockResolvedValue({ _sum: { size: 0 } });
+  });
 });
 
 describe("assertUploadAllowed — multipart pre-flight (no dedup, declared size only)", () => {
