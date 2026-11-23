@@ -10,7 +10,7 @@ import { clipName, isReady, type ViewClip } from "./model";
 // A grid tile: the clip's frame (playing, muted, while hovered), its score,
 // title and Edited / Dubbed chips. Clicking it opens the popup.
 
-export function ClipGridCard({ clip, onOpen, handlers }: { clip: ViewClip; onOpen: () => void; handlers: ClipHandlers }) {
+export function ClipGridCard({ clip, onOpen, handlers, readOnly = false }: { clip: ViewClip; onOpen: () => void; handlers: ClipHandlers; readOnly?: boolean }) {
   const ready = isReady(clip);
   const [hover, setHover] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -58,7 +58,7 @@ export function ClipGridCard({ clip, onOpen, handlers }: { clip: ViewClip; onOpe
       </button>
       {/* Over the frame, outside the open button: a button in a button is invalid. */}
       <div className={`absolute left-2 top-2 transition-opacity ${clip.isFavorite || clip.isDisliked ? "opacity-100" : "opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"}`}>
-        <FeedbackButtons clip={clip} onFeedback={handlers.onFeedback} compact />
+        <FeedbackButtons clip={clip} onFeedback={handlers.onFeedback} compact readOnly={readOnly} />
       </div>
 
       <div className="mt-2.5 flex items-center justify-between gap-2">
@@ -69,7 +69,7 @@ export function ClipGridCard({ clip, onOpen, handlers }: { clip: ViewClip; onOpe
         ) : (
           <span className="text-sm text-fg-subtle">–</span>
         )}
-        {ready && (
+        {ready && !readOnly && (
           <div className="flex items-center gap-0.5">
             <button
               type="button"

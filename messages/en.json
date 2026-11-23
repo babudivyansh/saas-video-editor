@@ -141,6 +141,8 @@
       "getClips": "Get clips in 1 click",
       "assets": "Assets",
       "pickFromAssets": "Choose a video from Assets",
+      "demosTitle": "Start from a demo project",
+      "tryDemo": "Try it",
       "uploadingPct": "Uploading {percent}%",
       "processing": "Processing…",
       "ready": "Ready",

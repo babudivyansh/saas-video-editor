@@ -26,8 +26,9 @@ import { CollectionGone, ProjectGone, ProjectRunState, isRunInProgress, renderPe
 import { useClipsSource } from "./useClipsSource";
 import {
   SORT_LABELS, isEditable, isReady, stepClip, visibleClips,
-  type ClipLayout, type ClipSort, type ClipsSource, type CollectionClipsResponse, type ProjectClipsResponse, type ViewClip,
+  type ClipLayout, type ClipSort, type ClipsSource, type CollectionClipsResponse, type DemoClipsResponse, type ProjectClipsResponse, type ViewClip,
 } from "./model";
+import { DemoCredit } from "./DemoCredit";
 
 // A project's clips (or a collection's), as OpusClip lays them out: a list
 // view of full rows, or a grid of tiles that open a popup; a Filter, a Sort,
@@ -49,6 +50,15 @@ function DownloadAllLink({ href, className, children }: { href: string; classNam
   const gate = useWatermarkDownloadGate();
   return <a href={href} className={className} onClick={(e) => gate(e, href)}>{children}</a>;
 }
+
+// A demo's clips are someone else's: nothing a viewer does writes.
+const noop = () => {};
+const DEMO_HANDLERS: ClipHandlers = {
+  onFeedback: noop,
+  onOpenWorkspace: noop,
+  onDuplicate: async () => {},
+  onChanged: noop,
+};
 
 const LAYOUT_KEY = "clipiro:clips-layout";
 const SORTS: ClipSort[] = ["score", "order", "duration", "added"];
@@ -95,7 +105,8 @@ export function ClipsView({ source }: { source: ClipsSource }) {
 
   const filters = parseFilters(params);
   const setFilters = (f: ClipFilters) => setParams({ f: f.flags.join(","), len: f.lengths.join(","), preview: null });
-  const defaultSort: ClipSort = source.kind === "project" ? "score" : "added";
+  const defaultSort: ClipSort = source.kind === "collection" ? "added" : "score";
+  const demo = source.kind === "demo" ? (query.data as DemoClipsResponse | undefined)?.demo : undefined;
   const sortParam = params.get("sort") as ClipSort | null;
   const sort: ClipSort = sortParam && SORTS.includes(sortParam) ? sortParam : defaultSort;
 
@@ -115,9 +126,10 @@ export function ClipsView({ source }: { source: ClipsSource }) {
   const workspaceTab = (params.get("tab") as WorkspaceTab | null) ?? "edit";
   const readyShown = shown.filter(isEditable);
   const workspaceIdx = workspaceId ? readyShown.findIndex((c) => c.id === workspaceId) : -1;
-  const workspaceClip = workspaceIdx >= 0 ? readyShown[workspaceIdx] : null;
+  // A demo never opens the editor, whatever the URL says.
+  const workspaceClip = workspaceIdx >= 0 && source.kind !== "demo" ? readyShown[workspaceIdx] : null;
 
-  const handlers: ClipHandlers = {
+  const handlers: ClipHandlers = source.kind === "demo" ? DEMO_HANDLERS : {
     onFeedback: (clip, field, value) => {
       setFeedback(clip, field, value).catch((e: Error) => showToast(e.message, "error"));
     },
@@ -163,13 +175,23 @@ export function ClipsView({ source }: { source: ClipsSource }) {
   }, [source.kind, source.id, running, projectStatus, listNow, readyCount, router, fireReviewPrompt]);
 
   if (query.error instanceof ApiError && query.error.status === 404) {
+    if (source.kind === "demo") {
+      return (
+        <div className="mx-auto mt-16 max-w-md px-4">
+          <EmptyState icon={<IcFilm />} title="This demo isn't available" subtitle="Try another one, or run AutoClip on a video of your own." action={{ label: "Back to Home", href: "/dashboard" }} />
+        </div>
+      );
+    }
     return source.kind === "project" ? <ProjectGone /> : <CollectionGone />;
   }
 
   const project = source.kind === "project" ? (data as ProjectClipsResponse | undefined)?.project : undefined;
   const collection = source.kind === "collection" ? (data as CollectionClipsResponse | undefined)?.collection : undefined;
-  const title = project?.title ?? collection?.name ?? "";
-  const heading = source.kind === "project" ? project?.instructions?.trim() || "All clips" : collection?.name ?? "";
+  const title = project?.title ?? collection?.name ?? demo?.title ?? "";
+  const heading = source.kind === "collection" ? collection?.name ?? "" : source.kind === "demo" ? demo?.title ?? "" : project?.instructions?.trim() || "All clips";
+  const crumbs = source.kind === "demo"
+    ? [{ label: "Home", href: "/dashboard" }, { label: "Demo project" }]
+    : [{ label: "Your projects", href: "/dashboard/projects" }, { label: title || (source.kind === "project" ? "Project" : "Collection") }];
   const renderPct = renderPercent(all);
   const filtering = activeFilterCount(filters) > 0;
 
@@ -198,12 +220,7 @@ export function ClipsView({ source }: { source: ClipsSource }) {
   return (
     <WatermarkDownloadGateProvider>
     <div className="mx-auto w-full max-w-[1400px] space-y-5 px-4 pb-16 pt-6 sm:px-8">
-      <Breadcrumbs
-        items={[
-          { label: "Your projects", href: "/dashboard/projects" },
-          { label: title || (source.kind === "project" ? "Project" : "Collection") },
-        ]}
-      />
+      <Breadcrumbs items={crumbs} />
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 items-center gap-3">
@@ -328,11 +345,13 @@ export function ClipsView({ source }: { source: ClipsSource }) {
         <ol className="grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6" aria-label="Clips">
           {shown.map((clip) => (
             <li key={clip.id}>
-              <ClipGridCard clip={clip} handlers={handlers} onOpen={() => setParams({ preview: clip.id })} />
+              <ClipGridCard clip={clip} handlers={handlers} readOnly={source.kind === "demo"} onOpen={() => setParams({ preview: clip.id })} />
             </li>
           ))}
         </ol>
       )}
+
+      {demo && shown.length > 0 && <DemoCredit demo={demo} />}
 
       <ClipPopup
         clip={previewClip}

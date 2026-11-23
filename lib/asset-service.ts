@@ -46,6 +46,7 @@ import { auditAssetAction } from "@/lib/asset-audit";
 import { trackOnboardingEvent } from "@/lib/onboarding-analytics";
 import { logger } from "@/lib/logger";
 import { toByteCount } from "@/lib/asset-serialize";
+import { COUNTS_TOWARD_STORAGE } from "@/lib/sample-projects";
 
 // Kept in sync with prisma/schema.prisma's Asset.sourceFeature doc comment.
 export type SourceFeature =
@@ -66,7 +67,9 @@ export type SourceFeature =
   | "face-swap"
   | "subtitle-remover"
   | "cut-and-crop"
-  | "photo-edit";
+  | "photo-edit"
+  // A shared sample video picked on Home (lib/sample-projects.ts).
+  | "sample";
 
 export interface AdoptResult {
   asset: Asset & { url: string };
@@ -131,7 +134,7 @@ function assertAllowedMime(mimeType: string): void {
 export async function assertUnderStorageQuota(userId: string, tier: TierId, incomingBytes: number): Promise<void> {
   const limitBytes = storageLimitBytesForTier(tier);
   const usage = await prisma.asset.aggregate({
-    where: { userId, archivedAt: null },
+    where: { userId, ...COUNTS_TOWARD_STORAGE },
     _sum: { size: true },
   });
   const usedBytes = toByteCount(usage._sum.size);
@@ -290,9 +293,9 @@ export async function adoptUploadedBytes(
  * file it needs; only its Assets-library visibility is best-effort).
  */
 export async function adoptExistingS3Object(
-  opts: AdoptCommonOpts & { s3Key: string; size?: number; skipModeration?: boolean },
+  opts: AdoptCommonOpts & { s3Key: string; size?: number; skipModeration?: boolean; thumbnailS3Key?: string },
 ): Promise<AdoptResult> {
-  const { userId, s3Key, mimeType, name, sourceFeature, sourceProjectId, sourceClipId, sourceJobId, duration, width, height, skipModeration } = opts;
+  const { userId, s3Key, mimeType, name, sourceFeature, sourceProjectId, sourceClipId, sourceJobId, duration, width, height, skipModeration, thumbnailS3Key } = opts;
   assertAllowedMime(mimeType);
 
   // One physical object should back at most one Asset per user — if this key
@@ -306,8 +309,11 @@ export async function adoptExistingS3Object(
 
   const size = opts.size ?? (await getS3ObjectSize(s3Key));
 
-  const tier = await assertFileSizeAllowed(userId, size);
-  await assertUnderStorageQuota(userId, tier, size);
+  // A shared sample is the same bytes for everyone: no per-user size or quota.
+  if (sourceFeature !== "sample") {
+    const tier = await assertFileSizeAllowed(userId, size);
+    await assertUnderStorageQuota(userId, tier, size);
+  }
 
   const kind = getAssetKind(mimeType);
   let asset: Asset;
@@ -328,6 +334,7 @@ export async function adoptExistingS3Object(
         sourceProjectId: sourceProjectId ?? undefined,
         sourceClipId: sourceClipId ?? undefined,
         sourceJobId: sourceJobId ?? undefined,
+        thumbnailS3Key: thumbnailS3Key ?? undefined,
         ...(skipModeration ? { moderationStatus: "skipped" } : {}),
       },
     });

@@ -25,7 +25,15 @@ export interface CollectionClipsResponse {
   clips: ViewClip[];
 }
 
-export type ClipsSource = { kind: "project"; id: string } | { kind: "collection"; id: string };
+/** "demo": a read-only demo project (lib/demo-projects.ts), by its slug. */
+export type ClipsSource = { kind: "project"; id: string } | { kind: "collection"; id: string } | { kind: "demo"; id: string };
+
+export interface DemoClipsResponse extends ProjectClipsResponse {
+  demo: { slug: string; title: string; creator: string; sourceUrl: string };
+}
+
+/** Why a control is off on a demo clip; its tooltip and screen-reader text. */
+export const DEMO_READ_ONLY = "Demo clips are read-only. Run AutoClip on your own video to edit, post or download them.";
 
 export type ClipSort = "score" | "order" | "duration" | "added";
 export type ClipLayout = "list" | "grid";

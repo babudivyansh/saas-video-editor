@@ -32,7 +32,7 @@ function scoreTone(score: number): string {
 }
 
 /** Grey label + optional "View all", the section header on this page. */
-function RowHeader({ title, href, linkLabel }: { title: string; href?: string; linkLabel?: string }) {
+export function RowHeader({ title, href, linkLabel }: { title: string; href?: string; linkLabel?: string }) {
   return (
     <div className="mb-3.5 flex items-baseline justify-between gap-3 px-1.5">
       <h2 className="text-base font-medium text-fg-muted">{title}</h2>

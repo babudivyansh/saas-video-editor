@@ -26,6 +26,7 @@ import { ContinueSection } from "@/app/components/dashboard/ContinueSection";
 import type { ClipRow } from "@/app/dashboard/projects/components/clipRow";
 import type { ProjectRow } from "@/app/dashboard/projects/components/projectUi";
 import { AutoClipLaunchBox } from "@/app/components/dashboard/AutoClipLaunchBox";
+import { DemoProjects } from "@/app/components/dashboard/DemoProjects";
 import { HomeEmptyState, RecentProjects, ToolChips, TopClips, WhatsNew } from "@/app/components/dashboard/HomeSections";
 import { HomeTopBar } from "@/app/components/dashboard/HomeTopBar";
 import DashboardOfferCard from "@/app/components/campaign/DashboardOfferCard";
@@ -363,6 +364,9 @@ function DashboardPageInner() {
                 {Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-[68px] rounded-2xl bg-surface-2 animate-pulse" />)}
               </div>
             )}
+
+            {/* Finished AutoClip runs on the sample videos, read-only. */}
+            <DemoProjects />
 
             {/* In-progress runs, with rename/delete — how users clear drafts. */}
             {summary?.hasAnyProjects && (

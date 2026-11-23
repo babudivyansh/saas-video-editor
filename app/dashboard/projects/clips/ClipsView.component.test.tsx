@@ -63,13 +63,13 @@ function serve(body: unknown, status = 200) {
   return fetchMock;
 }
 
-function renderView() {
+function renderView(source: { kind: "project" | "demo"; id: string } = { kind: "project", id: "p1" }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   activeClient = client;
   const r = render(
     <QueryClientProvider client={client}>
       <ToastProvider>
-        <ClipsView source={{ kind: "project", id: "p1" }} />
+        <ClipsView source={source} />
       </ToastProvider>
     </QueryClientProvider>,
   );
@@ -188,5 +188,41 @@ describe("ClipsView — a run watched to the end goes to review first", () => {
     await activeClient!.refetchQueries();
     await waitFor(() => expect(fireReviewPrompt).toHaveBeenCalled());
     expect(nav.replace).not.toHaveBeenCalledWith("/dashboard/projects/p1/review");
+  });
+});
+
+describe("ClipsView — a demo project is read-only", () => {
+  const demo = { slug: "podcast", title: "Where Are Rich Indians Investing Globally?", creator: "Sonia Shenoy", sourceUrl: "https://www.youtube.com/watch?v=DnvvJvObuPs" };
+
+  it("lists the clips with every write control off, and credits the footage", async () => {
+    const fetchMock = serve({ project: project(), clips: [clip()], demo });
+    renderView({ kind: "demo", id: "podcast" });
+    expect(await screen.findByRole("heading", { name: /Where Are Rich Indians Investing Globally\? \(1\)/ })).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith("/api/demo-projects/podcast/clips?excerpts=1", expect.anything());
+    // Every action and both feedback buttons are there but disabled.
+    for (const name of ["Publish on social", "Download", "Edit clip", "Duplicate", "Add to collection"]) {
+      expect(screen.getByRole("button", { name: new RegExp(name) })).toBeDisabled();
+    }
+    expect(screen.getByRole("button", { name: /Add Clip to Favorites/ })).toBeDisabled();
+    // None of a real project's writes or links.
+    expect(screen.queryByRole("link", { name: "Review clips" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Download all/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Run AutoClip on this video" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Sonia Shenoy/ })).toHaveAttribute("href", demo.sourceUrl);
+    expect(fireReviewPrompt).not.toHaveBeenCalled();
+  });
+
+  it("never opens the editor from the URL", async () => {
+    nav.search = "clip=c1&tab=edit";
+    serve({ project: project(), clips: [clip()], demo });
+    renderView({ kind: "demo", id: "podcast" });
+    await screen.findByRole("list", { name: "Clips" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("says a missing demo isn't available", async () => {
+    serve({ error: "Not found" }, 404);
+    renderView({ kind: "demo", id: "nope" });
+    expect(await screen.findByText("This demo isn't available")).toBeInTheDocument();
   });
 });
