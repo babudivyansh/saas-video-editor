@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { withRateLimit } from "@/lib/with-rate-limit";
 import { storageLimitBytesForTier, maxUploadBytesForTier } from "@/lib/plans/tiers";
 import { serializeAssets, toByteCount } from "@/lib/asset-serialize";
+import { COUNTS_TOWARD_STORAGE } from "@/lib/sample-projects";
 
 async function handleGET(req: NextRequest) {
   const auth = await getAuthUser(req);
@@ -16,12 +17,15 @@ async function handleGET(req: NextRequest) {
   // memory and summing in JS — the old version did that unbounded findMany,
   // which scales linearly with a user's asset count on every stats request.
   if (searchParams.get("stats") === "true") {
-    const [totals, byKindRows, tier] = await Promise.all([
+    const [totals, stored, byKindRows, tier] = await Promise.all([
       prisma.asset.aggregate({ where: { userId: auth.userId, archivedAt: null }, _sum: { size: true }, _count: true }),
+      // What the quota counts (samples are shared, so they don't).
+      prisma.asset.aggregate({ where: { userId: auth.userId, ...COUNTS_TOWARD_STORAGE }, _sum: { size: true } }),
       prisma.asset.groupBy({ by: ["kind"], where: { userId: auth.userId, archivedAt: null }, _count: true }),
       getUserTier(auth.userId),
     ]);
     const totalSize = toByteCount(totals._sum.size);
+    const usedBytes = toByteCount(stored._sum.size);
     const count = totals._count;
     const byKind = { video: 0, audio: 0, image: 0 };
     for (const row of byKindRows) {
@@ -35,7 +39,7 @@ async function handleGET(req: NextRequest) {
     // never has to hardcode or duplicate the tier map to display the
     // correct "up to X per file" copy (Upload Limits Audit §16).
     const maxUploadBytes = maxUploadBytesForTier(tier);
-    return NextResponse.json({ totalSize, count, byKind, usedBytes: totalSize, limitBytes, maxUploadBytes, tier });
+    return NextResponse.json({ totalSize, count, byKind, usedBytes, limitBytes, maxUploadBytes, tier });
   }
 
   const kind = searchParams.get("kind") ?? "all";

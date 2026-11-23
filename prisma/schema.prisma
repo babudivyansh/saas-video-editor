@@ -678,6 +678,10 @@ model Project {
   sourceAsset          Asset?   @relation("ProjectSourceAsset", fields: [sourceAssetId], references: [id], onDelete: SetNull)
   // Assets that entered the library through this project.
   sourceAssets         Asset[]  @relation("ProjectSourceAssets")
+  // Set on the few finished AutoClip runs shown to every user as read-only
+  // demo projects on Home (lib/demo-projects.ts): the sample video's id
+  // ("podcast", "gaming", "vlog"). Set by scripts/set-demo-project.ts.
+  demoSlug             String?  @unique
 
   @@index([userId])
   @@index([userId, status])

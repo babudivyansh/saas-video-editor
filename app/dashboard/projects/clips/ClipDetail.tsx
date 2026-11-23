@@ -14,7 +14,7 @@ import { useCollectionActions } from "../components/CollectionActions";
 import {
   IcCalendar, IcCaptions, IcCopy, IcDownload, IcEdit, IcFolderPlus, IcHeart, IcThumbDown, IcXml,
 } from "../components/icons";
-import { clipName, clipWindow, isReady, type ClipsSource, type ViewClip } from "./model";
+import { DEMO_READ_ONLY, clipName, clipWindow, isReady, type ClipsSource, type ViewClip } from "./model";
 
 // One clip, laid out as OpusClip's list row: feedback and score, the preview,
 // the "why it works" card, and the actions. The list view renders one per clip
@@ -41,11 +41,12 @@ function gradeTone(g: string): string {
   return "text-fg-muted";
 }
 
-export function FeedbackButtons({ clip, onFeedback, compact = false }: { clip: ViewClip; onFeedback: ClipHandlers["onFeedback"]; compact?: boolean }) {
+export function FeedbackButtons({ clip, onFeedback, compact = false, readOnly = false }: { clip: ViewClip; onFeedback: ClipHandlers["onFeedback"]; compact?: boolean; readOnly?: boolean }) {
   const size = compact ? "h-9 w-9" : "h-10 w-10";
   const name = clipName(clip);
   return (
-    <div className="flex gap-1.5">
+    // A fieldset, so a demo clip turns both off at once.
+    <fieldset disabled={readOnly} title={readOnly ? DEMO_READ_ONLY : undefined} className="flex gap-1.5 disabled:opacity-50 [&>button:disabled]:cursor-not-allowed">
       <button
         type="button"
         aria-pressed={clip.isFavorite}
@@ -68,15 +69,15 @@ export function FeedbackButtons({ clip, onFeedback, compact = false }: { clip: V
       >
         <IcThumbDown filled={clip.isDisliked} />
       </button>
-    </div>
+    </fieldset>
   );
 }
 
-function ScoreColumn({ clip, onFeedback }: { clip: ViewClip; onFeedback: ClipHandlers["onFeedback"] }) {
+function ScoreColumn({ clip, onFeedback, readOnly }: { clip: ViewClip; onFeedback: ClipHandlers["onFeedback"]; readOnly: boolean }) {
   const grades = clipGrades(clip.scoreBreakdown);
   return (
     <div className="flex flex-row items-start justify-between gap-4 lg:flex-col lg:items-end lg:justify-start">
-      <FeedbackButtons clip={clip} onFeedback={onFeedback} />
+      <FeedbackButtons clip={clip} onFeedback={onFeedback} readOnly={readOnly} />
       <div className="lg:text-right">
         {clip.score != null ? (
           <p className="tabular-nums" aria-label={`Virality score ${clip.score} out of 100`}>
@@ -221,11 +222,33 @@ function AddToCollection({ clip }: { clip: ViewClip }) {
   );
 }
 
+/** A demo clip's actions: all there, so it reads like the real page, all off. */
+function DemoActionsColumn({ clip }: { clip: ViewClip }) {
+  const items: [React.ReactNode, string][] = [
+    [<IcCalendar key="i" />, "Publish on social"],
+    [<IcXml key="i" />, "Export XML"],
+    [<IcDownload key="i" />, "Download"],
+    [<IcEdit key="i" />, "Edit clip"],
+    [<IcCopy key="i" />, "Duplicate"],
+    [<IcFolderPlus key="i" />, "Add to collection"],
+  ];
+  return (
+    <fieldset disabled className="flex flex-wrap gap-2 lg:flex-col lg:items-start" aria-label={`Actions for ${clipName(clip)}`} title={DEMO_READ_ONLY}>
+      {items.map(([icon, label]) => (
+        <button key={label} type="button" className={`${ACTION} disabled:cursor-not-allowed disabled:hover:bg-surface-2`}>
+          {icon} {label}
+        </button>
+      ))}
+    </fieldset>
+  );
+}
+
 function ActionsColumn({ clip, source, handlers }: { clip: ViewClip; source: ClipsSource; handlers: ClipHandlers }) {
   const { showToast } = useToast();
   const gateDownload = useWatermarkDownloadGate();
   const [duplicating, setDuplicating] = useState(false);
   if (!isReady(clip)) return null;
+  if (source.kind === "demo") return <DemoActionsColumn clip={clip} />;
   const base = `/api/projects/${clip.projectId}/clips/${clip.id}`;
   const inUserCollection = source.kind === "collection" && source.id !== FAVORITES_ID;
   return (
@@ -279,7 +302,7 @@ export function ClipDetail({
       className="grid grid-cols-1 items-start gap-4 sm:grid-cols-[200px_minmax(0,1fr)] lg:grid-cols-[96px_200px_minmax(0,1fr)_auto]"
     >
       <div className="sm:col-span-2 lg:col-span-1">
-        <ScoreColumn clip={clip} onFeedback={handlers.onFeedback} />
+        <ScoreColumn clip={clip} onFeedback={handlers.onFeedback} readOnly={source.kind === "demo"} />
       </div>
       <ClipPreview clip={clip} onChanged={handlers.onChanged} className={`mx-auto max-w-[260px] sm:max-w-none ${previewClassName}`} />
       <div className="min-w-0 space-y-4 lg:contents">

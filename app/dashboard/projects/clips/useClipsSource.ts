@@ -12,7 +12,13 @@ import type { ClipsSource, CollectionClipsResponse, ProjectClipsResponse, ViewCl
 // per-clip writes that change them: heart, thumbs-down, duplicate.
 
 export function clipsQueryKey(source: ClipsSource) {
-  return source.kind === "project" ? ["project-clips", source.id] : ["collection-clips", source.id];
+  return [`${source.kind}-clips`, source.id];
+}
+
+function clipsUrl(source: ClipsSource): string {
+  if (source.kind === "project") return `/api/projects/${source.id}/clips?excerpts=1`;
+  if (source.kind === "demo") return `/api/demo-projects/${encodeURIComponent(source.id)}/clips?excerpts=1`;
+  return `/api/clip-collections/${source.id}/clips?excerpts=1`;
 }
 
 type Data = ProjectClipsResponse | CollectionClipsResponse;
@@ -23,12 +29,7 @@ export function useClipsSource(source: ClipsSource) {
 
   const query = useQuery<Data>({
     queryKey: key,
-    queryFn: () =>
-      apiFetch<Data>(
-        source.kind === "project"
-          ? `/api/projects/${source.id}/clips?excerpts=1`
-          : `/api/clip-collections/${source.id}/clips?excerpts=1`,
-      ),
+    queryFn: () => apiFetch<Data>(clipsUrl(source)),
     refetchInterval: (q) =>
       source.kind === "project"
         ? autoClipPollIntervalMs(q.state.data as ProjectClipsResponse | undefined, q.state.error)
