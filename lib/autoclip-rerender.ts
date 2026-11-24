@@ -91,6 +91,15 @@ export const silenceSettingsSchema = z.object({
   zoomStrength: z.enum(ZOOM_STRENGTHS).optional(),
   zoomStyle: z.enum(ZOOM_STYLES).optional(),
   speakerMode: z.enum(SPEAKER_MODES).optional(),
+  /** Hand-placed webcam for the gaming layouts; null clears it. */
+  facecamBox: z.object({
+    x: z.number().min(0).max(1),
+    y: z.number().min(0).max(1),
+    w: z.number().min(0.03).max(1),
+    h: z.number().min(0.03).max(1),
+  }).strict()
+    .refine((b) => b.x + b.w <= 1 + 1e-6 && b.y + b.h <= 1 + 1e-6, "facecam box must sit inside the frame")
+    .nullable().optional(),
   smoothness: z.number().min(0).max(100).optional(),
   trackingSpeed: z.number().min(0).max(100).optional(),
 }).strict();

@@ -7,6 +7,22 @@
 export interface CropKeyframe { tSec: number; x: number; y: number; w: number; h: number }
 
 /** The crop in force at `tSec`: the last keyframe at or before it (the render holds each one). */
+/**
+ * The path the live preview can follow from a clip's stored crop. The API
+ * returns the stored shape ({ mode: "single", keyframes }), which this used to
+ * be handed as if it were the array itself, so the preview never panned.
+ * Layouts that compose the frame (split, full frame, picture-in-picture) have
+ * no single path: the preview shows the centre, and the render does the rest.
+ */
+export function previewKeyframes(stored: unknown): CropKeyframe[] | null {
+  if (Array.isArray(stored)) return stored as CropKeyframe[];
+  if (stored && typeof stored === "object" && (stored as { mode?: unknown }).mode === "single") {
+    const kf = (stored as { keyframes?: unknown }).keyframes;
+    return Array.isArray(kf) ? (kf as CropKeyframe[]) : null;
+  }
+  return null;
+}
+
 export function cropAt(keyframes: CropKeyframe[] | null | undefined, tSec: number): CropKeyframe | null {
   if (!keyframes?.length) return null;
   let cur = keyframes[0];

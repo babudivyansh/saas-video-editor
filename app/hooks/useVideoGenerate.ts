@@ -2,7 +2,7 @@
 import { useState, useCallback } from "react";
 import { discardDraftProject } from "@/lib/discard-draft-project";
 import { clientAuthToken } from "@/lib/client-session";
-import type { SpeakerMode } from "@/lib/speaker-modes";
+import type { SpeakerMode, FacecamBox } from "@/lib/speaker-modes";
 
 // Starts AutoClip runs. The only product left on this hook — the other
 // create products it served were deleted, and with them the project-polling
@@ -120,6 +120,8 @@ export interface RunSettings {
   smartAutoReframe?: boolean;
   zoomStrength?: "low" | "medium" | "high";
   speakerMode?: SpeakerMode;
+  /** Hand-placed webcam overlay for the gaming layouts, fractions of the source frame. */
+  facecamBox?: FacecamBox | null;
   smoothness?: number;
   trackingSpeed?: number;
   animatedCaptions?: boolean;

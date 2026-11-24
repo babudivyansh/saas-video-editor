@@ -12,7 +12,7 @@
 // data this returns `base` for the whole clip, unchanged — that is the
 // contract the tests hold it to.
 
-import { cropSizeFrac, simplifyKeyframes, splitHalfCropFrac, type CropKeyframe, type FaceBox, type StoredCrop } from "@/lib/reframe";
+import { cropSizeFrac, gamingLayoutFromCam, simplifyKeyframes, type CropKeyframe, type FaceBox, type StoredCrop } from "@/lib/reframe";
 import type { SpeakerMode } from "@/lib/speaker-modes";
 import type { WordTiming } from "@/utils/elevenlabs";
 import type { AiFeatureSet } from "@/lib/autoclip-ai/config";
@@ -75,17 +75,7 @@ export function cropOnBox(box: NormBox, aspect: Aspect, srcW: number, srcH: numb
 
 /** Facecam on top, gameplay below — from Gemini's facecam box instead of a guessed face. */
 export function gamingFromFacecam(box: NormBox, srcW: number, srcH: number, durationSec: number): StoredCrop | null {
-  const half = splitHalfCropFrac(srcW, srcH);
-  if (half.w >= 0.999 || srcW <= 0 || srcH <= 0) return null;
-  const ratio = half.w / half.h;
-  // Cover the whole webcam overlay, in the split half's shape.
-  let camW = Math.max(box.w * 1.05, box.h * 1.05 * ratio);
-  camW = Math.min(half.w, camW);
-  const camH = camW / ratio;
-  const cx = box.x + box.w / 2, cy = box.y + box.h / 2;
-  const top = { w: camW, h: camH, x: Math.min(1 - camW, Math.max(0, cx - camW / 2)), y: Math.min(1 - camH, Math.max(0, cy - camH / 2)) };
-  const bottom = { x: (1 - half.w) / 2, y: (1 - half.h) / 2, w: half.w, h: half.h };
-  return { mode: "split", a: holdKeyframes(top, durationSec), b: holdKeyframes(bottom, durationSec) };
+  return gamingLayoutFromCam(box, srcW, srcH, durationSec, 1.05);
 }
 
 function overlap(a: { startSec: number; endSec: number }, b: { startSec: number; endSec: number }): number {
@@ -212,8 +202,9 @@ export function composeAiCrop(args: {
     }
 
     const crop = args.base(r.startSec, r.endSec, ai.planLayout === "single" ? "single" : undefined);
-    if (crop?.mode === "split") {
-      // A split can't be one shot of several: frame the clip as a whole.
+    if (crop && crop.mode !== "single") {
+      // A layout (split, full frame, picture-in-picture) can't be one shot of
+      // several: frame the clip as a whole.
       return postProcess(args.base(0, dur), ai);
     }
     if (crop?.mode === "single" && crop.keyframes.length > 0) {

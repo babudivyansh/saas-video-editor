@@ -290,6 +290,9 @@ const SPEAKER = [
   { value: "single", label: "Single" },
   { value: "split", label: "Split" },
   { value: "active", label: "Active" },
+  { value: "gaming", label: "Facecam + game" },
+  { value: "gaming_pip", label: "Game + cam" },
+  { value: "fit", label: "Full frame" },
 ] as const;
 
 export function AdvancedSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {

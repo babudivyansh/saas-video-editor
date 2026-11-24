@@ -42,8 +42,13 @@ import {
   computeCropKeyframesForClip,
   computeMultiSpeakerKeyframes,
   buildDynamicCropFilter,
-  buildSplitScreenFilterComplex,
-  computeGamingKeyframes,
+  buildLayoutFilterComplex,
+  facecamFromFaces,
+  gamingLayoutFromCam,
+  pipLayoutFromCam,
+  fixedSplitLayout,
+  mapStoredCropKeyframes,
+  sanitizeReframeEnum,
   buildZoomEnvelope,
   cropSizeFrac,
   simplifyKeyframes,
@@ -52,7 +57,7 @@ import {
   type StoredCrop,
   type ReframeOptions,
 } from "@/lib/reframe";
-import type { SpeakerMode } from "@/lib/speaker-modes";
+import { layoutTemplateFor, sanitizeFacecamBox, SPEAKER_MODES, type FacecamBox, type SpeakerMode } from "@/lib/speaker-modes";
 import {
   classifyScene, buildCutKeyframes, buildGroupKeyframes, buildDriftKeyframes,
 } from "@/lib/scene-layout";
@@ -73,7 +78,7 @@ import { recommendCaptionPositionY } from "@/lib/captions/position";
 import { buildCameraZoom, applyZoomToKeyframes, densifyKeyframes, ZOOM_STRENGTH_MAX } from "@/lib/camera-motion";
 import { applyStepZoom, buildJumpZoomSteps, stepsFromPlan, JUMP_LIMITS } from "@/lib/jump-zoom";
 import { storedZoomStyle, type ZoomStyle } from "@/lib/zoom-style";
-import { composeAiCrop, type AiReframeInput, type BaseLayout } from "@/lib/autoclip-ai/reframe-ai";
+import { clipMajorityScene, composeAiCrop, type AiReframeInput, type BaseLayout } from "@/lib/autoclip-ai/reframe-ai";
 import { parseAiMeta } from "@/lib/autoclip-ai/types";
 import { collectVideoBroll } from "@/lib/autoclip-ai/broll-generate";
 import type { BrollWindowRow } from "@/lib/autoclip-ai/broll-select";
@@ -869,13 +874,31 @@ function computeStoredCrop(
   }
   const speakerMode0 = options.speakerMode ?? "auto";
 
-  if (speakerMode0 === "gaming") {
-    // Facecam on top, gameplay below. Without a steady webcam face (or in a
-    // wide/square clip) null falls through to the static centre crop, which
-    // keeps the gameplay: following a stray face would lose it.
-    if (aspectRatio !== "9:16") return null;
-    const gaming = computeGamingKeyframes(allFaces, seg.start, seg.end, srcW, srcH);
-    return gaming ? { mode: "split", a: gaming.a, b: gaming.b } : null;
+  // Full frame: nothing to track, so it never depends on face data.
+  if (speakerMode0 === "fit") return { mode: "fit" };
+
+  if (speakerMode0 === "gaming" || speakerMode0 === "gaming_pip") {
+    // The webcam: a hand-placed box first (it needs no face tracking and the
+    // user has looked at the footage), else the steady face tracking found.
+    // With neither, the whole frame: a centre crop would cut away most of the
+    // gameplay, which is what the clip is about.
+    if (aspectRatio !== "9:16") return { mode: "fit" };
+    const handPlaced = options.facecamBox ?? null;
+    const cam = handPlaced ?? facecamFromFaces(allFaces, seg.start, seg.end);
+    if (!cam) return { mode: "fit" };
+    const layout = speakerMode0 === "gaming"
+      ? gamingLayoutFromCam(cam, srcW, srcH, duration, handPlaced ? 1.04 : 1)
+      : pipLayoutFromCam(cam, srcW, srcH, duration);
+    // Null only for a portrait or square source, which has no wide gameplay.
+    return layout ?? null;
+  }
+
+  if (speakerMode0 === "split" && aspectRatio === "9:16" && inWindow.length === 0) {
+    // No face tracking for this clip: the two-camera podcast shot, left half
+    // over right half. Needs no detection, and it is how most two-person
+    // podcasts are framed.
+    const fixed = fixedSplitLayout(srcW, srcH, duration);
+    if (fixed) return fixed;
   }
 
   if (speakerMode0 === "auto") {
@@ -947,6 +970,13 @@ export function computeClipCrop(
 ): StoredCrop | null {
   if (!ai) return computeStoredCrop(allFaces, seg, aspectRatio, srcW, srcH, options);
   const duration = seg.end - seg.start;
+  // A gaming layout with no hand-placed webcam takes the one Gemini's scene
+  // labels found, before falling back to face tracking.
+  const mode = options.speakerMode ?? "auto";
+  if (!options.facecamBox && (mode === "gaming" || mode === "gaming_pip") && ai.features.sceneVision) {
+    const cam = clipMajorityScene(ai.scenes, duration)?.facecamBox;
+    if (cam) options = { ...options, facecamBox: cam };
+  }
   const words = (options.words ?? null) as WordTiming[] | null;
   const faces = allFaces
     .filter((f) => f.tSec >= seg.start && f.tSec <= seg.end)
@@ -990,6 +1020,8 @@ export interface PickPayload {
   smartAutoReframe?: boolean;
   zoomStrength?: "low" | "medium" | "high";
   speakerMode?: SpeakerMode;
+  /** Hand-placed webcam overlay for the gaming layouts (lib/speaker-modes.ts). */
+  facecamBox?: FacecamBox | null;
   smoothness?: number;
   trackingSpeed?: number;
   animatedCaptions?: boolean;
@@ -1011,6 +1043,9 @@ export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATT
     // An older queued payload has no style: it was requested under smooth.
     zoomStyle = "smooth",
   } = payload;
+  // Re-validated here: the payload has sat in Redis, and a box outside the
+  // frame would fail every render after the run was charged.
+  const facecamBox = sanitizeFacecamBox(payload.facecamBox);
   const project = await prisma.project.findUnique({ where: { id: projectId } });
   // A deleted project, or one whose source is gone, stays that way: a plain
   // Error here was retried three times and paged as "exceeded max retries"
@@ -1275,6 +1310,7 @@ export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATT
           smoothness,
           trackingSpeed,
           words,
+          facecamBox,
         }, aiClip?.reframe ?? null);
         const sub: SubScores = { hook: seg.hook, pacing: seg.pacing, payoff: seg.payoff, engagement: seg.engagement };
         const initialComposite = Math.round((seg.hook + seg.pacing + seg.payoff + seg.engagement) / 4);
@@ -1336,6 +1372,7 @@ export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATT
               smoothness,
               trackingSpeed,
               zoomStyle,
+              ...(facecamBox ? { facecamBox } : {}),
             } as unknown as Prisma.InputJsonValue,
             ...(cropKeyframes ? { cropKeyframes: cropKeyframes as unknown as Prisma.InputJsonValue } : {}),
             ...(broll && broll.length > 0 ? {
@@ -1970,27 +2007,9 @@ export async function renderClipFile(
 
       // Shift crop keyframes
       if (stored) {
-        if (stored.mode === "single") {
-          stored = {
-            mode: "single",
-            keyframes: stored.keyframes
-              .filter((kf) => keeps.some((k) => kf.tSec * 1000 >= k.startMs && kf.tSec * 1000 <= k.endMs))
-              .map((kf) => ({
-                ...kf,
-                tSec: shiftTime(kf.tSec * 1000, keeps) / 1000,
-              })),
-          };
-        } else if (stored.mode === "split") {
-          stored = {
-            mode: "split",
-            a: stored.a
-              .filter((kf) => keeps.some((k) => kf.tSec * 1000 >= k.startMs && kf.tSec * 1000 <= k.endMs))
-              .map((kf) => ({ ...kf, tSec: shiftTime(kf.tSec * 1000, keeps) / 1000 })),
-            b: stored.b
-              .filter((kf) => keeps.some((k) => kf.tSec * 1000 >= k.startMs && kf.tSec * 1000 <= k.endMs))
-              .map((kf) => ({ ...kf, tSec: shiftTime(kf.tSec * 1000, keeps) / 1000 })),
-          };
-        }
+        stored = mapStoredCropKeyframes(stored, (kf) => kf
+          .filter((k) => keeps.some((kp) => k.tSec * 1000 >= kp.startMs && k.tSec * 1000 <= kp.endMs))
+          .map((k) => ({ ...k, tSec: shiftTime(k.tSec * 1000, keeps) / 1000 })));
       }
 
       finalDurationSec = keeps.reduce((s, k) => s + (k.endMs - k.startMs), 0) / 1000;
@@ -2147,8 +2166,13 @@ export async function renderClipFile(
     return { url: ownerUserId ? await freshSourceUrl(url, ownerUserId) : url, external: false };
   };
 
+  // A layout that composes the whole frame (split, full frame, picture-in-
+  // picture) owns it: the B-roll splice only knows single crops, and used to
+  // replace a split with a plain centre crop for the WHOLE clip. The layout
+  // wins, and the inserts aren't downloaded at all.
+  const layoutOwnsFrame = !!stored && stored.mode !== "single";
   const readyWindows: { startSec: number; endSec: number; path: string }[] = [];
-  for (const [i, w] of plannedWindows.entries()) {
+  for (const [i, w] of (layoutOwnsFrame ? [] : plannedWindows).entries()) {
     const dest = i === 0 ? brollPath : `${brollPath}-${i}.mp4`;
     try {
       if (w.pending) {
@@ -2231,10 +2255,12 @@ export async function renderClipFile(
         ...outputArgs, "-shortest", clipPath,
       ];
     }
-    if (stored?.mode === "split" && stored.a.length > 1 && stored.b.length > 1) {
-      // Two-speaker split-screen: two independent dynamic crops, vstacked.
-      const complex = prepends + buildSplitScreenFilterComplex(stored.a, stored.b, moodFilter, null, videoSrc) + wmComplex;
-      return [...baseArgs, "-filter_complex", complex, "-map", videoMap, "-map", audioSrc, ...outputArgs, "-shortest", clipPath];
+    // Split screen (two speakers, or facecam over gameplay), full frame over
+    // a blurred fill, or gameplay with a picture-in-picture webcam.
+    const layout = buildLayoutFilterComplex(stored, aspect, moodFilter, videoSrc);
+    if (layout) {
+      const complex = prepends + layout + wmComplex;
+      return [...baseArgs, "-filter_complex", complex, "-map", videoMap, "-map", isTrimmed ? audioSrc : `${SOURCE_AUDIO_MAP}?`, ...outputArgs, "-shortest", clipPath];
     }
     const keyframes = stored?.mode === "single" ? stored.keyframes : null;
     const cropExpr = keyframes && keyframes.length > 1
@@ -2574,8 +2600,20 @@ export async function rerenderJob(payload: RerenderPayload): Promise<void> {
     let renderSource = source.kind === "owned" ? source.url : await localSource();
 
     let updatedClip = clip;
-    const allFaces = await loadFaceTimeline(project);
-    if (allFaces && allFaces.length > 0) {
+    const allFaces = (await loadFaceTimeline(project)) ?? [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rerenderSettings = (clip.silenceSettings as any) ?? {};
+    const storedBefore = clip.cropKeyframes as unknown as StoredCrop | null;
+    // Recompute whenever there is something to compute from. Without face
+    // tracking that still includes every layout that needs none (split,
+    // gaming, full frame), and leaving one of those for a tracked mode:
+    // before, a clip with no face timeline kept its old crop whatever the
+    // user picked, so switching layout re-rendered the same framing. A
+    // tracked mode with no faces and no layout to leave keeps what it had.
+    const recompute = allFaces.length > 0
+      || layoutTemplateFor(sanitizeReframeEnum(rerenderSettings.speakerMode, SPEAKER_MODES) ?? "auto").noTracking
+      || (!!storedBefore && storedBefore.mode !== "single");
+    if (recompute) {
       let { w: srcW, h: srcH } = await getMediaDimensions(renderSource);
       // The probe reports failure as 0x0. Over a URL that means the read
       // failed (a local file always probed): crop keyframes computed for a
@@ -2619,6 +2657,7 @@ export async function rerenderJob(payload: RerenderPayload): Promise<void> {
         smoothness: silenceOpts.smoothness ?? 50,
         trackingSpeed: silenceOpts.trackingSpeed ?? 50,
         words: clip.transcriptJson as unknown as WordTiming[],
+        facecamBox: sanitizeFacecamBox(silenceOpts.facecamBox),
       }, aiReframeFromMeta(clip.aiMeta));
       updatedClip = await prisma.clip.update({
         where: { id: clipId },

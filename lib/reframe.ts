@@ -88,7 +88,7 @@ const POLL_INTERVAL_MS = 3000;
 // keep working.
 import { parseS3Url } from "@/lib/s3-url";
 export { parseS3Url };
-import { SPEAKER_MODES, type SpeakerMode } from "@/lib/speaker-modes";
+import { SPEAKER_MODES, type FacecamBox, type SpeakerMode } from "@/lib/speaker-modes";
 
 // Runs AWS Rekognition Video face detection for the whole source video and
 // returns every detected face sample. Requires the IAM credentials already
@@ -287,6 +287,12 @@ export interface ReframeOptions {
   smoothness?: number; // 0..100
   trackingSpeed?: number; // 0..100
   words?: { word: string; start: number; end: number }[] | null;
+  /**
+   * Where the webcam overlay is on the source, placed by hand in the create
+   * flow or the clip panel (or found by Gemini's scene labels). The gaming
+   * layouts use it instead of face tracking, so they work without any.
+   */
+  facecamBox?: FacecamBox | null;
 }
 
 export const REFRAME_PRESETS = ["balanced", "minimal", "dynamic", "cinematic"] as const;
@@ -697,7 +703,32 @@ export interface MultiSpeakerResult { a: CropKeyframe[]; b: CropKeyframe[] }
 // apart by whether w/h vary), "split" is the two-speaker vstack path.
 export type StoredCrop =
   | { mode: "single"; keyframes: CropKeyframe[] }
-  | { mode: "split"; a: CropKeyframe[]; b: CropKeyframe[] };
+  /**
+   * Two crops stacked. `topFrac` is the top panel's share of the frame height
+   * (0.5 when absent, which is every split stored before the gaming layout
+   * moved to a third): each crop window has its own panel's shape.
+   */
+  | { mode: "split"; a: CropKeyframe[]; b: CropKeyframe[]; topFrac?: number }
+  /** The whole frame scaled to fit, over a blurred copy filling the rest. */
+  | { mode: "fit" }
+  /**
+   * `main` fills the frame; `cam` is overlaid in a top corner on `side`, at
+   * `size` output pixels (border included), which is the cam window's shape.
+   */
+  | { mode: "pip"; main: CropKeyframe[]; cam: CropKeyframe[]; side: "left" | "right"; size: { w: number; h: number } };
+
+/** Shifts every keyframe list a stored crop owns through `fn` (silence removal). */
+export function mapStoredCropKeyframes(
+  stored: StoredCrop,
+  fn: (kf: CropKeyframe[]) => CropKeyframe[],
+): StoredCrop {
+  switch (stored.mode) {
+    case "single": return { mode: "single", keyframes: fn(stored.keyframes) };
+    case "split": return { ...stored, a: fn(stored.a), b: fn(stored.b) };
+    case "pip": return { ...stored, main: fn(stored.main), cam: fn(stored.cam) };
+    case "fit": return stored;
+  }
+}
 
 const MIN_SEPARATION_FRAC = 0.25; // faces must differ by >25% of frame width to count as "two people"
 const MIN_DUAL_COVERAGE = 0.4; // both clusters must each appear in >=40% of buckets
@@ -941,10 +972,6 @@ export function buildZoomEnvelope(clipDurationSec: number, aspect: "9:16" | "16:
   return kf;
 }
 
-// Two independently-panning crops (one per speaker) stacked into a single
-// vertical split-screen, mirroring the static vstack technique already used
-// by utils/ffmpeg-render.ts's runSplitScreenFFmpeg — same shape, just with
-// per-input dynamic crop expressions instead of one static crop.
 /** Output size of one stacked half in the split-screen render. */
 export const SPLIT_HALF = { w: 1080, h: 960 } as const;
 
@@ -954,6 +981,33 @@ export const SPLIT_HALF = { w: 1080, h: 960 } as const;
  */
 export function splitHalfCropFrac(srcW: number, srcH: number): { w: number; h: number } {
   const aspect = SPLIT_HALF.w / SPLIT_HALF.h;
+  const w = (srcH * aspect) / srcW;
+  return w <= 1 ? { w, h: 1 } : { w: 1, h: srcW / aspect / srcH };
+}
+
+// ── Stack geometry ──────────────────────────────────────────────────────────
+// A split renders as two panels stacked into the 1080x1920 frame. A plain
+// two-speaker split uses equal halves (1080x960 each); the gaming layout gives
+// the webcam a third and the gameplay two thirds, because the gameplay is
+// what the clip is about.
+
+/** The gaming layout's facecam panel: a third of the frame. */
+export const GAMING_TOP_FRAC = 1 / 3;
+
+/** Output sizes of the two stacked panels for a given top share. Even pixels. */
+export function stackPanelSizes(topFrac = 0.5): { top: { w: number; h: number }; bottom: { w: number; h: number } } {
+  const H = 1920, W = 1080;
+  const clamped = Math.min(0.75, Math.max(0.25, topFrac));
+  const topH = Math.round((H * clamped) / 2) * 2;
+  return { top: { w: W, h: topH }, bottom: { w: W, h: H - topH } };
+}
+
+/**
+ * A full-height crop window of the given output shape, as fractions of the
+ * source frame. w is 1 (and h shrinks) only for a source narrower than it.
+ */
+export function panelCropFrac(outW: number, outH: number, srcW: number, srcH: number): { w: number; h: number } {
+  const aspect = outW / outH;
   const w = (srcH * aspect) / srcW;
   return w <= 1 ? { w, h: 1 } : { w: 1, h: srcW / aspect / srcH };
 }
@@ -972,19 +1026,55 @@ const FACECAM_HEIGHT_IN_FACES = 2.6;
 const MIN_FACECAM_COVERAGE = 0.5;
 const HOLD_KEYFRAME_SEC = 1;
 
-export function computeGamingKeyframes(
+/**
+ * A held crop, one keyframe a second. Not just start and end: silence and
+ * filler removal drop the keyframes that fall in cut stretches, and a layout
+ * needs more than one left or the clip falls back to a single crop.
+ */
+export function holdCrop(box: Omit<CropKeyframe, "tSec">, durationSec: number): CropKeyframe[] {
+  const kf: CropKeyframe[] = [];
+  for (let t = 0; t < durationSec; t += HOLD_KEYFRAME_SEC) kf.push({ tSec: t, ...box });
+  kf.push({ tSec: durationSec, ...box });
+  return kf;
+}
+
+/**
+ * The smallest window of output shape `outW:outH` (pixels) that contains `box`
+ * (grown by `pad`), centred on it and kept inside the frame. Fractions of the
+ * source frame.
+ */
+export function windowAround(
+  box: { x: number; y: number; w: number; h: number },
+  outW: number,
+  outH: number,
+  srcW: number,
+  srcH: number,
+  pad = 1,
+): Omit<CropKeyframe, "tSec"> {
+  const ratio = outW / outH; // pixel aspect of the window
+  let wPx = box.w * srcW * pad;
+  let hPx = box.h * srcH * pad;
+  if (wPx / hPx > ratio) hPx = wPx / ratio; else wPx = hPx * ratio;
+  // Larger than the frame: shrink to fit, keeping the shape.
+  const shrink = Math.max(wPx / srcW, hPx / srcH, 1);
+  wPx /= shrink; hPx /= shrink;
+  const w = wPx / srcW, h = hPx / srcH;
+  const cx = box.x + box.w / 2, cy = box.y + box.h / 2;
+  return {
+    w, h,
+    x: Math.min(1 - w, Math.max(0, cx - w / 2)),
+    y: Math.min(1 - h, Math.max(0, cy - h / 2)),
+  };
+}
+
+/** The webcam region implied by a steady face, or null without one. */
+export function facecamFromFaces(
   allFaces: FaceBox[],
   clipStartSec: number,
   clipEndSec: number,
-  srcW: number,
-  srcH: number,
-): MultiSpeakerResult | null {
-  if (srcW <= 0 || srcH <= 0 || clipEndSec <= clipStartSec) return null;
+): FacecamBox | null {
+  if (clipEndSec <= clipStartSec) return null;
   const duration = clipEndSec - clipStartSec;
-  const half = splitHalfCropFrac(srcW, srcH);
-  // A portrait or square source has no wide gameplay to put under the webcam.
-  if (half.w >= 0.999) return null;
-
   const inWindow = allFaces.filter(
     (f) => f.tSec >= clipStartSec && f.tSec <= clipEndSec && f.confidence >= MIN_CONFIDENCE,
   );
@@ -1011,63 +1101,213 @@ export function computeGamingKeyframes(
   const cx = median(cam.map((f) => f.x + f.w / 2));
   const cy = median(cam.map((f) => f.y + f.h / 2));
   const faceH = median(cam.map((f) => f.h));
-
-  // Top: a 9:8 window around the webcam, at most the full split-half window.
-  const camH = Math.min(half.h, faceH * FACECAM_HEIGHT_IN_FACES);
-  const camW = camH * (half.w / half.h);
-  const camX = Math.min(1 - camW, Math.max(0, cx - camW / 2));
-  const camY = Math.min(1 - camH, Math.max(0, cy - camH / 2));
-  const top = { x: camX, y: camY, w: camW, h: camH };
-
-  // Bottom: the centre of the frame at full height, where the game's action
-  // and crosshair are. Static: gameplay has no subject to follow.
-  const bottom = { x: (1 - half.w) / 2, y: (1 - half.h) / 2, w: half.w, h: half.h };
-
-  // A held crop, one keyframe a second. Not just start and end: silence and
-  // filler removal drop the keyframes that fall in cut stretches, and a split
-  // needs more than one left or the clip falls back to a single crop.
-  const hold = (box: Omit<CropKeyframe, "tSec">): CropKeyframe[] => {
-    const kf: CropKeyframe[] = [];
-    for (let t = 0; t < duration; t += HOLD_KEYFRAME_SEC) kf.push({ tSec: t, ...box });
-    kf.push({ tSec: duration, ...box });
-    return kf;
+  // Head and shoulders: the overlay is a few face-heights tall. Its width is
+  // left to the panel's shape (windowAround widens it).
+  const h = Math.min(1, faceH * FACECAM_HEIGHT_IN_FACES);
+  const w = Math.min(1, median(cam.map((f) => f.w)));
+  return {
+    x: Math.min(1 - w, Math.max(0, cx - w / 2)),
+    y: Math.min(1 - h, Math.max(0, cy - h / 2)),
+    w, h,
   };
-  return { a: hold(top), b: hold(bottom) };
 }
 
+/**
+ * Facecam on top (a third of the frame), gameplay below. `cam` is the webcam
+ * overlay on the source, hand-placed or found; `pad` widens a hand-drawn box a
+ * touch so its border isn't clipped. Null for a source too narrow to have wide
+ * gameplay to show.
+ */
+export function gamingLayoutFromCam(
+  cam: FacecamBox,
+  srcW: number,
+  srcH: number,
+  durationSec: number,
+  pad = 1.04,
+): StoredCrop | null {
+  if (srcW <= 0 || srcH <= 0 || durationSec <= 0) return null;
+  const sizes = stackPanelSizes(GAMING_TOP_FRAC);
+  const bottom = panelCropFrac(sizes.bottom.w, sizes.bottom.h, srcW, srcH);
+  // A portrait or square source has no wide gameplay to put under the webcam.
+  if (bottom.w >= 0.999) return null;
+  const top = windowAround(cam, sizes.top.w, sizes.top.h, srcW, srcH, pad);
+  // Bottom: the centre of the frame at full height, where the game's action
+  // and crosshair are. Static: gameplay has no subject to follow.
+  const bot = { x: (1 - bottom.w) / 2, y: (1 - bottom.h) / 2, w: bottom.w, h: bottom.h };
+  return { mode: "split", a: holdCrop(top, durationSec), b: holdCrop(bot, durationSec), topFrac: GAMING_TOP_FRAC };
+}
+
+export function computeGamingKeyframes(
+  allFaces: FaceBox[],
+  clipStartSec: number,
+  clipEndSec: number,
+  srcW: number,
+  srcH: number,
+): (MultiSpeakerResult & { topFrac: number }) | null {
+  if (srcW <= 0 || srcH <= 0 || clipEndSec <= clipStartSec) return null;
+  const cam = facecamFromFaces(allFaces, clipStartSec, clipEndSec);
+  if (!cam) return null;
+  const layout = gamingLayoutFromCam(cam, srcW, srcH, clipEndSec - clipStartSec, 1);
+  return layout?.mode === "split" ? { a: layout.a, b: layout.b, topFrac: layout.topFrac ?? GAMING_TOP_FRAC } : null;
+}
+
+/** On-screen size of the picture-in-picture webcam: 44% of the frame width, its own shape, even pixels. */
+export function pipCamSize(cam: { w: number; h: number }, srcW: number, srcH: number): { w: number; h: number } {
+  const W = Math.round((1080 * 0.44) / 2) * 2;
+  const shape = (cam.w * srcW) / Math.max(1, cam.h * srcH);
+  // Clamp the shape: a very tall or very flat hand-drawn box would make a
+  // sliver of a picture-in-picture.
+  const clamped = Math.min(2, Math.max(0.75, shape));
+  return { w: W, h: Math.round(W / clamped / 2) * 2 };
+}
+
+/**
+ * Picture-in-picture: the gameplay fills the 9:16 frame (a static centre
+ * crop) and the webcam sits in the top corner on the side it was on in the
+ * source. Null when there is no width to crop from.
+ */
+export function pipLayoutFromCam(cam: FacecamBox, srcW: number, srcH: number, durationSec: number): StoredCrop | null {
+  if (srcW <= 0 || srcH <= 0 || durationSec <= 0) return null;
+  const main = cropSizeFrac("9:16", srcW, srcH);
+  if (main.w >= 0.999) return null;
+  // The PiP's own shape follows the webcam box, clamped (pipCamSize).
+  const pip = pipCamSize(cam, srcW, srcH);
+  const camWin = windowAround(cam, pip.w, pip.h, srcW, srcH, 1.04);
+  const side = cam.x + cam.w / 2 < 0.5 ? "left" : "right";
+  const mainBox = { x: (1 - main.w) / 2, y: (1 - main.h) / 2, w: main.w, h: main.h };
+  return { mode: "pip", main: holdCrop(mainBox, durationSec), cam: holdCrop(camWin, durationSec), side, size: pip };
+}
+
+/**
+ * The two-camera podcast split without face tracking: the left half of the
+ * frame on top, the right half below, each a 9:8 window centred in its half.
+ * On a 16:9 source a full-height 9:8 window is wider than half the frame, so
+ * the window is the half's full width instead and sits a little above centre,
+ * where heads are. Null for a source too narrow to hold two.
+ */
+export function fixedSplitLayout(srcW: number, srcH: number, durationSec: number): StoredCrop | null {
+  if (srcW <= 0 || srcH <= 0 || durationSec <= 0) return null;
+  // Narrower than 9:8 x 2 is not a side-by-side shot.
+  if (srcW / srcH < 1.5) return null;
+  const aspect = SPLIT_HALF.w / SPLIT_HALF.h;
+  const full = splitHalfCropFrac(srcW, srcH);
+  const w = Math.min(full.w, 0.5);
+  const h = Math.min(1, (w * srcW) / aspect / srcH);
+  const y = (1 - h) * 0.4;
+  const left = { x: 0.25 - w / 2, y, w, h };
+  const right = { x: 0.75 - w / 2, y, w, h };
+  return { mode: "split", a: holdCrop(left, durationSec), b: holdCrop(right, durationSec) };
+}
+
+// ── Filter graphs ───────────────────────────────────────────────────────────
+
+/** A crop of `kf` scaled to exactly outW x outH: static, panning, or zooming. */
+function cropToSize(kf: CropKeyframe[], outW: number, outH: number): string {
+  const varying = kf.some((k) => k.w !== kf[0].w || k.h !== kf[0].h);
+  // Same crop-can't-zoom constraint as buildDynamicCropFilter: a varying
+  // window has to go through zoompan, which also pins the output size.
+  if (varying) return buildPanZoomChain(kf, outW, outH);
+  // A crop that never moves (the gaming layout) needs no interpolation.
+  if (kf.every((k) => k.x === kf[0].x && k.y === kf[0].y)) {
+    return `crop=w='(${kf[0].w}*in_w)':h='(${kf[0].h}*in_h)':x='(${kf[0].x}*in_w)':y='(${kf[0].y}*in_h)',scale=${outW}:${outH}`;
+  }
+  const xExpr = lerpExpr("in_w", kf, "x");
+  const yExpr = lerpExpr("in_h", kf, "y");
+  return `crop=w='(${kf[0].w}*in_w)':h='(${kf[0].h}*in_h)':x='${xExpr}':y='${yExpr}',scale=${outW}:${outH}`;
+}
+
+// Two independently-panning crops (one per speaker) stacked into a single
+// vertical split-screen, mirroring the static vstack technique already used
+// by utils/ffmpeg-render.ts's runSplitScreenFFmpeg — same shape, just with
+// per-input dynamic crop expressions instead of one static crop.
 export function buildSplitScreenFilterComplex(
   a: CropKeyframe[],
   b: CropKeyframe[],
   moodFilter: string | null,
   captionsFilter: string | null,
-  videoSrc = "[0:v]"
+  videoSrc = "[0:v]",
+  topFrac = 0.5,
 ): string {
-  const half = SPLIT_HALF;
-  const cropAndScale = (kf: CropKeyframe[]) => {
-    const varying = kf.some((k) => k.w !== kf[0].w || k.h !== kf[0].h);
-    // Same crop-can't-zoom constraint as buildDynamicCropFilter: a varying
-    // window has to go through zoompan, which also pins the half's output size.
-    if (varying) return buildPanZoomChain(kf, half.w, half.h);
-    // A crop that never moves (the gaming layout) needs no interpolation.
-    if (kf.every((k) => k.x === kf[0].x && k.y === kf[0].y)) {
-      return `crop=w='(${kf[0].w}*in_w)':h='(${kf[0].h}*in_h)':x='(${kf[0].x}*in_w)':y='(${kf[0].y}*in_h)',scale=${half.w}:${half.h}`;
-    }
-    const xExpr = lerpExpr("in_w", kf, "x");
-    const yExpr = lerpExpr("in_h", kf, "y");
-    return `crop=w='(${kf[0].w}*in_w)':h='(${kf[0].h}*in_h)':x='${xExpr}':y='${yExpr}',scale=${half.w}:${half.h}`;
-  };
+  const sizes = stackPanelSizes(topFrac);
   // Split the source explicitly. Reading videoSrc twice works for an input
   // stream ("[0:v]"), but the pipeline passes "[trimmedv]" whenever silence or
   // filler removal trims the clip, and a filter output can be consumed only
   // once: ffmpeg 6 rejects the graph ("matches no streams") and ffmpeg 8
   // silently feeds the untrimmed input to the second half, out of sync.
   const split = `${videoSrc}split=2[splitA][splitB]`;
-  const top = `[splitA]${cropAndScale(a)}[top]`;
-  const bot = `[splitB]${cropAndScale(b)}[bot]`;
+  const top = `[splitA]${cropToSize(a, sizes.top.w, sizes.top.h)}[top]`;
+  const bot = `[splitB]${cropToSize(b, sizes.bottom.w, sizes.bottom.h)}[bot]`;
 
   const postStack = [moodFilter, captionsFilter].filter((f): f is string => !!f);
   const stacked = postStack.length > 0
     ? `[top][bot]vstack=inputs=2[stackedraw];[stackedraw]${postStack.join(",")}[video]`
     : `[top][bot]vstack=inputs=2[video]`;
   return `${split};${top};${bot};${stacked}`;
+}
+
+/**
+ * The whole frame scaled to fit the target, over a blurred, darkened copy of
+ * itself scaled to fill it. The blur runs at a quarter of the size and is
+ * scaled back up: the same look at a fraction of the cost on a CPU render.
+ */
+export function buildFitFilterComplex(
+  aspect: "9:16" | "16:9" | "1:1",
+  moodFilter: string | null,
+  videoSrc = "[0:v]",
+): string {
+  const { w: W, h: H } = TARGET_RES[aspect];
+  const bw = Math.round(W / 4 / 2) * 2, bh = Math.round(H / 4 / 2) * 2;
+  const bg = `[fitbg]scale=${bw}:${bh}:force_original_aspect_ratio=increase,crop=${bw}:${bh},boxblur=12:2,eq=brightness=-0.08,scale=${W}:${H},setsar=1[fitback]`;
+  const fg = `[fitfg]scale=${W}:${H}:force_original_aspect_ratio=decrease:force_divisible_by=2,setsar=1[fitfront]`;
+  const post = moodFilter ? `,${moodFilter}` : "";
+  return `${videoSrc}split=2[fitbg][fitfg];${bg};${fg};[fitback][fitfront]overlay=(W-w)/2:(H-h)/2${post}[video]`;
+}
+
+/** Margin around the picture-in-picture webcam, in output pixels. */
+const PIP_MARGIN_X = 40;
+// Below the top edge, clear of the platforms' own top-bar UI.
+const PIP_MARGIN_Y = 140;
+const PIP_BORDER = 6;
+
+/** Gameplay fills the 9:16 frame, the webcam crop sits in a top corner with a thin white border. */
+export function buildPipFilterComplex(
+  main: CropKeyframe[],
+  cam: CropKeyframe[],
+  side: "left" | "right",
+  size: { w: number; h: number },
+  moodFilter: string | null,
+  videoSrc = "[0:v]",
+): string {
+  const { w: W, h: H } = TARGET_RES["9:16"];
+  const inner = { w: size.w - PIP_BORDER * 2, h: size.h - PIP_BORDER * 2 };
+  const x = side === "left" ? PIP_MARGIN_X : W - size.w - PIP_MARGIN_X;
+  const post = moodFilter ? `,${moodFilter}` : "";
+  return (
+    `${videoSrc}split=2[pipm][pipc];` +
+    `[pipm]${cropToSize(main, W, H)},setsar=1[pipmain];` +
+    `[pipc]${cropToSize(cam, inner.w, inner.h)},pad=${size.w}:${size.h}:${PIP_BORDER}:${PIP_BORDER}:white,setsar=1[pipcam];` +
+    `[pipmain][pipcam]overlay=${x}:${PIP_MARGIN_Y}${post}[video]`
+  );
+}
+
+/**
+ * The filter graph for any stored layout that isn't a plain single crop, from
+ * `videoSrc` to `[video]`. Null for single crops (and for a layout whose
+ * keyframes silence removal emptied), which keep their own simpler path.
+ */
+export function buildLayoutFilterComplex(
+  stored: StoredCrop | null,
+  aspect: "9:16" | "16:9" | "1:1",
+  moodFilter: string | null,
+  videoSrc: string,
+): string | null {
+  if (!stored) return null;
+  if (stored.mode === "fit") return buildFitFilterComplex(aspect, moodFilter, videoSrc);
+  if (stored.mode === "split" && stored.a.length > 1 && stored.b.length > 1) {
+    return buildSplitScreenFilterComplex(stored.a, stored.b, moodFilter, null, videoSrc, stored.topFrac ?? 0.5);
+  }
+  if (stored.mode === "pip" && aspect === "9:16" && stored.main.length > 1 && stored.cam.length > 1) {
+    return buildPipFilterComplex(stored.main, stored.cam, stored.side, stored.size, moodFilter, videoSrc);
+  }
+  return null;
 }
