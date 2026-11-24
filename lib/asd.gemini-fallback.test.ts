@@ -27,6 +27,10 @@ vi.mock("@/lib/render-target", () => ({ shouldUseAsd, shouldUseRekognitionFallba
 const classifySource = vi.hoisted(() => vi.fn(async (): Promise<{ kind: string; url?: string }> => ({ kind: "owned", url: "https://signed.invalid/v.mp4" })));
 vi.mock("@/lib/source-url", () => ({ classifySource }));
 
+// The foreign-media refusal logs an error, and the real logger lazy-loads
+// Sentry on its first error: >5s when several test files import at once.
+vi.mock("@/lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } }));
+
 const GEMINI_FACE = { tSec: 1.5, x: 0.86, y: 0.08, w: 0.05, h: 0.09, confidence: 90 };
 const detectFacesWithGemini = vi.hoisted(() => vi.fn(async (): Promise<Result> => ({ boxes: [] })));
 vi.mock("@/lib/face-detect-gemini", () => ({ detectFacesWithGemini }));

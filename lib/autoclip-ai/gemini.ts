@@ -40,6 +40,14 @@ export async function geminiJson<S extends z.ZodTypeAny>(args: {
   schema: S;
   timeoutMs?: number;
   temperature?: number;
+  /** Waits between overloaded (429/503) attempts on each model; default one 3s retry. */
+  primaryBackoffMs?: number[];
+  fallbackBackoffMs?: number[];
+  /**
+   * What a parseable-but-empty answer (null, or nothing extractable) means.
+   * Default: off-schema. A detector can map it to "found nothing".
+   */
+  emptyAnswer?: z.infer<S>;
 }): Promise<z.infer<S> | null> {
   if (!env.GEMINI_API_KEY) return null;
   const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
@@ -55,11 +63,13 @@ export async function geminiJson<S extends z.ZodTypeAny>(args: {
       fallback: AI_FALLBACK_MODEL,
       timeoutMs: args.timeoutMs ?? 45_000,
       // These steps are optional: one short retry, not the pick's 46s ladder.
-      primaryBackoffMs: [3_000],
-      fallbackBackoffMs: [3_000],
+      primaryBackoffMs: args.primaryBackoffMs ?? [3_000],
+      fallbackBackoffMs: args.fallbackBackoffMs ?? [3_000],
       onFallback: () => logger.warn("autoclip-ai", `${args.label}: ${AI_PRIMARY_MODEL} busy, using ${AI_FALLBACK_MODEL}`),
     });
-    const parsed = args.schema.safeParse(extractJson(result.response.text()));
+    const raw = extractJson(result.response.text());
+    if (raw == null && args.emptyAnswer !== undefined) return args.emptyAnswer;
+    const parsed = args.schema.safeParse(raw);
     if (!parsed.success) {
       logger.warn("autoclip-ai", `${args.label}: answer did not match the schema`, { issue: parsed.error.issues[0]?.message });
       return null;
