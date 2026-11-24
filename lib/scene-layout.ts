@@ -29,7 +29,8 @@ export interface SceneClassification {
 const MIN_CONFIDENCE = 60;
 const COVERAGE_FLOOR = 0.4;   // a person must appear in this share of buckets to "count"
 const BUCKET_SEC = 0.5;
-const DIALOGUE_SWITCHES_PER_MIN = 6; // above this, alternating cuts beat a static split
+/** Speaker changes per minute above which cuts can't keep up: show both (split). */
+const CROSSTALK_SWITCHES_PER_MIN = 20;
 
 /** Group samples into people: by track id when ASD supplied one, else by position. */
 export function groupIntoPeople(faces: FaceBox[]): FaceBox[][] {
@@ -157,11 +158,14 @@ export function classifyScene(faces: FaceBox[], clipStartSec: number, clipEndSec
   if (people <= 1) return { type: "single", people: 1, switchesPerMin };
   if (people >= 3) return { type: "group", people, switchesPerMin };
 
-  // Two people. Rapid alternation is a conversation, which reads better as
-  // cuts between speakers than as a permanent split screen — a split shows
-  // both people all the time, so the viewer has to work out who is talking.
+  // Two people. With a speaker signal, cut to whoever is talking — a split
+  // shows both people all the time, so the viewer has to work out who is
+  // talking — unless they talk over each other faster than cuts can follow
+  // (crosstalk), when the split is the honest picture. Without a signal
+  // there is no one to cut to: the split shows both.
+  const hasSignal = inWindow.some((f) => typeof f.speaking === "number" && f.trackId);
   return {
-    type: switchesPerMin >= DIALOGUE_SWITCHES_PER_MIN ? "dialogue" : "duo",
+    type: hasSignal && switchesPerMin < CROSSTALK_SWITCHES_PER_MIN ? "dialogue" : "duo",
     people: 2,
     switchesPerMin,
   };
@@ -182,7 +186,7 @@ export function buildCutKeyframes(
   durationSec: number,
   cropW: number,
   cropH: number,
-  minShotSec = 1.2,
+  minShotSec = 1.5,
 ): CropKeyframe[] {
   const people = groupIntoPeople(faces);
   if (people.length < 2) return [];

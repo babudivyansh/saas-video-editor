@@ -227,23 +227,40 @@ describe("classifyScene", () => {
     expect(classifyScene(person("a", 0.4), 0, 20).type).toBe("single");
   });
 
-  it("calls two consistently-present people with little switching a duo", () => {
+  it("frames the talker (dialogue) when two people share the frame and one is speaking", () => {
     const faces = [...person("a", 0.15, 40, 0.9), ...person("b", 0.75, 40, 0.1)];
     const scene = classifyScene(faces, 0, 20);
     expect(scene.people).toBe(2);
-    expect(scene.type).toBe("duo");
+    expect(scene.type).toBe("dialogue");
   });
 
-  it("calls rapid back-and-forth a dialogue, which cuts rather than splits", () => {
-    // Alternate who is speaking every half second.
+  it("cuts between two people taking turns", () => {
+    // Turns of ~3s: 6 switches in 20s, 18 a minute.
     const faces: FaceBox[] = [];
     for (let i = 0; i < 40; i++) {
       const t = (i / 40) * 20;
-      const aTalks = Math.floor(i / 1) % 2 === 0;
+      const aTalks = Math.floor(t / 3) % 2 === 0;
       faces.push({ tSec: t, x: 0.15, y: 0.2, w: 0.12, h: 0.25, confidence: 95, trackId: "a", speaking: aTalks ? 0.9 : 0.1 });
       faces.push({ tSec: t, x: 0.75, y: 0.2, w: 0.12, h: 0.25, confidence: 95, trackId: "b", speaking: aTalks ? 0.1 : 0.9 });
     }
     expect(classifyScene(faces, 0, 20).type).toBe("dialogue");
+  });
+
+  it("shows both (duo split) for crosstalk faster than cuts can follow", () => {
+    // Alternate who is speaking every half second.
+    const faces: FaceBox[] = [];
+    for (let i = 0; i < 40; i++) {
+      const t = (i / 40) * 20;
+      const aTalks = i % 2 === 0;
+      faces.push({ tSec: t, x: 0.15, y: 0.2, w: 0.12, h: 0.25, confidence: 95, trackId: "a", speaking: aTalks ? 0.9 : 0.1 });
+      faces.push({ tSec: t, x: 0.75, y: 0.2, w: 0.12, h: 0.25, confidence: 95, trackId: "b", speaking: aTalks ? 0.1 : 0.9 });
+    }
+    expect(classifyScene(faces, 0, 20).type).toBe("duo");
+  });
+
+  it("splits two people when there is no speaker signal to cut on", () => {
+    const faces = [...person("a", 0.15, 40), ...person("b", 0.75, 40)];
+    expect(classifyScene(faces, 0, 20).type).toBe("duo");
   });
 
   it("calls three or more people a group", () => {

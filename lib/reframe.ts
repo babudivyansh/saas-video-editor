@@ -43,12 +43,19 @@ export interface FaceBox {
   // Stable per-person identity from the ASD tracker. When present, multi-
   // speaker clustering uses it instead of guessing from horizontal position.
   trackId?: string;
-  // Head yaw in degrees: negative = facing frame-left, positive = frame-right.
-  // Rekognition returns this under FaceAttributes "ALL" (which we already
-  // request) and it was simply discarded. It's what makes "look-room"
-  // possible — framing a subject so they look INTO the frame rather than out
-  // of it is most of the difference between "cropped" and "composed".
+  // Head yaw in degrees. The look-room code shifts the crop AGAINST the yaw to
+  // leave space in front of the subject, so the sign it needs is: positive =
+  // the face points toward frame-LEFT, negative = toward frame-right (this
+  // said the reverse; lib/face-detect-local.ts derives its yaw from landmarks
+  // on the convention the code actually uses). Rekognition returns this under
+  // FaceAttributes "ALL". Framing a subject so they look INTO the frame rather
+  // than out of it is most of the difference between "cropped" and "composed".
   yaw?: number;
+  // Mouth movement since this track's previous sample (local detector):
+  // change of a small patch around the mouth, net of whole-face movement, in
+  // rough units of patch contrast. lib/active-speaker.ts turns it, with the
+  // transcript's speaker labels, into `speaking`.
+  mouthMotion?: number;
 }
 
 // A speaking-score gap narrower than this is a tie: below it the two faces are
