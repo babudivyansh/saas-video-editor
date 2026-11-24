@@ -72,6 +72,7 @@ export const PURGED_USER_MODELS = [
   "SubscriptionEvent",
   "LoginEvent",
   "UserEvent",
+  "EmailCampaignRecipient", // which marketing campaigns reached them
   "TwoFactorRecoveryCode",
   "DeviceToken",
   "AssistantMessage",
@@ -209,6 +210,7 @@ function anonymiseOps(
     prisma.subscriptionEvent.deleteMany({ where }),
     prisma.loginEvent.deleteMany({ where }),
     prisma.userEvent.deleteMany({ where }),
+    prisma.emailCampaignRecipient.deleteMany({ where }),
     prisma.twoFactorRecoveryCode.deleteMany({ where }),
     prisma.deviceToken.deleteMany({ where }),
     prisma.assistantMessage.deleteMany({ where }),

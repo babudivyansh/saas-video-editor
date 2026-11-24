@@ -156,6 +156,11 @@
 # EMAIL_ROUTER_ENABLED is off.
 */5 * * * * curl -s -H "Authorization: Bearer $CRON_SECRET" https://clipiro.com/api/cron/email-maintenance
 
+# Admin → Campaigns: starts scheduled campaigns and sends their next batch,
+# within the day's campaign budget (lib/campaigns/budget.ts) so marketing mail
+# never spends the quota OTPs and receipts need.
+*/2 * * * * curl -s -H "Authorization: Bearer $CRON_SECRET" https://clipiro.com/api/cron/email-campaigns
+
 # AutoClip dub sweep — finishes ElevenLabs dubbing jobs (lib/autoclip-dub.ts).
 # Until a dub-completion webhook is confirmed to exist and is registered in
 # the ElevenLabs dashboard (see app/api/webhooks/elevenlabs/route.ts), this

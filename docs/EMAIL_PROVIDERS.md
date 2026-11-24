@@ -66,6 +66,21 @@ their counts are labelled **estimated**. Mailjet's free plan *queues* over-quota
 mail until the next day instead of refusing it — the reservation stops at the
 configured limit so a code is never queued there.
 
+### Marketing campaigns (Admin → Campaigns)
+
+HTML campaigns (`lib/campaigns/`) go through this same router as template
+`campaign` (category `marketingEmails`: opt-out honoured, one-click
+unsubscribe). They are sent by `/api/cron/email-campaigns` every 2 minutes in
+batches of at most 60, and a batch only spends quota that is **spare**: what
+usable providers have left today minus 40% of their combined daily allowance,
+which stays reserved for codes, receipts and alerts. On top of that an
+admin-set daily cap applies (default 100, Config key
+`email_campaign_daily_cap`; with the router off the cap is the only limit, so
+keep it at or under Resend's 100/day). A large audience simply carries over to
+the next UTC day. Every recipient row is claimed before its send and the send
+carries the idempotency key `campaign:<campaignId>:<userId>`, so overlapping
+or retried runs never mail anyone twice.
+
 ## Environment variables (Hostinger → Website → Advanced → Node.js → Environment variables)
 
 Never prefix any of these with `NEXT_PUBLIC_`. After changing them, redeploy.

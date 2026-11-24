@@ -225,6 +225,7 @@ model User {
   notifications       Notification[]
   deviceTokens          DeviceToken[]
   subscriptionEvents  SubscriptionEvent[]
+  campaignRecipients  EmailCampaignRecipient[]
   reviewPromptState   ReviewPromptState?
   reviewPromptEvents  ReviewPromptEvent[]
   reviewEmailSequence ReviewEmailSequence?
@@ -338,6 +339,64 @@ model FeatureAnnouncement {
   updatedAt        DateTime  @updatedAt
 
   @@index([publishedAt, sentAt])
+}
+
+// Admin-built HTML marketing campaigns (Admin → Campaigns, lib/campaigns/).
+// Unlike FeatureAnnouncement (one plain-text body to every opted-in user on the
+// daily run) a campaign has block content, a filtered audience and a schedule,
+// and is sent in throttled batches by app/api/cron/email-campaigns so a blast
+// never spends the email quota OTPs and receipts need.
+// status: draft | scheduled | sending | paused | sent | cancelled
+model EmailCampaign {
+  id               String                   @id @default(uuid())
+  name             String
+  subject          String
+  preheader        String
+  // CampaignBlock[] — validated by lib/campaigns/content.ts on every write.
+  blocks           Json
+  // CampaignAudience — lib/campaigns/audience.ts.
+  audience         Json
+  // utm_campaign added to links on our own domain.
+  utmCampaign      String
+  status           String                   @default("draft")
+  scheduledAt      DateTime?
+  startedAt        DateTime?
+  completedAt      DateTime?
+  // Recipients snapshotted when sending started.
+  audienceCount    Int?
+  sentCount        Int                      @default(0)
+  skippedCount     Int                      @default(0)
+  failedCount      Int                      @default(0)
+  createdByAdminId String
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+  recipients       EmailCampaignRecipient[]
+
+  @@index([status, scheduledAt])
+}
+
+// One row per (campaign, user): the send queue and its record. The unique pair
+// is what makes a resumed or overlapping run unable to mail anyone twice.
+// status: pending | sent | queued | skipped | failed
+model EmailCampaignRecipient {
+  id         String        @id @default(uuid())
+  campaignId String
+  campaign   EmailCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status     String        @default("pending")
+  // Why it was skipped / failed (opted out, suppressed, provider error).
+  detail     String?
+  messageId  String?
+  // When a run took it for sending; a stale claim means that run died.
+  claimedAt  DateTime?
+  sentAt     DateTime?
+  createdAt  DateTime      @default(now())
+
+  @@unique([campaignId, userId])
+  @@index([campaignId, status])
+  @@index([status, sentAt])
+  @@index([userId])
 }
 
 // One row per successful login (Phase 3) — powers the admin user-detail login

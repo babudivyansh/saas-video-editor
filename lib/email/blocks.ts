@@ -20,7 +20,7 @@ export type Block =
   | { kind: "heading"; text: string | SafeHtml; level?: 1 | 2 }
   | { kind: "paragraph"; text: string | SafeHtml; tone?: "body" | "muted" | "fine" }
   | { kind: "button"; href: string; label: string; tone?: Tone }
-  | { kind: "hero"; label: string; value: string; caption?: string; tone?: Tone }
+  | { kind: "hero"; label: string; value: string; caption?: string; tone?: Tone; was?: string }
   | { kind: "kv"; title?: string; rows: Array<{ label: string; value: string | SafeHtml; tone?: Tone; mono?: boolean }> }
   | { kind: "table"; head: string[]; rows: Array<Array<string | SafeHtml>>; align?: Array<"left" | "right"> }
   | { kind: "list"; title?: string; items: Array<string | SafeHtml>; marker?: "bullet" | "check" | "number" }
@@ -29,7 +29,11 @@ export type Block =
   | { kind: "pin"; code: string }
   | { kind: "divider" }
   | { kind: "spacer"; size?: "sm" | "md" | "lg" }
-  | { kind: "pixel"; src: string };
+  | { kind: "pixel"; src: string }
+  // Campaign blocks (lib/email/templates/campaign.ts). A full-width picture,
+  // optionally linked, and a discount code in a dashed "ticket".
+  | { kind: "image"; src: string; alt: string; href?: string }
+  | { kind: "coupon"; code: string; caption?: string };
 
 const TONE_COLORS: Record<Tone, { fg: string; bg: string; border: string }> = {
   neutral: { fg: COLOR.ink, bg: COLOR.surface, border: COLOR.border },
@@ -128,6 +132,7 @@ function renderHero(b: Extract<Block, { kind: "hero" }>): string {
     `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="panel" style="background-color:${t.bg};border-radius:12px;margin:0 0 22px;">
       <tr><td align="center" style="padding:26px 24px;">
         <p style="${BASE_TEXT}font-size:12px;font-weight:600;letter-spacing:0.8px;text-transform:uppercase;color:${t.fg};padding:0 0 8px;">${escapeHtml(b.label)}</p>
+        ${b.was ? `<p style="${BASE_TEXT}font-size:18px;line-height:1.2;color:${COLOR.muted};padding:0 0 4px;"><s>${escapeHtml(b.was)}</s></p>` : ""}
         <p style="${BASE_TEXT}font-size:40px;line-height:1.1;font-weight:600;color:${t.fg};padding:0;">${escapeHtml(b.value)}</p>
         ${b.caption ? `<p style="${BASE_TEXT}font-size:14px;color:${t.fg};padding:10px 0 0;">${escapeHtml(b.caption)}</p>` : ""}
       </td></tr>
@@ -272,6 +277,30 @@ function renderPixel(b: Extract<Block, { kind: "pixel" }>): string {
   return `<tr><td style="font-size:0;line-height:0;"><img src="${safeUrl(b.src)}" width="1" height="1" alt="" style="display:block;width:1px;height:1px;border:0;"/></td></tr>`;
 }
 
+/**
+ * Full card width (600 minus the 40px gutters), height auto. The width
+ * attribute is what Outlook honours; max-width:100% keeps it inside the
+ * card on mobile.
+ */
+function renderImage(b: Extract<Block, { kind: "image" }>): string {
+  const img = `<img src="${safeUrl(b.src)}" width="${WIDTH - 80}" alt="${escapeHtml(b.alt)}" style="display:block;width:100%;max-width:${WIDTH - 80}px;height:auto;border:0;border-radius:12px;"/>`;
+  return row(
+    `<div style="margin:0 0 22px;">${b.href ? `<a href="${safeUrl(b.href)}" style="text-decoration:none;">${img}</a>` : img}</div>`,
+  );
+}
+
+function renderCoupon(b: Extract<Block, { kind: "coupon" }>): string {
+  return row(
+    `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="panel" style="background-color:${COLOR.brandSoft};border:2px dashed ${COLOR.brandBorder};border-radius:12px;margin:0 0 22px;">
+      <tr><td align="center" style="padding:20px;">
+        <p style="${BASE_TEXT}font-size:12px;font-weight:600;letter-spacing:0.8px;text-transform:uppercase;color:${COLOR.brand};padding:0 0 8px;">Use code</p>
+        <p style="margin:0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:26px;font-weight:700;letter-spacing:3px;color:${COLOR.ink};">${escapeHtml(b.code)}</p>
+        ${b.caption ? `<p class="t-soft" style="${BASE_TEXT}font-size:13px;color:${COLOR.inkSoft};padding:10px 0 0;">${escapeHtml(b.caption)}</p>` : ""}
+      </td></tr>
+    </table>`,
+  );
+}
+
 /** Render one block to its table row(s). */
 export function renderBlock(block: Block, accent: Accent = "plain"): string {
   switch (block.kind) {
@@ -301,6 +330,10 @@ export function renderBlock(block: Block, accent: Accent = "plain"): string {
       return renderSpacer(block);
     case "pixel":
       return renderPixel(block);
+    case "image":
+      return renderImage(block);
+    case "coupon":
+      return renderCoupon(block);
   }
 }
 

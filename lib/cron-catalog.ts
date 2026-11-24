@@ -134,6 +134,11 @@ export const CRON_CATALOG: Record<string, CronJobInfo> = {
     description: "Retries deferred email, re-probes email providers, raises quota alerts, prunes old email logs. Safe to re-run.",
     tier: "safe",
   },
+  "/api/cron/email-campaigns": {
+    label: "Email campaigns",
+    description: "Starts scheduled Admin → Campaigns sends and mails the next batch within the day's campaign budget. Never mails anyone twice; safe to re-run.",
+    tier: "safe",
+  },
   "/api/cron/stale-clip-sweep": {
     label: "Stale AutoClip sweep",
     description: "Fails and refunds clips stranded in queued/rendering by a crash.",
