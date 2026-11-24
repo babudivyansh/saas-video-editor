@@ -3,12 +3,15 @@
 // here because it pulls in prisma; audience.test.ts fails if they drift.
 
 import { z } from "zod";
+import { BILLING_STATUSES, BILLING_STATUS_LABEL } from "@/lib/billing/billing-status-labels";
 
 export const PLAN_FILTERS = ["all", "free", "paid"] as const;
 export const AUDIENCE_JOURNEYS = ["never_ran", "stuck", "ran", "paid", "free_after_run"] as const;
 export const AUDIENCE_JOINED = ["1d", "7d", "30d", "90d"] as const;
 export const AUDIENCE_ACTIVE = ["7d", "inactive_30d"] as const;
 export const AUDIENCE_METHODS = ["google", "email"] as const;
+/** Billing status (lib/billing/billing-status.ts), e.g. "Trial cancelled" for a win-back. */
+export const AUDIENCE_BILLING = BILLING_STATUSES;
 
 export const campaignAudienceSchema = z
   .object({
@@ -17,6 +20,7 @@ export const campaignAudienceSchema = z
     joined: z.enum(AUDIENCE_JOINED).optional(),
     active: z.enum(AUDIENCE_ACTIVE).optional(),
     method: z.enum(AUDIENCE_METHODS).optional(),
+    billing: z.enum(AUDIENCE_BILLING).optional(),
   })
   .strict();
 
@@ -35,6 +39,7 @@ export const AUDIENCE_LABELS = {
   joined: { "1d": "Joined last 24h", "7d": "Joined last 7 days", "30d": "Joined last 30 days", "90d": "Joined last 90 days" },
   active: { "7d": "Logged in last 7 days", inactive_30d: "No login for 30+ days" },
   method: { google: "Signed up with Google", email: "Signed up with email" },
+  billing: BILLING_STATUS_LABEL,
 } as const;
 
 /** "Free users · Ran AutoClip, never paid" */
@@ -44,5 +49,6 @@ export function describeAudience(a: CampaignAudience): string {
   if (a.joined) parts.push(AUDIENCE_LABELS.joined[a.joined]);
   if (a.active) parts.push(AUDIENCE_LABELS.active[a.active]);
   if (a.method) parts.push(AUDIENCE_LABELS.method[a.method]);
+  if (a.billing) parts.push(AUDIENCE_LABELS.billing[a.billing]);
   return parts.join(" · ");
 }

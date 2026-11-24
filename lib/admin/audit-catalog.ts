@@ -64,6 +64,7 @@ const EXACT: Record<string, Row> = {
   "user.deleted": ["Deleted account", "accounts", "critical", "user", "The account was permanently deleted.", true],
   "user.data_exported": ["Exported data of", "accounts", "view", "user", "A download of all data held about this account was built.", true],
   "users.exported": ["Exported the user list", "accounts", "view", "none", "A CSV of the filtered Admin → Users list was downloaded."],
+  "subscriptions.exported": ["Exported the subscriptions list", "billing", "view", "none", "A CSV of Admin → Subscriptions (subscribers or trials) was downloaded."],
   "user.data_export_downloaded": ["Downloaded data export of", "accounts", "view", "user", "The download link to this account's data export was handed out."],
   "user.bulk_suspend": ["Suspended accounts in bulk", "accounts", "destructive", "none", "Several accounts were suspended at once.", true],
   "user.bulk_unsuspend": ["Unsuspended accounts in bulk", "accounts", "change", "none", "Several accounts were unsuspended at once.", true],

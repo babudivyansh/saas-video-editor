@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { Users } from "lucide-react";
 import {
-  AUDIENCE_ACTIVE, AUDIENCE_JOINED, AUDIENCE_JOURNEYS, AUDIENCE_LABELS, AUDIENCE_METHODS, PLAN_FILTERS,
+  AUDIENCE_ACTIVE, AUDIENCE_BILLING, AUDIENCE_JOINED, AUDIENCE_JOURNEYS, AUDIENCE_LABELS, AUDIENCE_METHODS, PLAN_FILTERS,
 } from "@/lib/campaigns/audience-schema";
 import { useCampaignApi } from "./useCampaignApi";
 import type { CampaignAudience } from "./types";
@@ -59,6 +59,8 @@ export function AudiencePicker({
           options={[["", "Any time"], ...AUDIENCE_JOINED.map((v) => [v, AUDIENCE_LABELS.joined[v]] as [string, string])]} />
         <Pick label="Last active" value={audience.active ?? ""} disabled={disabled} onChange={(v) => set("active", v)}
           options={[["", "Any activity"], ...AUDIENCE_ACTIVE.map((v) => [v, AUDIENCE_LABELS.active[v]] as [string, string])]} />
+        <Pick label="Billing status" value={audience.billing ?? ""} disabled={disabled} onChange={(v) => set("billing", v)}
+          options={[["", "Any billing status"], ...AUDIENCE_BILLING.map((v) => [v, AUDIENCE_LABELS.billing[v]] as [string, string])]} />
         <Pick label="Signed up with" value={audience.method ?? ""} disabled={disabled} onChange={(v) => set("method", v)}
           options={[["", "Email or Google"], ...AUDIENCE_METHODS.map((v) => [v, AUDIENCE_LABELS.method[v]] as [string, string])]} />
       </div>

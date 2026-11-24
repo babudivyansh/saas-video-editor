@@ -377,8 +377,18 @@ export const affiliateQuerySchema = pageQuerySchema.extend({
 
 // Subscriptions list — same free-text-search extension (email/name), added
 // so the page can filter like Users' otherwise-identical table already did.
+const blankToUndefined = (v: unknown) => (v === "" ? undefined : v);
 export const subscriptionsQuerySchema = pageQuerySchema.extend({
-  search: z.preprocess((v) => (v === "" ? undefined : v), z.string().max(200).optional()),
+  search: z.preprocess(blankToUndefined, z.string().max(200).optional()),
+  // "subscribers" = accounts with a plan or trial running now; "trials" = every trial ever started.
+  view: z.preprocess(blankToUndefined, z.enum(["subscribers", "trials"]).default("subscribers")),
+  // Subscribers view: one running billing status (lib/billing/billing-status-labels.ts).
+  status: z.preprocess(blankToUndefined, z.enum(["paid", "paid_cancelling", "payment_failed", "trial", "trial_cancelled"]).optional()),
+  // Trials view: one outcome.
+  outcome: z.preprocess(
+    blankToUndefined,
+    z.enum(["active", "converted", "cancelled_in_app", "mandate_revoked", "payment_failed", "ended"]).optional(),
+  ),
 });
 
 export const adminNotesSchema = z

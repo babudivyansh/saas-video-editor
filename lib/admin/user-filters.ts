@@ -4,6 +4,7 @@
 
 import type { Prisma } from "@prisma/client";
 import { AUTOCLIP } from "@/lib/admin/staff-digest";
+import { BILLING_STATUSES, billingStatusWhere, type BillingStatus } from "@/lib/billing/billing-status";
 
 const DAY = 86_400_000;
 
@@ -34,6 +35,7 @@ export function buildUserWhere(params: URLSearchParams, now: Date = new Date()):
   const method = params.get("method") ?? "";
   const use = params.get("use") ?? "";
   const active = params.get("active") ?? "";
+  const billing = params.get("billing") ?? "";
 
   const and: Prisma.UserWhereInput[] = [];
   if (search) {
@@ -72,6 +74,9 @@ export function buildUserWhere(params: URLSearchParams, now: Date = new Date()):
   else if (method === "email") and.push({ hasPassword: true });
 
   if (/^[a-z_]{1,40}$/.test(use)) and.push({ intendedUse: use });
+
+  // ?billing= — where the account stands with billing (lib/billing/billing-status.ts).
+  if ((BILLING_STATUSES as readonly string[]).includes(billing)) and.push(billingStatusWhere(billing as BillingStatus, now));
 
   if (active === "7d") and.push({ lastLoginAt: { gte: new Date(now.getTime() - 7 * DAY) } });
   else if (active === "inactive_30d") {

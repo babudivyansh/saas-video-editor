@@ -115,6 +115,22 @@ export async function recordSubscriptionLifecycle(args: {
     data: { userId: user.id, subscriptionId, type },
   });
 
+  // A cancellation Clipiro didn't make. Every in-app path (cancel button,
+  // admin, refund, plan switch, account deactivation) sets
+  // subscriptionCancelledAt and writes a "cancelled" event WITH a reason
+  // before Razorpay's webhook arrives. If neither happened, the customer
+  // revoked the mandate at their bank / UPI app (or it was cancelled on the
+  // Razorpay dashboard). Before this, nothing changed on the account: a
+  // trial whose mandate was revoked still read "first charge on <date>" in
+  // billing, got the "you'll be charged" reminder, and counted as an active
+  // trial in the admin. Access is untouched — it still runs to
+  // subscriptionEndsAt, exactly as an in-app cancel does.
+  if (type === "cancelled") {
+    await markExternalCancel(user.id, subscriptionId).catch((e) =>
+      logger.error("dunning", `could not mark external cancel for ${subscriptionId}`, e),
+    );
+  }
+
   // A halt is Razorpay giving up on the retries — the point at which the
   // customer genuinely needs to act, so it gets its own in-app notice.
   if (type === "halted") {
@@ -126,6 +142,21 @@ export async function recordSubscriptionLifecycle(args: {
       href: "/dashboard?billing=1",
     }).catch((e) => logger.error("dunning", "halt notify failed", e));
   }
+}
+
+async function markExternalCancel(userId: string, subscriptionId: string): Promise<void> {
+  const account = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { razorpaySubscriptionId: true, subscriptionCancelledAt: true },
+  });
+  // Only the subscription on the account now: an old one cancelled by a
+  // plan switch must not mark the new plan cancelled.
+  if (!account || account.razorpaySubscriptionId !== subscriptionId || account.subscriptionCancelledAt) return;
+  await prisma.user.updateMany({
+    where: { id: userId, razorpaySubscriptionId: subscriptionId, subscriptionCancelledAt: null },
+    data: { subscriptionCancelledAt: new Date() },
+  });
+  logger.info("dunning", `subscription ${subscriptionId} was cancelled outside Clipiro (mandate revoked or Razorpay dashboard)`);
 }
 
 /** Clear dunning state after a charge succeeds. */

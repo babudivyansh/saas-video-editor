@@ -1,42 +1,48 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { withAdmin, parseQuery } from "@/lib/admin/api";
 import { subscriptionsQuerySchema } from "@/lib/admin/schemas";
+import { countActiveStatuses, listSubscribers, listTrialsFiltered } from "@/lib/admin/subscriptions-admin";
 
-// GET /api/admin/subscriptions?page&limit&search — active subscribers,
-// paginated, optionally filtered by email/name (UX-7 — this table had no
-// search at all, unlike the otherwise-identical Users page).
-// Response keys are additive over the old shape ({ subscribers, total }).
+// GET /api/admin/subscriptions?view=subscribers|trials&status&outcome&search&page&limit
+//
+//   subscribers  accounts with a plan or trial running now, each with its
+//                billing status (paying / cancelled renewal / payment failed /
+//                in trial / trial cancelled). ?status= narrows to one.
+//   trials       every trial ever started and what became of it (converted,
+//                cancelled in app, mandate revoked at the bank / UPI app, first
+//                charge failed, …). ?outcome= narrows to one.
+//
+// Both views also return the headline counts. Trials used to be counted as
+// "Active Subscribers" here, because a trial sets subscriptionEndsAt too.
 export const GET = withAdmin(async (req) => {
-  const { page, limit, search } = parseQuery(req, subscriptionsQuerySchema);
+  const q = parseQuery(req, subscriptionsQuerySchema);
   const now = new Date();
-  const where = {
-    subscriptionEndsAt: { gt: now },
-    ...(search
-      ? { OR: [{ email: { contains: search, mode: "insensitive" as const } }, { name: { contains: search, mode: "insensitive" as const } }] }
-      : {}),
-  };
 
-  const [subscribers, total] = await Promise.all([
-    prisma.user.findMany({
-      where,
-      orderBy: { subscriptionEndsAt: "asc" },
-      skip: (page - 1) * limit,
-      take: limit,
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        credits: true,
-        monthlyCredits: true,
-        subscriptionEndsAt: true,
-        nextRefillAt: true,
-        plan: { select: { id: true, name: true, slug: true } },
-        _count: { select: { purchases: true } },
-      },
-    }),
-    prisma.user.count({ where }),
+  const [statusCounts, trials] = await Promise.all([
+    countActiveStatuses(now),
+    listTrialsFiltered({ outcome: q.view === "trials" ? q.outcome : undefined, search: q.view === "trials" ? q.search : undefined, page: q.page, limit: q.limit, now }),
   ]);
 
-  return NextResponse.json({ subscribers, total, page, limit });
+  if (q.view === "trials") {
+    return NextResponse.json({
+      view: "trials",
+      rows: trials.rows,
+      total: trials.total,
+      page: q.page,
+      limit: q.limit,
+      statusCounts,
+      trialSummary: trials.summary,
+    });
+  }
+
+  const subscribers = await listSubscribers({ status: q.status, search: q.search, page: q.page, limit: q.limit, now });
+  return NextResponse.json({
+    view: "subscribers",
+    rows: subscribers.rows,
+    total: subscribers.total,
+    page: q.page,
+    limit: q.limit,
+    statusCounts,
+    trialSummary: trials.summary,
+  });
 });

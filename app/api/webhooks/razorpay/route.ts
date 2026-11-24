@@ -211,6 +211,14 @@ export async function POST(req: NextRequest) {
               },
             });
 
+            // The admin's "new subscriptions" (lib/admin/mrr-snapshot.ts) and
+            // trial conversions (lib/billing/trial-history.ts) both read this
+            // event, which was never written before 2026-11-24. Inside the
+            // claimed transaction, so a redelivery can't record it twice.
+            await tx.subscriptionEvent.create({
+              data: { userId, subscriptionId: sub.id, type: "activated", ...(isTrial ? { metadata: { trial: true } } : {}) },
+            });
+
             if (grantTrial) {
               await grantCredits({
                 userId, bucket: "subscription", amount: TRIAL_CREDITS,

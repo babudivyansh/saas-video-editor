@@ -13,6 +13,7 @@ interface UserRow {
   paymentFailedAt: Date | null;
   paymentFailureCount: number;
   paymentFailedEmailSentAt: Date | null;
+  subscriptionCancelledAt?: Date | null;
 }
 let user: UserRow;
 const events: Array<{ userId: string; subscriptionId: string; type: string; reason: string | null }> = [];
@@ -51,6 +52,11 @@ vi.mock("@/lib/prisma", () => ({
         }
         return { ...user };
       }),
+      updateMany: vi.fn(async ({ where, data }: { where: { razorpaySubscriptionId: string; subscriptionCancelledAt: null }; data: { subscriptionCancelledAt: Date } }) => {
+        if (user.razorpaySubscriptionId !== where.razorpaySubscriptionId || user.subscriptionCancelledAt) return { count: 0 };
+        user.subscriptionCancelledAt = data.subscriptionCancelledAt;
+        return { count: 1 };
+      }),
     },
     subscriptionEvent: {
       create: vi.fn(async ({ data }: { data: (typeof events)[number] }) => { events.push(data); return data; }),
@@ -69,6 +75,7 @@ beforeEach(() => {
     paymentFailedAt: null,
     paymentFailureCount: 0,
     paymentFailedEmailSentAt: null,
+    subscriptionCancelledAt: null,
   };
   events.length = 0;
   notifications.length = 0;
@@ -143,6 +150,25 @@ describe("recordSubscriptionLifecycle", () => {
     await recordSubscriptionLifecycle({ subscriptionId: "sub_1", type: "halted" });
     expect(events[0].type).toBe("halted");
     expect(notifications).toEqual([{ type: "billing_subscription_halted", title: "Your subscription is paused" }]);
+  });
+
+  it("marks the account cancelled when the mandate is revoked outside Clipiro", async () => {
+    await recordSubscriptionLifecycle({ subscriptionId: "sub_1", type: "cancelled" });
+    expect(events[0].type).toBe("cancelled");
+    expect(user.subscriptionCancelledAt).toBeInstanceOf(Date);
+  });
+
+  it("leaves an in-app cancel's timestamp alone", async () => {
+    const when = new Date("2026-11-01T00:00:00Z");
+    user.subscriptionCancelledAt = when;
+    await recordSubscriptionLifecycle({ subscriptionId: "sub_1", type: "cancelled" });
+    expect(user.subscriptionCancelledAt).toBe(when);
+  });
+
+  it("doesn't mark the account when an old, switched-away subscription is cancelled", async () => {
+    user.razorpaySubscriptionId = "sub_new";
+    await recordSubscriptionLifecycle({ subscriptionId: "sub_old", notesUserId: "u1", type: "cancelled" });
+    expect(user.subscriptionCancelledAt).toBeNull();
   });
 
   it("records a pause without alarming the user", async () => {

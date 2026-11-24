@@ -13,7 +13,7 @@ import { csvBody, csvFilename, type CsvRow } from "@/lib/social/csv";
 // count. No payment details beyond amounts; no IPs.
 
 const MAX_EXPORT_ROWS = 10_000;
-const FILTER_KEYS = ["search", "filter", "journey", "joined", "method", "use", "active"];
+const FILTER_KEYS = ["search", "filter", "journey", "joined", "method", "use", "active", "billing"];
 
 const HEADER = [
   "user_id", "email", "name", "signed_up_at", "signup_method", "intended_use",
