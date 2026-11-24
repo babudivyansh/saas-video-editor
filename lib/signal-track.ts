@@ -190,7 +190,10 @@ export async function detectScenes(videoPath: string, startSec: number, endSec: 
   try {
     await runFFmpegArgs([
       "-v", "info", "-ss", String(startSec), "-to", String(endSec), "-i", videoPath,
-      "-vf", `select='gt(scene,${threshold})',metadata=print:file=${logPath.replace(/\\/g, "/")}`,
+      // The path is a filter option value: a Windows drive's ':' would end it
+      // ("C:/…" parsed as option "C"). Quoted, with the colon escaped once, is
+      // the form ffmpeg's two unescaping passes leave intact.
+      "-vf", `select='gt(scene,${threshold})',metadata=print:file='${logPath.replace(/\\/g, "/").replace(/:/g, "\\:")}'`,
       "-an", "-f", "null", "-",
     ], 120_000);
     if (!fs.existsSync(logPath)) return [];
