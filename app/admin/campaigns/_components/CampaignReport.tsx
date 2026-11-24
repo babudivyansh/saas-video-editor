@@ -2,20 +2,28 @@
 import { useQuery } from "@tanstack/react-query";
 import { useCampaignApi } from "./useCampaignApi";
 import { fmtDateTime, type Campaign } from "./types";
+import type { CampaignDelivery } from "@/lib/campaigns/delivery-types";
 
 interface Detail {
   campaign: Campaign;
   recipients: Record<string, number>;
+  delivery: CampaignDelivery | null;
   problems: Array<{ status: string; detail: string | null; at: string | null; userId: string; email: string }>;
 }
 
-function Stat({ label, value, tone = "text-fg" }: { label: string; value: number | string; tone?: string }) {
+function Stat({ label, value, tone = "text-fg", hint }: { label: string; value: number | string; tone?: string; hint?: string }) {
   return (
     <div className="rounded-xl border border-line bg-surface-2/40 px-4 py-3">
       <p className={`text-2xl font-extrabold ${tone}`}>{typeof value === "number" ? value.toLocaleString("en-IN") : value}</p>
       <p className="text-xs text-fg-subtle mt-0.5">{label}</p>
+      {hint && <p className="text-[11px] text-fg-subtle">{hint}</p>}
     </div>
   );
+}
+
+/** "12.5%" of the emails a provider took; "—" before anything went out. */
+function rate(n: number, of: number): string | undefined {
+  return of > 0 ? `${((n / of) * 100).toFixed(n / of < 0.1 ? 1 : 0)}% of sent` : undefined;
 }
 
 /** Progress and outcome of a campaign that has started sending. Polls while it's live. */
@@ -56,8 +64,33 @@ export function CampaignReport({ campaignId }: { campaignId: string }) {
         <Stat label="Skipped" value={c.skippedCount} tone="text-fg-muted" />
         <Stat label="Failed" value={c.failedCount} tone={c.failedCount ? "text-error" : "text-fg-muted"} />
       </div>
+      {data.delivery && data.delivery.handedOff > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-fg-subtle mb-2">After sending (from the providers&apos; delivery reports)</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <Stat label="Delivered" value={data.delivery.delivered} tone="text-success" hint={rate(data.delivery.delivered, data.delivery.handedOff)} />
+            <Stat label="Awaiting report" value={data.delivery.pending + data.delivery.untracked} hint={rate(data.delivery.pending + data.delivery.untracked, data.delivery.handedOff)} />
+            <Stat
+              label="Bounced"
+              value={data.delivery.bounced + data.delivery.failed}
+              tone={data.delivery.bounced + data.delivery.failed ? "text-warning" : "text-fg-muted"}
+              hint={rate(data.delivery.bounced + data.delivery.failed, data.delivery.handedOff)}
+            />
+            <Stat
+              label="Marked as spam"
+              value={data.delivery.complained}
+              tone={data.delivery.complained ? "text-error" : "text-fg-muted"}
+              hint={rate(data.delivery.complained, data.delivery.handedOff)}
+            />
+          </div>
+          <p className="text-[11px] text-fg-subtle mt-2">
+            Bounced and spam-complaint addresses are suppressed automatically, so they won&apos;t get the next campaign. Keep spam complaints under 0.3% (Gmail&apos;s limit for bulk senders).
+            Reports arrive only from providers whose webhooks are set up on Admin → Email delivery.
+          </p>
+        </div>
+      )}
       <p className="text-[11px] text-fg-subtle">
-        Clicks and sign-ups: filter your analytics by <code className="text-fg-muted">utm_campaign={c.utmCampaign}</code>. Bounces and delivery per message are on Admin → Email delivery.
+        Clicks and sign-ups: filter your analytics by <code className="text-fg-muted">utm_campaign={c.utmCampaign}</code>. Each message&apos;s history is on Admin → Email delivery.
       </p>
       {data.problems.length > 0 && (
         <div>

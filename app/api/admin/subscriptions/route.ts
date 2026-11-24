@@ -32,6 +32,7 @@ export const GET = withAdmin(async (req) => {
       limit: q.limit,
       statusCounts,
       trialSummary: trials.summary,
+      trialWeeks: trials.weeks,
     });
   }
 

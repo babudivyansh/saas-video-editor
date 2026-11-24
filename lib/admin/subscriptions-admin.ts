@@ -8,7 +8,7 @@ import {
   ACTIVE_BILLING_STATUSES, activeBillingWhere, billingStatusOf, billingStatusWhere, cancelReasonLabel,
   type BillingStatus, type TrialOutcome,
 } from "@/lib/billing/billing-status";
-import { listTrials, summariseTrials, type TrialRow } from "@/lib/billing/trial-history";
+import { listTrials, summariseTrials, trialsByWeek, type TrialRow, type TrialWeek } from "@/lib/billing/trial-history";
 
 export type ActiveStatus = (typeof ACTIVE_BILLING_STATUSES)[number];
 
@@ -140,6 +140,8 @@ export interface TrialListResult {
   rows: TrialRow[];
   total: number;
   summary: ReturnType<typeof summariseTrials>;
+  /** Last 12 weeks of trial starts by outcome (all trials, ignoring filters). */
+  weeks: TrialWeek[];
 }
 
 export async function listTrialsFiltered(opts: {
@@ -149,12 +151,13 @@ export async function listTrialsFiltered(opts: {
   limit: number;
   now?: Date;
 }): Promise<TrialListResult> {
-  const all = await listTrials(opts.now ?? new Date());
+  const now = opts.now ?? new Date();
+  const all = await listTrials(now);
   const summary = summariseTrials(all);
   const q = opts.search?.toLowerCase();
   const filtered = all.filter(
     (t) => (!opts.outcome || t.outcome === opts.outcome) && (!q || t.email.toLowerCase().includes(q) || (t.name ?? "").toLowerCase().includes(q)),
   );
   const start = (opts.page - 1) * opts.limit;
-  return { rows: filtered.slice(start, start + opts.limit), total: filtered.length, summary };
+  return { rows: filtered.slice(start, start + opts.limit), total: filtered.length, summary, weeks: trialsByWeek(all, 12, now) };
 }
