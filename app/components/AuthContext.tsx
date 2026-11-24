@@ -178,6 +178,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** The signed-in user, or null — also outside an AuthProvider (component
+ *  tests render banners bare). For display-only checks like admin previews. */
+export function useOptionalAuthUser(): User | null {
+  return useContext(AuthContext)?.user ?? null;
+}
+
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {

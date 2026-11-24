@@ -5,22 +5,36 @@
 // and the copy, worded once. Dark emerald system only — no campaign palette.
 
 import { useEffect, useState } from "react";
+import { useOptionalAuthUser } from "@/app/components/AuthContext";
 import { BLACK_FRIDAY, bfPackBonus, bfPlanBonus, blackFridayPhase, hasRunningPaidPlan, type BlackFridayPhase } from "@/lib/campaigns/black-friday";
 
-/** Campaign phase, re-checked every 30s so a page left open across 00:00 IST
- *  on 26 Nov (or the close on 30 Nov) switches by itself. Dev only:
- *  `?bfPreview=live` shows the sale early. */
+/** Campaign phase, re-checked every 30s so a page left open across the
+ *  opening (or the close on 30 Nov) switches by itself.
+ *
+ *  `?bfPreview=live` shows the sale early — in dev for anyone, and on prod for
+ *  signed-in ADMINS only. The flag sticks for the tab (sessionStorage) so an
+ *  admin can click around the site; `?bfPreview=off` clears it. Display only:
+ *  checkout and fulfilment still judge the real window, so a purchase made
+ *  in preview before the sale opens gets no bonus. */
 export function useBlackFridayPhase(): BlackFridayPhase {
   const [now, setNow] = useState(() => Date.now());
-  const [preview, setPreview] = useState(false);
+  const [previewRequested, setPreviewRequested] = useState(false);
+  const user = useOptionalAuthUser();
   useEffect(() => {
-    if (process.env.NODE_ENV !== "production") {
-      setPreview(new URLSearchParams(window.location.search).get("bfPreview") === "live");
+    const KEY = "clipiro:bf26:preview";
+    const flag = new URLSearchParams(window.location.search).get("bfPreview");
+    try {
+      if (flag === "live") window.sessionStorage.setItem(KEY, "1");
+      if (flag === "off") window.sessionStorage.removeItem(KEY);
+      setPreviewRequested(flag === "live" || (flag !== "off" && window.sessionStorage.getItem(KEY) === "1"));
+    } catch {
+      setPreviewRequested(flag === "live");
     }
     const t = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(t);
   }, []);
-  return preview ? "live" : blackFridayPhase(now);
+  const previewAllowed = process.env.NODE_ENV !== "production" || user?.role === "ADMIN";
+  return previewRequested && previewAllowed ? "live" : blackFridayPhase(now);
 }
 
 export function useBlackFridayLive(): boolean {

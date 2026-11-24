@@ -10,7 +10,7 @@ import { Diya, Marquee, OFFER_COPY, Sparkle, useDiwaliOffers, useDismissed } fro
 import { BF_COPY, useBlackFridayLive } from "./BlackFriday";
 import { BLACK_FRIDAY } from "@/lib/campaigns/black-friday";
 
-/** Black Friday 2026 (26-30 Nov IST): same strip, dark emerald system. */
+/** Black Friday 2026 (24 Nov 4 PM - 30 Nov IST): same strip, dark emerald system. */
 function BlackFridayStrip() {
   const [dismissed, dismiss] = useDismissed("clipiro:bf26:dash-strip");
   const { openBilling } = useBillingOverlay();
