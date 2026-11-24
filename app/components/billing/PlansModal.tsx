@@ -12,6 +12,8 @@ import { PlanCard } from "@/app/components/billing/PlanCard";
 import { ConfirmPlanDialog } from "@/app/components/billing/ConfirmPlanDialog";
 import { useCreatorDiscount, creatorDiscountApplies } from "@/app/components/billing/useCreatorDiscount";
 import { diwaliOfferApplies } from "@/lib/campaigns/diwali";
+import { bfPlanBonus } from "@/lib/campaigns/black-friday";
+import { BF_COPY, BfTag, bfPlanEligibleFor, useBlackFridayLive } from "@/app/components/campaign/BlackFriday";
 import {
   minorUnits, yearlySavePct, type DisplayPlan,
 } from "@/lib/plans/display";
@@ -98,6 +100,9 @@ export function PlansModal({ onPurchaseSuccess, resumeFromPeriodEnd = false, onM
   // which until 2026-11-19 had no trial at all — only /pricing did.
   const trialEligible =
     !!user && !user.trialUsedAt && !user.hasPurchased && !hasActivePlan && !resumeFromPeriodEnd;
+  // Black Friday 2026 — same rule as api/billing/checkout's bf26 stamp.
+  const bfLive = useBlackFridayLive();
+  const bfPlanEligible = bfPlanEligibleFor(user);
 
   function openCheckout(plan: DbPlan, trial = false) {
     setCheckoutPlan(plan);
@@ -157,6 +162,7 @@ export function PlansModal({ onPurchaseSuccess, resumeFromPeriodEnd = false, onM
             error={checkoutError}
             onPay={handlePay}
             onClose={backToBrowse}
+            bfEligible={bfPlanEligible}
           />
         )}
         {checkoutPlan && !checkoutTrial && (
@@ -171,6 +177,7 @@ export function PlansModal({ onPurchaseSuccess, resumeFromPeriodEnd = false, onM
             onChangePlan={setCheckoutPlan}
             onClose={backToBrowse}
             onProceed={handlePay}
+            bfBonusMinutes={bfLive && bfPlanEligible ? bfPlanBonus(checkoutPlan.monthlyMinutes ?? 0) : 0}
             creatorDiscount={
               creatorDiscount &&
               creatorDiscountApplies({
@@ -198,6 +205,8 @@ export function PlansModal({ onPurchaseSuccess, resumeFromPeriodEnd = false, onM
             trialEligible={trialEligible}
             currentPlan={currentPlan}
             hasActivePlan={hasActivePlan}
+            bfPlanEligible={bfPlanEligible}
+            bfLive={bfLive}
             planStrip={hasActivePlan && currentPlan ? (
               <CurrentPlanStrip
                 plan={currentPlan}
@@ -214,7 +223,7 @@ export function PlansModal({ onPurchaseSuccess, resumeFromPeriodEnd = false, onM
 }
 
 // ── Browse step ──────────────────────────────────────────────────────────────
-function BrowseStep({ plansLoading, subs, packs, minutePacks, term, onTermChange, currency, onCurrencyChange, buyingPack, onBuyPack, onSelectPlan, trialEligible, currentPlan, hasActivePlan, planStrip }: {
+function BrowseStep({ plansLoading, subs, packs, minutePacks, term, onTermChange, currency, onCurrencyChange, buyingPack, onBuyPack, onSelectPlan, trialEligible, currentPlan, hasActivePlan, planStrip, bfPlanEligible, bfLive }: {
   plansLoading: boolean;
   subs: DbPlan[];
   packs: DbPlan[];
@@ -230,6 +239,8 @@ function BrowseStep({ plansLoading, subs, packs, minutePacks, term, onTermChange
   currentPlan: DbPlan | null;
   hasActivePlan: boolean;
   planStrip: React.ReactNode;
+  bfPlanEligible: boolean;
+  bfLive: boolean;
 }) {
   const cards = PURCHASABLE_TIER_ORDER
     .map(tier => subs.find(p => p.tier === tier && p.intervalMonths === term))
@@ -305,6 +316,7 @@ function BrowseStep({ plansLoading, subs, packs, minutePacks, term, onTermChange
                 isCurrent={isCurrent}
                 onSelect={(p) => onSelectPlan(p, offerTrial)}
                 size="compact"
+                bfEligible={bfPlanEligible}
                 ctaLabel={offerTrial ? `Start ${TRIAL_DAYS}-day free trial` : cta.label}
                 ctaDisabled={cta.disabled}
                 footer={
@@ -344,7 +356,8 @@ function BrowseStep({ plansLoading, subs, packs, minutePacks, term, onTermChange
           title="Clip Minute packs"
           blurb="For Auto Clips — 1 minute per minute of video. Pack minutes never expire."
           packs={minutePacks}
-          amount={(p) => `${p.minutes ?? 0} Clip Minutes`}
+          amount={(p) => `${(bfLive ? BF_COPY.packTotal(p.minutes ?? 0) : p.minutes ?? 0).toLocaleString("en-IN")} Clip Minutes`}
+          bf={bfLive}
           currency={currency}
           buyingPack={buyingPack}
           onBuyPack={onBuyPack}
@@ -402,7 +415,9 @@ function CurrentPlanStrip({ plan, currency, endsAt, cancelled, trialEndsAt, onMa
 }
 
 // ── Pack grid (credit packs and Clip Minute packs) ──────────────────────────
-function PackGrid({ title, blurb, packs, amount, currency, buyingPack, onBuyPack }: {
+function PackGrid({ title, blurb, packs, amount, currency, buyingPack, onBuyPack, bf = false }: {
+  /** Black Friday 2026 Clip Minutes packs: strike the normal minutes, tag 2×. */
+  bf?: boolean;
   title: string;
   blurb: string;
   packs: DbPlan[];
@@ -428,7 +443,13 @@ function PackGrid({ title, blurb, packs, amount, currency, buyingPack, onBuyPack
             <div key={pack.id} className="flex flex-col p-4 bg-surface-2 rounded-xl border border-line">
               <p className="font-semibold text-fg text-sm">{pack.name}</p>
               {/* "100 Clip Minutes / 100 Clip Minutes" — skip a line that only repeats the name. */}
-              {detail.toLowerCase() !== pack.name.toLowerCase() && (
+              {bf ? (
+                <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-fg-muted">
+                  <s className="text-fg-subtle" aria-label={`Normally ${pack.minutes ?? 0} minutes`}>{pack.minutes ?? 0}</s>
+                  <span className="font-semibold text-fg">{detail}</span>
+                  <BfTag />
+                </p>
+              ) : detail.toLowerCase() !== pack.name.toLowerCase() && (
                 <p className="text-xs text-fg-muted mt-0.5">{detail}</p>
               )}
               <p className="font-bold text-fg mt-1.5">{price}</p>

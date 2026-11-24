@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { TRIAL_DAYS } from "@/lib/plans/tiers";
 
@@ -354,5 +354,59 @@ describe("POST /api/billing/checkout — creator partner discount", () => {
     await POST(post({ planId: "pack-500", couponCode: "SAVE20" }));
     expect(ordersCreate).toHaveBeenLastCalledWith(expect.objectContaining({ amount: 40000 }));
     expect(creatorDiscountFor).not.toHaveBeenCalled();
+  });
+});
+
+// Black Friday 2026 (lib/campaigns/black-friday.ts): the window is judged at
+// checkout and stamped on the Razorpay notes; fulfilment grants from the stamp.
+describe("POST /api/billing/checkout — Black Friday 2026 stamp", () => {
+  const IN_WINDOW = new Date("2026-11-28T15:00:00+05:30");
+  const MINUTE_PACK = { ...SUB_PLAN, slug: "minutes_300", kind: "minute_pack", priceInPaise: 199900, minutes: 300, razorpayPlanIdInr: null };
+  const CREDIT_PACK = { ...SUB_PLAN, slug: "pack-500", kind: "pack", priceInPaise: 50000, razorpayPlanIdInr: null };
+  const notesOf = (m: typeof subscriptionsCreate | typeof ordersCreate) =>
+    ((m.mock.calls.at(-1) as unknown as [{ notes: Record<string, string> }])[0]).notes;
+
+  beforeEach(() => { vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(IN_WINDOW); });
+  afterEach(() => vi.useRealTimers());
+
+  it("stamps a new plan bought in the window and quotes the bonus", async () => {
+    findUniquePlan.mockResolvedValue({ ...SUB_PLAN, monthlyMinutes: 400 } as typeof SUB_PLAN);
+    const res = await POST(post({ planId: "pro-monthly" }));
+    expect(notesOf(subscriptionsCreate)).toMatchObject({ bf26: "plan", bfCampaign: "BF26" });
+    expect(await res.json()).toMatchObject({ bfBonusMinutes: 400 });
+  });
+
+  it("stamps a trial started in the window too (its first charge lands later)", async () => {
+    findUniqueUser.mockImplementation(async () => ({ trialUsedAt: null, subscriptionEndsAt: null, trialEndsAt: null }));
+    await POST(post({ planId: "pro-monthly", trial: true }));
+    expect(notesOf(subscriptionsCreate)).toMatchObject({ trial: "1", bf26: "plan" });
+  });
+
+  it("does not stamp an upgrade from a paid plan that is still running", async () => {
+    subscriptionEndsAt = new Date(IN_WINDOW.getTime() + 10 * 86400_000);
+    await POST(post({ planId: "pro-monthly" }));
+    expect(notesOf(subscriptionsCreate).bf26).toBeUndefined();
+  });
+
+  it("stamps a Clip Minutes pack order, INR or USD", async () => {
+    findUniquePlan.mockResolvedValue(MINUTE_PACK as unknown as typeof SUB_PLAN);
+    const res = await POST(post({ planId: "minutes_300" }));
+    expect(notesOf(ordersCreate)).toMatchObject({ bf26: "pack" });
+    expect(await res.json()).toMatchObject({ bfBonusMinutes: 300 });
+    await POST(post({ planId: "minutes_300", currency: "USD" }));
+    expect(notesOf(ordersCreate)).toMatchObject({ bf26: "pack" });
+  });
+
+  it("never stamps an AI credit pack", async () => {
+    findUniquePlan.mockResolvedValue(CREDIT_PACK as unknown as typeof SUB_PLAN);
+    await POST(post({ planId: "pack-500" }));
+    expect(notesOf(ordersCreate).bf26).toBeUndefined();
+  });
+
+  it("stamps nothing outside the window", async () => {
+    vi.setSystemTime(new Date("2026-12-01T00:00:00+05:30"));
+    findUniquePlan.mockResolvedValue(MINUTE_PACK as unknown as typeof SUB_PLAN);
+    await POST(post({ planId: "minutes_300" }));
+    expect(notesOf(ordersCreate).bf26).toBeUndefined();
   });
 });

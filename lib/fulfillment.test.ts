@@ -89,6 +89,7 @@ vi.mock("@/lib/prisma", () => {
             findUnique: vi.fn(async ({ where }: { where: { slug: string } }) => db.plans.get(where.slug) ?? null),
           },
           user: {
+            findUnique: vi.fn(async () => ({ bonusMinutesExpireAt: null })),
             update: vi.fn(async ({ where, data }: { where: { id: string }; data: { credits?: { increment: number } } }) => {
               if (failNextUserUpdate) {
                 failNextUserUpdate = false;
@@ -105,6 +106,14 @@ vi.mock("@/lib/prisma", () => {
           },
           creditTransaction: {
             create: vi.fn(async () => ({})),
+          },
+          // Bonus idempotency guards read the minute ledger; grantMinutes is
+          // mocked, so its calls ARE the ledger.
+          minuteTransaction: {
+            findFirst: vi.fn(async ({ where }: { where: { userId: string; reason: string; refId?: string } }) =>
+              (minutes.grantMinutes.mock.calls as unknown as Array<[{ userId: string; reason: string; refId?: string }]>)
+                .map((c) => c[0])
+                .find((g) => g.userId === where.userId && g.reason === where.reason && (where.refId === undefined || g.refId === where.refId)) ?? null),
           },
           purchase: {
             create: vi.fn(async ({ data }: { data: { id: string; userId: string; planId: string | null; amountInPaise: number; currency?: string; credits: number; status: string } }) => {
@@ -273,6 +282,48 @@ describe("Clip Minutes grants", () => {
     );
     expect(db.users.get("user-1")!.credits).toBe(before);
     expect(db.purchases.get("pay_min_pack")).toMatchObject({ credits: 0, minutes: 300 });
+  });
+
+  it("Black Friday: a stamped pack order grants 2x minutes, the bonus in its own never-expiring ledger row", async () => {
+    await fulfillPayment({
+      paymentId: "pay_bf_pack", orderId: "order_bf_pack", amountInPaise: 199900,
+      notes: { userId: "user-1", planId: "minutes_300", bf26: "pack" },
+    });
+    expect(minutes.grantMinutes).toHaveBeenCalledWith(
+      expect.objectContaining({ bucket: "purchased", amount: 300, reason: "grant:minute-pack" }),
+    );
+    expect(minutes.grantMinutes).toHaveBeenCalledWith(
+      expect.objectContaining({ bucket: "purchased", amount: 300, reason: "grant:bf26-pack-bonus", refId: "pay_bf_pack" }),
+    );
+    expect(db.purchases.get("pay_bf_pack")).toMatchObject({ minutes: 600 });
+  });
+
+  it("Black Friday: the pack bonus is idempotent on redelivery", async () => {
+    const args = { paymentId: "pay_bf_twice", orderId: "order_bf_twice", amountInPaise: 199900, notes: { userId: "user-1", planId: "minutes_300", bf26: "pack" } };
+    await fulfillPayment(args);
+    await fulfillPayment(args);
+    const calls = minutes.grantMinutes.mock.calls as unknown as Array<[{ reason: string }]>;
+    expect(calls.filter((c) => c[0].reason === "grant:bf26-pack-bonus")).toHaveLength(1);
+  });
+
+  it("Black Friday: an unstamped pack (bought outside the window) gets no bonus", async () => {
+    await fulfillPayment({
+      paymentId: "pay_plain_pack", orderId: "order_plain_pack", amountInPaise: 199900,
+      notes: { userId: "user-1", planId: "minutes_300" },
+    });
+    expect(minutes.grantMinutes).toHaveBeenCalledTimes(1);
+    expect(db.purchases.get("pay_plain_pack")).toMatchObject({ minutes: 300 });
+  });
+
+  it("Black Friday: a stamped one-time plan order gets one month of minutes as bonus, credits untouched", async () => {
+    await fulfillPayment({
+      paymentId: "pay_bf_plan", orderId: "order_bf_plan", amountInPaise: 219900,
+      notes: { userId: "user-1", planId: "sub_pro_1mo", kind: "subscription", bf26: "plan" },
+    });
+    expect(minutes.grantMinutes).toHaveBeenCalledWith(
+      expect.objectContaining({ bucket: "bonus", amount: 400, reason: "grant:bf26-plan-bonus" }),
+    );
+    expect(db.purchases.get("pay_bf_plan")).toMatchObject({ credits: 160, minutes: 800 });
   });
 
   it("never grants minutes from order notes when the plan row is missing", async () => {

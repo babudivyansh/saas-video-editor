@@ -10,6 +10,7 @@
 import { formatMoney, type Currency } from "@/lib/currency-shared";
 import { minorUnits } from "@/lib/plans/display";
 import type { DbPlan } from "./types";
+import { BF_COPY, BfTag, useBlackFridayLive } from "@/app/components/campaign/BlackFriday";
 
 // Also sells Clip Minute packs (2026-09-26): same strip, `unit="minutes"`.
 const COPY = {
@@ -32,8 +33,12 @@ export function AddonStrip({ packs, currency, buyingPack, onBuy, unit = "credits
   onBuy: (pack: DbPlan) => void;
   unit?: "credits" | "minutes";
 }) {
+  // Black Friday 2026: every Clip Minutes pack grants 2× (lib/campaigns/
+  // black-friday.ts). Hook before the early return (rules of hooks).
+  const bfLive = useBlackFridayLive();
   if (packs.length === 0) return null;
   const copy = COPY[unit];
+  const bf = bfLive && unit === "minutes";
   const qty = (p: DbPlan) => Math.max(1, unit === "minutes" ? p.minutes ?? 0 : p.credits);
   // The largest pack carries the best per-unit price; mark it rather than
   // asserting it, in case admin pricing ever changes the order.
@@ -57,7 +62,19 @@ export function AddonStrip({ packs, currency, buyingPack, onBuy, unit = "credits
                   {unit === "minutes" ? "Minute pack" : pack.name.replace(/\s*Pack$/i, "")}
                   {pack.id === best.id && packs.length > 1 && <span className="font-semibold text-success"> · best value</span>}
                 </span>
-                <span className="text-xl font-semibold text-fg sm:text-[22px]">{copy.amount(pack)}</span>
+                {bf ? (
+                  <>
+                    <span className="flex flex-wrap items-baseline gap-x-2">
+                      <s className="text-sm font-medium text-fg-subtle decoration-fg-muted" aria-label={`Normally ${pack.minutes ?? 0} minutes`}>
+                        {(pack.minutes ?? 0).toLocaleString("en-IN")} min
+                      </s>
+                      <span className="text-xl font-semibold text-fg sm:text-[22px]">{BF_COPY.packTotal(pack.minutes ?? 0).toLocaleString("en-IN")} min</span>
+                    </span>
+                    <BfTag className="self-start" />
+                  </>
+                ) : (
+                  <span className="text-xl font-semibold text-fg sm:text-[22px]">{copy.amount(pack)}</span>
+                )}
                 <span className="text-sm text-fg-muted">{price}</span>
                 <button
                   type="button"

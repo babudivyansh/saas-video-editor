@@ -25,6 +25,7 @@ import { formatDate, formatINR } from "@/lib/format";
 import { formatMoney, inferCurrencyFromLocale, type Currency } from "@/lib/currency-shared";
 import { trialStatus, trialDaysLeftLabel, type TrialStatus } from "@/lib/billing/trial-status";
 import { TRIAL_CREDITS, TRIAL_DAYS, TRIAL_MINUTES } from "@/lib/plans/tiers";
+import { BF_COPY, BfTag, useBlackFridayLive } from "@/app/components/campaign/BlackFriday";
 
 interface DbPlan {
   id: string;
@@ -587,6 +588,7 @@ function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used, 
 }) {
   // A trial ends within days by design — that isn't "expiring soon" in red.
   const expiringSoon = hasActivePlan && daysLeft <= 7 && !trial;
+  const bfLive = useBlackFridayLive();
   const memberSince = user?.createdAt ? formatDate(user.createdAt) : "—";
   const cancelled = !!user?.subscriptionCancelledAt;
   const generationsThisMonth = summary?.byTool.reduce((s, t) => s + t.count, 0) ?? 0;
@@ -612,6 +614,14 @@ function OverviewTab({ user, hasActivePlan, daysLeft, allowance, balance, used, 
               <p className={`text-sm font-medium ${expiringSoon ? "text-error" : "text-ink-soft"}`}>
                 {trial ? `Free trial · ${trialDaysLeftLabel(trial.daysLeft)}` : renewalLabel(daysLeft, cancelled)}
               </p>
+              {/* Black Friday 2026 trial banner: a trialist who subscribes in
+                  the window gets month 1's minutes doubled. */}
+              {trial && bfLive && !cancelled && (
+                <p role="note" className="mt-2 flex flex-wrap items-center gap-2 rounded-xl border border-tint-emerald-border bg-tint-emerald px-3 py-2 text-xs font-semibold text-success">
+                  <BfTag>{BF_COPY.label}</BfTag>
+                  {BF_COPY.trial}
+                </p>
+              )}
               <p className="text-xs text-ink-soft mt-1">Member since {memberSince}</p>
               {/* Change plan goes straight to the plans page. It used to sit
                   behind Manage plan → Change plan, three screens deep. */}
@@ -970,6 +980,8 @@ function MinutePacksSection({ packs, activeId, onBuy, currency }: {
   onBuy: (slug: string) => void;
   currency: Currency;
 }) {
+  // Black Friday 2026: every Clip Minutes pack grants 2×.
+  const bfLive = useBlackFridayLive();
   if (packs.length === 0) return null;
   return (
     <section aria-labelledby="minute-packs-heading">
@@ -984,7 +996,17 @@ function MinutePacksSection({ packs, activeId, onBuy, currency }: {
           const perMin = formatMoney(Math.round(minor / Math.max(1, pack.minutes ?? 1)), currency);
           return (
             <div key={pack.id} className="bg-panel rounded-[var(--radius-card)] border border-card-border p-5 flex flex-col gap-1">
-              <p className="text-2xl font-extrabold text-ink">{(pack.minutes ?? 0).toLocaleString("en-IN")} <span className="text-sm font-semibold text-ink-soft">min</span></p>
+              {bfLive ? (
+                <>
+                  <p className="flex flex-wrap items-baseline gap-x-2 text-2xl font-extrabold text-ink">
+                    <s className="text-base font-semibold text-ink-soft" aria-label={`Normally ${pack.minutes ?? 0} minutes`}>{(pack.minutes ?? 0).toLocaleString("en-IN")}</s>
+                    {BF_COPY.packTotal(pack.minutes ?? 0).toLocaleString("en-IN")} <span className="text-sm font-semibold text-ink-soft">min</span>
+                  </p>
+                  <BfTag className="self-start" />
+                </>
+              ) : (
+                <p className="text-2xl font-extrabold text-ink">{(pack.minutes ?? 0).toLocaleString("en-IN")} <span className="text-sm font-semibold text-ink-soft">min</span></p>
+              )}
               <p className="text-sm font-semibold text-ink">{price}</p>
               <p className="text-xs text-ink-soft">{perMin} per minute</p>
               <Button variant="primary" size="md" onClick={() => onBuy(pack.slug)} disabled={!!activeId} className="mt-3 w-full">

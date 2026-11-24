@@ -19,6 +19,7 @@ import {
   monthlyCounterpart, TIER_TAGLINE,
   type DisplayPlan,
 } from "@/lib/plans/display";
+import { BF_COPY, BfTag, useBlackFridayLive } from "@/app/components/campaign/BlackFriday";
 
 
 /** "150 min" -> "2.5 hrs"; under an hour stays in minutes. */
@@ -64,11 +65,16 @@ interface PlanCardProps {
   /** "upgrade": the in-app upgrade page — white outline and white button on
    *  the recommended plan, green price, badge inside the card. Copy is shared. */
   look?: "default" | "upgrade";
+  /** Black Friday 2026: the viewer would get the first-month minutes bonus
+   *  (a new subscription, not an upgrade). Shows only while the sale is live. */
+  bfEligible?: boolean;
 }
 
 export function PlanCard({
-  plan, subs, currency, highlighted, isCurrent, onSelect, size = "default", ctaLabel, ctaDisabled = false, footer, className = "", look = "default",
+  plan, subs, currency, highlighted, isCurrent, onSelect, size = "default", ctaLabel, ctaDisabled = false, footer, className = "", look = "default", bfEligible = false,
 }: PlanCardProps) {
+  const bfLive = useBlackFridayLive();
+  const bf = bfEligible && bfLive && !isCurrent && (plan.monthlyMinutes ?? 0) > 0;
   const upgrade = look === "upgrade";
   const total = minorUnits(plan, currency);
   const months = plan.intervalMonths ?? 1;
@@ -111,6 +117,7 @@ export function PlanCard({
               Current
             </span>
           )}
+          {bf && <BfTag>{BF_COPY.planTag}</BfTag>}
         </div>
         {plan.tier && <p className="text-[13px] text-fg-muted">{TIER_TAGLINE[plan.tier]}</p>}
       </div>
@@ -168,6 +175,7 @@ export function PlanCard({
         {plan.monthlyMinutes != null && plan.monthlyMinutes > 0 && (
           <div className="flex flex-col gap-0.5">
             <p className="text-sm font-semibold text-fg">{plan.monthlyMinutes.toLocaleString("en-IN")} Clip Minutes every month</p>
+            {bf && <p className="text-xs font-semibold text-success">{BF_COPY.monthOne(plan.monthlyMinutes)}</p>}
             <p className="text-xs text-fg-subtle">
               ≈ {minutesAsHours(plan.monthlyMinutes)} of video for Auto Clips · any number of clips
             </p>

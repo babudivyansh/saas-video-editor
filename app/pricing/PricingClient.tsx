@@ -29,6 +29,8 @@ import { CompareTable } from "./_components/CompareTable";
 import { CheckoutModal } from "./_components/CheckoutModal";
 import { useCreatorDiscount } from "@/app/components/billing/useCreatorDiscount";
 import PricingOfferRibbon from "@/app/components/campaign/PricingOfferRibbon";
+import { bfPlanEligibleFor, useBlackFridayLive } from "@/app/components/campaign/BlackFriday";
+import { bfPackBonus, bfPlanBonus } from "@/lib/campaigns/black-friday";
 import type { DbPlan, ToolCost } from "./_components/types";
 import { GST_RATE_PERCENT } from "@/lib/invoice/seller";
 
@@ -150,7 +152,17 @@ function PricingPageInner({ initialPlans }: { initialPlans: DbPlan[] }) {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     if (params.get("success") === "1") {
-      showToast("Payment successful! Credits will appear in your account shortly.");
+      // Black Friday 2026: the total INCLUDING the bonus, set by the buy
+      // handlers below while the sale is live.
+      const total = Number(params.get("minutes") ?? 0);
+      const bonus = Number(params.get("bfBonus") ?? 0);
+      showToast(
+        bonus > 0
+          ? params.get("kind") === "plan"
+            ? `Payment successful! Your first month has ${total.toLocaleString("en-IN")} Clip Minutes, including +${bonus.toLocaleString("en-IN")} Black Friday bonus.`
+            : `Payment successful! ${total.toLocaleString("en-IN")} Clip Minutes are on their way, including +${bonus.toLocaleString("en-IN")} Black Friday bonus.`
+          : "Payment successful! Credits will appear in your account shortly.",
+      );
       window.history.replaceState({}, "", "/pricing");
     }
   }, [showToast]);
@@ -169,6 +181,10 @@ function PricingPageInner({ initialPlans }: { initialPlans: DbPlan[] }) {
   // visitors see it too — a new account is always eligible — and are sent to
   // register first.
   const trialEligible = !user || (!user.trialUsedAt && !user.hasPurchased && !hasActivePlan);
+  // Black Friday 2026: a new subscription gets month 1's minutes doubled; an
+  // upgrade from a running paid plan doesn't (mirrors api/billing/checkout).
+  const bfLive = useBlackFridayLive();
+  const bfPlanEligible = bfPlanEligibleFor(user);
 
   const openCheckout = (plan: DbPlan, trial = false) => {
     setCheckoutPlan(plan);
@@ -193,7 +209,12 @@ function PricingPageInner({ initialPlans }: { initialPlans: DbPlan[] }) {
       // message — land on Billing, which says the trial has started, when it
       // ends, what it costs after, and how to cancel.
       onSuccess: () => {
-        window.location.href = checkoutTrial ? "/dashboard?billing=1&success=trial" : "/pricing?success=1";
+        const bonus = bfLive && bfPlanEligible ? bfPlanBonus(checkoutPlan.monthlyMinutes ?? 0) : 0;
+        window.location.href = checkoutTrial
+          ? "/dashboard?billing=1&success=trial"
+          : bonus > 0
+            ? `/pricing?success=1&kind=plan&minutes=${(checkoutPlan.monthlyMinutes ?? 0) + bonus}&bfBonus=${bonus}`
+            : "/pricing?success=1";
       },
       onError: setCheckoutError,
     });
@@ -208,7 +229,12 @@ function PricingPageInner({ initialPlans }: { initialPlans: DbPlan[] }) {
     startCheckout({
       planId: pack.slug,
       currency,
-      onSuccess: () => { window.location.href = "/pricing?success=1"; },
+      onSuccess: () => {
+        const bonus = bfLive && pack.kind === "minute_pack" ? bfPackBonus(pack.minutes ?? 0) : 0;
+        window.location.href = bonus > 0
+          ? `/pricing?success=1&kind=pack&minutes=${(pack.minutes ?? 0) + bonus}&bfBonus=${bonus}`
+          : "/pricing?success=1";
+      },
       onError: (msg) => showToast(msg, "error"),
     });
   };
@@ -285,6 +311,7 @@ function PricingPageInner({ initialPlans }: { initialPlans: DbPlan[] }) {
                   // Recommended plan first on phones, where only one card is on screen.
                   className={isPro ? "max-sm:order-first" : ""}
                   onSelect={p => selectPlan(p, offerTrial)}
+                  bfEligible={bfPlanEligible}
                   ctaLabel={offerTrial ? `Start ${TRIAL_DAYS}-day free trial` : undefined}
                   footer={
                     offerTrial ? (
@@ -451,6 +478,7 @@ function PricingPageInner({ initialPlans }: { initialPlans: DbPlan[] }) {
           onPay={handlePay}
           onClose={() => setCheckoutPlan(null)}
           creatorDiscount={creatorDiscount}
+          bfEligible={bfPlanEligible}
         />
       )}
 

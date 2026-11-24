@@ -7,23 +7,72 @@
 import Link from "next/link";
 import { DIWALI } from "@/lib/campaigns/diwali";
 import { Diya, Marquee, OFFER_COPY, Toran, useDiwaliOffers, useDiwaliPhase, useDismissed } from "./DiwaliDecor";
+import { BF_COPY, useBlackFridayLive } from "./BlackFriday";
 
 /** Height the ticker adds to the header, px. Keep in sync with the markup. */
 export const SITE_TICKER_HEIGHT = 40;
 
 const DISMISS_KEY = "clipiro:diwali26:site-ticker";
+const BF_DISMISS_KEY = "clipiro:bf26:site-ticker";
 
 export function useSiteTicker(): { visible: boolean; dismiss: () => void } {
   const { phase } = useDiwaliPhase();
+  // Black Friday 2026 (26-30 Nov IST) reuses this bar, with its own dismissal.
+  const bfLive = useBlackFridayLive();
+  const [bfDismissed, bfDismiss] = useDismissed(BF_DISMISS_KEY, "session", false);
   // Rendered in the server HTML (starts not-dismissed): if it only appeared
   // after hydration, the header grew 40px under the reader, and an anchor
   // clicked before that landed its heading under the header (blog e2e).
   // A visitor who closed it sees it once more for a moment on the next page.
   const [dismissed, dismiss] = useDismissed(DISMISS_KEY, "session", false);
+  if (bfLive) return { visible: !bfDismissed, dismiss: bfDismiss };
   return { visible: phase !== "over" && !dismissed, dismiss };
 }
 
+/** Black Friday 2026 variant: same bar, dark emerald system, one line. */
+function BlackFridayTicker({ onDismiss }: { onDismiss: () => void }) {
+  const items = [BF_COPY.ticker, "Applied automatically · no code needed"];
+  const row = [...items, ...items, ...items, ...items];
+  return (
+    <div role="region" aria-label="Black Friday offer" className="relative flex h-10 items-center border-b border-line bg-surface-1 font-sans">
+      <style>{`html{scroll-padding-top:${SITE_TICKER_HEIGHT}px}`}</style>
+      <span className="flex h-full shrink-0 items-center bg-primary px-3 font-mono text-[11px] font-semibold uppercase tracking-[0.08em] text-on-primary">
+        2× {BF_COPY.label}
+      </span>
+      <Marquee duration={40} className="min-w-0 flex-1">
+        {row.map((t, i) => (
+          <div key={i} className="flex items-center gap-3 whitespace-nowrap pl-3 text-[13px] font-semibold sm:text-sm">
+            <span className={i % 2 === 0 ? "text-fg" : "text-fg-muted"}>{t}</span>
+            <span aria-hidden="true" className="h-1 w-1 rounded-full bg-primary" />
+          </div>
+        ))}
+      </Marquee>
+      <span className="sr-only">{BF_COPY.ticker}.</span>
+      <Link
+        href="/pricing#plans"
+        className="hidden h-full shrink-0 items-center gap-1.5 bg-gradient-to-r from-transparent to-surface-1 to-30% pl-10 pr-2 text-sm font-bold text-primary no-underline hover:text-primary-hover sm:flex"
+      >
+        See the offer
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+      </Link>
+      <button
+        type="button"
+        onClick={onDismiss}
+        aria-label="Hide announcement"
+        className="flex h-[34px] w-10 shrink-0 items-center justify-center text-fg-muted hover:text-fg"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+      </button>
+    </div>
+  );
+}
+
 export default function SiteLaunchTicker({ onDismiss }: { onDismiss: () => void }) {
+  const bfLive = useBlackFridayLive();
+  return bfLive ? <BlackFridayTicker onDismiss={onDismiss} /> : <DiwaliTicker onDismiss={onDismiss} />;
+}
+
+function DiwaliTicker({ onDismiss }: { onDismiss: () => void }) {
   const { phase, monthly, yearly, any } = useDiwaliOffers();
 
   const gold = "font-extrabold uppercase tracking-[0.05em] text-[#ffd23f]";
