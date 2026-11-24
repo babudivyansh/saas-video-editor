@@ -668,6 +668,18 @@ describe("computeClipCrop — podcast framing regressions", () => {
     expect(computeClipCrop([], seg(0, 20), "9:16", 1280, 720, { speakerMode: "single" }, null)).toEqual({ mode: "fit" });
   });
 
+  it("holds a faceless clip on its subject when one was found, in any aspect", async () => {
+    const { computeClipCrop } = await import("./autoclip-pipeline");
+    const subjectBox = { x: 0.1, y: 0, w: 0.3164, h: 1 }; // found for 9:16, centre 0.258
+    for (const aspect of ["9:16", "4:5"] as const) {
+      const crop = computeClipCrop([], seg(0, 20), aspect, 1280, 720, { ...opts, subjectBox }, null);
+      if (crop?.mode !== "single") throw new Error(`expected a held crop at ${aspect}`);
+      const k = crop.keyframes[0];
+      expect(k.x + k.w / 2).toBeCloseTo(0.258, 2);
+      expect(crop.keyframes.every((q) => q.x === k.x)).toBe(true);
+    }
+  });
+
   it("never stacks two camera angles as a split screen (tracked ids restart at cuts)", async () => {
     const { computeClipCrop } = await import("./autoclip-pipeline");
     const { scoreFraming } = await import("./reframe-metrics");

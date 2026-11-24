@@ -56,8 +56,8 @@ export function outputResolution(aspect: Aspect): { w: number; h: number } | nul
  * and ffmpeg refused the whole graph (CLIPIRO-WEB-14); the 9:16 and 1:1
  * variants break the same way on sources taller than 9:16.
  */
-export function centeredAspectCrop(aspect: "9:16" | "16:9" | "1:1"): string {
-  const [rw, rh] = aspect === "16:9" ? [16, 9] : aspect === "1:1" ? [1, 1] : [9, 16];
+export function centeredAspectCrop(aspect: "9:16" | "16:9" | "1:1" | "4:5"): string {
+  const [rw, rh] = aspect === "16:9" ? [16, 9] : aspect === "1:1" ? [1, 1] : aspect === "4:5" ? [4, 5] : [9, 16];
   const w = `trunc(min(iw\\,ih*${rw}/${rh})/2)*2`;
   const h = `trunc(min(ih\\,iw*${rh}/${rw})/2)*2`;
   return `crop=${w}:${h}`;

@@ -4,6 +4,7 @@
 // lib/editor/render-job.ts + app/api/editor/render/route.ts. Each route file
 // owns its own `createRenderQueue(...)` call.
 
+import type { ReframeAspect } from "@/lib/reframe";
 import { Prisma, type Clip } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { AUTOCLIP_PRICING_DEFAULTS, analysisRefId, parseAutoClipPricing, type AutoClipPricing } from "@/lib/autoclip-pricing";
@@ -49,6 +50,7 @@ import {
   steadyFace,
   pipLayoutFromCam,
   fixedSplitLayout,
+  holdCrop,
   mapStoredCropKeyframes,
   sanitizeReframeEnum,
   buildZoomEnvelope,
@@ -76,7 +78,7 @@ import { buildCaptionFilterChain } from "@/lib/captions/engine";
 // module graph of every consumer of this file — including its unit tests, which
 // mock prisma but have no reason to stand up a Redis connection. It is
 // dynamically imported at its one call site instead.
-import { recommendCaptionPositionY } from "@/lib/captions/position";
+import { recommendCaptionPositionYForLayout } from "@/lib/captions/position";
 import { buildCameraZoom, applyZoomToKeyframes, densifyKeyframes, ZOOM_STRENGTH_MAX } from "@/lib/camera-motion";
 import { applyStepZoom, buildJumpZoomSteps, stepsFromPlan, JUMP_LIMITS } from "@/lib/jump-zoom";
 import { storedZoomStyle, type ZoomStyle } from "@/lib/zoom-style";
@@ -88,6 +90,7 @@ import type { AiRunResult } from "@/lib/autoclip-ai/run";
 import { getFaceTimeline } from "@/lib/asd";
 import { detectFacesLocal, localDetectorAvailable } from "@/lib/face-detect-local";
 import { assignSpeaking } from "@/lib/active-speaker";
+import { subjectBoxForWindow } from "@/lib/subject-saliency";
 // P0-3: Project.uploadedVideoUrl is a PRESIGNED url minted at upload time and
 // only valid for 6 hours, so every job that reused it later died on its first
 // step with 403 "Request has expired". Always re-mint before downloading.
@@ -112,7 +115,7 @@ import path from "path";
 import fs from "fs";
 import { greetingName } from "@/lib/display-name";
 
-export type Aspect = "9:16" | "16:9" | "1:1";
+export type Aspect = ReframeAspect;
 
 // Clamped to the frame: a source wider than 16:9 or taller than 9:16 used to
 // get a crop larger than itself and fail the render (CLIPIRO-WEB-14).
@@ -929,6 +932,8 @@ function computeStoredCrop(
       if (sceneCropW < 0.999 || sceneCropH < 0.999) return { mode: "fit" };
     }
     if (scene.type === "none") {
+      const held = holdOnSubject(options.subjectBox, duration, sceneCropW, sceneCropH);
+      if (held) return held;
       // No face to frame: the whole shot over a blurred fill, never a guess.
       // This was a slow drift around the centre, which cut the speaker in half
       // whenever detection missed them (every podcast demo clip, 2026-11) and
@@ -942,7 +947,7 @@ function computeStoredCrop(
   // Follow-one-face modes with no face in this clip: the same safe fallback.
   if ((speakerMode0 === "single" || speakerMode0 === "active") && inWindow.length === 0
     && (sceneCropW < 0.999 || sceneCropH < 0.999)) {
-    return { mode: "fit" };
+    return holdOnSubject(options.subjectBox, duration, sceneCropW, sceneCropH) ?? { mode: "fit" };
   }
 
   // `preset` is not read here — the two keyframe builders below each pull it
@@ -961,6 +966,14 @@ function computeStoredCrop(
     return { mode: "single", keyframes: buildZoomEnvelope(seg.end - seg.start, aspectRatio, srcW, srcH) };
   }
   return null;
+}
+
+/** A crop held on a faceless clip's subject (lib/subject-saliency.ts), or null without one. */
+function holdOnSubject(box: FacecamBox | null | undefined, durationSec: number, cropW: number, cropH: number): StoredCrop | null {
+  if (!box || cropW >= 0.999) return null;
+  const cx = box.x + box.w / 2;
+  const x = Math.min(1 - cropW, Math.max(0, cx - cropW / 2));
+  return { mode: "single", keyframes: holdCrop({ x, y: (1 - cropH) / 2, w: cropW, h: cropH }, durationSec) };
 }
 
 /**
@@ -1354,6 +1367,15 @@ export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATT
     // timeout on bigger picks, failing the run after all the paid work was
     // done (Sentry CLIPIRO-WEB-Z). The timeout is raised as well, since a
     // large pick's payload is still several MB.
+    // Faceless clips: where the action is, so the crop can hold on it instead
+    // of showing the whole frame (lib/subject-saliency.ts). One clip at a time
+    // — a tiny ffmpeg decode each — and none at all for clips with a face.
+    const subjectBoxes: (FacecamBox | null)[] = [];
+    for (const seg of segments) {
+      const hasFace = allFaces.some((f) => f.confidence >= 60 && f.tSec >= seg.start && f.tSec <= seg.end);
+      subjectBoxes.push(hasFace ? null : await subjectBoxForWindow(videoPath, seg.start, seg.end, aspectRatio, srcW, srcH));
+    }
+
     const clipRows: Prisma.ClipCreateManyInput[] = segments.map((seg, i) => {
         const words = sliceWordsForClip(wordTimings, seg.start, seg.end);
         const hasCaptions = captionStyleIndex >= 0 && words.length > 0;
@@ -1375,6 +1397,7 @@ export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATT
           trackingSpeed,
           words,
           facecamBox,
+          subjectBox: subjectBoxes[i],
         }, aiClip?.reframe ?? null);
         const sub: SubScores = { hook: seg.hook, pacing: seg.pacing, payoff: seg.payoff, engagement: seg.engagement };
         const initialComposite = Math.round((seg.hook + seg.pacing + seg.payoff + seg.engagement) / 4);
@@ -1419,7 +1442,10 @@ export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATT
             // plain default whenever there is no usable face data.
             subtitleStyleOverride: {
               animated: animatedCaptions,
-              captionPositionY: recommendCaptionPositionY(allFaces, { startSec: seg.start, endSec: seg.end }),
+              captionPositionY: recommendCaptionPositionYForLayout(
+                cropKeyframes, allFaces, { startSec: seg.start, endSec: seg.end },
+                { srcW, srcH, outW: TARGET_RES[aspectRatio].w, outH: TARGET_RES[aspectRatio].h },
+              ),
               // The chosen look, as a template id. Writing it here means the
               // render path (lib/captions/clip-captions.ts) and the Studio
               // drawer both pick it up with no further plumbing.
@@ -1437,6 +1463,7 @@ export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATT
               trackingSpeed,
               zoomStyle,
               ...(facecamBox ? { facecamBox } : {}),
+              ...(subjectBoxes[i] ? { subjectBox: subjectBoxes[i] } : {}),
             } as unknown as Prisma.InputJsonValue,
             ...(cropKeyframes ? { cropKeyframes: cropKeyframes as unknown as Prisma.InputJsonValue } : {}),
             ...(broll && broll.length > 0 ? {
@@ -2744,11 +2771,29 @@ export async function rerenderJob(payload: RerenderPayload): Promise<void> {
         trackingSpeed: silenceOpts.trackingSpeed ?? 50,
         words: clip.transcriptJson as unknown as WordTiming[],
         facecamBox: sanitizeFacecamBox(silenceOpts.facecamBox),
+        subjectBox: sanitizeFacecamBox(silenceOpts.subjectBox),
       }, aiReframeFromMeta(clip.aiMeta));
+      // A new layout moves where the faces land in the output (a split puts
+      // them in two panels), so the recommended caption height moves with it.
+      // Only the recommendation: a position the user set (positionY) wins.
+      const override = (clip.subtitleStyleOverride && typeof clip.subtitleStyleOverride === "object"
+        ? clip.subtitleStyleOverride : {}) as Record<string, unknown>;
+      const layoutChanged = (storedBefore?.mode ?? null) !== (cropKeyframes?.mode ?? null);
+      const target = TARGET_RES[clip.aspectRatio as Aspect] ?? TARGET_RES["9:16"];
+      const subtitleStyleOverride = layoutChanged && "captionPositionY" in override
+        ? {
+          ...override,
+          captionPositionY: recommendCaptionPositionYForLayout(
+            cropKeyframes, allFaces, { startSec: clip.startSec, endSec: clip.endSec },
+            { srcW, srcH, outW: target.w, outH: target.h },
+          ),
+        }
+        : null;
       updatedClip = await prisma.clip.update({
         where: { id: clipId },
         data: {
           cropKeyframes: (cropKeyframes ? cropKeyframes : Prisma.JsonNull) as unknown as Prisma.InputJsonValue,
+          ...(subtitleStyleOverride ? { subtitleStyleOverride: subtitleStyleOverride as unknown as Prisma.InputJsonValue } : {}),
         },
       });
     }

@@ -7,6 +7,7 @@
 // hand-written reimplementation of ffmpeg's filter semantics that drifts from
 // the renderer without anyone noticing.
 
+import type { ReframeAspect } from "@/lib/reframe";
 import { type Clip } from "@prisma/client";
 import { downloadFile } from "@/utils/download";
 import { runFFmpegArgs, maybeUseFilterScript } from "@/utils/ffmpeg-render";
@@ -31,7 +32,7 @@ const MOOD_TO_FILTER: Record<(typeof MOODS)[number], FilterPreset> = {
 const PREVIEW_W = 405;
 
 function aspectRatioFilter(ratio: string): string {
-  return centeredAspectCrop(ratio === "16:9" || ratio === "1:1" ? ratio : "9:16");
+  return centeredAspectCrop(ratio === "16:9" || ratio === "1:1" || ratio === "4:5" ? ratio : "9:16");
 }
 
 export interface PreviewFrame { atSec: number; dataUrl: string }
@@ -59,7 +60,7 @@ export async function renderPreviewFrames(sourceUrl: string, clip: Clip): Promis
 
     // Captions: the same track the renderer builds (lib/captions/clip-captions.ts),
     // so the preview shows the real template, emoji and glass panel.
-    const capRes = TARGET_RES[(aspect as "9:16" | "16:9" | "1:1")] ?? TARGET_RES["9:16"];
+    const capRes = TARGET_RES[(aspect as ReframeAspect)] ?? TARGET_RES["9:16"];
     let track: CaptionTrack | null = null;
     if (clip.hasCaptions && words && words.length > 0) {
       track = buildClipCaptionTrack({
@@ -83,7 +84,7 @@ export async function renderPreviewFrames(sourceUrl: string, clip: Clip): Promis
     // static crop there rather than shipping a wrong preview.
     const keyframes = stored?.mode === "single" ? stored.keyframes : null;
     const cropExpr = keyframes && keyframes.length > 1
-      ? buildDynamicCropFilter(keyframes, aspect as "9:16" | "16:9" | "1:1")
+      ? buildDynamicCropFilter(keyframes, aspect as ReframeAspect)
       : aspectRatioFilter(aspect);
 
     const duration = Math.max(0.1, clip.durationSec);

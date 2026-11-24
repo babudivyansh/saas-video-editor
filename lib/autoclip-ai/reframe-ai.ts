@@ -12,6 +12,7 @@
 // data this returns `base` for the whole clip, unchanged — that is the
 // contract the tests hold it to.
 
+import type { ReframeAspect } from "@/lib/reframe";
 import { cropSizeFrac, gamingLayoutFromCam, simplifyKeyframes, type CropKeyframe, type FaceBox, type StoredCrop } from "@/lib/reframe";
 import type { SpeakerMode } from "@/lib/speaker-modes";
 import type { WordTiming } from "@/utils/elevenlabs";
@@ -22,7 +23,7 @@ import { shotRanges } from "@/lib/autoclip-ai/scene-vision";
 import { cameraPathOptionsFor, smoothKeyframePath, solveCameraPath } from "@/lib/autoclip-ai/camera-path";
 import { applySpeakerLead } from "@/lib/autoclip-ai/speaker-lead";
 
-type Aspect = "9:16" | "16:9" | "1:1";
+type Aspect = ReframeAspect;
 
 /** Layout override the base framing understands, on top of the user's speaker modes. */
 export type BaseLayout = SpeakerMode | "cuts" | "wide";

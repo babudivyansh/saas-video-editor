@@ -14,7 +14,7 @@
 import { z } from "zod";
 import { ZOOM_STYLES, DEFAULT_ZOOM_STYLE } from "@/lib/zoom-style";
 
-export const AUTOCLIP_ASPECTS = ["9:16", "16:9", "1:1"] as const;
+export const AUTOCLIP_ASPECTS = ["9:16", "16:9", "1:1", "4:5"] as const;
 
 /** Clip length bounds, in seconds. The UI's presets span 5–120. */
 export const MIN_CLIP_SEC = 5;

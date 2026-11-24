@@ -205,7 +205,7 @@ describe("input validation — the charged run and the delivered run must be the
     ["minDuration above maxDuration", { minDuration: 90, maxDuration: 30 }],
     ["zero clips (billed as 1, produced none)", { clipCount: 0 }],
     ["more clips than a run allows", { clipCount: 50 }],
-    ["an unknown aspect ratio (failed three times at render)", { aspectRatio: "4:5" }],
+    ["an unknown aspect ratio (failed three times at render)", { aspectRatio: "21:9" }],
     ["instructions long enough to be a Gemini cost amplifier", { instructions: "x".repeat(501) }],
   ])("rejects %s with 400 and charges nothing", async (_label, extra) => {
     const res = await POST(req({ projectId: "p1", ...extra }));

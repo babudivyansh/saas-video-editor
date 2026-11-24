@@ -13,6 +13,7 @@
 // Everything stored here goes under broll/{userId}/... in our own bucket, so
 // the render presigns it exactly like the source video.
 
+import type { ReframeAspect } from "@/lib/reframe";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -27,7 +28,7 @@ import { TARGET_RES } from "@/lib/reframe";
 import type { AutoClipAiConfig } from "@/lib/autoclip-ai/config";
 import type { AiBudget } from "@/lib/autoclip-ai/budget";
 
-type Aspect = "9:16" | "16:9" | "1:1";
+type Aspect = ReframeAspect;
 
 export function falConfigured(): boolean {
   return Boolean(env.FAL_KEY);
@@ -55,6 +56,7 @@ export const IMAGE_SIZE: Record<Aspect, { width: number; height: number }> = {
   "9:16": { width: 768, height: 1344 },
   "16:9": { width: 1344, height: 768 },
   "1:1": { width: 1024, height: 1024 },
+  "4:5": { width: 896, height: 1120 },
 };
 
 function brollKey(userId: string, projectId: string, tag: string): string {

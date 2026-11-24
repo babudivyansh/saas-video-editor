@@ -25,6 +25,12 @@ export const rekognition = new RekognitionClient({
   requestHandler: { connectionTimeout: 5_000, socketTimeout: 30_000 },
 });
 
+/** Output shapes AutoClip renders (and crops for). */
+export type ReframeAspect = "9:16" | "16:9" | "1:1" | "4:5";
+export const REFRAME_ASPECTS: readonly ReframeAspect[] = ["9:16", "16:9", "1:1", "4:5"];
+/** Width over height of each output shape. */
+export const ASPECT_RATIO: Record<ReframeAspect, number> = { "9:16": 9 / 16, "16:9": 16 / 9, "1:1": 1, "4:5": 4 / 5 };
+
 export interface FaceBox {
   tSec: number;
   x: number; // Left, fraction 0..1 of frame width
@@ -190,11 +196,12 @@ export async function detectFaceTimeline(videoUrl: string): Promise<FaceTimeline
 // the dead-center formulas in this route's static fallback. Only one axis
 // needs to pan for each aspect (the other stays full-frame), which is what
 // makes single-face tracking well-defined without needing zoom.
-export function cropSizeFrac(aspect: "9:16" | "16:9" | "1:1", srcW: number, srcH: number): { w: number; h: number } {
-  if (aspect === "9:16") return { w: Math.min(1, (srcH * 9) / 16 / srcW), h: 1 };
-  if (aspect === "16:9") return { w: 1, h: Math.min(1, (srcW * 9) / 16 / srcH) };
-  // 1:1 — full height, width-of-height window (only meaningful when srcW > srcH)
-  return { w: Math.min(1, srcH / srcW), h: 1 };
+export function cropSizeFrac(aspect: ReframeAspect, srcW: number, srcH: number): { w: number; h: number } {
+  // The largest window of the output's shape that fits the source: full
+  // height and a slice of the width for a source wider than the output,
+  // full width and a slice of the height for one taller than it.
+  const r = ASPECT_RATIO[aspect];
+  return { w: Math.min(1, (srcH * r) / srcW), h: Math.min(1, srcW / r / srcH) };
 }
 
 const BUCKET_SEC = 0.5;
@@ -301,6 +308,12 @@ export interface ReframeOptions {
    * layouts use it instead of face tracking, so they work without any.
    */
   facecamBox?: FacecamBox | null;
+  /**
+   * Where the action is in a clip with no face (lib/subject-saliency.ts), on
+   * the source frame. Only its horizontal centre is used, so it survives an
+   * aspect change on re-render. Absent: a faceless clip shows the whole frame.
+   */
+  subjectBox?: FacecamBox | null;
 }
 
 export const REFRAME_PRESETS = ["balanced", "minimal", "dynamic", "cinematic"] as const;
@@ -327,7 +340,7 @@ function computeAdvancedCrop(
   duration: number,
   cropW: number,
   cropH: number,
-  aspect: "9:16" | "16:9" | "1:1",
+  aspect: ReframeAspect,
   options: ReframeOptions
 ): CropKeyframe[] {
   const smart = options.smartAutoReframe !== false;
@@ -676,7 +689,7 @@ export function computeCropKeyframesForClip(
   allFaces: FaceBox[],
   clipStartSec: number,
   clipEndSec: number,
-  aspect: "9:16" | "16:9" | "1:1",
+  aspect: ReframeAspect,
   srcW: number,
   srcH: number,
   optionsOrPreset?: ReframeOptions | string
@@ -947,8 +960,9 @@ function buildPanZoomChain(keyframes: CropKeyframe[], outW: number, outH: number
   );
 }
 
-export const TARGET_RES: Record<"9:16" | "16:9" | "1:1", { w: number; h: number }> = {
+export const TARGET_RES: Record<ReframeAspect, { w: number; h: number }> = {
   "9:16": { w: 1080, h: 1920 }, "16:9": { w: 1920, h: 1080 }, "1:1": { w: 1080, h: 1080 },
+  "4:5": { w: 1080, h: 1350 },
 };
 
 // Builds the FFmpeg crop filter fragment (no leading/trailing comma) that pans
@@ -956,15 +970,18 @@ export const TARGET_RES: Record<"9:16" | "16:9" | "1:1", { w: number; h: number 
 // size varies, a fixed-resolution scale is appended afterward — a video
 // stream can't change frame size mid-encode, so a shrinking crop window must
 // always be scaled back up to a constant output size.
-export function buildDynamicCropFilter(keyframes: CropKeyframe[], aspect: "9:16" | "16:9" | "1:1"): string {
+export function buildDynamicCropFilter(keyframes: CropKeyframe[], aspect: ReframeAspect): string {
   const varyingSize = keyframes.some((k) => k.w !== keyframes[0].w || k.h !== keyframes[0].h);
 
   // Pan-only: crop's x/y ARE re-evaluated per frame (no `eval` option exists on
   // crop, and none is needed for x/y), so a constant-size window can pan on its
   // own. This is the cheap path — no zoompan, no frame-rate normalisation.
   if (!varyingSize) {
-    const w = aspect === "16:9" ? "in_w" : `(in_h*9/16)`;
-    const h = aspect === "9:16" ? "in_h" : aspect === "16:9" ? `(in_w*9/16)` : "in_h";
+    // The window's own size, which cropSizeFrac made in the output's shape.
+    // This hard-coded a 9:16 window for every aspect but 16:9, so a
+    // face-tracked 1:1 clip came out 9:16-shaped (405x720 from a 720p source).
+    const w = `trunc(in_w*${keyframes[0].w.toFixed(5)}/2)*2`;
+    const h = `trunc(in_h*${keyframes[0].h.toFixed(5)}/2)*2`;
     return `crop=w='${w}':h='${h}':x='${lerpExpr("in_w", keyframes, "x")}':y='${lerpExpr("in_h", keyframes, "y")}'`;
   }
 
@@ -983,7 +1000,7 @@ const ZOOM_STEPS = 8;
 // a speaker-tracking pan path (combining a pan AND a zoom envelope would need
 // merging two independent dynamic paths — more risk than value for a subtle
 // polish effect, so this only applies when there's no pan data).
-export function buildZoomEnvelope(clipDurationSec: number, aspect: "9:16" | "16:9" | "1:1", srcW: number, srcH: number): CropKeyframe[] {
+export function buildZoomEnvelope(clipDurationSec: number, aspect: ReframeAspect, srcW: number, srcH: number): CropKeyframe[] {
   const { w: baseW, h: baseH } = cropSizeFrac(aspect, srcW, srcH);
   const kf: CropKeyframe[] = [];
   for (let i = 0; i <= ZOOM_STEPS; i++) {
@@ -1311,7 +1328,7 @@ export function buildSplitScreenFilterComplex(
  * scaled back up: the same look at a fraction of the cost on a CPU render.
  */
 export function buildFitFilterComplex(
-  aspect: "9:16" | "16:9" | "1:1",
+  aspect: ReframeAspect,
   moodFilter: string | null,
   videoSrc = "[0:v]",
 ): string {
@@ -1357,7 +1374,7 @@ export function buildPipFilterComplex(
  */
 export function buildLayoutFilterComplex(
   stored: StoredCrop | null,
-  aspect: "9:16" | "16:9" | "1:1",
+  aspect: ReframeAspect,
   moodFilter: string | null,
   videoSrc: string,
 ): string | null {

@@ -11,6 +11,7 @@
 // step is best-effort: a failure is recorded in aiMeta.skipped and the clip
 // renders the way it would have without it.
 
+import type { ReframeAspect } from "@/lib/reframe";
 import { logger } from "@/lib/logger";
 import { classifySource } from "@/lib/source-url";
 import type { WordTiming } from "@/utils/elevenlabs";
@@ -26,7 +27,7 @@ import { resolveClipBroll, type BrollRequest, type BrollRunContext, type BrollWi
 import type { AiMeta, SceneShot, SubjectTrack } from "@/lib/autoclip-ai/types";
 import type { AiReframeInput } from "@/lib/autoclip-ai/reframe-ai";
 
-type Aspect = "9:16" | "16:9" | "1:1";
+type Aspect = ReframeAspect;
 
 export interface AiClipInput {
   index: number;

@@ -86,3 +86,34 @@ export function recommendCaptionPositionY(
 function clamp(y: number): number {
   return Math.round(Math.min(MAX_Y, Math.max(MIN_Y, y)));
 }
+
+/** The stored-crop shapes this needs, without importing lib/reframe (client-safe). */
+export type CaptionLayout =
+  | { mode: "single" }
+  | { mode: "split"; topFrac?: number }
+  | { mode: "fit" }
+  | { mode: "pip" };
+
+/**
+ * Caption height for a clip's actual layout. Face positions are measured on
+ * the SOURCE frame, which is only where they appear in the output when the
+ * crop keeps the full height (a single pan). A split stacks two crops, so a
+ * face's source height says nothing about where it lands: there the seam
+ * between the panels is the one place clear of both faces. Full frame shows
+ * the picture as a band across the middle, so captions go just below it.
+ */
+export function recommendCaptionPositionYForLayout(
+  layout: CaptionLayout | null | undefined,
+  faces: FacePosition[] | null | undefined,
+  window: { startSec: number; endSec: number },
+  frame?: { srcW: number; srcH: number; outW: number; outH: number },
+): number {
+  if (layout?.mode === "split") return clamp((layout.topFrac ?? 0.5) * 100);
+  if (layout?.mode === "fit" && frame && frame.srcW > 0 && frame.srcH > 0) {
+    const scale = Math.min(frame.outW / frame.srcW, frame.outH / frame.srcH);
+    const pictureBottom = 50 + ((frame.srcH * scale) / frame.outH) * 50;
+    // A picture that fills the height leaves no band below it: keep the face rule.
+    if (pictureBottom + GAP <= MAX_Y) return clamp(pictureBottom + GAP);
+  }
+  return recommendCaptionPositionY(faces, window);
+}

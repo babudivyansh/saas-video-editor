@@ -131,7 +131,7 @@ function DownloadLink({ href, pending, className, children }: { href: string; pe
   return <a href={href} download className={className}>{children}</a>;
 }
 
-const ASPECT_NAMES: Record<string, string> = { "9:16": "9:16 vertical", "16:9": "16:9 landscape", "1:1": "1:1 square" };
+const ASPECT_NAMES: Record<string, string> = { "9:16": "9:16 vertical", "16:9": "16:9 landscape", "1:1": "1:1 square", "4:5": "4:5 portrait" };
 
 /**
  * The "More" tab: Transcript, Related and Publish in a menu, so the tab row

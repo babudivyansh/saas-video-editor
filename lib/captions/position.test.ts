@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { recommendCaptionPositionY, DEFAULT_CAPTION_POSITION_Y } from "./position";
+import { recommendCaptionPositionY, recommendCaptionPositionYForLayout, DEFAULT_CAPTION_POSITION_Y } from "./position";
 
 const face = (tSec: number, y: number, h: number) => ({ tSec, y, h });
 
@@ -72,5 +72,29 @@ describe("recommendCaptionPositionY", () => {
     const y = recommendCaptionPositionY([{ tSec: 1, y: NaN, h: 0.3 }, face(2, 0.4, 0.3)]);
     expect(Number.isFinite(y)).toBe(true);
     expect(y).toBe(78);
+  });
+});
+
+describe("recommendCaptionPositionYForLayout", () => {
+  const win = { startSec: 0, endSec: 10 };
+  // A face low in the source frame: the single-crop rule moves captions above it.
+  const lowFace = [{ tSec: 5, y: 0.55, h: 0.3 }];
+  const frame = { srcW: 1280, srcH: 720, outW: 1080, outH: 1920 };
+
+  it("puts captions on the seam of a split, not where the source face height says", () => {
+    expect(recommendCaptionPositionYForLayout({ mode: "split" }, lowFace, win, frame)).toBe(50);
+    expect(recommendCaptionPositionYForLayout({ mode: "split", topFrac: 1 / 3 }, lowFace, win, frame)).toBe(33);
+  });
+
+  it("puts captions just below the picture band in full frame", () => {
+    // 16:9 in 9:16: the picture is 31.6% of the height, centred: bottom at ~65.8%.
+    const y = recommendCaptionPositionYForLayout({ mode: "fit" }, lowFace, win, frame);
+    expect(y).toBeGreaterThanOrEqual(66);
+    expect(y).toBeLessThanOrEqual(80);
+  });
+
+  it("keeps the face rule for a single crop and when nothing is known", () => {
+    expect(recommendCaptionPositionYForLayout({ mode: "single" }, lowFace, win, frame)).toBe(recommendCaptionPositionY(lowFace, win));
+    expect(recommendCaptionPositionYForLayout(null, null, win)).toBe(DEFAULT_CAPTION_POSITION_Y);
   });
 });
