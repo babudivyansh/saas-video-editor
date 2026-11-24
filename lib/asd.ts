@@ -12,7 +12,8 @@
 //
 // Everything here is best-effort and degrades in three steps:
 //   ASD (GPU)  ->  Rekognition (AWS, only if gpu_routing.rekognitionFallback)
-//              ->  []  (static centre crop)
+//              ->  Gemini on sampled frames (needs the local source file)
+//              ->  []  (static centre crop, `failure` set)
 // which is the same contract lib/reframe.ts already documents for Rekognition
 // alone, just with one more rung on top.
 
@@ -20,6 +21,7 @@ import { runAsd, GpuServiceError } from "@/lib/gpu-service";
 import { shouldUseAsd, shouldUseRekognitionFallback } from "@/lib/render-target";
 import { detectFaceTimeline, type FaceBox, type FaceTimelineResult } from "@/lib/reframe";
 import { classifySource } from "@/lib/source-url";
+import { detectFacesWithGemini } from "@/lib/face-detect-gemini";
 import { logger } from "@/lib/logger";
 
 /**
@@ -56,7 +58,15 @@ export function asdTracksToFaceBoxes(result: {
  * renderer uses a static centre crop, which is a visual downgrade, never an
  * error.
  */
-export async function getFaceTimeline(userId: string, videoUrl: string): Promise<FaceTimelineResult> {
+export async function getFaceTimeline(
+  userId: string,
+  videoUrl: string,
+  /**
+   * The already-downloaded (ownership-checked) source, for the Gemini rung.
+   * Without it there is no rung below Rekognition.
+   */
+  local?: { path: string; durationSec: number },
+): Promise<FaceTimelineResult> {
   // ── AUTHORIZATION GATE ─────────────────────────────────────────────────────
   // This must stand on its own. Both steps below spend Clipiro's credentials on
   // whatever object `videoUrl` names — ASD by minting a presigned GET,
@@ -105,14 +115,27 @@ export async function getFaceTimeline(userId: string, videoUrl: string): Promise
   // Rekognition is NOT cheap: it bills $0.10 per minute of the whole source,
   // ~9x the rest of an AutoClip run combined. It runs only when an admin has
   // turned the fallback on (gpu_routing.rekognitionFallback); otherwise the
-  // renderer uses the static centre crop.
-  if (!(await shouldUseRekognitionFallback())) return { boxes: [], failure: "unconfigured" };
+  // Gemini rung below runs, and the centre crop only when that fails too.
+  //
   // Rekognition reads the object with OUR IAM credentials, so it runs only for
   // media we have proven the user owns. An external URL is not a Rekognition
   // input in the first place (the job takes an S3 object in our own account),
   // so skipping it changes no working behaviour — it just stops us handing an
   // attacker-influenced bucket/key pair to AWS on our own credentials.
-  if (source.kind !== "owned") return { boxes: [], failure: "unconfigured" };
-  return detectFaceTimeline(videoUrl);
+  let last: FaceTimelineResult = { boxes: [], failure: "unconfigured" };
+  if (source.kind === "owned" && (await shouldUseRekognitionFallback())) {
+    last = await detectFaceTimeline(videoUrl);
+    if (!last.failure) return last;
+  }
+  // Gemini on sampled frames of the local copy. Production runs with neither
+  // of the rungs above configured, which made every AutoClip run a centre
+  // crop with `reframe_failed` (2026-11). The file was downloaded through the
+  // ownership-checked path, and the gate above already refused foreign media.
+  if (local) {
+    const gemini = await detectFacesWithGemini(local.path, local.durationSec);
+    if (!gemini.failure) return gemini;
+    last = gemini;
+  }
+  return last;
 }
 

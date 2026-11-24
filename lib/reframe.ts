@@ -89,6 +89,7 @@ const POLL_INTERVAL_MS = 3000;
 import { parseS3Url } from "@/lib/s3-url";
 export { parseS3Url };
 import { SPEAKER_MODES, type FacecamBox, type SpeakerMode } from "@/lib/speaker-modes";
+import { coverageBucketSec } from "@/lib/scene-layout";
 
 // Runs AWS Rekognition Video face detection for the whole source video and
 // returns every detected face sample. Requires the IAM credentials already
@@ -801,9 +802,10 @@ export function computeMultiSpeakerKeyframes(
   if (rightAvg - leftAvg < MIN_SEPARATION_FRAC) return null; // one person moving around, not two people
 
   const duration = clipEndSec - clipStartSec;
-  const bucketCount = Math.max(1, Math.ceil(duration / BUCKET_SEC));
-  const leftBuckets = new Set(left.map((f) => Math.floor(f.tSec / BUCKET_SEC)));
-  const rightBuckets = new Set(right.map((f) => Math.floor(f.tSec / BUCKET_SEC)));
+  const step = coverageBucketSec(inWindow);
+  const bucketCount = Math.max(1, Math.ceil(duration / step));
+  const leftBuckets = new Set(left.map((f) => Math.floor(f.tSec / step)));
+  const rightBuckets = new Set(right.map((f) => Math.floor(f.tSec / step)));
   if (leftBuckets.size / bucketCount < MIN_DUAL_COVERAGE || rightBuckets.size / bucketCount < MIN_DUAL_COVERAGE) {
     return null; // one side isn't consistently present — not a real two-speaker scene
   }
@@ -1067,12 +1069,15 @@ export function windowAround(
   };
 }
 
-/** The webcam region implied by a steady face, or null without one. */
-export function facecamFromFaces(
+/**
+ * The median box of the face that stays on screen through the clip (present
+ * in at least MIN_FACECAM_COVERAGE of it), or null without one.
+ */
+export function steadyFace(
   allFaces: FaceBox[],
   clipStartSec: number,
   clipEndSec: number,
-): FacecamBox | null {
+): { x: number; y: number; w: number; h: number } | null {
   if (clipEndSec <= clipStartSec) return null;
   const duration = clipEndSec - clipStartSec;
   const inWindow = allFaces.filter(
@@ -1090,26 +1095,59 @@ export function facecamFromFaces(
     if (arr) arr.push(f); else byTrack.set(key, [f]);
   }
   const cam = [...byTrack.values()].sort((p, q) => q.length - p.length)[0];
-  const bucketCount = Math.max(1, Math.ceil(duration / BUCKET_SEC));
-  const covered = new Set(cam.map((f) => Math.floor((f.tSec - clipStartSec) / BUCKET_SEC))).size;
+  const step = coverageBucketSec(allFaces);
+  const bucketCount = Math.max(1, Math.ceil(duration / step));
+  const covered = new Set(cam.map((f) => Math.floor((f.tSec - clipStartSec) / step))).size;
   if (covered / bucketCount < MIN_FACECAM_COVERAGE) return null;
 
   const median = (xs: number[]) => {
     const s = [...xs].sort((a, b) => a - b);
     return s[Math.floor(s.length / 2)];
   };
-  const cx = median(cam.map((f) => f.x + f.w / 2));
-  const cy = median(cam.map((f) => f.y + f.h / 2));
-  const faceH = median(cam.map((f) => f.h));
+  const fw = median(cam.map((f) => f.w));
+  const fh = median(cam.map((f) => f.h));
+  return {
+    x: median(cam.map((f) => f.x + f.w / 2)) - fw / 2,
+    y: median(cam.map((f) => f.y + f.h / 2)) - fh / 2,
+    w: fw, h: fh,
+  };
+}
+
+/** The webcam region implied by a steady face, or null without one. */
+export function facecamFromFaces(
+  allFaces: FaceBox[],
+  clipStartSec: number,
+  clipEndSec: number,
+): FacecamBox | null {
+  const face = steadyFace(allFaces, clipStartSec, clipEndSec);
+  if (!face) return null;
+  const cx = face.x + face.w / 2;
+  const cy = face.y + face.h / 2;
   // Head and shoulders: the overlay is a few face-heights tall. Its width is
   // left to the panel's shape (windowAround widens it).
-  const h = Math.min(1, faceH * FACECAM_HEIGHT_IN_FACES);
-  const w = Math.min(1, median(cam.map((f) => f.w)));
+  const h = Math.min(1, face.h * FACECAM_HEIGHT_IN_FACES);
+  const w = Math.min(1, face.w);
   return {
     x: Math.min(1 - w, Math.max(0, cx - w / 2)),
     y: Math.min(1 - h, Math.max(0, cy - h / 2)),
     w, h,
   };
+}
+
+/**
+ * Whether a steady face (steadyFace's box) is a webcam overlay rather
+ * than a person on camera: small, and tucked into a corner of the frame. A
+ * presenter or podcast guest fills far more of the frame and sits nearer the
+ * middle; a stream's webcam is a small inset in a corner. Auto mode uses it to
+ * give gameplay-with-facecam the stacked layout without the user picking it.
+ */
+export function isCornerFacecam(face: { x: number; y: number; w: number; h: number }): boolean {
+  // Measured on a real stream (2026-11 demo): a webcam face 0.23 of the frame
+  // tall, centred at (0.83, 0.19). A close-up presenter is taller than this
+  // cap; a rule-of-thirds presenter sits inside the corner bounds.
+  if (face.h >= 0.3) return false;
+  const cx = face.x + face.w / 2, cy = face.y + face.h / 2;
+  return (cx < 0.25 || cx > 0.75) && (cy < 0.28 || cy > 0.72);
 }
 
 /**
