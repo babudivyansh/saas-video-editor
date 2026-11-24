@@ -9,7 +9,7 @@ import { useMenuNav } from "@/app/components/ui/useMenuNav";
 import { LiteEditTab, toLiteEdits, type LiteEdits } from "@/app/components/auto-clip/LiteEditTab";
 import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
 import { ClipCaptionPreview } from "@/app/components/auto-clip/ClipCaptionPreview";
-import { fmtStamp, groupTranscriptLines, mediaPath, rebaseWords, renderWaitReducer, rerenderPriceLabel, type CropKeyframe } from "@/app/components/auto-clip/clipPanelLogic";
+import { fmtStamp, groupTranscriptLines, mediaPath, previewKeyframes, rebaseWords, renderWaitReducer, rerenderPriceLabel } from "@/app/components/auto-clip/clipPanelLogic";
 import { CaptionTemplatePicker, CaptionTweakControls, TranslateCaptions } from "@/app/components/auto-clip/CaptionTemplatePicker";
 import { resolveCaptionTemplate, resolveTemplateId } from "@clipiro/shared/caption-templates";
 import { templateIdForIndex } from "@/lib/captions/legacyStyleIndex";
@@ -19,7 +19,9 @@ import { RelatedRail, RelatedList, RelatedEmpty, RelatedLoading, SourceWindowBar
 import type { ClipRelated } from "@/lib/related-content";
 import { IcChevronLeft, IcChevronRight, IcPlay, apiFetch, ClipItem, ScoreBreakdownWithInsights, InsightRow, scoreBand, arCss, ASPECTS } from "./shared";
 import { EditInEditorButton, DubPanel, PublishPanel } from "./ClipActions";
-import type { SpeakerMode } from "@/lib/speaker-modes";
+import { layoutTemplateFor, usesFacecam, type FacecamBox, type SpeakerMode } from "@/lib/speaker-modes";
+import { LayoutGlyph } from "@/app/components/auto-clip/LayoutTemplatePicker";
+import { FacecamBoxPicker } from "@/app/components/auto-clip/FacecamBoxPicker";
 
 export type WorkspaceTab = "edit" | "captions" | "reframe" | "insights" | "transcript" | "publish" | "related";
 
@@ -131,20 +133,6 @@ function DownloadLink({ href, pending, className, children }: { href: string; pe
 
 const ASPECT_NAMES: Record<string, string> = { "9:16": "9:16 vertical", "16:9": "16:9 landscape", "1:1": "1:1 square" };
 
-/** A small drawing of each speaker layout, so the choice reads without the docs. */
-function SpeakerGlyph({ mode, on }: { mode: SpeakerMode; on: boolean }) {
-  const block = `flex-1 rounded-sm ${on ? "bg-emerald-bright/40" : "bg-surface-3"}`;
-  return (
-    <span aria-hidden className="relative flex h-10 flex-col gap-0.5 rounded-md bg-panel p-1">
-      {mode === "auto" && <span className={`flex flex-1 items-center justify-center text-[10px] font-bold ${on ? "text-emerald-bright" : "text-fg-muted"}`}>AI picks</span>}
-      {mode === "single" && <span className={block} />}
-      {mode === "split" && <><span className={block} /><span className={block} /></>}
-      {mode === "active" && <><span className={block} /><span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-warning" /></>}
-      {mode === "gaming" && <><span className="flex-[0.6] rounded-sm bg-fg-subtle" /><span className={block} /></>}
-    </span>
-  );
-}
-
 /**
  * The "More" tab: Transcript, Related and Publish in a menu, so the tab row
  * is one line instead of wrapping to two. When one of them is open it takes
@@ -214,10 +202,12 @@ function MoreTabsMenu({ items, active, onPick }: {
 
 // ── Clip Workspace (ready clips) — full-screen, video hero + contextual tools ─
 export function ClipWorkspace({
-  projectId, clip, transcriptionFailed, initialTab, expandOrigin,
+  projectId, clip, transcriptionFailed, faceTrackingUnavailable = false, initialTab, expandOrigin,
   index, total, onPrev, onNext, onClose, onChanged, onOpenSibling, siblingClipIds = [],
 }: {
   projectId: string; clip: ClipItem; transcriptionFailed: boolean;
+  /** No face timeline for this video: tracked layouts fall back to a centre crop. */
+  faceTrackingUnavailable?: boolean;
   initialTab: WorkspaceTab; expandOrigin: string;
   index: number; total: number;
   onPrev: () => void; onNext: () => void;
@@ -375,6 +365,7 @@ export function ClipWorkspace({
     // Clips made before the setting existed used the smooth zoom.
     zoomStyle: storedZoomStyle(silence.zoomStyle) as string,
     speakerMode: (silence.speakerMode as string) ?? "auto",
+    facecamBox: (silence.facecamBox as FacecamBox | null | undefined) ?? null,
     smoothness: (silence.smoothness as number) ?? 50,
     trackingSpeed: (silence.trackingSpeed as number) ?? 50,
   };
@@ -396,7 +387,7 @@ export function ClipWorkspace({
     queryKey: ["auto-clip-transcript", projectId, clip.id],
     queryFn: () => apiFetch<{
       project?: { uploadedVideoUrl: string | null };
-      detail?: { transcriptJson: WordTimingInfo[] | null; cropKeyframes: CropKeyframe[] | null; rerenderCost: number };
+      detail?: { transcriptJson: WordTimingInfo[] | null; cropKeyframes: unknown; rerenderCost: number };
     }>(`/api/projects/${projectId}/clips?clipId=${encodeURIComponent(clip.id)}`),
   });
   const detail = transcriptQuery.data?.detail;
@@ -660,7 +651,7 @@ export function ClipWorkspace({
                     startSec={trimStartAbs}
                     endSec={trimEndAbs}
                     aspectCss={arCss(aspectDraft)}
-                    cropKeyframes={aspectDirty || trimDraft ? null : detail?.cropKeyframes ?? null}
+                    cropKeyframes={aspectDirty || trimDraft ? null : previewKeyframes(detail?.cropKeyframes)}
                     words={localWords}
                     template={template}
                     captionsOn={captionsOn}
@@ -820,19 +811,34 @@ export function ClipWorkspace({
                     />
                     {reframe.smartAutoReframe && (
                       <>
-                        <PanelSection title="Who's on screen" summary={SPEAKER_MODES.find((m) => m.value === reframe.speakerMode)?.label} {...rfSec("speakers")}>
-                          <div role="radiogroup" aria-label="Speaker mode" className="grid grid-cols-3 gap-2">
+                        <PanelSection title="Layout" summary={SPEAKER_MODES.find((m) => m.value === reframe.speakerMode)?.label} {...rfSec("speakers")}>
+                          <div role="radiogroup" aria-label="Layout" className="grid grid-cols-3 gap-2">
                             {SPEAKER_MODES.map((m) => {
                               const on = reframe.speakerMode === m.value;
                               return (
-                                <button key={m.value} type="button" role="radio" aria-checked={on} onClick={() => { if (!on) reframeSetter("speakerMode")(m.value); }}
-                                  className={`flex flex-col gap-1.5 rounded-xl border p-2 text-left transition-colors ${on ? "border-tint-emerald-border bg-tint-emerald" : "border-line bg-bg hover:border-line-strong"}`}>
-                                  <SpeakerGlyph mode={m.value} on={on} />
-                                  <span className={`text-[12px] font-semibold ${on ? "text-emerald-bright" : "text-fg"}`}>{m.label}</span>
+                                <button key={m.value} type="button" role="radio" aria-checked={on} title={layoutTemplateFor(m.value).hint} onClick={() => { if (!on) reframeSetter("speakerMode")(m.value); }}
+                                  className={`flex flex-col items-center gap-1.5 rounded-xl border p-2 text-center transition-colors ${on ? "border-tint-emerald-border bg-tint-emerald" : "border-line bg-bg hover:border-line-strong"}`}>
+                                  <LayoutGlyph mode={m.value} on={on} />
+                                  <span className={`text-[12px] font-semibold leading-tight ${on ? "text-emerald-bright" : "text-fg"}`}>{m.label}</span>
                                 </button>
                               );
                             })}
                           </div>
+                          <p className="text-[12px] text-fg-muted">{layoutTemplateFor(reframe.speakerMode as SpeakerMode).hint}</p>
+                          {faceTrackingUnavailable && !layoutTemplateFor(reframe.speakerMode as SpeakerMode).noTracking && (
+                            <p role="note" className="rounded-lg border border-warning/40 bg-tint-amber px-3 py-2 text-[12px] text-fg">
+                              Face tracking didn&apos;t run on this video, so this layout shows the centre of the frame.
+                              Split screen, the gaming layouts and Full frame work without it.
+                            </p>
+                          )}
+                          {usesFacecam(reframe.speakerMode as SpeakerMode) && (
+                            <FacecamBoxPicker
+                              videoUrl={sourceUrl}
+                              value={reframe.facecamBox}
+                              onChange={reframeSetter("facecamBox")}
+                              seekSec={clip.startSec + 1}
+                            />
+                          )}
                         </PanelSection>
                         <PanelSection
                           title="Camera feel"

@@ -5,6 +5,7 @@ import { env } from "@/lib/env";
 import { withAdmin, parseBody } from "@/lib/admin/api";
 import { auditAdminAction, auditIp } from "@/lib/admin/audit";
 import { isGpuConfigured } from "@/lib/gpu-service";
+import { getFaceTrackingStatus } from "@/lib/render-target";
 import {
   AUTOCLIP_AI_DEFAULTS, CONFIG_KEY, deepMergeConfig, getAutoClipAiConfig, mergeAutoClipAiConfig, type AutoClipAiConfig,
 } from "@/lib/autoclip-ai/config";
@@ -36,7 +37,7 @@ function keyStatus() {
 
 export const GET = withAdmin(async () => {
   const config = await getAutoClipAiConfig();
-  return NextResponse.json({ config, defaults: AUTOCLIP_AI_DEFAULTS, keys: keyStatus() });
+  return NextResponse.json({ config, defaults: AUTOCLIP_AI_DEFAULTS, keys: keyStatus(), faceTracking: await getFaceTrackingStatus() });
 });
 
 export const PATCH = withAdmin(async (req, { admin }) => {

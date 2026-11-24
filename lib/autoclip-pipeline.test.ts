@@ -545,3 +545,72 @@ withFfmpeg("SOURCE_AUDIO_MAP — a source with an undecodable second audio track
     }
   });
 });
+
+describe("computeClipCrop — layout templates", () => {
+  const seg = { start: 10, end: 30, mood: "neutral" } as unknown as Parameters<typeof import("./autoclip-pipeline").computeClipCrop>[1];
+  const cam = { x: 0.02, y: 0.02, w: 0.24, h: 0.3 };
+  // A steady webcam face in the bottom-right for the whole clip.
+  const camFaces = Array.from({ length: 41 }, (_, i) => ({ tSec: 10 + i * 0.5, x: 0.85, y: 0.75, w: 0.06, h: 0.1, confidence: 97 }));
+
+  it("Full frame needs no faces", async () => {
+    const { computeClipCrop } = await import("./autoclip-pipeline");
+    expect(computeClipCrop([], seg, "9:16", 1920, 1080, { speakerMode: "fit" }, null)).toEqual({ mode: "fit" });
+  });
+
+  it("gaming uses a hand-placed box with no face tracking", async () => {
+    const { computeClipCrop } = await import("./autoclip-pipeline");
+    const crop = computeClipCrop([], seg, "9:16", 1920, 1080, { speakerMode: "gaming", facecamBox: cam }, null);
+    expect(crop?.mode).toBe("split");
+    if (crop?.mode !== "split") return;
+    expect(crop.topFrac).toBeCloseTo(1 / 3, 5);
+    expect(crop.a[0].x).toBeLessThan(0.1);
+  });
+
+  it("the hand-placed box wins over a tracked face", async () => {
+    const { computeClipCrop } = await import("./autoclip-pipeline");
+    const crop = computeClipCrop(camFaces, seg, "9:16", 1920, 1080, { speakerMode: "gaming", facecamBox: cam }, null);
+    if (crop?.mode !== "split") throw new Error("expected split");
+    expect(crop.a[0].x).toBeLessThan(0.1);
+  });
+
+  it("gaming finds the webcam from face tracking when no box was placed", async () => {
+    const { computeClipCrop } = await import("./autoclip-pipeline");
+    const crop = computeClipCrop(camFaces, seg, "9:16", 1920, 1080, { speakerMode: "gaming" }, null);
+    if (crop?.mode !== "split") throw new Error("expected split");
+    expect(crop.a[0].x + crop.a[0].w).toBeGreaterThan(0.85);
+  });
+
+  it("gaming with no box and no faces shows the whole gameplay, not a centre crop", async () => {
+    const { computeClipCrop } = await import("./autoclip-pipeline");
+    expect(computeClipCrop([], seg, "9:16", 1920, 1080, { speakerMode: "gaming" }, null)).toEqual({ mode: "fit" });
+    expect(computeClipCrop([], seg, "9:16", 1920, 1080, { speakerMode: "gaming_pip" }, null)).toEqual({ mode: "fit" });
+    expect(computeClipCrop([], seg, "16:9", 1920, 1080, { speakerMode: "gaming", facecamBox: cam }, null)).toEqual({ mode: "fit" });
+  });
+
+  it("gaming picture-in-picture from a box", async () => {
+    const { computeClipCrop } = await import("./autoclip-pipeline");
+    const crop = computeClipCrop([], seg, "9:16", 1920, 1080, { speakerMode: "gaming_pip", facecamBox: cam }, null);
+    expect(crop?.mode).toBe("pip");
+  });
+
+  it("split without face tracking is the two-camera shot, left over right", async () => {
+    const { computeClipCrop } = await import("./autoclip-pipeline");
+    const crop = computeClipCrop([], seg, "9:16", 1920, 1080, { speakerMode: "split" }, null);
+    if (crop?.mode !== "split") throw new Error("expected split");
+    expect(crop.a[0].x + crop.a[0].w).toBeLessThanOrEqual(0.5 + 1e-9);
+    expect(crop.b[0].x).toBeGreaterThanOrEqual(0.5 - 1e-9);
+  });
+
+  it("a gaming layout takes Gemini's facecam box when none was placed", async () => {
+    const { computeClipCrop } = await import("./autoclip-pipeline");
+    const crop = computeClipCrop([], seg, "9:16", 1920, 1080, { speakerMode: "gaming" }, {
+      features: { sceneVision: true },
+      shots: [],
+      scenes: [{ startSec: 0, endSec: 20, type: "gameplay_facecam", confidence: 90, facecamBox: { x: 0.7, y: 0.05, w: 0.25, h: 0.3 } }],
+      tracks: null,
+      planLayout: null,
+    } as unknown as Parameters<typeof computeClipCrop>[6]);
+    if (crop?.mode !== "split") throw new Error("expected split");
+    expect(crop.a[0].x).toBeGreaterThan(0.6);
+  });
+});

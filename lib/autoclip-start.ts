@@ -34,6 +34,7 @@ import { resolveCaptionTemplate, templateTierAllowed } from "@/lib/caption-templ
 import { getToolConfig } from "@/lib/tool-config";
 import { logger } from "@/lib/logger";
 import { parseAutoClipCreate } from "@/lib/autoclip-create-input";
+import { sanitizeFacecamBox } from "@/lib/speaker-modes";
 
 // createRenderQueue caches by name, so every caller shares one queue/worker.
 const pickQueue = createRenderQueue<PickPayload>("auto-clip-pick", pickJob);
@@ -133,6 +134,9 @@ export async function startAutoClipRun(userId: string, rawBody: unknown): Promis
     smartAutoReframe: input.smartAutoReframe !== false,
     zoomStrength: sanitizeReframeEnum(input.zoomStrength, ZOOM_STRENGTHS) ?? "medium",
     speakerMode: sanitizeReframeEnum(input.speakerMode, SPEAKER_MODES) ?? "auto",
+    // Only meaningful for the gaming layouts; anything malformed is dropped
+    // (the layout then finds the webcam itself, or shows the full frame).
+    facecamBox: sanitizeFacecamBox(input.facecamBox),
     smoothness: sanitizeReframePercent(input.smoothness) ?? 50,
     trackingSpeed: sanitizeReframePercent(input.trackingSpeed) ?? 50,
     animatedCaptions: input.animatedCaptions,

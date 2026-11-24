@@ -21,6 +21,17 @@ import {
   SPLIT_HALF,
   type CropKeyframe,
   type FaceBox,
+  stackPanelSizes,
+  GAMING_TOP_FRAC,
+  gamingLayoutFromCam,
+  pipLayoutFromCam,
+  fixedSplitLayout,
+  windowAround,
+  buildFitFilterComplex,
+  buildPipFilterComplex,
+  buildLayoutFilterComplex,
+  mapStoredCropKeyframes,
+  type StoredCrop,
 } from "./reframe";
 
 /** Rendered shape of a crop window on a srcW x srcH source. */
@@ -256,7 +267,7 @@ describe("computeGamingKeyframes", () => {
     return faces;
   }
 
-  it("puts the webcam on top and the centre of the gameplay below, both 9:8", () => {
+  it("puts the webcam on top (a third) and the centre of the gameplay below (two thirds)", () => {
     const g = computeGamingKeyframes(facecamStream(30), 0, 30, 1920, 1080)!;
     expect(g).not.toBeNull();
     const [top] = g.a;
@@ -271,7 +282,11 @@ describe("computeGamingKeyframes", () => {
     // Bottom is the full-height centre of the frame.
     expect(bottom.h).toBe(1);
     expect(bottom.x + bottom.w / 2).toBeCloseTo(0.5, 5);
-    for (const k of [top, bottom]) expect(shape(k, 1920, 1080)).toBeCloseTo(HALF_SHAPE, 5);
+    const sizes = stackPanelSizes(GAMING_TOP_FRAC);
+    expect(sizes.top.h + sizes.bottom.h).toBe(1920);
+    expect(g.topFrac).toBeCloseTo(1 / 3, 5);
+    expect(shape(top, 1920, 1080)).toBeCloseTo(sizes.top.w / sizes.top.h, 5);
+    expect(shape(bottom, 1920, 1080)).toBeCloseTo(sizes.bottom.w / sizes.bottom.h, 5);
   });
 
   it("keeps both crops inside the frame when the webcam is in a corner", () => {
@@ -324,5 +339,108 @@ describe("computeGamingKeyframes", () => {
     const npc: FaceBox[] = [{ tSec: 3, x: 0.5, y: 0.3, w: 0.08, h: 0.14, confidence: 99, trackId: "npc" }];
     const g = computeGamingKeyframes([...cam, ...npc], 0, 10, 1920, 1080)!;
     expect(g.a[0].x).toBeLessThan(0.2);
+  });
+});
+
+describe("layout templates that need no face tracking", () => {
+  const inside = (k: { x: number; y: number; w: number; h: number }) => {
+    expect(k.x).toBeGreaterThanOrEqual(-1e-9);
+    expect(k.y).toBeGreaterThanOrEqual(-1e-9);
+    expect(k.x + k.w).toBeLessThanOrEqual(1 + 1e-9);
+    expect(k.y + k.h).toBeLessThanOrEqual(1 + 1e-9);
+  };
+
+  it("windowAround contains the box, has the panel's shape and stays in frame", () => {
+    const box = { x: 0.8, y: 0.75, w: 0.18, h: 0.22 };
+    const win = windowAround(box, 1080, 640, 1920, 1080);
+    inside(win);
+    expect((win.w * 1920) / (win.h * 1080)).toBeCloseTo(1080 / 640, 5);
+    expect(win.x).toBeLessThanOrEqual(box.x + 1e-9);
+    expect(win.x + win.w).toBeGreaterThanOrEqual(box.x + box.w - 1e-9);
+  });
+
+  it("gaming from a hand-placed box: facecam a third, gameplay two thirds, held", () => {
+    const g = gamingLayoutFromCam({ x: 0.02, y: 0.02, w: 0.24, h: 0.3 }, 1920, 1080, 12)!;
+    expect(g.mode).toBe("split");
+    if (g.mode !== "split") return;
+    expect(g.topFrac).toBeCloseTo(1 / 3, 5);
+    for (const k of [...g.a, ...g.b]) inside(k);
+    expect(g.a.length).toBeGreaterThanOrEqual(12);
+    const fc = buildLayoutFilterComplex(g, "9:16", null, "[0:v]")!;
+    expect(fc).toContain("scale=1080:640");
+    expect(fc).toContain("scale=1080:1280");
+    expect(fc).toContain("vstack=inputs=2[video]");
+  });
+
+  it("gaming returns null for a portrait source", () => {
+    expect(gamingLayoutFromCam({ x: 0, y: 0, w: 0.3, h: 0.2 }, 1080, 1920, 10)).toBeNull();
+  });
+
+  it("picture-in-picture: gameplay fills 9:16, the webcam sits on its own side", () => {
+    const left = pipLayoutFromCam({ x: 0.02, y: 0.7, w: 0.22, h: 0.28 }, 1920, 1080, 8)!;
+    const right = pipLayoutFromCam({ x: 0.76, y: 0.02, w: 0.22, h: 0.28 }, 1920, 1080, 8)!;
+    expect(left.mode).toBe("pip");
+    if (left.mode !== "pip" || right.mode !== "pip") return;
+    expect(left.side).toBe("left");
+    expect(right.side).toBe("right");
+    expect(shape(left.main[0], 1920, 1080)).toBeCloseTo(9 / 16, 5);
+    expect(shape(left.cam[0], 1920, 1080)).toBeCloseTo(left.size.w / left.size.h, 2);
+    for (const k of [...left.cam, ...right.cam]) inside(k);
+    expect(left.size.w % 2).toBe(0);
+    expect(left.size.h % 2).toBe(0);
+    const fc = buildPipFilterComplex(right.main, right.cam, right.side, right.size, "eq=saturation=1.1", "[trimmedv]");
+    expect(fc.startsWith("[trimmedv]split=2")).toBe(true);
+    expect(fc).toContain("overlay=");
+    expect(fc).toContain("eq=saturation=1.1[video]");
+  });
+
+  it("fixed split: left half on top, right half below, each inside its own half", () => {
+    const f = fixedSplitLayout(1920, 1080, 10)!;
+    expect(f.mode).toBe("split");
+    if (f.mode !== "split") return;
+    const [top] = f.a, [bottom] = f.b;
+    expect(top.x + top.w).toBeLessThanOrEqual(0.5 + 1e-9);
+    expect(bottom.x).toBeGreaterThanOrEqual(0.5 - 1e-9);
+    expect(shape(top, 1920, 1080)).toBeCloseTo(HALF_SHAPE, 5);
+    expect(f.topFrac).toBeUndefined();
+  });
+
+  it("fixed split refuses a source too narrow for two side-by-side windows", () => {
+    expect(fixedSplitLayout(1080, 1080, 10)).toBeNull();
+  });
+
+  it("full frame: blurred fill behind the whole shot, even sizes, mood after the overlay", () => {
+    const fc = buildFitFilterComplex("9:16", "eq=contrast=1.1", "[cappedv]");
+    expect(fc.startsWith("[cappedv]split=2[fitbg][fitfg]")).toBe(true);
+    expect(fc).toContain("scale=270:480");
+    expect(fc).toContain("boxblur");
+    expect(fc).toContain("force_original_aspect_ratio=decrease");
+    expect(fc.endsWith("eq=contrast=1.1[video]")).toBe(true);
+    expect(buildLayoutFilterComplex({ mode: "fit" }, "1:1", null, "[0:v]")).toContain("scale=1080:1080");
+  });
+
+  it("single crops and emptied layouts keep the plain path", () => {
+    expect(buildLayoutFilterComplex(null, "9:16", null, "[0:v]")).toBeNull();
+    expect(buildLayoutFilterComplex({ mode: "single", keyframes: [] }, "9:16", null, "[0:v]")).toBeNull();
+    expect(buildLayoutFilterComplex({ mode: "split", a: [], b: [] }, "9:16", null, "[0:v]")).toBeNull();
+  });
+
+  it("mapStoredCropKeyframes shifts every list a layout owns and keeps its other fields", () => {
+    const g = gamingLayoutFromCam({ x: 0.02, y: 0.02, w: 0.24, h: 0.3 }, 1920, 1080, 4)!;
+    const shifted = mapStoredCropKeyframes(g, (kf) => kf.slice(1));
+    expect(shifted.mode).toBe("split");
+    if (shifted.mode !== "split" || g.mode !== "split") return;
+    expect(shifted.a.length).toBe(g.a.length - 1);
+    expect(shifted.topFrac).toBe(g.topFrac);
+    const fit: StoredCrop = { mode: "fit" };
+    expect(mapStoredCropKeyframes(fit, () => [])).toEqual(fit);
+  });
+
+  it("stackPanelSizes clamps silly shares and always fills 1920", () => {
+    for (const f of [0, 0.1, 0.5, 1 / 3, 0.9]) {
+      const z = stackPanelSizes(f);
+      expect(z.top.h + z.bottom.h).toBe(1920);
+      expect(z.top.h % 2).toBe(0);
+    }
   });
 });

@@ -92,7 +92,9 @@ export const autoClipSettingsSchema = z.object({
   smartAutoReframe: z.boolean().default(true),
   reframingPreset: z.enum(["balanced", "minimal", "dynamic", "cinematic"]).default("balanced"),
   zoomStrength: z.enum(["low", "medium", "high"]).default("medium"),
-  speakerMode: z.enum(["auto", "single", "split", "active"]).default("auto"),
+  // Mirrors SPEAKER_MODES in lib/speaker-modes.ts (this package can't import
+  // the web app). gaming / gaming_pip / fit work without face tracking.
+  speakerMode: z.enum(["auto", "single", "split", "active", "gaming", "gaming_pip", "fit"]).default("auto"),
   smoothness: z.number().int().min(0).max(100).default(50),
   trackingSpeed: z.number().int().min(0).max(100).default(50),
   removeSilence: z.boolean().default(false),

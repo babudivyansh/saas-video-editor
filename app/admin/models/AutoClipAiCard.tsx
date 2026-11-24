@@ -12,6 +12,7 @@ import { Checkbox } from "@/app/components/ui/Checkbox";
 import { useToast } from "@/app/components/ui/Toast";
 import { AI_FEATURES, type AiFeature, type AutoClipAiConfig } from "@/lib/autoclip-ai/config-shared";
 import { PLAN_NAME, TIER_ORDER, type TierId } from "@/lib/plans/tiers";
+import type { FaceTrackingStatus } from "@/lib/render-target";
 
 type Keys = Record<"gemini" | "fal" | "gpu", boolean>;
 
@@ -34,7 +35,7 @@ export function AutoClipAiCard({ headers }: { headers: () => Record<string, stri
     queryFn: async () => {
       const res = await fetch("/api/admin/autoclip-ai", { headers: headers() });
       if (!res.ok) throw new Error("Failed to load AutoClip AI settings");
-      return (await res.json()) as { config: AutoClipAiConfig; keys: Keys };
+      return (await res.json()) as { config: AutoClipAiConfig; keys: Keys; faceTracking?: FaceTrackingStatus };
     },
   });
   const save = useMutation({
@@ -47,7 +48,7 @@ export function AutoClipAiCard({ headers }: { headers: () => Record<string, stri
   });
 
   if (!data) return null;
-  const { config, keys } = data;
+  const { config, keys, faceTracking } = data;
   const missing = (k?: keyof Keys) => (k && !keys[k] ? ` (no ${k === "gpu" ? "GPU service" : `${k} key`} on this server)` : "");
 
   const toggleTier = (f: AiFeature, t: TierId, on: boolean) => {
@@ -62,6 +63,8 @@ export function AutoClipAiCard({ headers }: { headers: () => Record<string, stri
         Generated B-roll is on for every plan; every other feature is off until switched on here. Each runs only for the plans ticked. Changes apply to the next run, no deploy.
         Every step is best-effort: if one fails, the clip renders the way it did before.
       </p>
+
+      {faceTracking && <FaceTrackingPanel status={faceTracking} />}
 
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -123,6 +126,40 @@ export function AutoClipAiCard({ headers }: { headers: () => Record<string, stri
         ))}
       </div>
     </Card>
+  );
+}
+
+const SOURCE_TEXT: Record<FaceTrackingStatus["source"], string> = {
+  asd: "Active-speaker tracking on the GPU service",
+  rekognition: "AWS Rekognition ($0.10 per source minute)",
+  none: "None: tracked layouts show the centre of the frame",
+};
+
+/**
+ * Which face-tracking rung AutoClip runs on. Every speaker-following layout
+ * (Smart, Follow subject, Active speaker, two-face split) needs it; without it
+ * they all come out as a centre crop, which is what creators were seeing.
+ */
+function FaceTrackingPanel({ status }: { status: FaceTrackingStatus }) {
+  const ok = status.source === "asd";
+  const steps: string[] = [];
+  if (!status.gpuConfigured) steps.push("Deploy gpu-service/ on RunPod Serverless and set GPU_SERVICE_URL, GPU_SERVICE_TOKEN and GPU_SERVICE_API_KEY on the server (gpu-service/README.md).");
+  if (status.gpuConfigured && !status.gpuEnabled) steps.push("Turn on gpu_routing.enabled and the gpu_service flag.");
+  if (status.breakerOpen) steps.push("The GPU circuit breaker is open after repeated failures; check the service, it closes on its own.");
+  if (status.gpuConfigured && !status.asdEnabled) steps.push("Turn on gpu_routing.asdEnabled.");
+  return (
+    <div role="status" className={`mb-5 rounded-xl border px-4 py-3 text-sm ${ok ? "border-success/40 bg-success/10" : "border-warning/40 bg-tint-amber"}`}>
+      <p className="font-semibold text-fg">Face tracking: {SOURCE_TEXT[status.source]}</p>
+      {ok && <p className="mt-0.5 text-xs text-fg-muted">Runs for {status.asdTiers.map((t) => PLAN_NAME[t]).join(", ")}.</p>}
+      {!ok && steps.length > 0 && (
+        <ol className="mt-1.5 list-decimal space-y-0.5 pl-5 text-xs text-fg-muted">
+          {steps.map((s) => <li key={s}>{s}</li>)}
+        </ol>
+      )}
+      {!ok && (
+        <p className="mt-1.5 text-xs text-fg-muted">Split screen, both gaming layouts and Full frame work without it.</p>
+      )}
+    </div>
   );
 }
 

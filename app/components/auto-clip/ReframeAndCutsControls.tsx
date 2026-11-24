@@ -3,7 +3,7 @@
 // Cuts tab — previously two ~150-line copy-pasted JSX blocks with duplicated
 // state, kept here as one component so the two surfaces can't drift again.
 import { Switch } from "@/app/components/ui/Switch";
-import type { SpeakerMode } from "@/lib/speaker-modes";
+import { ALL_LAYOUT_TEMPLATES, type SpeakerMode } from "@/lib/speaker-modes";
 import type { ZoomStyle } from "@/lib/zoom-style";
 
 export type ZoomStrength = "low" | "medium" | "high";
@@ -24,11 +24,8 @@ export const ZOOM_STYLE_OPTIONS: { value: ZoomStyle; label: string; hint: string
   { value: "smooth", label: "Smooth", hint: "Slow push-ins when the delivery gets louder" },
 ];
 
-export const SPEAKER_MODES: { value: SpeakerMode; label: string }[] = [
-  { value: "auto", label: "Auto" }, { value: "single", label: "Single" },
-  { value: "split", label: "Split" }, { value: "active", label: "Active" },
-  { value: "gaming", label: "Gaming" },
-];
+export const SPEAKER_MODES: { value: SpeakerMode; label: string }[] =
+  ALL_LAYOUT_TEMPLATES.map((t) => ({ value: t.mode, label: t.label }));
 
 function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
@@ -84,6 +81,8 @@ export interface ReframeAndCutsSetters {
   setRemoveSilence: (v: boolean) => void;
   setSilenceThresholdMs: (v: number) => void;
   setRemoveFillers: (v: boolean) => void;
+  /** The create flow picks the layout on its own step, so it hides the chips here. */
+  hideSpeakerMode?: boolean;
   /** Optional: only surfaces that store a zoom style pass these. */
   zoomStyle?: ZoomStyle;
   setZoomStyle?: (v: ZoomStyle) => void;
@@ -95,7 +94,7 @@ export function ReframeAndCutsControls(props: ReframeAndCutsValues & ReframeAndC
     zoomStrength, setZoomStrength, speakerMode, setSpeakerMode,
     smoothness, setSmoothness, trackingSpeed, setTrackingSpeed,
     removeSilence, setRemoveSilence, silenceThresholdMs, setSilenceThresholdMs,
-    removeFillers, setRemoveFillers, zoomStyle, setZoomStyle,
+    removeFillers, setRemoveFillers, zoomStyle, setZoomStyle, hideSpeakerMode,
   } = props;
 
   return (
@@ -141,14 +140,16 @@ export function ReframeAndCutsControls(props: ReframeAndCutsValues & ReframeAndC
               </div>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-ink-soft uppercase tracking-wider block">Speaker Mode</label>
-              <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-                {SPEAKER_MODES.map((s) => (
-                  <Chip key={s.value} active={speakerMode === s.value} onClick={() => setSpeakerMode(s.value)}>{s.label}</Chip>
-                ))}
+            {!hideSpeakerMode && (
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-ink-soft uppercase tracking-wider block">Layout</label>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {SPEAKER_MODES.map((s) => (
+                    <Chip key={s.value} active={speakerMode === s.value} onClick={() => setSpeakerMode(s.value)}>{s.label}</Chip>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             <Slider label="Smoothness" value={smoothness} onChange={setSmoothness} min={0} max={100} step={5} suffix="%" />
             <Slider label="Tracking Speed" value={trackingSpeed} onChange={setTrackingSpeed} min={0} max={100} step={5} suffix="%" />

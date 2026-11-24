@@ -23,8 +23,10 @@ import { MAX_INSTRUCTIONS_CHARS } from "@/lib/autoclip-create-input";
 import { IcFilm, IcCloud, IcFile, IcX, IcSparkle, apiFetch, importUrlAndWait, ASPECTS } from "./_components/shared";
 import { clipEditorHref, projectHref } from "@/lib/project-links";
 import { sourceDurationError, sourceFileError, sourceLimitsHint } from "@/lib/autoclip-source";
-import { FlowHeader, PresetCards, QuestionHeading, StepFooter, flowStyles as fs, type FlowStep, type Preset, type PresetId } from "./_components/FlowParts";
-import type { SpeakerMode } from "@/lib/speaker-modes";
+import { FlowHeader, PresetCards, QuestionHeading, StepFooter, flowStyles as fs, videoKindFor, type FlowStep, type Preset, type PresetId } from "./_components/FlowParts";
+import { usesFacecam, type FacecamBox, type SpeakerMode } from "@/lib/speaker-modes";
+import { LayoutTemplatePicker } from "@/app/components/auto-clip/LayoutTemplatePicker";
+import { FacecamBoxPicker } from "@/app/components/auto-clip/FacecamBoxPicker";
 
 // Mirrors the limits printed on the drop zone (and enforced server-side).
 
@@ -111,6 +113,8 @@ function AutoClipFlow() {
   const [smartAutoReframe, setSmartAutoReframe] = useState(true);
   const [zoomStrength, setZoomStrength] = useState<"low" | "medium" | "high">("medium");
   const [speakerMode, setSpeakerMode] = useState<SpeakerMode>("auto");
+  // Hand-placed webcam for the gaming layouts; null = find it automatically.
+  const [facecamBox, setFacecamBox] = useState<FacecamBox | null>(null);
   const [smoothness, setSmoothness] = useState(50);
   const [trackingSpeed, setTrackingSpeed] = useState(50);
   // Motion is part of each caption template now; kept on the wire for older clients.
@@ -243,6 +247,7 @@ function AutoClipFlow() {
       captionTemplateId: captionsOn ? captionTemplateId : null,
       reframingPreset, removeSilence, silenceThresholdMs, removeFillers,
       smartAutoReframe, zoomStrength, speakerMode, smoothness, trackingSpeed, animatedCaptions,
+      facecamBox: usesFacecam(speakerMode) ? facecamBox : null,
       allowCreditOverflow,
       aiVideoBroll: tier === "studio" && aiVideoBroll,
       zoomStyle,
@@ -293,7 +298,7 @@ function AutoClipFlow() {
     }
     if (!file) return;
     await generateAutoClip({ file, token, ...settings });
-  }, [file, retryProject, pickedAsset, importedUrl, importedTitle, minDuration, maxDuration, clipCount, aspectRatio, instructions, captionsOn, captionStyleIndex, captionTemplateId, reframingPreset, removeSilence, silenceThresholdMs, removeFillers, smartAutoReframe, zoomStrength, speakerMode, smoothness, trackingSpeed, animatedCaptions, allowCreditOverflow, aiVideoBroll, zoomStyle, tier, generateAutoClip, generateAutoClipForProject]);
+  }, [file, retryProject, pickedAsset, importedUrl, importedTitle, minDuration, maxDuration, clipCount, aspectRatio, instructions, captionsOn, captionStyleIndex, captionTemplateId, reframingPreset, removeSilence, silenceThresholdMs, removeFillers, smartAutoReframe, zoomStrength, speakerMode, facecamBox, smoothness, trackingSpeed, animatedCaptions, allowCreditOverflow, aiVideoBroll, zoomStyle, tier, generateAutoClip, generateAutoClipForProject]);
 
   const handleGenerate = useCallback(async () => {
     if (submittingRef.current) return;
@@ -314,7 +319,7 @@ function AutoClipFlow() {
     setMinDuration(15); setMaxDuration(60); setClipCount(8); setAspectRatio("9:16");
     setInstructions(""); setCaptionsOn(true); setCaptionTemplateId(DEFAULT_TEMPLATE_ID);
     setReframingPreset("balanced"); setRemoveSilence(false); setSilenceThresholdMs(400); setRemoveFillers(false);
-    setSmartAutoReframe(true); setZoomStrength("medium"); setSpeakerMode("auto"); setSmoothness(50); setTrackingSpeed(50);
+    setSmartAutoReframe(true); setZoomStrength("medium"); setSpeakerMode("auto"); setFacecamBox(null); setSmoothness(50); setTrackingSpeed(50);
     setAdvancedOpen(false); setStep(1); setPreset(null);
     router.push("/dashboard/create/auto-clip");
   }, [reset, handleClearFile, router]);
@@ -354,6 +359,9 @@ function AutoClipFlow() {
   }
 
   const hasSource = !!file || !!importedUrl || !!pickedAsset || !!retryProject;
+  // A frame of the source to place the webcam on. An imported link isn't
+  // downloaded until the run starts, so it has none (the corner presets work).
+  const sourcePreviewUrl = file && videoPreviewUrl ? videoPreviewUrl : pickedAsset?.url ?? null;
   const lengthLabel = LENGTH_PRESETS.find((p) => p.id === lengthPreset)?.label ?? "15–60s";
   const choiceSummary = `${clipCount} clip${clipCount === 1 ? "" : "s"} · ${lengthLabel} · ${aspectRatio} · ${captionsOn ? "captions on" : "no captions"}`;
 
@@ -479,6 +487,19 @@ function AutoClipFlow() {
                   </div>
                 </div>
 
+                <div>
+                  <p id="ac-layout-label" className="mb-2 block text-[13px] font-semibold text-fg">Layout</p>
+                  <LayoutTemplatePicker kind={videoKindFor(preset)} value={speakerMode} onChange={setSpeakerMode} labelId="ac-layout-label" />
+                  {aspectRatio !== "9:16" && speakerMode !== "fit" && speakerMode !== "auto" && speakerMode !== "single" && speakerMode !== "active" && (
+                    <p className="mt-2 text-xs text-fg-muted">Split and gaming layouts are made for 9:16. At {aspectRatio} the clip shows the full frame.</p>
+                  )}
+                  {usesFacecam(speakerMode) && aspectRatio === "9:16" && (
+                    <div className="mt-4">
+                      <FacecamBoxPicker videoUrl={sourcePreviewUrl} value={facecamBox} onChange={setFacecamBox} />
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex items-center justify-between gap-4">
                   <div><p className="text-[13px] font-semibold text-fg">Captions</p><p className="mt-0.5 text-xs text-fg-muted">Burned in, word-by-word — pick a style below.</p></div>
                   <Switch checked={captionsOn} onChange={setCaptionsOn} label="Captions" />
@@ -523,7 +544,7 @@ function AutoClipFlow() {
 
                 <div className="flex flex-col gap-5 rounded-[20px] border border-line bg-surface-1 p-5">
                   <button type="button" aria-expanded={advancedOpen} aria-controls="ac-advanced" onClick={() => setAdvancedOpen((o) => !o)} className="flex w-full items-center justify-between text-left">
-                    <span className="flex flex-col"><span className="text-[13px] font-semibold text-fg">Advanced</span><span className="text-xs text-fg-muted">Reframe, camera motion, zoom, speaker mode, audio cleanup, instructions</span></span>
+                    <span className="flex flex-col"><span className="text-[13px] font-semibold text-fg">Advanced</span><span className="text-xs text-fg-muted">Reframe, camera motion, zoom, audio cleanup, instructions</span></span>
                     <span className="text-[12px] font-semibold text-brand">{advancedOpen ? "Hide" : "Show"}</span>
                   </button>
                   {advancedOpen && (
@@ -534,6 +555,7 @@ function AutoClipFlow() {
                         zoomStrength={zoomStrength} setZoomStrength={setZoomStrength}
                         zoomStyle={zoomStyle} setZoomStyle={setZoomStyle}
                         speakerMode={speakerMode} setSpeakerMode={setSpeakerMode}
+                        hideSpeakerMode
                         smoothness={smoothness} setSmoothness={setSmoothness}
                         trackingSpeed={trackingSpeed} setTrackingSpeed={setTrackingSpeed}
                         removeSilence={removeSilence} setRemoveSilence={setRemoveSilence}

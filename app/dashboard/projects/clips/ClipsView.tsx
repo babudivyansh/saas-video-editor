@@ -369,6 +369,7 @@ export function ClipsView({ source }: { source: ClipsSource }) {
           projectId={workspaceClip.projectId}
           clip={workspaceClip}
           transcriptionFailed={project?.warnings?.includes("transcription_failed") ?? false}
+          faceTrackingUnavailable={!!project?.warnings?.some((w) => w === "reframe_unavailable" || w === "reframe_failed")}
           initialTab={workspaceTab}
           expandOrigin="50% 50%"
           index={workspaceIdx}

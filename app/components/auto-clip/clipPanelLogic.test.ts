@@ -3,6 +3,7 @@ import {
   CommitQueue, coverObjectPosition, cropAt, fmtStamp, groupTranscriptLines, mediaPath, rebaseWords, renderWaitReducer, rerenderPriceLabel,
   type CommitResult, type CropKeyframe,
 } from "./clipPanelLogic";
+import { previewKeyframes } from "./clipPanelLogic";
 
 describe("cropAt", () => {
   const kf: CropKeyframe[] = [
@@ -205,5 +206,20 @@ describe("rebaseWords", () => {
   });
   it("leaves words alone when the window is unchanged", () => {
     expect(rebaseWords(words, 10, 10, 16)).toEqual(words);
+  });
+});
+
+describe("previewKeyframes", () => {
+  const kf = [{ tSec: 0, x: 0.2, y: 0, w: 0.3, h: 1 }];
+  it("reads the stored single-crop shape the API returns", () => {
+    expect(previewKeyframes({ mode: "single", keyframes: kf })).toEqual(kf);
+  });
+  it("still accepts a bare array", () => {
+    expect(previewKeyframes(kf)).toEqual(kf);
+  });
+  it("has no path for layouts that compose the frame", () => {
+    expect(previewKeyframes({ mode: "fit" })).toBeNull();
+    expect(previewKeyframes({ mode: "split", a: kf, b: kf })).toBeNull();
+    expect(previewKeyframes(null)).toBeNull();
   });
 });

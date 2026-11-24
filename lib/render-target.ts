@@ -139,3 +139,42 @@ function lowestOf(tiers: TierId[]): TierId {
   for (const t of order) if (tiers.includes(t)) return t;
   return "studio";
 }
+
+/** Where AutoClip's face timeline comes from right now (lib/asd.ts's rungs). */
+export interface FaceTrackingStatus {
+  /** GPU_SERVICE_URL and GPU_SERVICE_TOKEN are set on this server. */
+  gpuConfigured: boolean;
+  /** gpu_routing.enabled and the gpu_service kill switch are both on. */
+  gpuEnabled: boolean;
+  breakerOpen: boolean;
+  asdEnabled: boolean;
+  asdTiers: TierId[];
+  rekognitionFallback: boolean;
+  /**
+   * What a run gets: active-speaker tracking, Rekognition, or nothing (the
+   * tracked layouts show the centre of the frame; split, gaming and full
+   * frame still work).
+   */
+  source: "asd" | "rekognition" | "none";
+}
+
+/** For the admin page: which face-tracking rung a run would use. Never throws. */
+export async function getFaceTrackingStatus(): Promise<FaceTrackingStatus> {
+  const routing = await getGpuRouting();
+  const gpuConfigured = isGpuConfigured();
+  let killSwitch = false;
+  let breakerOpen = false;
+  try { killSwitch = await isFeatureEnabled("gpu_service", true); } catch { /* treated as off */ }
+  try { breakerOpen = await isBreakerOpen(); } catch { /* unknown: not open */ }
+  const gpuEnabled = routing.enabled && killSwitch;
+  const asdLive = gpuConfigured && gpuEnabled && !breakerOpen && routing.asdEnabled && routing.asdTiers.length > 0;
+  return {
+    gpuConfigured,
+    gpuEnabled,
+    breakerOpen,
+    asdEnabled: routing.asdEnabled,
+    asdTiers: routing.asdTiers,
+    rekognitionFallback: routing.rekognitionFallback === true,
+    source: asdLive ? "asd" : routing.rekognitionFallback ? "rekognition" : "none",
+  };
+}
