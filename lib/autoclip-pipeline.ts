@@ -45,6 +45,8 @@ import {
   buildLayoutFilterComplex,
   facecamFromFaces,
   gamingLayoutFromCam,
+  isCornerFacecam,
+  steadyFace,
   pipLayoutFromCam,
   fixedSplitLayout,
   mapStoredCropKeyframes,
@@ -902,6 +904,15 @@ function computeStoredCrop(
   }
 
   if (speakerMode0 === "auto") {
+    if (scene.type === "single" && aspectRatio === "9:16" && srcW > srcH) {
+      // One small face that never leaves a corner is a stream's webcam over
+      // gameplay (or a screen recording). Following it would show only the
+      // webcam, so stack it over the rest of the frame instead.
+      const face = steadyFace(allFaces, seg.start, seg.end);
+      const cam = face && isCornerFacecam(face) ? facecamFromFaces(allFaces, seg.start, seg.end) : null;
+      const stacked = cam ? gamingLayoutFromCam(cam, srcW, srcH, duration, 1) : null;
+      if (stacked) return stacked;
+    }
     if (scene.type === "dialogue" && aspectRatio === "9:16") {
       // Alternating conversation reads better as cuts than as a permanent
       // split: a split screen makes the viewer work out who is speaking.
@@ -935,6 +946,21 @@ function computeStoredCrop(
     return { mode: "single", keyframes: buildZoomEnvelope(seg.end - seg.start, aspectRatio, srcW, srcH) };
   }
   return null;
+}
+
+/**
+ * Face detection could not run for this source, so every clip falls back to a
+ * centre crop. This was only a `Project.warnings` entry, which nobody watches:
+ * for weeks every production run carried `reframe_failed` (no GPU service,
+ * Rekognition off) with nothing in Sentry. It is a deployment fault, not a
+ * fact about the video, so it goes to Sentry as one grouped issue.
+ */
+export function reportReframeFailure(projectId: string, failure: string): void {
+  logger.error(
+    "auto-clip",
+    `face detection failed (${failure}): clips fall back to a centre crop`,
+    { projectId, failure },
+  );
 }
 
 // ── Phase 1: pick (analyze video, propose clips, no rendering/credits yet) ─
@@ -1181,7 +1207,7 @@ export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATT
     const cached = await loadFaceTimeline(project);
     const faceTimelinePromise: Promise<FaceTimelineResult> = cached
       ? Promise.resolve({ boxes: cached })
-      : getFaceTimeline(project.userId, project.uploadedVideoUrl);
+      : getFaceTimeline(project.userId, project.uploadedVideoUrl, { path: videoPath, durationSec });
 
     let wordTimings: WordTiming[] = [];
     let sttFailed = false;
@@ -1223,6 +1249,7 @@ export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATT
       // to every video on the deployment, the second is a fact about the file.
       warnings.push(faceResult.failure ? "reframe_failed" : "reframe_unavailable");
     }
+    if (faceResult.failure) reportReframeFailure(projectId, faceResult.failure);
 
     // Speech signal tracks (P2.1) — loudness/pitch/energy envelopes, shot
     // boundaries and pauses per clip. Computed here, while the source video is

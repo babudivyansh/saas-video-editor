@@ -57,10 +57,27 @@ export function groupIntoPeople(faces: FaceBox[]): FaceBox[][] {
   return [...byColumn.values()];
 }
 
-/** How many distinct half-second buckets a person appears in, as a fraction. */
-function coverage(person: FaceBox[], durationSec: number): number {
-  const buckets = new Set(person.map((f) => Math.floor(f.tSec / BUCKET_SEC)));
-  return buckets.size / Math.max(1, Math.ceil(durationSec / BUCKET_SEC));
+/**
+ * The bucket width "present for a share of the clip" is counted in: half a
+ * second, or the timeline's own sampling step when that is coarser. A tracker
+ * samples several times a second, but the Gemini rung (lib/face-detect-gemini)
+ * looks at one frame every few seconds — counted in half-second buckets, a
+ * face in every single sampled frame would still cover under a quarter of the
+ * clip, and a webcam on screen the whole time would read as a passer-by.
+ */
+export function coverageBucketSec(faces: FaceBox[]): number {
+  const ts = [...new Set(faces.map((f) => f.tSec))].sort((a, b) => a - b);
+  const gaps: number[] = [];
+  for (let i = 1; i < ts.length; i++) gaps.push(ts[i] - ts[i - 1]);
+  if (gaps.length === 0) return BUCKET_SEC;
+  gaps.sort((a, b) => a - b);
+  return Math.max(BUCKET_SEC, gaps[Math.floor(gaps.length / 2)]);
+}
+
+/** How many distinct buckets a person appears in, as a fraction. */
+function coverage(person: FaceBox[], durationSec: number, bucketSec: number): number {
+  const buckets = new Set(person.map((f) => Math.floor(f.tSec / bucketSec)));
+  return buckets.size / Math.max(1, Math.ceil(durationSec / bucketSec));
 }
 
 /** Count how often the highest-scoring speaker changes identity. */
@@ -96,7 +113,8 @@ export function classifyScene(faces: FaceBox[], clipStartSec: number, clipEndSec
 
   // Only people who are actually present for a meaningful share of the clip
   // count. A face that appears for half a second is a passer-by, not a subject.
-  const present = groupIntoPeople(inWindow).filter((p) => coverage(p, durationSec) >= COVERAGE_FLOOR);
+  const bucketSec = coverageBucketSec(faces);
+  const present = groupIntoPeople(inWindow).filter((p) => coverage(p, durationSec, bucketSec) >= COVERAGE_FLOOR);
   const switchesPerMin = countSpeakerSwitches(inWindow, durationSec);
 
   if (present.length === 0) return { type: "single", people: 1, switchesPerMin };

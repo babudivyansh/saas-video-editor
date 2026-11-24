@@ -47,6 +47,8 @@ function captureException(error: unknown, context: { tag: string; message: strin
     const Sentry = require("@sentry/nextjs");
     Sentry.captureException(error instanceof Error ? error : new Error(context.message), {
       tags: { source: context.tag },
+      // A plain-object meta (ids, a failure class) would otherwise be dropped.
+      ...(error !== undefined && !(error instanceof Error) ? { extra: { meta: error } } : {}),
     });
   } catch {
     // Sentry not installed/configured — logging to console above is enough.

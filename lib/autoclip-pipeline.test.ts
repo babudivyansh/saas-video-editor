@@ -614,3 +614,54 @@ describe("computeClipCrop — layout templates", () => {
     expect(crop.a[0].x).toBeGreaterThan(0.6);
   });
 });
+
+// 2026-11: production had no face detector, so the face timeline is now the
+// Gemini rung's — one frame every few seconds, no track ids. The facecam must
+// still be found from samples that sparse, and auto mode must stack it.
+describe("computeClipCrop — sparse (Gemini-sampled) faces", () => {
+  const seg = { start: 10, end: 40, mood: "neutral" } as unknown as Parameters<typeof import("./autoclip-pipeline").computeClipCrop>[1];
+  // A webcam face top-right, sampled every 3.3s across a 10-minute source.
+  const sparseCam = Array.from({ length: 180 }, (_, i) => ({ tSec: 1.65 + i * 3.3, x: 0.86, y: 0.08, w: 0.05, h: 0.09, confidence: 90 }));
+
+  it("gaming finds the webcam from sparse samples", async () => {
+    const { computeClipCrop } = await import("./autoclip-pipeline");
+    const crop = computeClipCrop(sparseCam, seg, "9:16", 1920, 1080, { speakerMode: "gaming" }, null);
+    if (crop?.mode !== "split") throw new Error(`expected split, got ${crop?.mode}`);
+    expect(crop.topFrac).toBeCloseTo(1 / 3, 5);
+    expect(crop.a[0].x + crop.a[0].w).toBeGreaterThan(0.86);
+  });
+
+  it("auto stacks a small corner webcam over the gameplay instead of following it", async () => {
+    const { computeClipCrop } = await import("./autoclip-pipeline");
+    const crop = computeClipCrop(sparseCam, seg, "9:16", 1920, 1080, { speakerMode: "auto" }, null);
+    if (crop?.mode !== "split") throw new Error(`expected split, got ${crop?.mode}`);
+    expect(crop.topFrac).toBeCloseTo(1 / 3, 5);
+  });
+
+  it("auto stacks the real demo stream's webcam (face 0.23 tall at the top right)", async () => {
+    const { computeClipCrop } = await import("./autoclip-pipeline");
+    // Median of the Gemini samples on the gaming demo source (Minecraft, 1280x720).
+    const demo = sparseCam.map((f) => ({ ...f, x: 0.77, y: 0.07, w: 0.111, h: 0.232 }));
+    const crop = computeClipCrop(demo, seg, "9:16", 1280, 720, { speakerMode: "auto" }, null);
+    if (crop?.mode !== "split") throw new Error(`expected split, got ${crop?.mode}`);
+    expect(crop.a[0].x + crop.a[0].w).toBeGreaterThan(0.85); // the top panel holds the webcam
+  });
+
+  it("auto still pans on a presenter, who is neither small nor in a corner", async () => {
+    const { computeClipCrop } = await import("./autoclip-pipeline");
+    const presenter = sparseCam.map((f) => ({ ...f, x: 0.42, y: 0.2, w: 0.16, h: 0.3 }));
+    const crop = computeClipCrop(presenter, seg, "9:16", 1920, 1080, { speakerMode: "auto" }, null);
+    expect(crop?.mode).toBe("single");
+  });
+});
+
+describe("reportReframeFailure", () => {
+  it("logs face-detection failure as an error, which goes to Sentry", async () => {
+    const { logger } = await import("@/lib/logger");
+    const spy = vi.spyOn(logger, "error").mockImplementation(() => {});
+    const { reportReframeFailure } = await import("./autoclip-pipeline");
+    reportReframeFailure("project-1", "unconfigured");
+    expect(spy).toHaveBeenCalledWith("auto-clip", expect.stringContaining("unconfigured"), { projectId: "project-1", failure: "unconfigured" });
+    spy.mockRestore();
+  });
+});
