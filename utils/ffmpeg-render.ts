@@ -459,6 +459,28 @@ export function trimAudioForProvider(inputPath: string, outputPath: string, maxS
 // Probe a video's pixel dimensions from FFmpeg's "Video: ... WxH" stderr line.
 // Returns {w:0,h:0} if it can't be determined (callers should treat that as
 // "dimensions unknown" and skip anything that depends on them).
+/**
+ * The size frames come out of the decoder at, from ffmpeg's input banner.
+ *
+ * The stream line carries the CODED size; a phone video shot upright is coded
+ * 1920x1080 with a "Display Matrix: rotation of -90" side-data line, and every
+ * ffmpeg decode here autorotates it to 1080x1920. Reporting the coded size
+ * made AutoClip treat portrait footage as landscape and crop a narrow slice
+ * out of it.
+ */
+export function parseDisplayDimensions(stderr: string): { w: number; h: number } {
+  const m = /Video:.*?(\d{2,5})x(\d{2,5})/.exec(stderr);
+  if (!m) return { w: 0, h: 0 };
+  const w = parseInt(m[1], 10), h = parseInt(m[2], 10);
+  // Only the first video stream's side data: it follows that stream's line.
+  const after = stderr.slice(m.index);
+  const next = after.slice(1).search(/Stream #\d+:\d+/);
+  const block = next >= 0 ? after.slice(0, next + 1) : after;
+  const rot = /rotation of (-?\d+(?:\.\d+)?) degrees/.exec(block) ?? /\brotate\s*:\s*(-?\d+)/.exec(block);
+  const quarter = rot ? Math.round(Math.abs(parseFloat(rot[1])) / 90) % 2 === 1 : false;
+  return quarter ? { w: h, h: w } : { w, h };
+}
+
 export function getMediaDimensions(filePath: string, timeoutMs = 30_000): Promise<{ w: number; h: number }> {
   return new Promise((resolve) => {
     const proc = spawnFfmpeg(ffmpegBin!, ffmpegInputArgs(filePath), { stdio: ["ignore", "ignore", "pipe"] });
@@ -467,9 +489,7 @@ export function getMediaDimensions(filePath: string, timeoutMs = 30_000): Promis
     proc.stderr.on("data", (chunk: Buffer) => { stderrBuf += chunk.toString(); });
     const finish = () => {
       clearWatchdog();
-      const m = /Video:.*?(\d{2,5})x(\d{2,5})/.exec(stderrBuf);
-      if (!m) return resolve({ w: 0, h: 0 });
-      resolve({ w: parseInt(m[1], 10), h: parseInt(m[2], 10) });
+      resolve(parseDisplayDimensions(stderrBuf));
     };
     proc.on("close", finish);
     proc.on("error", () => { clearWatchdog(); resolve({ w: 0, h: 0 }); });

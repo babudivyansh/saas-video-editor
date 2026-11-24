@@ -398,15 +398,24 @@ function computeAdvancedCrop(
     }
   }
 
+  // Until the first sample, aim where the first face IS rather than at the
+  // frame centre. A sampled timeline (Gemini looks every few seconds) can have
+  // its first face seconds into the clip; starting from 0.5 made every clip
+  // open on a centre crop with the speaker half out of it, then pan across.
+  const firstT = faces[0]?.tSec;
+  const opening = firstT === undefined ? null : faces
+    .filter((f) => f.tSec === firstT)
+    .reduce((a, c) => (c.w * c.h > a.w * a.h ? c : a));
+
   for (let s = 0; s < stepsCount; s++) {
     const t = s * 0.1;
     const windowFaces = faces.filter((f) => Math.abs(f.tSec - t) <= 0.25);
-    
+
     if (windowFaces.length === 0) {
-      targetCxs[s] = s > 0 ? targetCxs[s - 1] : 0.5;
-      targetCys[s] = s > 0 ? targetCys[s - 1] : 0.5;
-      faceWidths[s] = s > 0 ? faceWidths[s - 1] : 0.15;
-      faceHeights[s] = s > 0 ? faceHeights[s - 1] : 0.15;
+      targetCxs[s] = s > 0 ? targetCxs[s - 1] : opening ? opening.x + opening.w / 2 : 0.5;
+      targetCys[s] = s > 0 ? targetCys[s - 1] : opening ? opening.y + opening.h / 2 : 0.5;
+      faceWidths[s] = s > 0 ? faceWidths[s - 1] : opening?.w ?? 0.15;
+      faceHeights[s] = s > 0 ? faceHeights[s - 1] : opening?.h ?? 0.15;
       continue;
     }
 

@@ -57,6 +57,8 @@ const SCENE_MIN_CONFIDENCE = 70;
 const CLIP_MAJORITY = 0.6;
 /** Keyframe budget after the AI passes (the face path alone uses 40). */
 const MAX_AI_KEYFRAMES = 64;
+/** Shots wanting a whole-frame layout must cover this share of the clip for the clip to take it. */
+const LAYOUT_CLIP_SHARE = 0.6;
 
 /** A held crop with one keyframe a second (silence removal must leave at least two). */
 export function holdKeyframes(box: Omit<CropKeyframe, "tSec">, durationSec: number): CropKeyframe[] {
@@ -176,6 +178,19 @@ export function composeAiCrop(args: {
   const pathOpts = cameraPathOptionsFor(ai.smoothness, ai.trackingSpeed);
   const parts: { startSec: number; endSec: number; kf: CropKeyframe[] }[] = [];
   let aiShaped = false;
+  // Share of the clip whose shots want a whole-frame layout (split, fit, pip),
+  // computed once, lazily: only needed when the first such shot turns up.
+  let layoutSecs: number | null = null;
+  const layoutShare = (): number => {
+    if (layoutSecs === null) {
+      layoutSecs = 0;
+      for (const q of ranges) {
+        const c = args.base(q.startSec, q.endSec, ai.planLayout === "single" ? "single" : undefined);
+        if (c && c.mode !== "single") layoutSecs += q.endSec - q.startSec;
+      }
+    }
+    return layoutSecs / dur;
+  };
 
   for (const r of ranges) {
     const len = r.endSec - r.startSec;
@@ -201,11 +216,16 @@ export function composeAiCrop(args: {
       continue;
     }
 
-    const crop = args.base(r.startSec, r.endSec, ai.planLayout === "single" ? "single" : undefined);
+    let crop = args.base(r.startSec, r.endSec, ai.planLayout === "single" ? "single" : undefined);
     if (crop && crop.mode !== "single") {
       // A layout (split, full frame, picture-in-picture) can't be one shot of
-      // several: frame the clip as a whole.
-      return postProcess(args.base(0, dur), ai);
+      // several. When such shots are most of the clip, the layout is the
+      // clip's: frame it as a whole. When it is one odd shot (a two-shot in a
+      // run of close-ups), keep the other shots' framing and frame this one
+      // on its own face — dropping shot awareness for the whole clip used to
+      // put one blended path across every camera angle.
+      if (ranges.length === 1 || layoutShare() >= LAYOUT_CLIP_SHARE) return postProcess(args.base(0, dur), ai);
+      crop = args.base(r.startSec, r.endSec, "single");
     }
     if (crop?.mode === "single" && crop.keyframes.length > 0) {
       parts.push({ ...r, kf: offset(crop.keyframes, r.startSec) });

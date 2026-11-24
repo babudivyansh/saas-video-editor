@@ -615,6 +615,65 @@ describe("computeClipCrop — layout templates", () => {
   });
 });
 
+// 2026-11-24: the podcast demo audit. Face samples shaped like the Gemini rung
+// returns for a multi-camera podcast (one frame every 5s, no track ids), scored
+// with lib/reframe-metrics — the share of sampled moments where the main face
+// is inside the crop the renderer shows.
+describe("computeClipCrop — podcast framing regressions", () => {
+  const seg = (start: number, end: number) =>
+    ({ start, end, mood: "neutral" } as unknown as Parameters<typeof import("./autoclip-pipeline").computeClipCrop>[1]);
+  const face = (tSec: number, cx: number, w = 0.12) => ({ tSec, x: cx - w / 2, y: 0.25, w, h: 0.22, confidence: 90 });
+  const opts = { speakerMode: "auto" as const, smartAutoReframe: true };
+
+  it("opens on the speaker, not on a centre crop that pans over to them", async () => {
+    const { computeClipCrop } = await import("./autoclip-pipeline");
+    const { scoreFraming, cropAt } = await import("./reframe-metrics");
+    // Guest off-centre at 0.65; the first sample is 3.5s into the clip.
+    const faces = [3.5, 8.5, 13.5, 18.5].map((t) => face(100 + t, 0.65));
+    const crop = computeClipCrop(faces, seg(100, 120), "9:16", 1280, 720, opts, null);
+    if (crop?.mode !== "single") throw new Error("expected single");
+    const atStart = cropAt(crop.keyframes, 0)!;
+    expect(atStart.x + atStart.w).toBeGreaterThan(0.71); // the face's right edge
+    const rel = faces.map((f) => ({ ...f, tSec: f.tSec - 100 }));
+    expect(scoreFraming(crop, [{ ...rel[0], tSec: 0 }, ...rel], "9:16", 1280, 720).score).toBe(1);
+  });
+
+  it("never parks the crop between two people (host 0.64 alone, then a two-shot)", async () => {
+    const { computeClipCrop } = await import("./autoclip-pipeline");
+    const { scoreFraming } = await import("./reframe-metrics");
+    const faces = [
+      ...[0, 5, 10, 15].map((t) => face(462.5 + t, 0.64)),
+      ...[20, 25, 30, 35, 40].flatMap((t) => [face(462.5 + t, 0.24, 0.1), face(462.5 + t, 0.74)]),
+    ];
+    const crop = computeClipCrop(faces, seg(462.4, 506.9), "9:16", 1280, 720, opts, null);
+    const rel = faces.map((f) => ({ ...f, tSec: f.tSec - 462.4 }));
+    const s = scoreFraming(crop, rel, "9:16", 1280, 720);
+    expect(s.nobodyVisible).toBe(0);
+  });
+
+  it("shows the whole frame when the clip has no face, instead of guessing a centre crop", async () => {
+    const { computeClipCrop } = await import("./autoclip-pipeline");
+    expect(computeClipCrop([], seg(0, 20), "9:16", 1280, 720, opts, null)).toEqual({ mode: "fit" });
+    expect(computeClipCrop([], seg(0, 20), "9:16", 1280, 720, { speakerMode: "single" }, null)).toEqual({ mode: "fit" });
+  });
+
+  it("keeps per-shot framing when one odd shot wants a split", async () => {
+    const { computeClipCrop } = await import("./autoclip-pipeline");
+    const { scoreFraming } = await import("./reframe-metrics");
+    // Shot 1 (0-30s): guest alone at 0.65. Shot 2 (30-40s): a two-shot.
+    const faces = [
+      ...[2, 7, 12, 17, 22, 27].map((t) => face(t, 0.65)),
+      ...[32, 34, 36, 38].flatMap((t) => [face(t, 0.24, 0.1), face(t, 0.74)]),
+    ];
+    const ai = { features: { shotAwareReframe: true }, shots: [30], scenes: null, tracks: null, planLayout: null };
+    const crop = computeClipCrop(faces, seg(0, 40), "9:16", 1280, 720, opts, ai as never);
+    expect(crop?.mode).toBe("single");
+    const s = scoreFraming(crop, faces, "9:16", 1280, 720);
+    expect(s.nobodyVisible).toBe(0);
+    expect(s.mainVisible).toBeGreaterThanOrEqual(8);
+  });
+});
+
 // 2026-11: production had no face detector, so the face timeline is now the
 // Gemini rung's — one frame every few seconds, no track ids. The facecam must
 // still be found from samples that sparse, and auto mode must stack it.

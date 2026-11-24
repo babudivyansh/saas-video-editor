@@ -45,16 +45,56 @@ export function groupIntoPeople(faces: FaceBox[]): FaceBox[][] {
     return [...byTrack.values()];
   }
 
-  // Positional fallback: bucket horizontal centres into coarse columns. Cruder
-  // than tracking, but it does not pretend to more precision than it has.
-  const COLUMNS = 6;
-  const byColumn = new Map<number, FaceBox[]>();
-  for (const f of faces) {
-    const col = Math.min(COLUMNS - 1, Math.floor((f.x + f.w / 2) * COLUMNS));
-    const arr = byColumn.get(col);
-    if (arr) arr.push(f); else byColumn.set(col, [f]);
+  // Positional fallback: split the sorted horizontal centres wherever two
+  // neighbours are further apart than PERSON_GAP. This used to bucket into six
+  // fixed columns, which cut one person in two whenever they sat near a column
+  // edge — a host at 0.64 in one camera angle and 0.74 in the next became two
+  // "people", the clip was called a group, and the group framing centred the
+  // crop between everyone so nobody was in it (podcast demo, 2026-11-24).
+  const sorted = [...faces].sort((a, b) => (a.x + a.w / 2) - (b.x + b.w / 2));
+  const groups: FaceBox[][] = [[sorted[0]]];
+  for (let i = 1; i < sorted.length; i++) {
+    const gap = (sorted[i].x + sorted[i].w / 2) - (sorted[i - 1].x + sorted[i - 1].w / 2);
+    if (gap > PERSON_GAP) groups.push([sorted[i]]);
+    else groups[groups.length - 1].push(sorted[i]);
   }
-  return [...byColumn.values()];
+  return groups;
+}
+
+/** Two untracked face centres further apart than this (fraction of width) are different people. */
+const PERSON_GAP = 0.15;
+/** Two boxes in one frame closer than this are the same face reported twice. */
+const SAME_FACE_GAP = 0.05;
+
+/**
+ * How many people are on screen together, for a timeline without track ids.
+ *
+ * Positions pooled over a whole clip can't answer this: in a multi-camera
+ * podcast each shot holds ONE person, but the host and the guest sit at
+ * different places in their own shots, so pooling counts two. What matters is
+ * how many faces share a frame. The answer is the largest k such that at least
+ * COVERAGE_FLOOR of the sampled moments show k or more faces.
+ */
+export function simultaneousPeople(faces: FaceBox[]): number {
+  const byT = new Map<number, number[]>();
+  for (const f of faces) {
+    const key = Math.round(f.tSec * 100);
+    const arr = byT.get(key);
+    const cx = f.x + f.w / 2;
+    if (arr) arr.push(cx); else byT.set(key, [cx]);
+  }
+  if (byT.size === 0) return 0;
+  const counts = [...byT.values()].map((cxs) => {
+    cxs.sort((a, b) => a - b);
+    let n = 1;
+    for (let i = 1; i < cxs.length; i++) if (cxs[i] - cxs[i - 1] > SAME_FACE_GAP) n++;
+    return n;
+  });
+  const max = Math.max(...counts);
+  for (let k = max; k > 1; k--) {
+    if (counts.filter((c) => c >= k).length / counts.length >= COVERAGE_FLOOR) return k;
+  }
+  return 1;
 }
 
 /**
@@ -113,13 +153,18 @@ export function classifyScene(faces: FaceBox[], clipStartSec: number, clipEndSec
 
   // Only people who are actually present for a meaningful share of the clip
   // count. A face that appears for half a second is a passer-by, not a subject.
-  const bucketSec = coverageBucketSec(faces);
-  const present = groupIntoPeople(inWindow).filter((p) => coverage(p, durationSec, bucketSec) >= COVERAGE_FLOOR);
   const switchesPerMin = countSpeakerSwitches(inWindow, durationSec);
+  let people: number;
+  if (inWindow.every((f) => f.trackId)) {
+    const bucketSec = coverageBucketSec(faces);
+    people = groupIntoPeople(inWindow).filter((p) => coverage(p, durationSec, bucketSec) >= COVERAGE_FLOOR).length;
+  } else {
+    // No identities (the Gemini rung): count faces that share a frame.
+    people = simultaneousPeople(inWindow);
+  }
 
-  if (present.length === 0) return { type: "single", people: 1, switchesPerMin };
-  if (present.length === 1) return { type: "single", people: 1, switchesPerMin };
-  if (present.length >= 3) return { type: "group", people: present.length, switchesPerMin };
+  if (people <= 1) return { type: "single", people: 1, switchesPerMin };
+  if (people >= 3) return { type: "group", people, switchesPerMin };
 
   // Two people. Rapid alternation is a conversation, which reads better as
   // cuts between speakers than as a permanent split screen — a split shows
@@ -234,8 +279,17 @@ export function buildGroupKeyframes(
     // Lean toward the speaker without abandoning the group.
     const speaker = near.reduce((a, c) => ((c.speaking ?? 0) > (a.speaking ?? 0) ? c : a));
     const hasSpeaker = (speaker.speaking ?? 0) > 0.5;
-    const cx = hasSpeaker ? groupCx + (speaker.x + speaker.w / 2 - groupCx) * speakerBias : groupCx;
-    const cy = hasSpeaker ? groupCy + (speaker.y + speaker.h / 2 - groupCy) * speakerBias : groupCy;
+    // A group wider than the window can't be held in it: centring on the
+    // centroid then lands BETWEEN the people and shows none of them (a 9:16
+    // window is a third of a 16:9 frame). Frame the speaker if there is one;
+    // otherwise emit nothing here and let the caller pick another layout.
+    const left = Math.min(...near.map((f) => f.x));
+    const right = Math.max(...near.map((f) => f.x + f.w));
+    const fits = right - left <= cropW * 0.95;
+    if (!fits && !hasSpeaker) continue;
+    const bias = fits ? speakerBias : 1;
+    const cx = hasSpeaker ? groupCx + (speaker.x + speaker.w / 2 - groupCx) * bias : groupCx;
+    const cy = hasSpeaker ? groupCy + (speaker.y + speaker.h / 2 - groupCy) * bias : groupCy;
 
     keyframes.push({
       tSec: t,

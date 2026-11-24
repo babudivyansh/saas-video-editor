@@ -27,7 +27,7 @@ import {
   springSmooth, buildZoomTargets, buildCameraZoom, snapToBeat, applyZoomToKeyframes, ZOOM_STRENGTH_MAX,
 } from "./camera-motion";
 import {
-  classifyScene, groupIntoPeople, buildCutKeyframes, buildGroupKeyframes, buildDriftKeyframes,
+  classifyScene, groupIntoPeople, simultaneousPeople, buildCutKeyframes, buildGroupKeyframes, buildDriftKeyframes,
 } from "./scene-layout";
 import { buildCaptionTrack } from "@/lib/captions/engine";
 import { resolveCaptionTemplate } from "@clipiro/shared/caption-templates";
@@ -310,7 +310,21 @@ describe("buildCutKeyframes", () => {
 });
 
 describe("buildGroupKeyframes", () => {
-  it("frames the group's centroid and leans toward whoever is speaking", () => {
+  it("frames the group's centroid and leans toward whoever is speaking when everyone fits", () => {
+    const faces = [
+      ...person("a", 0.3, 20, 0.95),
+      ...person("b", 0.4, 20, 0.05),
+      ...person("c", 0.5, 20, 0.05),
+    ];
+    const kf = buildGroupKeyframes(faces, 20, 0.6, 1);
+    expect(kf.length).toBeGreaterThan(1);
+    // Centroid ~0.46; the speaker at 0.36 pulls it left, but not all the way.
+    const centre = kf[5].x + 0.3;
+    expect(centre).toBeLessThan(0.46);
+    expect(centre).toBeGreaterThan(0.36);
+  });
+
+  it("frames the speaker when the group is wider than the window", () => {
     const faces = [
       ...person("a", 0.1, 20, 0.95),
       ...person("b", 0.5, 20, 0.05),
@@ -318,10 +332,43 @@ describe("buildGroupKeyframes", () => {
     ];
     const kf = buildGroupKeyframes(faces, 20, 0.3, 1);
     expect(kf.length).toBeGreaterThan(1);
-    // Centroid is ~0.5; the speaker at 0.1 should pull it left of centre.
-    const centre = kf[5].x + 0.15;
-    expect(centre).toBeLessThan(0.5);
-    expect(centre).toBeGreaterThan(0.2); // but not all the way onto the speaker
+    // Centring on the group (0.56) would show nobody; the speaker's face is at 0.1-0.22.
+    expect(kf[5].x).toBeLessThanOrEqual(0.1);
+    expect(kf[5].x + 0.3).toBeGreaterThanOrEqual(0.22);
+  });
+
+  it("emits nothing for a too-wide group with no speaker, so the caller can show the whole frame", () => {
+    const faces = [...person("a", 0.1, 20), ...person("b", 0.5, 20), ...person("c", 0.9, 20)];
+    expect(buildGroupKeyframes(faces, 20, 0.3, 1)).toHaveLength(0);
+  });
+});
+
+describe("simultaneousPeople / untracked scenes", () => {
+  const untracked = (x: number, times: number[], w = 0.12): FaceBox[] =>
+    times.map((tSec) => ({ tSec, x: x - w / 2, y: 0.2, w, h: 0.25, confidence: 90 }));
+
+  it("counts one person across camera angles, not one per position (podcast demo regression)", () => {
+    // Multi-camera podcast: the host alone at 0.64, then alone at 0.74 after a cut.
+    const faces = [...untracked(0.64, [0, 5, 10, 15]), ...untracked(0.74, [20, 25, 30, 35])];
+    expect(simultaneousPeople(faces)).toBe(1);
+    expect(classifyScene(faces, 0, 40).type).toBe("single");
+  });
+
+  it("counts two people who share the frame", () => {
+    const t = [0, 5, 10, 15, 20];
+    const faces = [...untracked(0.24, t), ...untracked(0.74, t)];
+    expect(simultaneousPeople(faces)).toBe(2);
+    expect(classifyScene(faces, 0, 25).type).toBe("duo");
+  });
+
+  it("does not count one face reported twice as two people", () => {
+    const t = [0, 5, 10];
+    expect(simultaneousPeople([...untracked(0.5, t), ...untracked(0.52, t)])).toBe(1);
+  });
+
+  it("groups untracked faces by gaps, keeping one person's small moves together", () => {
+    const faces = [...untracked(0.64, [0, 5]), ...untracked(0.70, [10]), ...untracked(0.24, [15])];
+    expect(groupIntoPeople(faces)).toHaveLength(2);
   });
 });
 
