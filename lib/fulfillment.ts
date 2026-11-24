@@ -12,6 +12,9 @@ import { grantMinutes, grantMonthlyMinutes } from "@/lib/minutes";
 import { logger } from "@/lib/logger";
 import { recurringTerm } from "@/lib/billing/term";
 import { DIWALI_MONTHLY_BONUS_NOTE, DIWALI_MONTHLY_BONUS_REASON, diwaliMonthlyBonus } from "@/lib/campaigns/diwali";
+import {
+  BF26_PACK_BONUS_REASON, BF26_PACK_NOTE, BF26_PLAN_BONUS_REASON, BF26_PLAN_NOTE, bfPackBonus, bfPlanBonus, bfPlanBonusEligibleAtCharge,
+} from "@/lib/campaigns/black-friday";
 import { parseCurrency } from "@/lib/currency-shared";
 import { greetingName } from "@/lib/display-name";
 
@@ -52,6 +55,9 @@ export interface FulfillNotes {
   couponId?: string;
   couponCode?: string;
   discountInPaise?: string;
+  /** Black Friday 2026 stamp set at checkout ("pack" | "plan"), see
+   *  lib/campaigns/black-friday.ts. */
+  bf26?: string;
 }
 
 export interface FulfillArgs {
@@ -102,6 +108,9 @@ export interface SubscriptionChargeArgs {
   /** `notes.diwaliBonus` — set at checkout on a monthly plan bought during the
    *  Diwali 2026 window (lib/campaigns/diwali.ts). */
   notesDiwaliBonus?: string;
+  /** `notes.bf26` — "plan" when a new plan was bought during Black Friday 2026
+   *  (lib/campaigns/black-friday.ts). */
+  notesBf26?: string;
 }
 
 /**
@@ -117,13 +126,39 @@ export interface SubscriptionChargeArgs {
  * for. Now the term runs the full year and the refill cron delivers months
  * 2–12 at nextRefillAt, exactly as for a prepaid annual term.
  */
+type FulfilTx = Prisma.TransactionClient;
+
+/**
+ * Black Friday 2026 plan bonus: one month's Clip Minutes into the bonus bucket
+ * (expiring like other bonus minutes, never shortening bonus already held).
+ * Once per account — the ledger row is the guard, so renewals and a
+ * cancel-and-resubscribe get nothing more. Returns the minutes granted.
+ */
+async function grantBfPlanBonus(tx: FulfilTx, userId: string, monthlyMinutes: number, paymentId: string): Promise<number> {
+  const amount = bfPlanBonus(monthlyMinutes);
+  if (amount <= 0) return 0;
+  const already = await tx.minuteTransaction.findFirst({
+    where: { userId, reason: BF26_PLAN_BONUS_REASON },
+    select: { id: true },
+  });
+  if (already) return 0;
+  const { BONUS_MINUTES_EXPIRY_DAYS } = await import("@/lib/plans/tiers");
+  const held = await tx.user.findUnique({ where: { id: userId }, select: { bonusMinutesExpireAt: true } });
+  const ours = new Date(Date.now() + BONUS_MINUTES_EXPIRY_DAYS * 86_400_000);
+  const expiresAt = held?.bonusMinutesExpireAt && held.bonusMinutesExpireAt > ours ? held.bonusMinutesExpireAt : ours;
+  await grantMinutes({
+    userId, bucket: "bonus", amount, reason: BF26_PLAN_BONUS_REASON, refId: paymentId, bonusExpiresAt: expiresAt, tx,
+  });
+  return amount;
+}
+
 export async function fulfillSubscriptionCharge(args: SubscriptionChargeArgs): Promise<FulfillResult> {
   const { subscriptionId, paymentId, amountInPaise, notesUserId, notesPlanId } = args;
   const currency = normalizeCurrency(args.currency);
   if (!subscriptionId || !paymentId) return { fulfilled: false, alreadyProcessed: false };
 
   const SELECT = {
-    id: true, planId: true, monthlyCredits: true, monthlyMinutes: true, razorpaySubscriptionId: true,
+    id: true, planId: true, monthlyCredits: true, monthlyMinutes: true, razorpaySubscriptionId: true, trialEndsAt: true,
     plan: { select: { id: true, monthlyCredits: true, monthlyMinutes: true, credits: true, intervalMonths: true } },
   } as const;
 
@@ -249,6 +284,13 @@ export async function fulfillSubscriptionCharge(args: SubscriptionChargeArgs): P
       }
     }
 
+    // Black Friday 2026: a new plan's first paid charge gets one extra month of
+    // Clip Minutes (month 1 doubled), monthly or yearly. Stamped at checkout,
+    // or a trial converting inside the window. Once per account.
+    const bfPlanMinutes = bfPlanBonusEligibleAtCharge({ note: args.notesBf26, trialEndsAt: user.trialEndsAt })
+      ? await grantBfPlanBonus(tx, user.id, monthlyMinutes, paymentId)
+      : 0;
+
     const term = recurringTerm(new Date(), intervalMonths);
     await tx.user.update({
       where: { id: user.id },
@@ -273,9 +315,9 @@ export async function fulfillSubscriptionCharge(args: SubscriptionChargeArgs): P
       },
     });
     await tx.purchase.create({
-      data: { id: paymentId, userId: user.id, planId: resolvedPlanId, amountInPaise, currency, credits: applied, minutes: appliedMinutes, status: "captured" },
+      data: { id: paymentId, userId: user.id, planId: resolvedPlanId, amountInPaise, currency, credits: applied, minutes: appliedMinutes + bfPlanMinutes, status: "captured" },
     });
-    return { alreadyProcessed: false, applied, appliedMinutes, nextChargeAt: term.paidUntil };
+    return { alreadyProcessed: false, applied, appliedMinutes: appliedMinutes + bfPlanMinutes, nextChargeAt: term.paidUntil };
   });
 
   if (result.alreadyProcessed) return { fulfilled: false, alreadyProcessed: true };
@@ -386,6 +428,11 @@ export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> 
       if (addonCredits > 0) {
         await grantCredits({ userId, bucket: "purchased", amount: addonCredits, reason: "grant:pack-addon", refId: paymentId, tx });
       }
+      // Black Friday 2026 first-month bonus on a plan sold one-time (the USD
+      // fallback when a Razorpay plan can't be synced). Stamped at checkout.
+      const bfPlanMinutes = notes?.bf26 === BF26_PLAN_NOTE
+        ? await grantBfPlanBonus(tx, userId, monthlyMinutes, paymentId)
+        : 0;
       await tx.user.update({
         where: { id: userId },
         data: {
@@ -402,23 +449,38 @@ export async function fulfillPayment(args: FulfillArgs): Promise<FulfillResult> 
         },
       });
       await tx.purchase.create({
-        data: { id: paymentId, userId, planId: plan.id, amountInPaise, currency, credits: totalCredits, minutes: grantedMinutes, status: "captured" },
+        data: { id: paymentId, userId, planId: plan.id, amountInPaise, currency, credits: totalCredits, minutes: grantedMinutes + bfPlanMinutes, status: "captured" },
       });
-      return { status: "granted", kind, credits: totalCredits, minutes: grantedMinutes };
+      return { status: "granted", kind, credits: totalCredits, minutes: grantedMinutes + bfPlanMinutes };
     }
 
     // One-time Clip Minutes pack: minutes into the never-expiring bucket. Only
     // a real Plan row can grant minutes — there is no notes fallback, because
     // order notes are client-influenced and minutes have no legacy orders.
     if (kind === "minute_pack") {
-      const minutes = plan?.minutes ?? 0;
-      if (plan && minutes > 0) {
-        await grantMinutes({ userId, bucket: "purchased", amount: minutes, reason: "grant:minute-pack", refId: paymentId, tx });
+      const packMinutes = plan?.minutes ?? 0;
+      let bonusMinutes = 0;
+      if (plan && packMinutes > 0) {
+        await grantMinutes({ userId, bucket: "purchased", amount: packMinutes, reason: "grant:minute-pack", refId: paymentId, tx });
+        // Black Friday 2026: 2× minutes on a pack ordered in the window
+        // (stamped on the order at checkout). Same never-expiring bucket, its
+        // own ledger reason; the RazorpayEvent claim above already makes this
+        // once per payment, the refId check is belt and braces.
+        if (notes?.bf26 === BF26_PACK_NOTE) {
+          const already = await tx.minuteTransaction.findFirst({
+            where: { userId, reason: BF26_PACK_BONUS_REASON, refId: paymentId },
+            select: { id: true },
+          });
+          if (!already) {
+            bonusMinutes = bfPackBonus(packMinutes);
+            await grantMinutes({ userId, bucket: "purchased", amount: bonusMinutes, reason: BF26_PACK_BONUS_REASON, refId: paymentId, tx });
+          }
+        }
         await tx.purchase.create({
-          data: { id: paymentId, userId, planId: plan.id, amountInPaise, currency, credits: 0, minutes, status: "captured" },
+          data: { id: paymentId, userId, planId: plan.id, amountInPaise, currency, credits: 0, minutes: packMinutes + bonusMinutes, status: "captured" },
         });
       }
-      return { status: "granted", kind, credits: 0, minutes };
+      return { status: "granted", kind, credits: 0, minutes: packMinutes + bonusMinutes };
     }
 
     // One-time top-up pack: add credits to the standard pool.

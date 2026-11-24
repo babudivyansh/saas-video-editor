@@ -30,8 +30,10 @@ function fmtDate(iso: string): string {
 
 export function ConfirmPlanDialog({
   plan, plans, currency, hasActivePlan, subscriptionEndsAt, resumeFromPeriodEnd,
-  loading, onChangePlan, onClose, onProceed, creatorDiscount = null,
+  loading, onChangePlan, onClose, onProceed, creatorDiscount = null, bfBonusMinutes = 0,
 }: {
+  /** Black Friday 2026 first-month bonus, already checked by the caller. */
+  bfBonusMinutes?: number;
   plan: DisplayPlan;
   /** Every subscription plan the picker can switch between. */
   plans: DisplayPlan[];
@@ -154,6 +156,16 @@ export function ConfirmPlanDialog({
               <span className="block text-xs text-fg-subtle">First payment · applied automatically</span>
             </span>
             <span className="flex-shrink-0 whitespace-nowrap font-semibold text-success">−{formatMoney(creatorOff, currency)}</span>
+          </div>
+        )}
+
+        {bfBonusMinutes > 0 && (
+          <div className="mt-2 flex items-center justify-between gap-3 rounded-xl border border-tint-emerald-border bg-tint-emerald px-3.5 py-2.5 text-sm">
+            <span className="text-success">
+              Black Friday bonus: +{bfBonusMinutes.toLocaleString("en-IN")} Clip Minutes
+              <span className="block text-xs text-fg-subtle">Month 1 doubled · added with this payment</span>
+            </span>
+            <span className="flex-shrink-0 whitespace-nowrap font-semibold text-success">2×</span>
           </div>
         )}
 

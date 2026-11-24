@@ -14,6 +14,9 @@ import { describeRazorpayError, isMissingRazorpayPlan } from "@/lib/billing/razo
 import { redis } from "@/lib/redis";
 import { DIWALI, DIWALI_MONTHLY_BONUS_NOTE, diwaliMonthlyBonusApplies, diwaliOfferFor } from "@/lib/campaigns/diwali";
 import { creatorDiscountFor, creatorDiscountMinor } from "@/lib/creator-program";
+import {
+  BLACK_FRIDAY, BF26_PACK_NOTE, BF26_PLAN_NOTE, bfPackBonus, bfPackBonusApplies, bfPlanBonus, bfPlanBonusAppliesAtCheckout,
+} from "@/lib/campaigns/black-friday";
 
 // How long one open coupon checkout blocks a second one for the same user.
 const COUPON_HOLD_SECONDS = 30 * 60;
@@ -40,6 +43,30 @@ async function handlePOST(req: NextRequest) {
   if (!basePlan || !basePlan.active) {
     return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
   }
+
+  // Black Friday 2026 (lib/campaigns/black-friday.ts). The window is judged
+  // HERE and stamped on the Razorpay notes, so a payment or a trial's first
+  // charge that lands after 30 Nov still gets what checkout promised.
+  // Packs: every Clip Minutes pack. Plans: a new subscription only — not an
+  // upgrade/switch from a paid plan that is already running.
+  const bfPack = bfPackBonusApplies(basePlan.kind);
+  let bfPlan = false;
+  if (basePlan.kind === "subscription") {
+    const planState = await prisma.user.findUnique({
+      where: { id: auth.userId },
+      select: { subscriptionEndsAt: true, trialEndsAt: true },
+    });
+    bfPlan = bfPlanBonusAppliesAtCheckout({
+      kind: basePlan.kind,
+      subscriptionEndsAt: planState?.subscriptionEndsAt,
+      trialEndsAt: planState?.trialEndsAt,
+    });
+  }
+  const bfNotes: Record<string, string> = bfPack
+    ? { bf26: BF26_PACK_NOTE, bfCampaign: BLACK_FRIDAY.code }
+    : bfPlan ? { bf26: BF26_PLAN_NOTE, bfCampaign: BLACK_FRIDAY.code } : {};
+  // What the checkout modal shows as "Black Friday bonus: +N Clip Minutes".
+  const bfBonusMinutes = bfPack ? bfPackBonus(basePlan.minutes ?? 0) : bfPlan ? bfPlanBonus(basePlan.monthlyMinutes ?? 0) : 0;
 
   // Packs are open to all users — no active subscription required.
   // This lets lapsed subscribers top up and recaptures churned users.
@@ -283,6 +310,7 @@ async function handlePOST(req: NextRequest) {
           // (lib/fulfillment.ts). Stamped here so the window is judged at
           // purchase, not whenever the first charge happens to land.
           ...(diwaliMonthlyBonus ? { campaign: DIWALI.code, diwaliBonus: DIWALI_MONTHLY_BONUS_NOTE } : {}),
+          ...bfNotes,
         },
       });
 
@@ -348,6 +376,7 @@ async function handlePOST(req: NextRequest) {
       packName,
       credits: totalCredits,
       trial: wantsTrial,
+      ...(bfBonusMinutes > 0 ? { bfBonusMinutes } : {}),
       // Set only when Razorpay accepted the creator offer, so the modal never
       // shows a discount that isn't being charged.
       ...(offerApplied && creatorOffer && offerToApply === creatorOffer && creator
@@ -374,6 +403,7 @@ async function handlePOST(req: NextRequest) {
         ...(creatorAffiliateId
           ? { campaign: "creator", creatorAffiliateId, discountInPaise: String(creatorPackDiscount) }
           : {}),
+        ...bfNotes,
       },
     });
   } catch (e) {
@@ -390,6 +420,7 @@ async function handlePOST(req: NextRequest) {
     packName,
     credits: totalCredits,
     discountInPaise: appliedDiscount,
+    ...(bfBonusMinutes > 0 ? { bfBonusMinutes } : {}),
   });
 }
 

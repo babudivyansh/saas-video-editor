@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Prisma } from "@prisma/client";
 
 // fulfillSubscriptionCharge is the recurring counterpart to fulfillPayment's
@@ -40,6 +40,7 @@ let user: UserRow;
 let events: Set<string>;
 let purchases: Map<string, unknown>;
 let ledger: Array<{ userId: string; bucket: string; delta: number; reason: string; refId: string | null }>;
+let minuteLedger: Array<{ userId: string; bucket: string; delta: number; reason: string; refId: string | null }>;
 
 vi.mock("@/lib/prisma", () => {
   const client = {
@@ -52,6 +53,7 @@ vi.mock("@/lib/prisma", () => {
           planId: user.planId,
           monthlyCredits: user.monthlyCredits,
           razorpaySubscriptionId: user.razorpaySubscriptionId,
+          trialEndsAt: user.trialEndsAt,
           bonusCredits: user.bonusCredits,
           subscriptionCredits: user.subscriptionCredits,
           purchasedCredits: user.purchasedCredits,
@@ -78,8 +80,8 @@ vi.mock("@/lib/prisma", () => {
       findUnique: vi.fn(async ({ where }: { where: { slug: string } }) => {
         // notes.planId slug resolves to the same 160-credit Pro plan.
         if (where.slug === "plan-pro-slug") return { id: "plan-pro", monthlyCredits: 160, credits: 160 };
-        if (where.slug === "plan-pro-monthly") return { id: "plan-pro", monthlyCredits: 160, credits: 160, intervalMonths: 1 };
-        if (where.slug === "plan-pro-annual") return { id: "plan-pro-yr", monthlyCredits: 160, credits: 1920, intervalMonths: 12 };
+        if (where.slug === "plan-pro-monthly") return { id: "plan-pro", monthlyCredits: 160, credits: 160, intervalMonths: 1, monthlyMinutes: 400 };
+        if (where.slug === "plan-pro-annual") return { id: "plan-pro-yr", monthlyCredits: 160, credits: 1920, intervalMonths: 12, monthlyMinutes: 400 };
         return null;
       }),
     },
@@ -89,8 +91,9 @@ vi.mock("@/lib/prisma", () => {
         ledger.find((r) => r.userId === where.userId && r.reason === where.reason) ?? null),
     },
     minuteTransaction: {
-      findFirst: vi.fn(async () => null),
-      create: vi.fn(async () => ({})),
+      findFirst: vi.fn(async ({ where }: { where: { userId: string; reason: string; refId?: string } }) =>
+        minuteLedger.find((r) => r.userId === where.userId && r.reason === where.reason && (where.refId === undefined || r.refId === where.refId)) ?? null),
+      create: vi.fn(async ({ data }: { data: (typeof minuteLedger)[number] }) => { minuteLedger.push(data); return data; }),
     },
     razorpayEvent: {
       create: vi.fn(async ({ data }: { data: { id: string } }) => {
@@ -116,6 +119,8 @@ vi.mock("@/lib/prisma", () => {
     commission: { create: vi.fn(async ({ data }: { data: { amount: number } }) => { commissions.push(data); return data; }) },
     affiliate: { update: vi.fn(async () => ({})), findUnique: vi.fn(async () => ({ totalEarned: 0 })) },
     config: { findUnique: vi.fn(async () => null) },
+    // lib/minutes locks the user row before a monthly grant.
+    $queryRaw: vi.fn(async () => []),
     $transaction: vi.fn(async (arg: unknown) =>
       Array.isArray(arg) ? Promise.all(arg) : (arg as (tx: unknown) => Promise<unknown>)(client)),
   };
@@ -141,6 +146,7 @@ beforeEach(() => {
   events = new Set();
   purchases = new Map();
   ledger = [];
+  minuteLedger = [];
   renewalEmails = 0;
   referral = null;
   commissions = [];
@@ -309,6 +315,62 @@ describe("fulfillSubscriptionCharge — Diwali 2026 monthly bonus", () => {
     await fulfillSubscriptionCharge({ ...monthly, notesDiwaliBonus: undefined, paymentId: "pay_1" });
     expect(user.bonusCredits).toBe(0);
     expect(ledger.some((r) => r.reason === "grant:diwali-monthly-bonus")).toBe(false);
+  });
+});
+
+describe("fulfillSubscriptionCharge — Black Friday 2026 first-month bonus", () => {
+  const IN_WINDOW = new Date("2026-11-27T12:00:00+05:30");
+  const AFTER_WINDOW = new Date("2026-12-03T12:00:00+05:30");
+  const BEFORE_WINDOW = new Date("2026-11-20T12:00:00+05:30");
+  const yearly = { subscriptionId: "sub_1", amountInPaise: 2_000_000, notesPlanId: "plan-pro-annual", notesBf26: "plan" };
+  const bfRows = () => minuteLedger.filter((r) => r.reason === "grant:bf26-plan-bonus");
+
+  beforeEach(() => { vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(IN_WINDOW); user.trialEndsAt = null; });
+  afterEach(() => vi.useRealTimers());
+
+  it("adds one month of Clip Minutes (not credits) to a yearly plan's first charge", async () => {
+    await fulfillSubscriptionCharge({ ...yearly, paymentId: "pay_1" });
+    expect(bfRows()).toEqual([expect.objectContaining({ bucket: "bonus", delta: 400, refId: "pay_1" })]);
+    expect(ledger.some((r) => r.reason.startsWith("grant:bf26"))).toBe(false);
+    expect(purchases.get("pay_1")).toMatchObject({ minutes: 800 });
+  });
+
+  it("works for monthly plans too", async () => {
+    await fulfillSubscriptionCharge({ ...yearly, notesPlanId: "plan-pro-monthly", paymentId: "pay_1" });
+    expect(bfRows()).toHaveLength(1);
+    expect(bfRows()[0].delta).toBe(400);
+  });
+
+  it("is once per account: a redelivery, a renewal or a second subscription get nothing", async () => {
+    await fulfillSubscriptionCharge({ ...yearly, paymentId: "pay_1" });
+    await fulfillSubscriptionCharge({ ...yearly, paymentId: "pay_1" });
+    await fulfillSubscriptionCharge({ ...yearly, paymentId: "pay_2" });
+    expect(bfRows()).toHaveLength(1);
+  });
+
+  it("honours the checkout stamp when the first charge lands after 30 Nov (trial bought in the window)", async () => {
+    vi.setSystemTime(AFTER_WINDOW);
+    user.trialEndsAt = new Date(AFTER_WINDOW);
+    await fulfillSubscriptionCharge({ ...yearly, notesPlanId: "plan-pro-monthly", paymentId: "pay_1" });
+    expect(bfRows()).toHaveLength(1);
+  });
+
+  it("gives a pre-window trial the bonus when it converts inside the window", async () => {
+    user.trialEndsAt = new Date(IN_WINDOW);
+    await fulfillSubscriptionCharge({ ...yearly, notesPlanId: "plan-pro-monthly", notesBf26: undefined, paymentId: "pay_1" });
+    expect(bfRows()).toHaveLength(1);
+  });
+
+  it("gives an unstamped trial converting outside the window nothing", async () => {
+    vi.setSystemTime(BEFORE_WINDOW);
+    user.trialEndsAt = new Date(BEFORE_WINDOW);
+    await fulfillSubscriptionCharge({ ...yearly, notesPlanId: "plan-pro-monthly", notesBf26: undefined, paymentId: "pay_1" });
+    expect(bfRows()).toHaveLength(0);
+  });
+
+  it("gives an unstamped renewal of an existing plan nothing, even in the window", async () => {
+    await fulfillSubscriptionCharge({ ...yearly, notesBf26: undefined, paymentId: "pay_1" });
+    expect(bfRows()).toHaveLength(0);
   });
 });
 

@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
       };
       refund?: { entity: { id: string; payment_id: string; amount: number } };
       dispute?: { entity: { id: string; payment_id: string; amount?: number; reason_code?: string } };
-      subscription?: { entity: { id: string; start_at?: number | null; notes?: { userId?: string; planId?: string; trial?: string; currency?: string; diwaliBonus?: string } } };
+      subscription?: { entity: { id: string; start_at?: number | null; notes?: { userId?: string; planId?: string; trial?: string; currency?: string; diwaliBonus?: string; bf26?: string } } };
     };
   };
 
@@ -262,6 +262,8 @@ export async function POST(req: NextRequest) {
         notesPlanId: subEntity.notes?.planId,
         // Diwali 2026 monthly first-month bonus, stamped at checkout.
         notesDiwaliBonus: subEntity.notes?.diwaliBonus,
+        // Black Friday 2026 first-month bonus, stamped at checkout.
+        notesBf26: subEntity.notes?.bf26,
       });
       if (result.fulfilled) {
         await maybePromptAfterBillingSuccess(subEntity.notes?.userId);

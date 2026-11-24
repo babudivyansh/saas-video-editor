@@ -17,6 +17,8 @@ import { minorUnits } from "@/lib/plans/display";
 import { TRIAL_DAYS } from "@/lib/plans/tiers";
 import { DIWALI, diwaliDiscountMinor, diwaliMonthlyBonus, diwaliMonthlyBonusApplies, diwaliOfferApplies } from "@/lib/campaigns/diwali";
 import { creatorDiscountApplies } from "@/app/components/billing/useCreatorDiscount";
+import { useBlackFridayLive } from "@/app/components/campaign/BlackFriday";
+import { bfPlanBonus } from "@/lib/campaigns/black-friday";
 import type { DbPlan } from "./types";
 
 // Modal.tsx reads useTranslations("Common") for its close-button label, and
@@ -37,8 +39,14 @@ export function CheckoutModal(props: {
   onClose: () => void;
   /** The buyer's creator partner discount (lib/creator-program.ts), if any. */
   creatorDiscount?: { pct: number; handle: string | null } | null;
+  /** Black Friday 2026: a new subscription (not an upgrade from a running
+   *  paid plan) — gets month 1's Clip Minutes doubled. */
+  bfEligible?: boolean;
 }) {
-  const { plan, trial, currency, activePlanEndsAt, loading, error, onPay, onClose, creatorDiscount } = props;
+  const { plan, trial, currency, activePlanEndsAt, loading, error, onPay, onClose, creatorDiscount, bfEligible = false } = props;
+  // Mirrors api/billing/checkout's bf26 stamp + the first-charge grant.
+  const bfLive = useBlackFridayLive();
+  const bfBonus = bfLive && bfEligible ? bfPlanBonus(plan.monthlyMinutes ?? 0) : 0;
   const months = plan.intervalMonths ?? 1;
   const termLabel = months > 1 ? `${months} months` : "1 month";
   const priceMinor = minorUnits(plan, currency);
@@ -141,6 +149,18 @@ export function CheckoutModal(props: {
                   {monthlyBonus.minutes > 0 && monthlyBonus.credits > 0 && <br />}
                   {monthlyBonus.credits > 0 && <>+{monthlyBonus.credits} credits</>}
                 </span>
+              </div>
+            )}
+
+            {bfBonus > 0 && (
+              <div className="flex items-start justify-between gap-2 text-sm">
+                <span className="min-w-0 text-success">
+                  Black Friday bonus: +{bfBonus.toLocaleString("en-IN")} Clip Minutes
+                  <span className="block text-xs text-fg-subtle">
+                    {(plan.monthlyMinutes ?? 0) + bfBonus} in month 1 · {trial ? "added with your first payment" : "added with this payment"}
+                  </span>
+                </span>
+                <span className="whitespace-nowrap text-success">2×</span>
               </div>
             )}
 

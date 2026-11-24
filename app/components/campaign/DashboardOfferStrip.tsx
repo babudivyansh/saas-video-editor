@@ -7,8 +7,63 @@
 import { useBillingOverlay } from "@/app/components/billing/BillingOverlayContext";
 import { DIWALI } from "@/lib/campaigns/diwali";
 import { Diya, Marquee, OFFER_COPY, Sparkle, useDiwaliOffers, useDismissed } from "./DiwaliDecor";
+import { BF_COPY, useBlackFridayLive } from "./BlackFriday";
+import { BLACK_FRIDAY } from "@/lib/campaigns/black-friday";
+
+/** Black Friday 2026 (26-30 Nov IST): same strip, dark emerald system. */
+function BlackFridayStrip() {
+  const [dismissed, dismiss] = useDismissed("clipiro:bf26:dash-strip");
+  const { openBilling } = useBillingOverlay();
+  if (dismissed) return null;
+  const items = [
+    { text: "2× Clip Minutes on every pack and plan", cls: "font-bold text-success" },
+    { text: "Packs: double the minutes, same price", cls: "" },
+    { text: "New plans: first month of minutes doubled", cls: "" },
+    { text: "Applied automatically · no code needed", cls: "" },
+    { text: `Ends ${BLACK_FRIDAY.endLabel}`, cls: "font-bold text-fg" },
+  ];
+  const row = [...items, ...items, ...items];
+  return (
+    <div role="region" aria-label="Black Friday offer" className="relative flex h-12 shrink-0 items-center overflow-hidden border-b border-line bg-surface-1 font-sans">
+      <div className="relative z-[1] flex h-full items-center bg-primary pl-4 pr-3 font-mono text-xs font-semibold uppercase tracking-[0.08em] text-on-primary whitespace-nowrap sm:pl-5">
+        <span className="hidden sm:inline">2× {BF_COPY.label}</span>
+        <span className="sm:hidden">2× BF</span>
+      </div>
+      <Marquee duration={40} className="min-w-0 flex-1">
+        {row.map((t, i) => (
+          <div key={i} className="flex items-center gap-3.5 whitespace-nowrap pl-3.5 text-sm text-fg-muted">
+            <span className={t.cls}>{t.text}</span>
+            <span aria-hidden="true" className="h-1 w-1 rounded-full bg-primary" />
+          </div>
+        ))}
+      </Marquee>
+      <span className="sr-only">{BF_COPY.ticker}. Applied automatically.</span>
+      <button
+        type="button"
+        onClick={() => openBilling({ view: "plans" })}
+        className="relative z-[1] ml-3 flex h-8 shrink-0 items-center whitespace-nowrap rounded-lg bg-primary px-3.5 text-[13px] font-bold text-on-primary transition-colors hover:bg-primary-hover"
+      >
+        <span className="hidden sm:inline">See the offer</span>
+        <span className="sm:hidden">Offer</span>
+      </button>
+      <button
+        type="button"
+        onClick={dismiss}
+        aria-label="Dismiss offer"
+        className="relative z-[1] mx-0.5 flex h-11 w-11 shrink-0 items-center justify-center text-fg-muted hover:text-fg"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+      </button>
+    </div>
+  );
+}
 
 export default function DashboardOfferStrip() {
+  const bfLive = useBlackFridayLive();
+  return bfLive ? <BlackFridayStrip /> : <DiwaliStrip />;
+}
+
+function DiwaliStrip() {
   const { phase, monthly, yearly } = useDiwaliOffers();
   const [dismissed, dismiss] = useDismissed("clipiro:diwali26:dash-strip");
   const { openBilling } = useBillingOverlay();

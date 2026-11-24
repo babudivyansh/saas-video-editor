@@ -27,6 +27,7 @@ import { FlowHeader, PresetCards, QuestionHeading, StepFooter, flowStyles as fs,
 import { usesFacecam, type FacecamBox, type SpeakerMode } from "@/lib/speaker-modes";
 import { LayoutTemplatePicker } from "@/app/components/auto-clip/LayoutTemplatePicker";
 import { FacecamBoxPicker } from "@/app/components/auto-clip/FacecamBoxPicker";
+import { BF_COPY, useBlackFridayLive } from "@/app/components/campaign/BlackFriday";
 
 // Mirrors the limits printed on the drop zone (and enforced server-side).
 
@@ -76,6 +77,8 @@ function AutoClipFlow() {
   const [captionTemplateId, setCaptionTemplateId] = useState<string>(DEFAULT_TEMPLATE_ID);
   const captionStyleIndex = indexForTemplateId(captionTemplateId);
 
+  // Black Friday 2026: the out-of-minutes notice says packs are 2×.
+  const bfLive = useBlackFridayLive();
   // The caller's balances, shown beside Generate.
   const pricingQuery = useQuery({
     queryKey: ["auto-clip-pricing"],
@@ -530,6 +533,10 @@ function AutoClipFlow() {
                           ? `This video needs ${paymentBlock.required ?? "more"} Clip Minutes${paymentBlock.balance != null ? ` and you have ${paymentBlock.balance}` : ""}. Nothing was charged.${paymentBlock.overflowCredits ? ` Tick "pay the rest in AI credits" below to cover it with ${paymentBlock.overflowCredits} credit${paymentBlock.overflowCredits === 1 ? "" : "s"}.` : ""}`
                           : `You need ${paymentBlock.required ?? "more"} credits to start this run${paymentBlock.balance != null ? ` and you have ${paymentBlock.balance}` : ""}. Nothing was charged.`}
                     </p>
+                    {paymentBlock.kind === "minutes" && bfLive && (
+                      // Black Friday 2026 (lib/campaigns/black-friday.ts).
+                      <p className="basis-full text-[13px] font-semibold text-success">{BF_COPY.packs}.</p>
+                    )}
                     {paymentBlock.kind === "minutes" ? (
                       // Minute packs sell on the billing overlay's Top Up tab.
                       <Button size="sm" onClick={() => openBilling({ tab: "topup" })}>Top up minutes</Button>
