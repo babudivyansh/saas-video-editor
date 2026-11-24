@@ -14,8 +14,11 @@ import { hindiCaptionsShortsReels } from "./content/hindi-captions-shorts-reels"
 import { podcastToYoutubeShorts, videoToFacebookReels, videoToInstagramReels } from "./content/platform-guides";
 import { aiClippingIndianCreators } from "./content/ai-clipping-indian-creators";
 import { clipGta6Streams } from "./content/clip-gta-6-streams";
+import { blackFriday2026 } from "./content/black-friday-2026";
 
 export const BLOG_POSTS: BlogPost[] = [
+  // Time-limited (ends 30 Nov 2026): listed first while the sale runs.
+  blackFriday2026,
   podcastToViralClips,
   hooksThatStopTheScroll,
   smarterClipDetection,
