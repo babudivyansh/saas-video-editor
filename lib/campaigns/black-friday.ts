@@ -25,8 +25,8 @@
 // account.
 
 export const BLACK_FRIDAY = {
-  /** 24 Nov 2026, 4:00 PM IST (moved up from 26 Nov 00:00 on 24 Nov). */
-  startsAt: Date.parse("2026-11-24T16:00:00+05:30"),
+  /** 24 Nov 2026, 5:00 PM IST (moved up from 26 Nov 00:00 on 24 Nov). */
+  startsAt: Date.parse("2026-11-24T17:00:00+05:30"),
   /** 30 Nov 2026 (Cyber Monday), 23:59:59 IST. */
   endsAt: Date.parse("2026-11-30T23:59:59+05:30"),
   /** Pack minutes multiplier, as a bonus percentage of the pack's minutes. */

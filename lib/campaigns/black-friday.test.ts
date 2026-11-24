@@ -4,15 +4,15 @@ import {
   bfPlanBonusEligibleAtCharge, blackFridayPhase, hasRunningPaidPlan,
 } from "./black-friday";
 
-const BEFORE = Date.parse("2026-11-24T15:59:59+05:30");
-const OPEN = Date.parse("2026-11-24T16:00:00+05:30");
+const BEFORE = Date.parse("2026-11-24T16:59:59+05:30");
+const OPEN = Date.parse("2026-11-24T17:00:00+05:30");
 const LAST_SECOND = Date.parse("2026-11-30T23:59:59+05:30");
 const AFTER = Date.parse("2026-12-01T00:00:00+05:30");
 const DAY = 86_400_000;
 
 describe("blackFridayPhase — window edges in IST", () => {
-  it("opens at 4:00 PM IST on 24 Nov (10:30 UTC)", () => {
-    expect(new Date(BLACK_FRIDAY.startsAt).toISOString()).toBe("2026-11-24T10:30:00.000Z");
+  it("opens at 5:00 PM IST on 24 Nov (11:30 UTC)", () => {
+    expect(new Date(BLACK_FRIDAY.startsAt).toISOString()).toBe("2026-11-24T11:30:00.000Z");
     expect(blackFridayPhase(BEFORE)).toBe("before");
     expect(blackFridayPhase(OPEN)).toBe("live");
   });
