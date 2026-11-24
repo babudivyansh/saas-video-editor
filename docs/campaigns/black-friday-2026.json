@@ -1,0 +1,28 @@
+{
+  "name": "Black Friday 2026",
+  "subject": "{{name}}, your Clip Minutes are doubled this week",
+  "preheader": "2x minutes on every pack, and month one doubled on any new plan. Ends 30 Nov, 11:59 PM IST.",
+  "audience": { "plan": "all" },
+  "blocks": [
+    { "kind": "image", "src": "https://clipiro.com/email/bf26-hero.png", "alt": "Black Friday: 2x Clip Minutes. Ends 30 Nov, 11:59 PM IST.", "href": "/pricing" },
+    { "kind": "heading", "text": "Hi {{name}}, Black Friday is live" },
+    { "kind": "paragraph", "text": "For one week only, every Clip Minutes pack comes with double the minutes, and they never expire.\n\nStarting a new plan? Your first month of Clip Minutes is doubled too, on Creator, Pro or Agency, monthly or yearly." },
+    { "kind": "offer", "label": "Every Clip Minutes pack", "price": "2x minutes", "caption": "Same price. Bonus minutes never expire." },
+    { "kind": "button", "label": "Get 2x minutes", "href": "/pricing" },
+    { "kind": "image", "src": "https://clipiro.com/email/bf26-how-it-works.png", "alt": "1. Pick a pack or plan. 2. Check out as usual, no code needed. 3. Get double minutes.", "href": "/pricing" },
+    { "kind": "heading", "text": "What you get" },
+    { "kind": "list", "items": [
+      "Double minutes on every Clip Minutes pack",
+      "Month one doubled on any new Creator, Pro or Agency plan",
+      "Works in INR and USD, monthly or yearly",
+      "No code needed, the bonus is added at checkout"
+    ] },
+    { "kind": "divider" },
+    { "kind": "heading", "text": "Turn one long video into a week of shorts" },
+    { "kind": "image", "src": "https://clipiro.com/hero/launch-film-poster.jpg", "alt": "Clipiro AutoClip turns long footage into short clips", "href": "/dashboard" },
+    { "kind": "paragraph", "text": "Drop in a podcast, stream or vlog. AutoClip finds the best moments, reframes them for vertical and adds captions. More minutes means more clips." },
+    { "kind": "callout", "tone": "warning", "title": "Ends Sunday, 30 Nov at 11:59 PM IST", "body": "Bonus minutes are only added to orders placed before the sale closes. AI credit packs are not included." },
+    { "kind": "button", "label": "Claim my double minutes", "href": "/pricing" },
+    { "kind": "paragraph", "text": "Questions? Just reply to this email, a real person reads every one." }
+  ]
+}
