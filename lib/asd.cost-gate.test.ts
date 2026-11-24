@@ -9,6 +9,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const runAsd = vi.hoisted(() => vi.fn(async () => ({ tracks: [] as never[] })));
+vi.mock("@/lib/face-detect-local", () => ({ detectFacesLocal: async () => ({ boxes: [] }) }));
 vi.mock("@/lib/gpu-service", () => ({
   runAsd,
   GpuServiceError: class extends Error { errorClass = "transport"; },

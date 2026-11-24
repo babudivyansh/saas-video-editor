@@ -30,7 +30,10 @@ const nextConfig: NextConfig = {
   // fontkit (the caption engine's text measurement, lib/captions/engine/fonts.ts)
   // is Node-only and large; bundling it into every route that imports the
   // render pipeline made dev compiles noticeably slower.
-  serverExternalPackages: ["ffmpeg-static", "@napi-rs/canvas", "pdfkit", "youtube-dl-exec", "fontkit"],
+  // onnxruntime-web (AutoClip's local face detector, lib/face-detect-local.ts)
+  // loads its .wasm from beside its own file at runtime; bundled, that path
+  // points into .next and the load fails.
+  serverExternalPackages: ["ffmpeg-static", "@napi-rs/canvas", "pdfkit", "youtube-dl-exec", "fontkit", "onnxruntime-web"],
   // youtube-dl-exec spawns a plain `yt-dlp` executable that lives in the
   // package's bin/ — it is not a JS `require`, so Next's standalone tracer never
   // followed it and the binary was left out of the deploy. At runtime all three
@@ -60,6 +63,12 @@ const nextConfig: NextConfig = {
       "./vendor/ffmpeg/ffmpeg",
       "./node_modules/ffmpeg-static/ffmpeg",
       "./node_modules/ffmpeg-static/ffmpeg.exe",
+      // The face detector: its model (read by path) and the one WebAssembly
+      // build onnxruntime-web's Node entry loads (fetched by path, so the
+      // tracer can't see it). Not the package's other ~140 MB of builds.
+      "./vendor/models/yunet/*.onnx",
+      "./node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.mjs",
+      "./node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm",
     ],
     // vendor/yt-dlp/** is the pinned standalone Linux build (one-directory:
     // yt-dlp_linux + _internal/, nothing unpacked to the noexec /tmp) from

@@ -114,12 +114,6 @@ export function coverageBucketSec(faces: FaceBox[]): number {
   return Math.max(BUCKET_SEC, gaps[Math.floor(gaps.length / 2)]);
 }
 
-/** How many distinct buckets a person appears in, as a fraction. */
-function coverage(person: FaceBox[], durationSec: number, bucketSec: number): number {
-  const buckets = new Set(person.map((f) => Math.floor(f.tSec / bucketSec)));
-  return buckets.size / Math.max(1, Math.ceil(durationSec / bucketSec));
-}
-
 /** Count how often the highest-scoring speaker changes identity. */
 export function countSpeakerSwitches(faces: FaceBox[], durationSec: number): number {
   const withScore = faces.filter((f) => typeof f.speaking === "number" && f.trackId);
@@ -154,14 +148,11 @@ export function classifyScene(faces: FaceBox[], clipStartSec: number, clipEndSec
   // Only people who are actually present for a meaningful share of the clip
   // count. A face that appears for half a second is a passer-by, not a subject.
   const switchesPerMin = countSpeakerSwitches(inWindow, durationSec);
-  let people: number;
-  if (inWindow.every((f) => f.trackId)) {
-    const bucketSec = coverageBucketSec(faces);
-    people = groupIntoPeople(inWindow).filter((p) => coverage(p, durationSec, bucketSec) >= COVERAGE_FLOOR).length;
-  } else {
-    // No identities (the Gemini rung): count faces that share a frame.
-    people = simultaneousPeople(inWindow);
-  }
+  // People who share the frame, not identities seen over the clip: track ids
+  // restart at every camera cut (lib/face-detect-local.ts), so a host
+  // close-up followed by a guest close-up is two tracks but never two people
+  // on screen — and calling it a duo stacked an empty panel.
+  const people = simultaneousPeople(inWindow);
 
   if (people <= 1) return { type: "single", people: 1, switchesPerMin };
   if (people >= 3) return { type: "group", people, switchesPerMin };

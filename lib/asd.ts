@@ -12,8 +12,10 @@
 //
 // Everything here is best-effort and degrades in three steps:
 //   ASD (GPU)  ->  Rekognition (AWS, only if gpu_routing.rekognitionFallback)
+//              ->  YuNet on this server's CPU, over the clip windows
+//                  (lib/face-detect-local.ts — the production default)
 //              ->  Gemini on sampled frames (needs the local source file)
-//              ->  []  (static centre crop, `failure` set)
+//              ->  []  (whole frame / centre crop, `failure` set)
 // which is the same contract lib/reframe.ts already documents for Rekognition
 // alone, just with one more rung on top.
 
@@ -22,6 +24,7 @@ import { shouldUseAsd, shouldUseRekognitionFallback } from "@/lib/render-target"
 import { detectFaceTimeline, type FaceBox, type FaceTimelineResult } from "@/lib/reframe";
 import { classifySource } from "@/lib/source-url";
 import { detectFacesWithGemini } from "@/lib/face-detect-gemini";
+import { detectFacesLocal, type Window } from "@/lib/face-detect-local";
 import { logger } from "@/lib/logger";
 
 /**
@@ -62,10 +65,12 @@ export async function getFaceTimeline(
   userId: string,
   videoUrl: string,
   /**
-   * The already-downloaded (ownership-checked) source, for the Gemini rung.
-   * Without it there is no rung below Rekognition.
+   * The already-downloaded (ownership-checked) source, for the local and
+   * Gemini rungs. Without it there is no rung below Rekognition. `windows`
+   * (the chosen clips) and the frame size enable the local detector, which
+   * only looks inside those windows.
    */
-  local?: { path: string; durationSec: number },
+  local?: { path: string; durationSec: number; windows?: Window[]; srcW?: number; srcH?: number },
 ): Promise<FaceTimelineResult> {
   // ── AUTHORIZATION GATE ─────────────────────────────────────────────────────
   // This must stand on its own. Both steps below spend Clipiro's credentials on
@@ -131,6 +136,11 @@ export async function getFaceTimeline(
   // of the rungs above configured, which made every AutoClip run a centre
   // crop with `reframe_failed` (2026-11). The file was downloaded through the
   // ownership-checked path, and the gate above already refused foreign media.
+  if (local?.windows && local.srcW && local.srcH) {
+    const onCpu = await detectFacesLocal(local.path, local.windows, local.durationSec, local.srcW, local.srcH);
+    if (!onCpu.failure) return onCpu;
+    last = onCpu;
+  }
   if (local) {
     const gemini = await detectFacesWithGemini(local.path, local.durationSec);
     if (!gemini.failure) return gemini;

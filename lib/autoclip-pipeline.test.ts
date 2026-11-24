@@ -46,6 +46,17 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
+// The local face detector, controllable per test (resolveClipFaces below).
+// Off by default, so the job-level tests here never decode video for faces.
+const localFaces = vi.hoisted(() => ({
+  available: false,
+  detect: vi.fn(async (..._args: unknown[]) => ({ boxes: [] as unknown[] }) as { boxes: unknown[]; failure?: string }),
+}));
+vi.mock("@/lib/face-detect-local", () => ({
+  localDetectorAvailable: () => localFaces.available,
+  detectFacesLocal: (...args: unknown[]) => localFaces.detect(...args),
+}));
+
 vi.mock("@/lib/redis", () => ({
   redis: { get: vi.fn(async () => null), set: vi.fn(async () => {}), del: vi.fn(async () => {}) },
 }));
@@ -657,6 +668,17 @@ describe("computeClipCrop — podcast framing regressions", () => {
     expect(computeClipCrop([], seg(0, 20), "9:16", 1280, 720, { speakerMode: "single" }, null)).toEqual({ mode: "fit" });
   });
 
+  it("never stacks two camera angles as a split screen (tracked ids restart at cuts)", async () => {
+    const { computeClipCrop } = await import("./autoclip-pipeline");
+    const { scoreFraming } = await import("./reframe-metrics");
+    const tracked = (id: string, cx: number, from: number, to: number) =>
+      Array.from({ length: (to - from) * 4 }, (_, i) => ({ ...face(from + i / 4, cx), trackId: id }));
+    const faces = [...tracked("w0-0", 0.38, 0, 10), ...tracked("w0-1", 0.64, 10, 20)];
+    const crop = computeClipCrop(faces, seg(0, 20), "9:16", 1280, 720, { speakerMode: "split" }, null);
+    expect(crop?.mode).not.toBe("split");
+    expect(scoreFraming(crop, faces, "9:16", 1280, 720).score).toBeGreaterThan(0.9);
+  });
+
   it("keeps per-shot framing when one odd shot wants a split", async () => {
     const { computeClipCrop } = await import("./autoclip-pipeline");
     const { scoreFraming } = await import("./reframe-metrics");
@@ -722,5 +744,39 @@ describe("reportReframeFailure", () => {
     reportReframeFailure("project-1", "unconfigured");
     expect(spy).toHaveBeenCalledWith("auto-clip", expect.stringContaining("unconfigured"), { projectId: "project-1", failure: "unconfigured" });
     spy.mockRestore();
+  });
+});
+
+describe("resolveClipFaces — topping up a cached timeline", () => {
+  const face = (tSec: number, trackId?: string) => ({ tSec, x: 0.6, y: 0.2, w: 0.1, h: 0.2, confidence: 90, ...(trackId ? { trackId } : {}) });
+  const local = { path: "/tmp/src.mp4", durationSec: 600, windows: [{ start: 10, end: 30 }, { start: 100, end: 120 }], srcW: 1280, srcH: 720 };
+
+  it("detects only the clip windows the cache never covered, and keeps the new track ids apart", async () => {
+    const { resolveClipFaces } = await import("./autoclip-pipeline");
+    localFaces.available = true;
+    localFaces.detect.mockResolvedValueOnce({ boxes: [face(105, "w0-0")] });
+    const r = await resolveClipFaces("u1", "https://x/v.mp4", [face(15)], local);
+    expect(localFaces.detect).toHaveBeenCalledWith("/tmp/src.mp4", [{ start: 100, end: 120 }], 600, 1280, 720);
+    expect(r.changed).toBe(true);
+    expect(r.boxes.map((b) => b.tSec)).toEqual([15, 105]);
+    expect(r.boxes[1].trackId).toMatch(/^r.+-w0-0$/);
+  });
+
+  it("leaves a cache that covers every clip alone", async () => {
+    const { resolveClipFaces } = await import("./autoclip-pipeline");
+    localFaces.available = true;
+    localFaces.detect.mockClear();
+    const r = await resolveClipFaces("u1", "https://x/v.mp4", [face(15), face(110)], local);
+    expect(localFaces.detect).not.toHaveBeenCalled();
+    expect(r).toEqual({ boxes: [face(15), face(110)], changed: false });
+  });
+
+  it("keeps the cache when the top-up fails", async () => {
+    const { resolveClipFaces } = await import("./autoclip-pipeline");
+    localFaces.available = true;
+    localFaces.detect.mockResolvedValueOnce({ boxes: [], failure: "error" });
+    const r = await resolveClipFaces("u1", "https://x/v.mp4", [face(15)], local);
+    expect(r).toEqual({ boxes: [face(15)], changed: false });
+    localFaces.available = false;
   });
 });

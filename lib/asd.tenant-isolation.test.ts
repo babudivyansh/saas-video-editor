@@ -24,6 +24,7 @@ import { randomUUID } from "crypto";
 // Observe the two privileged operations. These are the things that must NOT
 // happen for another tenant's media.
 const runAsd = vi.hoisted(() => vi.fn(async () => ({ tracks: [] })));
+vi.mock("@/lib/face-detect-local", () => ({ detectFacesLocal: async () => ({ boxes: [] }) }));
 vi.mock("@/lib/gpu-service", () => ({
   runAsd,
   GpuServiceError: class extends Error { errorClass = "input"; },

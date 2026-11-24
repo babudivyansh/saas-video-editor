@@ -366,6 +366,13 @@ describe("simultaneousPeople / untracked scenes", () => {
     expect(simultaneousPeople([...untracked(0.5, t), ...untracked(0.52, t)])).toBe(1);
   });
 
+  it("calls a host close-up then a guest close-up one person on screen, even with two track ids", () => {
+    // Track ids restart at camera cuts, so two shots = two tracks, never together.
+    const host = person("w0-0", 0.38, 20).map((f) => ({ ...f, tSec: f.tSec / 2 }));
+    const guest = person("w0-1", 0.64, 20).map((f) => ({ ...f, tSec: 10 + f.tSec / 2 }));
+    expect(classifyScene([...host, ...guest], 0, 20).type).toBe("single");
+  });
+
   it("groups untracked faces by gaps, keeping one person's small moves together", () => {
     const faces = [...untracked(0.64, [0, 5]), ...untracked(0.70, [10]), ...untracked(0.24, [15])];
     expect(groupIntoPeople(faces)).toHaveLength(2);

@@ -86,6 +86,7 @@ import { collectVideoBroll } from "@/lib/autoclip-ai/broll-generate";
 import type { BrollWindowRow } from "@/lib/autoclip-ai/broll-select";
 import type { AiRunResult } from "@/lib/autoclip-ai/run";
 import { getFaceTimeline } from "@/lib/asd";
+import { detectFacesLocal, localDetectorAvailable } from "@/lib/face-detect-local";
 // P0-3: Project.uploadedVideoUrl is a PRESIGNED url minted at upload time and
 // only valid for 6 hours, so every job that reused it later died on its first
 // step with 403 "Request has expired". Always re-mint before downloading.
@@ -962,6 +963,31 @@ function computeStoredCrop(
 }
 
 /**
+ * The face timeline for a run's chosen clips. Without a cache, the resolver's
+ * rungs (lib/asd.ts) run over the clip windows. With one, windows the cache
+ * never covered — a re-pick that chose new moments, or a timeline from before
+ * detection was windowed — are topped up by the local detector, so a clip is
+ * never framed blind just because an older run looked elsewhere. `changed`
+ * says whether there is anything new to persist.
+ */
+export async function resolveClipFaces(
+  userId: string,
+  videoUrl: string,
+  cached: FaceBox[] | null,
+  local: { path: string; durationSec: number; windows: { start: number; end: number }[]; srcW: number; srcH: number },
+): Promise<FaceTimelineResult & { changed: boolean }> {
+  if (!cached) return { ...(await getFaceTimeline(userId, videoUrl, local)), changed: true };
+  const missing = local.windows.filter((w) => !cached.some((f) => f.tSec >= w.start && f.tSec <= w.end));
+  if (missing.length === 0 || !localDetectorAvailable()) return { boxes: cached, changed: false };
+  const more = await detectFacesLocal(local.path, missing, local.durationSec, local.srcW, local.srcH);
+  if (more.failure || more.boxes.length === 0) return { boxes: cached, changed: false };
+  // Track ids restart per detection run; keep the new ones apart from the cache's.
+  const tag = `r${Date.now().toString(36)}-`;
+  const added = more.boxes.map((b) => (b.trackId ? { ...b, trackId: tag + b.trackId } : b));
+  return { boxes: [...cached, ...added].sort((a, b) => a.tSec - b.tSec), changed: true };
+}
+
+/**
  * Face detection could not run for this source, so every clip falls back to a
  * centre crop. This was only a `Project.warnings` entry, which nobody watches:
  * for weeks every production run carried `reframe_failed` (no GPU service,
@@ -1206,21 +1232,13 @@ export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATT
       }
     }
 
-    // Rekognition face detection is the single longest-running call in this
-    // job (up to 5 minutes, see MAX_POLL_MS in lib/reframe.ts) and depends on
-    // neither the transcript nor Gemini's output — kick it off now and run it
-    // concurrently with STT + Gemini below instead of waiting on it after
-    // they've already finished.
-    // Prefers the GPU active-speaker model, then Rekognition only if an admin
-    // enabled that ($0.10/source-minute) fallback, then nothing (static centre
-    // crop) — see lib/asd.ts. Timelines are cached
-    // via loadFaceTimeline/saveFaceTimeline, which keeps the samples in an S3
-    // sidecar rather than a Postgres JSON column: a multi-hour source produces
-    // six figures of samples, which is not a column value.
+    // Face detection runs AFTER clip selection (below), over the chosen clip
+    // windows only. The local CPU detector (lib/face-detect-local.ts) takes
+    // ~30s for a dozen clips at 4 frames a second; scanning the whole source
+    // up front was what forced the old Gemini rung down to one frame every
+    // few seconds. Timelines are cached via loadFaceTimeline/saveFaceTimeline
+    // (an S3 sidecar, not a Postgres JSON column).
     const cached = await loadFaceTimeline(project);
-    const faceTimelinePromise: Promise<FaceTimelineResult> = cached
-      ? Promise.resolve({ boxes: cached })
-      : getFaceTimeline(project.userId, project.uploadedVideoUrl, { path: videoPath, durationSec });
 
     let wordTimings: WordTiming[] = [];
     let sttFailed = false;
@@ -1244,15 +1262,17 @@ export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATT
     );
     if (segments.length === 0) throw new Error("Gemini returned no valid clip segments");
 
-    // Faces are only needed from here on (computeStoredCrop below) — by now
-    // the Rekognition call has had the entire STT+Gemini duration to finish
-    // in the background instead of blocking in front of it.
-    const faceResult = await faceTimelinePromise;
+    const { w: srcW, h: srcH } = await getMediaDimensions(videoPath);
+    const windows = segments.map((s) => ({ start: s.start, end: s.end }));
+    const faceResult = await timeStage(
+      "faces",
+      () => resolveClipFaces(project.userId, project.uploadedVideoUrl!, cached, { path: videoPath, durationSec, windows, srcW, srcH }),
+      { meta: { sourceMin: Math.round(durationSec / 60), clipCount: segments.length } },
+    );
     const allFaces = faceResult.boxes;
-    if (!cached && allFaces.length > 0) {
+    if (faceResult.changed && allFaces.length > 0) {
       await saveFaceTimeline(projectId, allFaces);
     }
-    const { w: srcW, h: srcH } = await getMediaDimensions(videoPath);
 
     const warnings: string[] = [];
     if (sttFailed || wordTimings.length === 0) warnings.push("transcription_failed");
@@ -2640,7 +2660,26 @@ export async function rerenderJob(payload: RerenderPayload): Promise<void> {
     let renderSource = source.kind === "owned" ? source.url : await localSource();
 
     let updatedClip = clip;
-    const allFaces = (await loadFaceTimeline(project)) ?? [];
+    let allFaces = (await loadFaceTimeline(project)) ?? [];
+    // A clip the timeline never covered (picked while production had no face
+    // detector, or by the sparse Gemini rung): detect its window now, on this
+    // server, so re-rendering it frames the speaker instead of the centre.
+    if (localDetectorAvailable() && !allFaces.some((f) => f.tSec >= clip.startSec && f.tSec <= clip.endSec)) {
+      try {
+        const local = await localSource();
+        const dims = await getMediaDimensions(local);
+        const topped = await resolveClipFaces(project.userId, project.uploadedVideoUrl!, allFaces, {
+          path: local, durationSec: clip.endSec + 3,
+          windows: [{ start: clip.startSec, end: clip.endSec }], srcW: dims.w, srcH: dims.h,
+        });
+        if (topped.changed) {
+          allFaces = topped.boxes;
+          await saveFaceTimeline(project.id, allFaces);
+        }
+      } catch (err) {
+        logger.warn("auto-clip", `could not detect faces for clip ${clipId} on re-render`, err);
+      }
+    }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rerenderSettings = (clip.silenceSettings as any) ?? {};
     const storedBefore = clip.cropKeyframes as unknown as StoredCrop | null;
