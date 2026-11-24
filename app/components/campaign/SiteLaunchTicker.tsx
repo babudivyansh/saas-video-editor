@@ -17,7 +17,7 @@ const BF_DISMISS_KEY = "clipiro:bf26:site-ticker";
 
 export function useSiteTicker(): { visible: boolean; dismiss: () => void } {
   const { phase } = useDiwaliPhase();
-  // Black Friday 2026 (26-30 Nov IST) reuses this bar, with its own dismissal.
+  // Black Friday 2026 (24 Nov 4 PM - 30 Nov IST) reuses this bar, with its own dismissal.
   const bfLive = useBlackFridayLive();
   const [bfDismissed, bfDismiss] = useDismissed(BF_DISMISS_KEY, "session", false);
   // Rendered in the server HTML (starts not-dismissed): if it only appeared

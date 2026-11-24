@@ -25,8 +25,8 @@
 // account.
 
 export const BLACK_FRIDAY = {
-  /** 26 Nov 2026, 00:00 IST. */
-  startsAt: Date.parse("2026-11-26T00:00:00+05:30"),
+  /** 24 Nov 2026, 4:00 PM IST (moved up from 26 Nov 00:00 on 24 Nov). */
+  startsAt: Date.parse("2026-11-24T16:00:00+05:30"),
   /** 30 Nov 2026 (Cyber Monday), 23:59:59 IST. */
   endsAt: Date.parse("2026-11-30T23:59:59+05:30"),
   /** Pack minutes multiplier, as a bonus percentage of the pack's minutes. */
@@ -117,7 +117,7 @@ export interface BfPlanChargeArgs {
 /** Whether THIS charge earns the plan bonus, before the once-per-account
  *  ledger check. Stamped at checkout → yes, whenever the charge lands.
  *  Unstamped → only a trial converting inside the window (a trial started
- *  before 26 Nov whose owner kept it running). */
+ *  before the sale opened whose owner kept it running). */
 export function bfPlanBonusEligibleAtCharge(args: BfPlanChargeArgs, now: number = Date.now()): boolean {
   if (args.note === BF26_PLAN_NOTE) return true;
   return !!args.trialEndsAt && isBlackFridayLive(now);
