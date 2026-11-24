@@ -49,7 +49,7 @@ function blockToText(block: Block): string | null {
       return `${block.label}: ${block.href}`;
 
     case "hero":
-      return [block.label.toUpperCase(), `  ${block.value}`, block.caption ? `  ${block.caption}` : null]
+      return [block.label.toUpperCase(), block.was ? `  ${block.value} (was ${block.was})` : `  ${block.value}`, block.caption ? `  ${block.caption}` : null]
         .filter(Boolean)
         .join("\n");
 
@@ -98,6 +98,13 @@ function blockToText(block: Block): string | null {
     // Tracking pixels and other HTML-only artefacts have no text form.
     case "pixel":
       return null;
+
+    // The picture itself has no text form; its link, if any, must survive.
+    case "image":
+      return block.href ? `${block.alt}: ${block.href}` : null;
+
+    case "coupon":
+      return [`  Use code: ${block.code}`, block.caption ? `  ${block.caption}` : null].filter(Boolean).join("\n");
   }
 }
 

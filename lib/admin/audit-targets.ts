@@ -39,13 +39,14 @@ export async function resolveTargets(refs: TargetRef[]): Promise<Map<string, Res
   const out = new Map<string, ResolvedTarget>();
   const ids = (type: AuditTargetType) => [...new Set(refs.filter((r) => r.targetType === type && r.targetId).map((r) => r.targetId!))];
 
-  const [users, coupons, plans, reviews, affiliates, announcements, projects, assets, purchases, commissions, socials] = await Promise.all([
+  const [users, coupons, plans, reviews, affiliates, announcements, campaigns, projects, assets, purchases, commissions, socials] = await Promise.all([
     ids("user").length ? prisma.user.findMany({ where: { id: { in: ids("user") } }, select: { id: true, email: true } }) : [],
     ids("coupon").length ? prisma.coupon.findMany({ where: { id: { in: ids("coupon") } }, select: { id: true, code: true } }) : [],
     ids("plan").length ? prisma.plan.findMany({ where: { id: { in: ids("plan") } }, select: { id: true, name: true } }) : [],
     ids("review").length ? prisma.review.findMany({ where: { id: { in: ids("review") } }, select: { id: true, title: true, rating: true, user: { select: { email: true } } } }) : [],
     ids("affiliate").length ? prisma.affiliate.findMany({ where: { id: { in: ids("affiliate") } }, select: { id: true, code: true } }) : [],
     ids("announcement").length ? prisma.featureAnnouncement.findMany({ where: { id: { in: ids("announcement") } }, select: { id: true, title: true } }) : [],
+    ids("campaign").length ? prisma.emailCampaign.findMany({ where: { id: { in: ids("campaign") } }, select: { id: true, name: true } }) : [],
     ids("project").length ? prisma.project.findMany({ where: { id: { in: ids("project") } }, select: { id: true, title: true, userId: true } }) : [],
     ids("asset").length ? prisma.asset.findMany({ where: { id: { in: ids("asset") } }, select: { id: true, name: true, userId: true } }) : [],
     ids("purchase").length ? prisma.purchase.findMany({ where: { id: { in: ids("purchase") } }, select: { id: true, amountInPaise: true, userId: true, plan: { select: { name: true } } } }) : [],
@@ -60,6 +61,7 @@ export async function resolveTargets(refs: TargetRef[]): Promise<Map<string, Res
   for (const r of reviews) set("review", r.id, `${"★".repeat(r.rating)} ${r.title ?? "review"} — ${r.user.email}`, `/admin/reviews/${r.id}`);
   for (const a of affiliates) set("affiliate", a.id, a.code, "/admin/affiliate");
   for (const a of announcements) set("announcement", a.id, a.title, "/admin/announcements");
+  for (const c of campaigns) set("campaign", c.id, c.name, `/admin/campaigns/${c.id}`);
   for (const p of projects) set("project", p.id, p.title || "(untitled project)", `/admin/users/${p.userId}`);
   for (const a of assets) set("asset", a.id, a.name, `/admin/users/${a.userId}`);
   for (const p of purchases) set("purchase", p.id, `${inr(p.amountInPaise)}${p.plan ? ` · ${p.plan.name}` : ""}`, `/admin/users/${p.userId}`);

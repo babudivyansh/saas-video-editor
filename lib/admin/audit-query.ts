@@ -16,7 +16,7 @@ const blank = (v: unknown) => (v === "" ? undefined : v);
 const CATEGORIES = ["accounts", "billing", "security", "content", "operations", "config", "reviews", "affiliates", "social"] as const;
 const SEVERITIES = ["critical", "destructive", "money", "security", "change", "view"] as const;
 const TARGET_TYPES = [
-  "user", "coupon", "plan", "review", "affiliate", "announcement", "project", "asset", "purchase",
+  "user", "coupon", "plan", "review", "affiliate", "announcement", "campaign", "project", "asset", "purchase",
   "commission", "social_account", "cron", "queue_job", "flag", "tool", "feature", "model",
 ] as const;
 

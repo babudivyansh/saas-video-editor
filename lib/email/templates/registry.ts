@@ -22,6 +22,7 @@ import * as social from "./social";
 import * as admin from "./admin";
 import * as newsletter from "./newsletter";
 import * as announcements from "./announcements";
+import * as campaigns from "./campaign";
 
 export type NotificationCategory =
   | "usageAlerts"
@@ -886,6 +887,32 @@ export const EMAIL_REGISTRY: Record<string, TemplateEntry<never>> = {
         body: "You can now generate voiceovers in Hindi, Spanish, French, and 9 more languages, right from the same tool you already use.",
         ctaLabel: "Try it now",
         ctaUrl: "https://clipiro.com/dashboard",
+      },
+    },
+  }),
+  // Admin → Campaigns (app/api/cron/email-campaigns). Marketing: honours the
+  // marketingEmails opt-out and carries a one-click unsubscribe.
+  campaign: entry({
+    id: "campaign",
+    title: "Marketing campaign",
+    group: "announcements",
+    category: "marketingEmails",
+    trigger: "Admin schedules a campaign on Admin → Campaigns; sent in throttled batches",
+    build: campaigns.campaign,
+    samples: {
+      default: {
+        name: "Divyansh",
+        subject: "Black Friday: 2x Clip Minutes starts now",
+        preheader: "Every minute pack doubled, and month one of any new plan. Ends 30 Nov.",
+        utmCampaign: "black-friday-2026",
+        blocks: [
+          { kind: "heading", text: "Hi {{name}}, Black Friday is live" },
+          { kind: "paragraph", text: "For one week only, every Clip Minutes pack comes with double the minutes.\n\nNew plans get their first month of minutes doubled too." },
+          { kind: "offer", label: "Pro plan, first month", price: "800 Clip Minutes", was: "400 Clip Minutes", caption: "Ends 30 Nov, 11:59 PM IST" },
+          { kind: "coupon", code: "BF26", caption: "Applied automatically at checkout" },
+          { kind: "list", items: ["2x minutes on every pack", "Month one doubled on new plans", "INR and USD"] },
+          { kind: "button", label: "Get 2x minutes", href: "/pricing" },
+        ],
       },
     },
   }),

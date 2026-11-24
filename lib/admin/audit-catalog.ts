@@ -21,7 +21,7 @@ export type AuditCategory =
 export type AuditSeverity = "critical" | "destructive" | "money" | "security" | "change" | "view";
 
 export type AuditTargetType =
-  | "user" | "coupon" | "plan" | "review" | "affiliate" | "announcement" | "project"
+  | "user" | "coupon" | "plan" | "review" | "affiliate" | "announcement" | "campaign" | "project"
   | "asset" | "purchase" | "commission" | "social_account" | "cron" | "queue_job"
   | "flag" | "tool" | "feature" | "model" | "voice" | "none";
 
@@ -116,6 +116,16 @@ const EXACT: Record<string, Row> = {
   "announcement.updated": ["Edited announcement", "content", "change", "announcement", "An announcement was changed."],
   "announcement.published": ["Published announcement", "content", "change", "announcement", "The announcement will be emailed to users."],
   "announcement.deleted": ["Deleted announcement", "content", "destructive", "announcement", "An announcement was removed."],
+  "campaign.created": ["Created campaign", "content", "change", "campaign", "An email campaign draft was added."],
+  "campaign.updated": ["Edited campaign", "content", "change", "campaign", "A draft campaign's content or audience was changed."],
+  "campaign.deleted": ["Deleted campaign", "content", "destructive", "campaign", "A draft or unsent campaign was removed."],
+  "campaign.schedule": ["Scheduled campaign", "content", "change", "campaign", "The campaign will start emailing its audience at the scheduled time."],
+  "campaign.unschedule": ["Unscheduled campaign", "content", "change", "campaign", "The campaign went back to draft before it started sending."],
+  "campaign.pause": ["Paused campaign", "content", "change", "campaign", "Sending stopped until it is resumed."],
+  "campaign.resume": ["Resumed campaign", "content", "change", "campaign", "Sending picked up where it stopped."],
+  "campaign.cancel": ["Cancelled campaign", "content", "destructive", "campaign", "Sending stopped for good; unsent recipients were dropped."],
+  "campaign.test_sent": ["Sent a test of campaign", "content", "change", "campaign", "The campaign was emailed to the admin's own address."],
+  "campaign.daily_cap_set": ["Changed the campaign daily cap", "config", "change", "none", "The most campaign emails sent per day was changed."],
 
   // ── Reviews ──
   "review.approved": ["Approved review", "reviews", "change", "review", "The review is now public."],

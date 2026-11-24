@@ -83,6 +83,7 @@ describe("GET /api/cron-tick", () => {
       "/api/cron/asset-cleanup",
       "/api/cron/clip-publish",
       "/api/cron/dub-sweep",
+      "/api/cron/email-campaigns",
       "/api/cron/email-maintenance",
       "/api/cron/refill-credits",
       "/api/cron/social-refresh",

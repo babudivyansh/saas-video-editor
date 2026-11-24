@@ -437,6 +437,7 @@ const CRON_STALE_AFTER_SEC: Record<CronRunId, number> = {
   "asset-cleanup:retention": 30 * 3600, // nightly
   "stale-clip-sweep": 3600, // every 15 min
   "email-maintenance": 30 * 60, // every 5 min — retries, provider probes, alerts
+  "email-campaigns": 30 * 60, // every 2 min — campaign batches (no-op with nothing sending)
   "dub-sweep": 600, // every 2 min — the primary dub-completion path until webhooks are confirmed, see lib/cron/dub-sweep.ts
   "clip-publish": 3600, // every 10 min
   // social-refresh is tracked per ?job=, not per route — see KNOWN_CRON_JOBS.
