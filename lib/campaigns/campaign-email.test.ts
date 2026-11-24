@@ -122,5 +122,6 @@ describe("audience schema", () => {
     const a = campaignAudienceSchema.parse({});
     expect(a.plan).toBe("all");
     expect(describeAudience({ plan: "free", journey: "free_after_run" })).toBe("Free users · Ran AutoClip, never paid");
+    expect(describeAudience({ plan: "all", billing: "trial_cancelled" })).toBe("Everyone · Trial cancelled");
   });
 });

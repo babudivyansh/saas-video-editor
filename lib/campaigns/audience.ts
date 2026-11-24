@@ -38,6 +38,7 @@ export function audienceWhere(a: CampaignAudience, now: Date = new Date()): Pris
   if (a.joined) params.set("joined", a.joined);
   if (a.active) params.set("active", a.active);
   if (a.method) params.set("method", a.method);
+  if (a.billing) params.set("billing", a.billing);
 
   const paid: Prisma.UserWhereInput = { subscriptionEndsAt: { gt: now }, planId: { not: null } };
   const and: Prisma.UserWhereInput[] = [baseEligibility(), buildUserWhere(params, now)];

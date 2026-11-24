@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import crypto from "crypto";
 import { Prisma } from "@prisma/client";
 import { TRIAL_CREDITS, TRIAL_MINUTES } from "@/lib/plans/tiers";
+import { prisma } from "@/lib/prisma";
 
 // The webhook is the highest-risk file in billing — it is the path money
 // actually arrives on — and had no test coverage at all. These cover signature
@@ -183,6 +184,16 @@ describe("subscription.activated", () => {
     expect(user.razorpaySubscriptionId).toBe("sub_1");
     expect(user.monthlyCredits).toBe(160);
     expect(grants).toEqual([{ amount: TRIAL_CREDITS, reason: "grant:trial" }]);
+  });
+
+  // Regression: "activated" was never recorded, so the MRR snapshot's new
+  // subscriptions were always 0 and trial conversions couldn't be seen.
+  it("records one activated event, even across a redelivery", async () => {
+    await post(activated());
+    await post(activated());
+    const create = vi.mocked(prisma.subscriptionEvent.create);
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(create).toHaveBeenCalledWith({ data: { userId: "u1", subscriptionId: "sub_1", type: "activated", metadata: { trial: true } } });
   });
 
   // Regression: this branch had no RazorpayEvent claim, so a Razorpay retry or

@@ -1,214 +1,93 @@
 "use client";
-import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import AdminShell from "../AdminShell";
-import { ErrorCard } from "../dashboard/ui";
-import { useAuth } from "@/app/components/AuthContext";
-import { useDebouncedValue } from "../hooks/useDebouncedValue";
-import { useToast } from "@/app/components/ui/Toast";
-import { Card } from "@/app/components/ui/Card";
-import { Button } from "@/app/components/ui/Button";
+import { Tabs } from "@/app/components/ui/Tabs";
+import { TRIAL_OUTCOMES, type TrialOutcome } from "@/lib/billing/billing-status-labels";
+import { SubscribersTab } from "./_components/SubscribersTab";
+import { TrialsTab } from "./_components/TrialsTab";
+import type { RunningStatus, SubscriptionsResponse } from "./_components/shared";
 
-interface Subscriber {
-  id: string;
-  email: string;
-  name: string | null;
-  credits: number;
-  monthlyCredits: number;
-  subscriptionEndsAt: string | null;
-  nextRefillAt: string | null;
-  plan: { id: string; name: string; slug: string } | null;
-  _count: { purchases: number };
+const RUNNING: RunningStatus[] = ["paid", "paid_cancelling", "payment_failed", "trial", "trial_cancelled"];
+
+function Tile({ label, value, hint, tone = "text-fg" }: { label: string; value: string; hint?: string; tone?: string }) {
+  return (
+    <div className="rounded-2xl border border-line bg-panel px-5 py-4">
+      <p className={`text-3xl font-extrabold ${tone}`}>{value}</p>
+      <p className="text-xs text-fg-subtle mt-0.5">{label}</p>
+      {hint && <p className="text-[11px] text-fg-subtle mt-1">{hint}</p>}
+    </div>
+  );
 }
 
-function daysLeft(iso: string | null): number {
-  if (!iso) return -1;
-  return Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000);
-}
+function SubscriptionsConsole() {
+  const router = useRouter();
+  const sp = useSearchParams();
+  const tab = sp.get("tab") === "trials" ? "trials" : "subscribers";
+  const statusParam = sp.get("status") ?? "";
+  const status = (RUNNING as string[]).includes(statusParam) ? (statusParam as RunningStatus) : "";
+  const outcomeParam = sp.get("outcome") ?? "";
+  const outcome = (TRIAL_OUTCOMES as readonly string[]).includes(outcomeParam) ? (outcomeParam as TrialOutcome) : "";
+  const [summary, setSummary] = useState<SubscriptionsResponse<unknown> | null>(null);
 
-function fmt(iso: string | null) {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-}
+  // Tab and filter live in the URL, so a view can be linked to.
+  const go = (next: { tab?: string; status?: string; outcome?: string }) => {
+    const p = new URLSearchParams();
+    const t = next.tab ?? tab;
+    p.set("tab", t);
+    const st = next.status ?? (t === "subscribers" ? status : "");
+    const oc = next.outcome ?? (t === "trials" ? outcome : "");
+    if (t === "subscribers" && st) p.set("status", st);
+    if (t === "trials" && oc) p.set("outcome", oc);
+    router.replace(`/admin/subscriptions?${p}`, { scroll: false });
+  };
 
-const LIMIT = 50;
-
-export default function AdminSubscriptionsPage() {
-  const { token, user } = useAuth();
-  const { showToast } = useToast();
-  const queryClient = useQueryClient();
-  const [page, setPage] = useState(1);
-  const [searchInput, setSearchInput] = useState("");
-  const search = useDebouncedValue(searchInput);
-  const [extendMonths, setExtendMonths] = useState<Record<string, string>>({});
-  const [actingId, setActingId] = useState<string | null>(null);
-
-  const headers = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${token}` });
-
-  const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["admin-subscriptions", page, search],
-    queryFn: async () => {
-      const params = new URLSearchParams({ page: String(page), limit: String(LIMIT) });
-      if (search) params.set("search", search);
-      const res = await fetch(`/api/admin/subscriptions?${params}`, { headers: headers() });
-      if (!res.ok) throw new Error("Failed to load subscriptions");
-      return res.json() as Promise<{ subscribers: Subscriber[]; total: number }>;
-    },
-    enabled: !!token && user?.role === "ADMIN",
-  });
-
-  const refillMutation = useMutation({
-    mutationFn: async (userId: string) => {
-      const res = await fetch("/api/admin/subscriptions/refill", {
-        method: "POST", headers: headers(), body: JSON.stringify({ userId }),
-      });
-      const d = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(d.error ?? "Refill failed"); // e.g. 409 — not due yet (idempotency guard)
-      return d as { creditsAdded: number };
-    },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin-subscriptions"] }); showToast("Credits refilled", "success"); },
-    onError: (e: Error) => showToast(e.message, "error"),
-    onSettled: () => setActingId(null),
-  });
-
-  const adjustMutation = useMutation({
-    mutationFn: async ({ userId, opts }: { userId: string; opts: { months?: number; expire?: boolean } }) => {
-      const res = await fetch("/api/admin/subscriptions/extend", {
-        method: "POST", headers: headers(), body: JSON.stringify({ userId, ...opts }),
-      });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Update failed");
-    },
-    onSuccess: (_d, { opts }) => { queryClient.invalidateQueries({ queryKey: ["admin-subscriptions"] }); showToast(opts.expire ? "Subscription expired" : "Subscription extended", "success"); },
-    onError: (e: Error) => showToast(e.message, "error"),
-    onSettled: () => setActingId(null),
-  });
-
-  const subs = data?.subscribers ?? [];
-  const total = data?.total ?? 0;
+  const c = summary?.statusCounts;
+  const t = summary?.trialSummary;
+  const n = (v: number | undefined) => (v == null ? "…" : v.toLocaleString("en-IN"));
 
   return (
-    <AdminShell title="Subscriptions">
-      <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
-        <Card shadow className="px-6 py-4">
-          <p className="text-3xl font-extrabold text-fg">{total}</p>
-          <p className="text-xs text-fg-subtle mt-0.5">Active Subscribers</p>
-        </Card>
-        <input
-          value={searchInput}
-          onChange={e => { setSearchInput(e.target.value); setPage(1); }}
-          placeholder="Search by email or name…"
-          className="w-72 bg-panel border border-line rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 shadow-sm"
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+        <Tile label="Paying" value={n(c?.paid)} tone="text-success" />
+        <Tile label="Cancelled renewal" value={n(c?.paid_cancelling)} hint="Access until the term ends" />
+        <Tile label="Payment failed" value={n(c?.payment_failed)} tone={c?.payment_failed ? "text-error" : "text-fg"} />
+        <Tile label="In trial" value={n(c?.trial)} hint="Will be charged when it ends" />
+        <Tile label="Trials cancelled" value={n(c?.trial_cancelled)} hint="Running out, never charged" />
+        <Tile
+          label="Trial conversion"
+          value={t?.conversionRate == null ? "—" : `${Math.round(t.conversionRate * 100)}%`}
+          hint={t ? `${t.counts.converted} of ${t.total - t.counts.active} finished · ${t.counts.mandate_revoked} mandate${t.counts.mandate_revoked === 1 ? "" : "s"} revoked` : undefined}
         />
       </div>
 
-      {isError ? (
-        <ErrorCard onRetry={refetch} />
-      ) : isLoading ? (
-        <p className="text-sm text-fg-subtle">Loading subscriptions…</p>
-      ) : subs.length === 0 ? (
-        <Card shadow className="p-12 text-center">
-          <p className="text-sm font-semibold text-fg-muted">{search ? "No matching subscribers" : "No active subscribers"}</p>
-          <p className="text-xs text-fg-subtle mt-1">{search ? "Try a different search." : "Users with active subscriptions will appear here."}</p>
-        </Card>
-      ) : (
-        <Card shadow>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-line text-left text-xs font-semibold text-fg-subtle uppercase tracking-wide">
-                  <th className="py-3.5 px-5">User</th>
-                  <th className="py-3.5 px-3">Plan</th>
-                  <th className="py-3.5 px-3">Expires</th>
-                  <th className="py-3.5 px-3">Days Left</th>
-                  <th className="py-3.5 px-3">Mo. Credits</th>
-                  <th className="py-3.5 px-3">Next Refill</th>
-                  <th className="py-3.5 px-3">Balance</th>
-                  <th className="py-3.5 px-3">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {subs.map(s => {
-                  const days = daysLeft(s.subscriptionEndsAt);
-                  const expiring = days >= 0 && days <= 3;
-                  const busy = actingId === s.id;
-                  const months = parseInt(extendMonths[s.id] ?? "1", 10) || 1;
-                  return (
-                    <tr key={s.id} className={`border-b border-line last:border-0 ${expiring ? "bg-warning/5" : ""}`}>
-                      <td className="py-3 px-5">
-                        <p className="font-semibold text-fg">{s.name || s.email}</p>
-                        {s.name && <p className="text-xs text-fg-subtle">{s.email}</p>}
-                      </td>
-                      <td className="py-3 px-3 text-xs text-fg-muted">{s.plan?.name ?? "—"}</td>
-                      <td className="py-3 px-3 text-xs text-fg-muted">{fmt(s.subscriptionEndsAt)}</td>
-                      <td className="py-3 px-3">
-                        <span className={`text-xs font-bold ${expiring ? "text-warning" : "text-fg-muted"}`}>
-                          {days < 0 ? "expired" : `${days}d`}
-                          {expiring && " ⚠️"}
-                        </span>
-                      </td>
-                      <td className="py-3 px-3 text-fg-muted">{s.monthlyCredits}</td>
-                      <td className="py-3 px-3 text-xs text-fg-subtle">{fmt(s.nextRefillAt)}</td>
-                      <td className="py-3 px-3 font-semibold text-fg">{s.credits} cr</td>
-                      <td className="py-3 px-3">
-                        <div className="flex flex-col gap-1.5">
-                          <Button
-                            onClick={() => { setActingId(s.id); refillMutation.mutate(s.id); }}
-                            disabled={busy}
-                            variant="primary"
-                            size="sm"
-                          >
-                            {busy ? "…" : `+${s.monthlyCredits} Refill`}
-                          </Button>
-                          <div className="flex gap-1">
-                            <input
-                              type="number"
-                              min={1} max={24}
-                              value={extendMonths[s.id] ?? "1"}
-                              onChange={e => setExtendMonths(prev => ({ ...prev, [s.id]: e.target.value }))}
-                              className="w-12 bg-surface-2 border border-line rounded-md text-xs px-1.5 py-1 text-center focus:outline-none"
-                            />
-                            <Button
-                              onClick={() => { setActingId(s.id); adjustMutation.mutate({ userId: s.id, opts: { months } }); }}
-                              disabled={busy}
-                              variant="secondary"
-                              size="sm"
-                            >
-                              +{months}mo
-                            </Button>
-                          </div>
-                          <Button
-                            onClick={() => { setActingId(s.id); adjustMutation.mutate({ userId: s.id, opts: { expire: true } }); }}
-                            disabled={busy}
-                            variant="danger"
-                            size="sm"
-                          >
-                            Expire Now
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          {total > LIMIT && (
-            <div className="flex items-center justify-between px-5 py-3 border-t border-line text-xs text-fg-muted">
-              <span>
-                Page {page} of {Math.max(1, Math.ceil(total / LIMIT))} · {total} subscribers
-              </span>
-              <div className="flex gap-2">
-                <Button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1} variant="secondary" size="sm">
-                  Prev
-                </Button>
-                <Button onClick={() => setPage(p => p + 1)} disabled={page >= Math.ceil(total / LIMIT)} variant="secondary" size="sm">
-                  Next
-                </Button>
-              </div>
-            </div>
-          )}
-        </Card>
-      )}
+      <Tabs
+        label="Subscriptions"
+        activeId={tab}
+        onChange={(id) => go({ tab: id })}
+        items={[
+          {
+            id: "subscribers",
+            label: "Subscribers",
+            content: <SubscribersTab status={status} onStatus={(s) => go({ status: s })} onCounts={setSummary} />,
+          },
+          {
+            id: "trials",
+            label: "Trials",
+            content: <TrialsTab outcome={outcome} onOutcome={(o) => go({ outcome: o })} onCounts={setSummary} />,
+          },
+        ]}
+      />
+    </div>
+  );
+}
+
+export default function AdminSubscriptionsPage() {
+  return (
+    <AdminShell title="Subscriptions">
+      <Suspense fallback={null}>
+        <SubscriptionsConsole />
+      </Suspense>
     </AdminShell>
   );
 }

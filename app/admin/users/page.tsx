@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AdminShell from "../AdminShell";
 import { ErrorCard } from "../dashboard/ui";
 import { useAuth } from "@/app/components/AuthContext";
+import { BILLING_STATUSES, BILLING_STATUS_LABEL } from "@/lib/billing/billing-status-labels";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { ConfirmDialog } from "@/app/components/ui/ConfirmDialog";
 import { useToast } from "@/app/components/ui/Toast";
@@ -72,6 +73,10 @@ const FUNNEL_FILTERS = [
   ] },
   { param: "joined", label: "Joined", options: [["", "Joined any time"], ["1d", "Joined last 24h"], ["7d", "Joined last 7 days"], ["30d", "Joined last 30 days"], ["90d", "Joined last 90 days"]] },
   { param: "method", label: "Signed up with", options: [["", "Email or Google"], ["google", "Google"], ["email", "Email"]] },
+  { param: "billing", label: "Billing", options: [
+    ["", "Any billing status"],
+    ...BILLING_STATUSES.map((st) => [st, BILLING_STATUS_LABEL[st]] as const),
+  ] },
   { param: "active", label: "Last active", options: [["", "Any activity"], ["7d", "Logged in last 7 days"], ["inactive_30d", "No login for 30+ days"]] },
 ] as const;
 type FunnelParam = (typeof FUNNEL_FILTERS)[number]["param"];
@@ -141,6 +146,7 @@ function AdminUsers() {
     joined: sp.get("joined") ?? "",
     method: sp.get("method") ?? "",
     active: sp.get("active") ?? "",
+    billing: sp.get("billing") ?? "",
   }));
   const [exporting, setExporting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());

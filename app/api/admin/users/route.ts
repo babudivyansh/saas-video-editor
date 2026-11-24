@@ -9,7 +9,7 @@ export const GET = withAdmin(async (req) => {
   const limit  = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") ?? "50", 10)));
   const skip   = (page - 1) * limit;
 
-  // search, filter, journey, joined, method, use, active — lib/admin/user-filters.ts
+  // search, filter, journey, joined, method, use, active, billing — lib/admin/user-filters.ts
   const where = buildUserWhere(searchParams);
 
   const [users, total] = await Promise.all([
