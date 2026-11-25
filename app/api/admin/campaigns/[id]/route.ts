@@ -5,13 +5,14 @@ import { auditAdminAction, auditIp } from "@/lib/admin/audit";
 import { campaignPatchSchema } from "@/lib/campaigns/schemas";
 import { utmSlug } from "@/lib/campaigns/content";
 import { serializeCampaign } from "@/lib/campaigns/serialize";
+import { campaignDelivery } from "@/lib/campaigns/delivery";
 
 // GET — one campaign, its recipient breakdown and recent problems.
 export const GET = withAdmin<{ id: string }>(async (_req, { params }) => {
   const campaign = await prisma.emailCampaign.findUnique({ where: { id: params.id } });
   if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
 
-  const [byStatus, problems] = await Promise.all([
+  const [byStatus, problems, delivery] = await Promise.all([
     prisma.emailCampaignRecipient.groupBy({ by: ["status"], where: { campaignId: campaign.id }, _count: { _all: true } }),
     prisma.emailCampaignRecipient.findMany({
       where: { campaignId: campaign.id, status: { in: ["failed", "skipped"] } },
@@ -19,11 +20,14 @@ export const GET = withAdmin<{ id: string }>(async (_req, { params }) => {
       take: 25,
       select: { status: true, detail: true, claimedAt: true, user: { select: { id: true, email: true } } },
     }),
+    // Nothing goes out before sending starts.
+    campaign.startedAt ? campaignDelivery(campaign.id) : null,
   ]);
 
   return NextResponse.json({
     campaign: serializeCampaign(campaign),
     recipients: Object.fromEntries(byStatus.map((r) => [r.status, r._count._all])),
+    delivery,
     problems: problems.map((p) => ({
       status: p.status, detail: p.detail, at: p.claimedAt?.toISOString() ?? null, userId: p.user.id, email: p.user.email,
     })),
