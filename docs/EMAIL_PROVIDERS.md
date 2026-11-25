@@ -129,10 +129,12 @@ only forwards, and suppress on hard bounce / complaint.
 
 ## Rollout
 
-1. Merge, then run `npx prisma migrate deploy` against production (the Hostinger
-   deploy does not run migrations). Migration `20261119160000_email_multi_provider`
-   only creates 6 new tables — nothing existing is altered or dropped. Safe to run
-   before the code deploys; the old code ignores the tables.
+1. Migrations run automatically: `npm run build` (what Hostinger runs, for main
+   AND for PR previews, which share the production database) starts with
+   `prisma migrate deploy`. `20261119160000_email_multi_provider` (6 new tables,
+   additive) was applied to prod by this PR's preview build on 2026-11-19;
+   `20261125090000_email_rls` adds row-level security to them. The old code
+   ignores the tables.
 2. Set Brevo + Mailjet keys and secrets; leave `EMAIL_ROUTER_ENABLED` unset. Deploy.
 3. Verify domains (above). Admin → Email → Providers → Test connection on each.
 4. Set `EMAIL_ROUTER_ENABLED=true`, redeploy. Sign up with a test address; watch
