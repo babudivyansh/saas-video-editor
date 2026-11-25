@@ -167,13 +167,14 @@ export function scoreBand(score: number | null): { label: string; icon: string; 
   return { label: "Needs review", icon: "•", text: "var(--fg-muted)", bg: "var(--surface-3)", border: "var(--line)" };
 }
 export function arCss(aspect: string): string {
-  return aspect === "16:9" ? "16/9" : aspect === "1:1" ? "1/1" : "9/16";
+  return aspect === "16:9" ? "16/9" : aspect === "1:1" ? "1/1" : aspect === "4:5" ? "4/5" : "9/16";
 }
 
-export const ASPECTS: { value: "9:16" | "16:9" | "1:1"; label: string; box: string }[] = [
+export const ASPECTS: { value: "9:16" | "16:9" | "1:1" | "4:5"; label: string; box: string }[] = [
   { value: "9:16", label: "9:16", box: "w-[9px] h-4" },
   { value: "16:9", label: "16:9", box: "w-4 h-[9px]" },
   { value: "1:1", label: "1:1", box: "w-[13px] h-[13px]" },
+  { value: "4:5", label: "4:5", box: "w-[12px] h-[15px]" },
 ];
 
 // The scheduler writes statuses the UI never knew about — "awaiting_manual"

@@ -10,9 +10,10 @@
 // lerpExpr), so this does too — comparing against the nearest keyframe would
 // judge a path the viewer never sees.
 
+import type { ReframeAspect } from "@/lib/reframe";
 import { cropSizeFrac, type CropKeyframe, type FaceBox, type StoredCrop } from "@/lib/reframe";
 
-type Aspect = "9:16" | "16:9" | "1:1";
+type Aspect = ReframeAspect;
 type Window = { x: number; y: number; w: number; h: number };
 
 /** The crop window at clip-relative time `t`, linearly interpolated. */

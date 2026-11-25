@@ -66,8 +66,8 @@ function AutoClipFlow() {
   const [minDuration, setMinDuration] = useState(launchLength?.min ?? 15);
   const [maxDuration, setMaxDuration] = useState(launchLength?.max ?? 60);
   const [clipCount, setClipCount] = useState(8);
-  const [aspectRatio, setAspectRatio] = useState<"9:16" | "16:9" | "1:1">(
-    launchRatio === "16:9" || launchRatio === "1:1" ? launchRatio : "9:16",
+  const [aspectRatio, setAspectRatio] = useState<"9:16" | "16:9" | "1:1" | "4:5">(
+    launchRatio === "16:9" || launchRatio === "1:1" || launchRatio === "4:5" ? launchRatio : "9:16",
   );
   const [instructions, setInstructions] = useState("");
   const [captionsOn, setCaptionsOn] = useState(params.get("captions") !== "0");

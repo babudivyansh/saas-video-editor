@@ -139,7 +139,7 @@ export const transcriptSchema = z.array(
 export const rerenderPatchSchema = z.object({
   startSec: z.number().min(0).max(24 * 3600).optional(),
   endSec: z.number().min(0).max(24 * 3600).optional(),
-  aspectRatio: z.enum(["9:16", "16:9", "1:1"]).optional(),
+  aspectRatio: z.enum(["9:16", "16:9", "1:1", "4:5"]).optional(),
   captionStyleIndex: z.number().int().min(-1).max(64).optional(),
   subtitleStyleOverride: subtitleStyleOverrideSchema.optional(),
   silenceSettings: silenceSettingsSchema.optional(),

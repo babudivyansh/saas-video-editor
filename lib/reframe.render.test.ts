@@ -29,7 +29,7 @@ vi.mock("@/lib/env", () => ({
 }));
 
 import {
-  buildDynamicCropFilter, buildZoomEnvelope, computeCropKeyframesForClip,
+  buildDynamicCropFilter, buildZoomEnvelope, computeCropKeyframesForClip, cropSizeFrac,
   TARGET_RES, type CropKeyframe, type FaceBox,
 } from "./reframe";
 import { buildBrollFilterComplex, buildMultiBrollFilterComplex } from "./autoclip-pipeline";
@@ -338,5 +338,33 @@ d("production keyframe path — executed through ffmpeg", () => {
       "-vf", buildDynamicCropFilter(kf!, "9:16"), "-f", "null", "-",
     ]);
     expect(code, stderr.slice(-2000)).toBe(0);
+  });
+});
+
+// A face-tracked pan used a 9:16 window for every aspect but 16:9, so a 1:1
+// clip came out 9:16-shaped (405x720 from 720p). The window is now the
+// keyframes' own size, which cropSizeFrac makes in the output's shape.
+describe("buildDynamicCropFilter — pan window keeps the output's shape", () => {
+  for (const [aspect, ratio] of [["9:16", 9 / 16], ["1:1", 1], ["4:5", 4 / 5]] as const) {
+    it(`renders ${aspect} at ${aspect}`, () => {
+      if (!FFMPEG) return;
+      const { w, h } = cropSizeFrac(aspect, 640, 360);
+      const kf = [{ tSec: 0, x: 0.1, y: 0, w, h }, { tSec: 1, x: 0.2, y: 0, w, h }];
+      const dims = outputDimensions(buildDynamicCropFilter(kf, aspect));
+      expect(dims.w / dims.h).toBeCloseTo(ratio, 1);
+      expect(dims.w % 2).toBe(0);
+    });
+  }
+});
+
+describe("cropSizeFrac", () => {
+  it("is full height and a slice of the width for landscape sources", () => {
+    expect(cropSizeFrac("4:5", 1920, 1080)).toEqual({ w: (1080 * 0.8) / 1920, h: 1 });
+    expect(cropSizeFrac("9:16", 1920, 1080).h).toBe(1);
+  });
+  it("crops the height of a source taller than the output instead of stretching it", () => {
+    const { w, h } = cropSizeFrac("9:16", 1080, 2400);
+    expect(w).toBe(1);
+    expect(h).toBeCloseTo((1080 * 16) / 9 / 2400, 6);
   });
 });

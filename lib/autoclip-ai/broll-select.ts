@@ -9,6 +9,7 @@
 // Stock footage was removed on 2026-11-21: the first Pexels result, never
 // looked at and fetched in landscape for vertical clips, rarely matched.
 
+import type { ReframeAspect } from "@/lib/reframe";
 import { logger } from "@/lib/logger";
 import type { FalRequest } from "@/lib/fal";
 import type { AiFeatureSet, AutoClipAiConfig } from "@/lib/autoclip-ai/config";
@@ -40,7 +41,7 @@ export interface BrollRunContext {
   cfg: AutoClipAiConfig;
   features: AiFeatureSet;
   budget: AiBudget;
-  aspect: "9:16" | "16:9" | "1:1";
+  aspect: ReframeAspect;
   userId: string;
   projectId: string;
   /** The user opted in to generated video inserts for this run. */
