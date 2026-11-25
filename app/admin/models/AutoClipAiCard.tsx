@@ -132,7 +132,7 @@ export function AutoClipAiCard({ headers }: { headers: () => Record<string, stri
 const SOURCE_TEXT: Record<FaceTrackingStatus["source"], string> = {
   asd: "Active-speaker tracking on the GPU service",
   rekognition: "AWS Rekognition ($0.10 per source minute)",
-  local: "On this server (YuNet face tracking, no API cost)",
+  local: "On this server: YuNet face tracking + speaker from transcript and lip movement (no API cost)",
   none: "Gemini frame sampling only: the face model file is missing from this build",
 };
 

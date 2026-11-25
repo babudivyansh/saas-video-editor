@@ -56,6 +56,9 @@ export interface Detection {
   score: number;
   /** right eye, left eye, nose, right mouth corner, left mouth corner — (x, y) fractions. */
   kps: number[];
+  /** Luma patches around the mouth and the whole face, for mouth movement (attachPatches). */
+  mouth?: Float32Array;
+  face?: Float32Array;
 }
 
 // ── Tiling ─────────────────────────────────────────────────────────────────
@@ -189,6 +192,68 @@ export function thumbDiff(a: Float32Array, b: Float32Array): number {
   return s / a.length;
 }
 
+// ── Mouth movement ─────────────────────────────────────────────────────────
+
+const PATCH_W = 12, PATCH_H = 8, FACE_PATCH = 12;
+
+/** Nearest-neighbour luma samples of a rectangle (frame fractions) of a bgr24 frame. */
+function samplePatch(frame: Uint8Array, fw: number, fh: number, x: number, y: number, w: number, h: number, pw: number, ph: number): Float32Array {
+  const out = new Float32Array(pw * ph);
+  for (let j = 0; j < ph; j++) {
+    const py = Math.min(fh - 1, Math.max(0, Math.round((y + ((j + 0.5) / ph) * h) * fh)));
+    for (let i = 0; i < pw; i++) {
+      const px = Math.min(fw - 1, Math.max(0, Math.round((x + ((i + 0.5) / pw) * w) * fw)));
+      const p = (py * fw + px) * 3;
+      out[j * pw + i] = 0.114 * frame[p] + 0.587 * frame[p + 1] + 0.299 * frame[p + 2];
+    }
+  }
+  return out;
+}
+
+/**
+ * Attach the mouth and face patches each detection needs for mouth movement,
+ * while its frame is still in memory. The mouth box spans the two mouth-corner
+ * landmarks, widened, from just above the lips to the chin.
+ */
+export function attachPatches(dets: Detection[], frame: Uint8Array, fw: number, fh: number): void {
+  for (const d of dets) {
+    d.face = samplePatch(frame, fw, fh, d.x, d.y, d.w, d.h, FACE_PATCH, FACE_PATCH);
+    if (d.kps.length < 10) continue;
+    const mx = (d.kps[6] + d.kps[8]) / 2, my = (d.kps[7] + d.kps[9]) / 2;
+    const mw = Math.max(Math.abs(d.kps[8] - d.kps[6]) * 1.8, d.w * 0.4);
+    const mh = d.h * 0.32;
+    d.mouth = samplePatch(frame, fw, fh, mx - mw / 2, my - mh * 0.4, mw, mh, PATCH_W, PATCH_H);
+  }
+}
+
+function meanAbsDiff(a: Float32Array, b: Float32Array): number {
+  let s = 0;
+  for (let i = 0; i < a.length; i++) s += Math.abs(a[i] - b[i]);
+  return s / a.length;
+}
+
+function contrast(a: Float32Array): number {
+  let m = 0;
+  for (const v of a) m += v;
+  m /= a.length;
+  let s = 0;
+  for (const v of a) s += (v - m) ** 2;
+  return Math.sqrt(s / a.length);
+}
+
+/**
+ * How much the mouth changed between two samples of one face, net of the
+ * whole face moving (a nod or a head turn changes the mouth patch too), in
+ * units of the mouth patch's own contrast so lighting doesn't decide it.
+ */
+export function mouthMotion(prev: Detection, cur: Detection): number | undefined {
+  if (!prev.mouth || !cur.mouth || !prev.face || !cur.face) return undefined;
+  const m = meanAbsDiff(prev.mouth, cur.mouth);
+  const f = meanAbsDiff(prev.face, cur.face);
+  const c = (contrast(prev.mouth) + contrast(cur.mouth)) / 2;
+  return Math.max(0, m - 0.6 * f) / (c + 6);
+}
+
 interface Track { id: string; last: Detection; lastT: number }
 
 /**
@@ -221,6 +286,7 @@ export function trackWindow(
     }
     for (const d of f.dets) {
       let tr = assign.get(d);
+      const motion = tr && f.t - tr.lastT <= 0.6 ? mouthMotion(tr.last, d) : undefined;
       if (!tr) { tr = { id: `${idPrefix}${next++}`, last: d, lastT: f.t }; active.push(tr); }
       tr.last = d; tr.lastT = f.t;
       const yaw = yawFromLandmarks(d.kps, srcW, srcH);
@@ -230,6 +296,7 @@ export function trackWindow(
         confidence: Math.round(d.score * 100),
         trackId: tr.id,
         ...(yaw !== undefined ? { yaw } : {}),
+        ...(motion !== undefined ? { mouthMotion: Math.round(motion * 1000) / 1000 } : {}),
       });
     }
   }
@@ -358,7 +425,10 @@ export async function detectFacesLocal(
         fillInput(input, pending.map((p) => p.frame), layout);
         const out = await session.run({ input: new ort.Tensor("float32", input, [1, 3, NET, NET]) });
         const tiles = splitTiles(decodeYunet(out as unknown as Outputs), layout);
-        pending.forEach((p, k) => frames.push({ t: p.t, dets: tiles[k], cut: p.cut }));
+        pending.forEach((p, k) => {
+          attachPatches(tiles[k], p.frame, layout.fw, layout.fh);
+          frames.push({ t: p.t, dets: tiles[k], cut: p.cut });
+        });
         pending = [];
       };
       for await (const { t, frame } of readFrames(videoPath, merged[wi], layout.fw, layout.fh, fps)) {

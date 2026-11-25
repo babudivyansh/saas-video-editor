@@ -87,6 +87,7 @@ import type { BrollWindowRow } from "@/lib/autoclip-ai/broll-select";
 import type { AiRunResult } from "@/lib/autoclip-ai/run";
 import { getFaceTimeline } from "@/lib/asd";
 import { detectFacesLocal, localDetectorAvailable } from "@/lib/face-detect-local";
+import { assignSpeaking } from "@/lib/active-speaker";
 // P0-3: Project.uploadedVideoUrl is a PRESIGNED url minted at upload time and
 // only valid for 6 hours, so every job that reused it later died on its first
 // step with 403 "Request has expired". Always re-mint before downloading.
@@ -1269,7 +1270,10 @@ export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATT
       () => resolveClipFaces(project.userId, project.uploadedVideoUrl!, cached, { path: videoPath, durationSec, windows, srcW, srcH }),
       { meta: { sourceMin: Math.round(durationSec / 60), clipCount: segments.length } },
     );
-    const allFaces = faceResult.boxes;
+    // Who is speaking in each two-or-more-face moment: diarized transcript +
+    // mouth movement (lib/active-speaker.ts). Persisted with the timeline so a
+    // re-render frames the same speaker.
+    const allFaces = faceResult.changed ? assignSpeaking(faceResult.boxes, wordTimings) : faceResult.boxes;
     if (faceResult.changed && allFaces.length > 0) {
       await saveFaceTimeline(projectId, allFaces);
     }
@@ -2673,7 +2677,10 @@ export async function rerenderJob(payload: RerenderPayload): Promise<void> {
           windows: [{ start: clip.startSec, end: clip.endSec }], srcW: dims.w, srcH: dims.h,
         });
         if (topped.changed) {
-          allFaces = topped.boxes;
+          // The clip's transcript is clip-relative; speaking needs source time.
+          const words = ((clip.transcriptJson as unknown as WordTiming[] | null) ?? [])
+            .map((w) => ({ ...w, start: w.start + clip.startSec * 1000, end: w.end + clip.startSec * 1000 }));
+          allFaces = assignSpeaking(topped.boxes, words);
           await saveFaceTimeline(project.id, allFaces);
         }
       } catch (err) {
