@@ -133,7 +133,7 @@ only forwards, and suppress on hard bounce / complaint.
    AND for PR previews, which share the production database) starts with
    `prisma migrate deploy`. `20261119160000_email_multi_provider` (6 new tables,
    additive) was applied to prod by this PR's preview build on 2026-11-19;
-   `20261120090000_email_rls` adds row-level security to them. The old code
+   `20261125090000_email_rls` adds row-level security to them. The old code
    ignores the tables.
 2. Set Brevo + Mailjet keys and secrets; leave `EMAIL_ROUTER_ENABLED` unset. Deploy.
 3. Verify domains (above). Admin → Email → Providers → Test connection on each.
