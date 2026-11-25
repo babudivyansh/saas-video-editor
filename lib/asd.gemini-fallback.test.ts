@@ -35,6 +35,10 @@ const GEMINI_FACE = { tSec: 1.5, x: 0.86, y: 0.08, w: 0.05, h: 0.09, confidence:
 const detectFacesWithGemini = vi.hoisted(() => vi.fn(async (): Promise<Result> => ({ boxes: [] })));
 vi.mock("@/lib/face-detect-gemini", () => ({ detectFacesWithGemini }));
 
+const LOCAL_FACE = { tSec: 12, x: 0.6, y: 0.2, w: 0.1, h: 0.2, confidence: 93, trackId: "w0-0" };
+const detectFacesLocal = vi.hoisted(() => vi.fn(async (): Promise<Result> => ({ boxes: [] })));
+vi.mock("@/lib/face-detect-local", () => ({ detectFacesLocal }));
+
 const { getFaceTimeline } = await import("@/lib/asd");
 
 const OWNED = "https://bucket.s3.region.amazonaws.com/uploads/u1/v.mp4";
@@ -47,6 +51,7 @@ describe("getFaceTimeline with no GPU service and the Rekognition fallback off (
     shouldUseRekognitionFallback.mockResolvedValue(false);
     classifySource.mockResolvedValue({ kind: "owned", url: "https://signed.invalid/v.mp4" });
     detectFacesWithGemini.mockResolvedValue({ boxes: [GEMINI_FACE] });
+    detectFacesLocal.mockResolvedValue({ boxes: [LOCAL_FACE] });
   });
 
   it("detects faces with Gemini on the local file instead of failing", async () => {
@@ -87,5 +92,42 @@ describe("getFaceTimeline with no GPU service and the Rekognition fallback off (
     const r = await getFaceTimeline("u1", OWNED);
     expect(detectFacesWithGemini).not.toHaveBeenCalled();
     expect(r).toEqual({ boxes: [], failure: "unconfigured" });
+  });
+});
+
+describe("getFaceTimeline's local CPU rung (2026-11-24)", () => {
+  const WINDOWED = { ...LOCAL, windows: [{ start: 10, end: 40 }], srcW: 1280, srcH: 720 };
+  beforeEach(() => {
+    vi.clearAllMocks();
+    shouldUseAsd.mockResolvedValue(false);
+    shouldUseRekognitionFallback.mockResolvedValue(false);
+    classifySource.mockResolvedValue({ kind: "owned", url: "https://signed.invalid/v.mp4" });
+    detectFacesWithGemini.mockResolvedValue({ boxes: [GEMINI_FACE] });
+    detectFacesLocal.mockResolvedValue({ boxes: [LOCAL_FACE] });
+  });
+
+  it("runs the local detector over the clip windows before Gemini", async () => {
+    const r = await getFaceTimeline("u1", OWNED, WINDOWED);
+    expect(detectFacesLocal).toHaveBeenCalledWith(LOCAL.path, WINDOWED.windows, 600, 1280, 720);
+    expect(detectFacesWithGemini).not.toHaveBeenCalled();
+    expect(r).toEqual({ boxes: [LOCAL_FACE] });
+  });
+
+  it("returns 'no faces' from the local detector without paying for Gemini", async () => {
+    detectFacesLocal.mockResolvedValueOnce({ boxes: [] });
+    const r = await getFaceTimeline("u1", OWNED, WINDOWED);
+    expect(detectFacesWithGemini).not.toHaveBeenCalled();
+    expect(r).toEqual({ boxes: [] });
+  });
+
+  it("falls back to Gemini when the local detector cannot run", async () => {
+    detectFacesLocal.mockResolvedValueOnce({ boxes: [], failure: "error" });
+    const r = await getFaceTimeline("u1", OWNED, WINDOWED);
+    expect(r).toEqual({ boxes: [GEMINI_FACE] });
+  });
+
+  it("is skipped without clip windows", async () => {
+    await getFaceTimeline("u1", OWNED, LOCAL);
+    expect(detectFacesLocal).not.toHaveBeenCalled();
   });
 });

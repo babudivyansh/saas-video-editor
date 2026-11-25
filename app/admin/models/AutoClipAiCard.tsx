@@ -132,7 +132,8 @@ export function AutoClipAiCard({ headers }: { headers: () => Record<string, stri
 const SOURCE_TEXT: Record<FaceTrackingStatus["source"], string> = {
   asd: "Active-speaker tracking on the GPU service",
   rekognition: "AWS Rekognition ($0.10 per source minute)",
-  none: "None: tracked layouts show the centre of the frame",
+  local: "On this server (YuNet face tracking, no API cost)",
+  none: "Gemini frame sampling only: the face model file is missing from this build",
 };
 
 /**
@@ -141,7 +142,7 @@ const SOURCE_TEXT: Record<FaceTrackingStatus["source"], string> = {
  * they all come out as a centre crop, which is what creators were seeing.
  */
 function FaceTrackingPanel({ status }: { status: FaceTrackingStatus }) {
-  const ok = status.source === "asd";
+  const ok = status.source === "asd" || status.source === "local";
   const steps: string[] = [];
   if (!status.gpuConfigured) steps.push("Deploy gpu-service/ on RunPod Serverless and set GPU_SERVICE_URL, GPU_SERVICE_TOKEN and GPU_SERVICE_API_KEY on the server (gpu-service/README.md).");
   if (status.gpuConfigured && !status.gpuEnabled) steps.push("Turn on gpu_routing.enabled and the gpu_service flag.");
@@ -150,7 +151,8 @@ function FaceTrackingPanel({ status }: { status: FaceTrackingStatus }) {
   return (
     <div role="status" className={`mb-5 rounded-xl border px-4 py-3 text-sm ${ok ? "border-success/40 bg-success/10" : "border-warning/40 bg-tint-amber"}`}>
       <p className="font-semibold text-fg">Face tracking: {SOURCE_TEXT[status.source]}</p>
-      {ok && <p className="mt-0.5 text-xs text-fg-muted">Runs for {status.asdTiers.map((t) => PLAN_NAME[t]).join(", ")}.</p>}
+      {status.source === "asd" && <p className="mt-0.5 text-xs text-fg-muted">Runs for {status.asdTiers.map((t) => PLAN_NAME[t]).join(", ")}.</p>}
+      {status.source === "local" && <p className="mt-0.5 text-xs text-fg-muted">The GPU active-speaker service is optional and takes over when configured.</p>}
       {!ok && steps.length > 0 && (
         <ol className="mt-1.5 list-decimal space-y-0.5 pl-5 text-xs text-fg-muted">
           {steps.map((s) => <li key={s}>{s}</li>)}

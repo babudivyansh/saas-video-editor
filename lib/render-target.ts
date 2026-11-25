@@ -17,6 +17,7 @@ import { isGpuConfigured, isBreakerOpen } from "@/lib/gpu-service";
 import { getUserTier } from "@/lib/auth";
 import { tierAtLeast, type TierId } from "@/lib/plans/tiers";
 import type { RenderTarget } from "@/utils/ffmpeg-render";
+import { localDetectorAvailable } from "@/lib/face-detect-local";
 
 export interface GpuRouting {
   enabled: boolean;
@@ -151,11 +152,11 @@ export interface FaceTrackingStatus {
   asdTiers: TierId[];
   rekognitionFallback: boolean;
   /**
-   * What a run gets: active-speaker tracking, Rekognition, or nothing (the
-   * tracked layouts show the centre of the frame; split, gaming and full
-   * frame still work).
+   * What a run gets: active-speaker tracking on the GPU, Rekognition, the
+   * local CPU detector (lib/face-detect-local.ts, ships with the build), or
+   * nothing (only if the model file is missing; Gemini sampling then).
    */
-  source: "asd" | "rekognition" | "none";
+  source: "asd" | "rekognition" | "local" | "none";
 }
 
 /** For the admin page: which face-tracking rung a run would use. Never throws. */
@@ -175,6 +176,6 @@ export async function getFaceTrackingStatus(): Promise<FaceTrackingStatus> {
     asdEnabled: routing.asdEnabled,
     asdTiers: routing.asdTiers,
     rekognitionFallback: routing.rekognitionFallback === true,
-    source: asdLive ? "asd" : routing.rekognitionFallback ? "rekognition" : "none",
+    source: asdLive ? "asd" : routing.rekognitionFallback ? "rekognition" : localDetectorAvailable() ? "local" : "none",
   };
 }

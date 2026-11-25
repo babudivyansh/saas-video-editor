@@ -65,7 +65,10 @@ next-env.d.ts
 # Pinned render runtime — downloaded and SHA-256 verified by
 # scripts/install-render-ffmpeg.mjs at install time. ~80MB executable;
 # never commit it (see docs/editor-release-gate-stage1-production-verification.md).
-/vendor/
+# vendor/models/ is the exception: small model files the app reads by path
+# (YuNet face detector, 232 KB), committed with their licences.
+/vendor/*
+!/vendor/models/
 
 # design-sync (claude.ai/design) — staged scripts, generated package view, build output, machine state
 .ds-sync/

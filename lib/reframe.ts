@@ -787,6 +787,12 @@ export function computeMultiSpeakerKeyframes(
     const meanX = (g: FaceBox[]) => g.reduce((s, f) => s + f.x + f.w / 2, 0) / g.length;
     [left, right] = meanX(a) <= meanX(b) ? [a, b] : [b, a];
     if (meanX(right) - meanX(left) < MIN_SEPARATION_FRAC) return null;
+    // Two tracks that are never on screen together are two camera angles, not
+    // a two-shot (ids restart at cuts): stacking them leaves a panel empty.
+    const ta = new Set(a.map((f) => Math.round(f.tSec * 10)));
+    const tb = new Set(b.map((f) => Math.round(f.tSec * 10)));
+    const shared = [...ta].filter((t) => tb.has(t)).length;
+    if (shared / Math.max(1, new Set([...ta, ...tb]).size) < MIN_DUAL_COVERAGE) return null;
   } else {
     // Cheap 1-D k=2 clustering on horizontal center — good enough for "left
     // person" vs "right person" without pulling in a clustering dependency.
