@@ -11,6 +11,9 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 // it didn't, because nothing awaited it.
 
 const state = {
+  // Bumped per test. A fake handshake from an earlier test (real 10ms timer)
+  // can fire during the next one; it must not flip that test's status.
+  generation: 0,
   connected: false,
   getCalls: 0,
   status: "wait",
@@ -29,7 +32,11 @@ vi.mock("ioredis", () => {
     off(_event: string, fn: () => void) { state.onceHandlers = state.onceHandlers.filter((h) => h.fn !== fn); return this; }
     // Resolves on a later tick, exactly like a real handshake.
     connect() {
-      return new Promise<void>((resolve) => setTimeout(() => { state.connected = true; state.status = "ready"; resolve(); }, 10));
+      const generation = state.generation;
+      return new Promise<void>((resolve) => setTimeout(() => {
+        if (generation === state.generation) { state.connected = true; state.status = "ready"; }
+        resolve();
+      }, 10));
     }
     async get(key: string) {
       state.getCalls++;
@@ -47,6 +54,7 @@ vi.mock("ioredis", () => {
 });
 
 beforeEach(() => {
+  state.generation++;
   state.connected = false;
   state.getCalls = 0;
   state.status = "wait";
