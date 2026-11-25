@@ -5,7 +5,7 @@ vi.mock("@/lib/prisma", () => ({ prisma: {} }));
 import { BILLING_STATUSES, billingStatusOf, billingStatusWhere, type BillingFields } from "./billing-status";
 import { cancelReasonLabel } from "./billing-status-labels";
 
-const { trialOutcome, summariseTrials } = await import("./trial-history");
+const { trialOutcome, summariseTrials, trialsByWeek } = await import("./trial-history");
 
 const NOW = new Date("2026-11-24T12:00:00Z");
 const DAY = 86_400_000;
@@ -96,5 +96,25 @@ describe("cancelReasonLabel", () => {
     expect(cancelReasonLabel("admin_requested_trial")).toBe("by an admin");
     expect(cancelReasonLabel("plan_switch")).toBe("switched plan");
     expect(cancelReasonLabel(null)).toBeNull();
+  });
+});
+
+describe("trialsByWeek", () => {
+  // NOW is Tuesday 24 Nov 2026; its week starts Monday 23 Nov.
+  it("buckets starts by Monday-start week, oldest first, empty weeks included", () => {
+    const weeks = trialsByWeek(
+      [
+        { startedAt: new Date("2026-11-23T01:00:00Z"), outcome: "active" },
+        { startedAt: new Date("2026-11-24T10:00:00Z"), outcome: "mandate_revoked" },
+        { startedAt: new Date("2026-11-22T23:00:00Z"), outcome: "converted" }, // Sunday: previous week
+        { startedAt: new Date("2025-01-01T00:00:00Z"), outcome: "ended" }, // outside the window
+      ],
+      4,
+      NOW,
+    );
+    expect(weeks.map((w) => w.weekStart.slice(0, 10))).toEqual(["2026-11-02", "2026-11-09", "2026-11-16", "2026-11-23"]);
+    expect(weeks[3]).toMatchObject({ active: 1, mandate_revoked: 1, converted: 0 });
+    expect(weeks[2]).toMatchObject({ converted: 1 });
+    expect(weeks.reduce((n, w) => n + w.ended, 0)).toBe(0);
   });
 });

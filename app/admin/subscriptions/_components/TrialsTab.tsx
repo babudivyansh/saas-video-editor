@@ -10,6 +10,7 @@ import { ErrorCard } from "../../dashboard/ui";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { TRIAL_OUTCOMES, TRIAL_OUTCOME_LABEL, type TrialOutcome } from "@/lib/billing/billing-status-labels";
 import { Chip, OUTCOME_TONE, Pager, SEARCH_INPUT, downloadCsv, fmtDate, type SubscriptionsResponse, type TrialRow } from "./shared";
+import { TrialsChart } from "./TrialsChart";
 
 const LIMIT = 50;
 
@@ -67,6 +68,7 @@ export function TrialsTab({
 
   return (
     <div className="space-y-4">
+      {data?.trialWeeks && <TrialsChart weeks={data.trialWeeks} />}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex flex-wrap gap-2" role="group" aria-label="Trial outcome">
           <Chip active={outcome === ""} onClick={() => { onOutcome(""); setPage(1); }} label="All trials" count={summary?.total} />

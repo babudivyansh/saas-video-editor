@@ -153,3 +153,39 @@ export function summariseTrials(rows: Pick<TrialRow, "outcome">[]) {
     conversionRate: finished > 0 ? counts.converted / finished : null,
   };
 }
+
+export type TrialWeek = { week: string; weekStart: string } & Record<TrialOutcome, number>;
+
+const OUTCOME_KEYS = ["active", "converted", "cancelled_in_app", "mandate_revoked", "payment_failed", "ended"] as const;
+
+/** Monday 00:00 UTC of the week containing d. */
+function weekStartUtc(d: Date): Date {
+  const day = (d.getUTCDay() + 6) % 7; // Monday = 0
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - day));
+}
+
+/**
+ * Trials started per week for the last `weeks` weeks (oldest first, empty
+ * weeks included), each split by what became of them. A week's bar is its
+ * starts; the colours show the outcomes so far.
+ */
+export function trialsByWeek(rows: Pick<TrialRow, "startedAt" | "outcome">[], weeks = 12, now: Date = new Date()): TrialWeek[] {
+  const thisWeek = weekStartUtc(now);
+  const out: TrialWeek[] = [];
+  const index = new Map<number, TrialWeek>();
+  for (let i = weeks - 1; i >= 0; i--) {
+    const start = new Date(thisWeek.getTime() - i * 7 * DAY_MS);
+    const row = {
+      week: start.toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "UTC" }),
+      weekStart: start.toISOString(),
+      ...Object.fromEntries(OUTCOME_KEYS.map((k) => [k, 0])),
+    } as TrialWeek;
+    out.push(row);
+    index.set(start.getTime(), row);
+  }
+  for (const r of rows) {
+    const bucket = index.get(weekStartUtc(r.startedAt).getTime());
+    if (bucket) bucket[r.outcome]++;
+  }
+  return out;
+}

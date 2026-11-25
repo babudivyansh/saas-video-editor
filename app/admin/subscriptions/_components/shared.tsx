@@ -10,6 +10,8 @@ export interface TrialSummary {
   conversionRate: number | null;
 }
 
+export type TrialWeek = { week: string; weekStart: string } & Record<TrialOutcome, number>;
+
 export interface SubscriptionsResponse<Row> {
   view: "subscribers" | "trials";
   rows: Row[];
@@ -18,6 +20,8 @@ export interface SubscriptionsResponse<Row> {
   limit: number;
   statusCounts: Record<RunningStatus, number>;
   trialSummary: TrialSummary;
+  /** Trials view only. */
+  trialWeeks?: TrialWeek[];
 }
 
 export interface SubscriberRow {
