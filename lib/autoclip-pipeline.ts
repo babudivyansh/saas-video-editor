@@ -922,12 +922,25 @@ function computeStoredCrop(
     if (scene.type === "group") {
       const group = buildGroupKeyframes(inWindow, duration, sceneCropW, sceneCropH);
       if (group.length > 1) return { mode: "single", keyframes: group };
+      // Too wide for the window and nobody clearly speaking: any crop would
+      // cut people out, so show everyone.
+      if (sceneCropW < 0.999 || sceneCropH < 0.999) return { mode: "fit" };
     }
     if (scene.type === "none") {
-      // Nothing to track: a slow drift beats a dead-static crop, and beats
-      // inventing motion that implies a subject.
+      // No face to frame: the whole shot over a blurred fill, never a guess.
+      // This was a slow drift around the centre, which cut the speaker in half
+      // whenever detection missed them (every podcast demo clip, 2026-11) and
+      // cuts the edges off screen recordings and gameplay. A crop that keeps
+      // the shape of the source never drops anything, so it keeps the drift.
+      if (sceneCropW < 0.999 || sceneCropH < 0.999) return { mode: "fit" };
       return { mode: "single", keyframes: buildDriftKeyframes(duration, sceneCropW, sceneCropH) };
     }
+  }
+
+  // Follow-one-face modes with no face in this clip: the same safe fallback.
+  if ((speakerMode0 === "single" || speakerMode0 === "active") && inWindow.length === 0
+    && (sceneCropW < 0.999 || sceneCropH < 0.999)) {
+    return { mode: "fit" };
   }
 
   // `preset` is not read here — the two keyframe builders below each pull it

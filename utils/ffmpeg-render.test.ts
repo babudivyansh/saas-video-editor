@@ -18,7 +18,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { spawn } from "child_process";
-import { encodeArgs, ffmpegBin, FfmpegStalledError, getMediaFps, runFFmpegWithProgress } from "./ffmpeg-render";
+import { encodeArgs, ffmpegBin, FfmpegStalledError, getMediaFps, parseDisplayDimensions, runFFmpegWithProgress } from "./ffmpeg-render";
 
 // Real runs against the bundled binary: the watchdog and the progress maths
 // both hang off what ffmpeg actually prints, which a mock would only restate.
@@ -112,4 +112,46 @@ describe("encodeArgs(\"cpu\") — P0-2 threads=1 fix", () => {
       try { fs.unlinkSync(out); } catch { /* best effort */ }
     }
   }, 20_000);
+});
+
+// A phone video shot upright is coded landscape with a rotation side-data line;
+// every decode autorotates it, so crops must use the rotated size.
+describe("parseDisplayDimensions", () => {
+  const banner = (rotation?: string) => [
+    "Input #0, mov,mp4,m4a,3gp,3g2,mj2, from 'in.mp4':",
+    "  Stream #0:0[0x1](und): Video: h264 (High) (avc1 / 0x31637661), yuv420p, 1920x1080 [SAR 1:1 DAR 16:9], 30 fps",
+    ...(rotation ? ["    Side data:", `      Display Matrix: rotation of ${rotation} degrees`] : []),
+    "  Stream #0:1[0x2](und): Audio: aac (LC), 44100 Hz, stereo",
+  ].join("\n");
+
+  it("reports the coded size when there is no rotation", () => {
+    expect(parseDisplayDimensions(banner())).toEqual({ w: 1920, h: 1080 });
+  });
+
+  it("swaps width and height for a quarter turn either way", () => {
+    expect(parseDisplayDimensions(banner("-90.00"))).toEqual({ w: 1080, h: 1920 });
+    expect(parseDisplayDimensions(banner("90.00"))).toEqual({ w: 1080, h: 1920 });
+    expect(parseDisplayDimensions(banner("270.00"))).toEqual({ w: 1080, h: 1920 });
+  });
+
+  it("keeps the size for a half turn", () => {
+    expect(parseDisplayDimensions(banner("180.00"))).toEqual({ w: 1920, h: 1080 });
+  });
+
+  it("returns zeros when there is no video stream", () => {
+    expect(parseDisplayDimensions("Stream #0:0: Audio: aac")).toEqual({ w: 0, h: 0 });
+  });
+
+  it("matches what ffmpeg actually decodes for a rotated file", async () => {
+    const { getMediaDimensions, runFFmpegArgs } = await import("./ffmpeg-render");
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "rot-"));
+    try {
+      const plain = path.join(dir, "plain.mp4"), rot = path.join(dir, "rot.mp4");
+      await runFFmpegArgs(["-y", "-f", "lavfi", "-i", "testsrc=size=320x180:rate=10", "-t", "0.5", "-pix_fmt", "yuv420p", plain], 60_000);
+      await runFFmpegArgs(["-y", "-display_rotation", "90", "-i", plain, "-c", "copy", rot], 60_000);
+      expect(await getMediaDimensions(rot)).toEqual({ w: 180, h: 320 });
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
 });
