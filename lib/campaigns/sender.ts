@@ -19,6 +19,7 @@ import { greetingName } from "@/lib/display-name";
 import { campaignBlocksSchema } from "./content";
 import { readAudience, snapshotRecipients } from "./audience";
 import { campaignBudget } from "./budget";
+import { campaignKey } from "./delivery";
 
 /** A recipient stuck in "sending" this long had its run die mid-send. */
 const STALE_SENDING_MS = 30 * 60_000;
@@ -149,7 +150,7 @@ export async function runCampaigns(now: Date = new Date()): Promise<CampaignRunR
               blocks: blocks.data,
               utmCampaign: c.utmCampaign,
             },
-            { userId: r.userId, idempotencyKey: `campaign:${c.id}:${r.userId}` },
+            { userId: r.userId, idempotencyKey: campaignKey(c.id, r.userId) },
           );
           const o = outcomeFor(res);
           status = o.status;
