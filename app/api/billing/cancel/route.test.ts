@@ -4,7 +4,7 @@ import { NextRequest } from "next/server";
 // Cancelling inside the trial must cancel the Razorpay subscription
 // OUTRIGHT: it is still `authenticated` (no billing cycle yet), and Razorpay
 // refuses cancel-at-cycle-end for that state — so the old call failed and the
-// customer was charged on day 7 anyway.
+// customer was charged when the trial ended anyway.
 
 vi.mock("@/lib/rate-limit", () => ({
   rateLimit: vi.fn(async () => ({ allowed: true, remaining: 1 })),
