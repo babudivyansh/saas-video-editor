@@ -301,8 +301,8 @@ describe("Panels", () => {
     open("/editor/audio");
     press("Voiceover");
     fireEvent.press(await screen.findByRole("radio", { name: /^Aria/ }));
-    fireEvent.changeText(screen.getByLabelText("Voiceover script"), "x".repeat(501));
-    expect(screen.getByText(/^2 AI credits · 1 credit per 300 characters/)).toBeOnTheScreen();
+    fireEvent.changeText(screen.getByLabelText("Voiceover script"), "x".repeat(251));
+    expect(screen.getByText(/^2 AI credits · 1 credit per 250 characters/)).toBeOnTheScreen();
     press("Add voiceover");
     expect(await screen.findByText("Voiceover added at 0:04.")).toBeOnTheScreen();
     expect(doc().tracks.audio[0]).toMatchObject({ assetId: "vo_1", timelineStart: 4, duration: 6 });
