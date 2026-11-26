@@ -7,7 +7,7 @@ import { JsonLd } from "@/app/components/JsonLd";
 import Breadcrumbs from "@/app/components/ui/Breadcrumbs";
 import { ReviewCard } from "@/app/components/reviews/ReviewCard";
 import { getPublishedReviewById } from "@/lib/reviews/queries";
-import { buildReviewSchema } from "@/app/reviews/schema";
+import { buildStandaloneReviewSchema } from "@/app/reviews/schema";
 import { buildBreadcrumbSchema } from "@/app/blog/schema";
 import { featureUsedLabel } from "@/lib/reviews/constants";
 
@@ -41,7 +41,7 @@ export default async function ReviewDetailPage({ params }: PageProps) {
   const review = await getPublishedReviewById(id);
   if (!review) notFound();
 
-  const reviewSchema = { "@context": "https://schema.org", ...buildReviewSchema(review) };
+  const reviewSchema = buildStandaloneReviewSchema(review);
   const breadcrumbSchema = buildBreadcrumbSchema([
     { name: "Home", path: "/" },
     { name: "Reviews", path: "/reviews" },
