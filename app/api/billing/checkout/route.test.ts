@@ -129,7 +129,7 @@ describe("POST /api/billing/checkout — resumeFromPeriodEnd", () => {
 describe("POST /api/billing/checkout — trial", () => {
   const fresh = () => findUniqueUser.mockImplementation(async () => ({ trialUsedAt: null, subscriptionEndsAt }));
 
-  it("defers the first charge 7 days for a first-time customer", async () => {
+  it("defers the first charge TRIAL_DAYS for a first-time customer", async () => {
     fresh();
     const res = await POST(post({ planId: "pro-monthly", trial: true }));
     expect(res.status).toBe(200);

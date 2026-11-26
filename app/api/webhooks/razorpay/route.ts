@@ -86,8 +86,8 @@ export async function POST(req: NextRequest) {
   // payment.captured so a subscription-invoice payment doesn't also get
   // routed to the one-time fulfillPayment path below (double grant guard).
   // A trial subscription (start_at = now + TRIAL_DAYS) reaches `authenticated` the
-  // moment the customer approves the mandate, and only becomes `activated` on
-  // day 7 together with its first charge — so this, not activation, is when a
+  // moment the customer approves the mandate, and only becomes `activated` at
+  // start_at (trial end) together with its first charge — so this, not activation, is when a
   // trial starts. See lib/billing/trial.ts. Non-trial subscriptions start
   // immediately, go straight to activated + charged, and need nothing here.
   if (event.event === "subscription.authenticated") {
