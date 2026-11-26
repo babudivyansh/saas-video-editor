@@ -20,7 +20,7 @@ export interface HeroFeature {
 }
 
 /** One round of the AI clipping panel: click, drop, spread, hold. */
-export const CLIP_ROUND_MS = 4000;
+export const CLIP_ROUND_MS = 2600;
 
 /** How long autoplay stays on a panel. Clipping shows every round once. */
 export const DWELL_MS: Record<FeatureId, number> = {

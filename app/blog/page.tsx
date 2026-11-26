@@ -4,7 +4,6 @@ import Link from "next/link";
 import SiteNavbar from "@/app/components/SiteNavbar";
 import SiteFooter from "@/app/components/SiteFooter";
 import { JsonLd } from "@/app/components/JsonLd";
-import Breadcrumbs from "@/app/components/ui/Breadcrumbs";
 import BlogCta from "./BlogCta";
 import NewsletterSignup from "./NewsletterSignup";
 import PostCard from "./PostCard";
@@ -39,16 +38,18 @@ export default function BlogPage() {
       <JsonLd data={breadcrumbSchema} />
       <SiteNavbar solid />
       <main>
-        <section className="border-b border-line bg-gray-50/60">
-          <div className="mx-auto w-full max-w-[80rem] px-4 md:px-10 py-20 text-center">
-            <div className="flex justify-center">
-              <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Blog" }]} />
-            </div>
-            <span className="mt-4 block text-xs font-bold uppercase tracking-widest text-brand">Blog</span>
-            <h1 className="mx-auto mt-3 max-w-3xl text-4xl font-extrabold leading-tight text-fg md:text-6xl">
+        <section className="relative overflow-hidden px-4 pb-6 pt-14 text-center sm:pt-20">
+          {/* Soft lime glow behind the headline, as on /pricing. */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute left-1/2 top-[-380px] h-[700px] w-[800px] max-w-full -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,color-mix(in_oklab,var(--primary)_10%,transparent),transparent)]"
+          />
+          <div className="relative mx-auto flex max-w-4xl flex-col items-center gap-5">
+            <p className="font-mono text-xs uppercase tracking-[0.12em] text-primary">Blog</p>
+            <h1 className="text-4xl font-semibold leading-[1.05] tracking-[-0.03em] text-fg sm:text-6xl">
               The Clipiro creator playbook
             </h1>
-            <p className="mx-auto mt-5 max-w-2xl text-lg text-fg-muted">
+            <p className="max-w-xl text-base leading-relaxed text-fg-muted sm:text-lg">
               Tutorials, growth tips, and product updates to help you go viral with short-form video.
             </p>
           </div>

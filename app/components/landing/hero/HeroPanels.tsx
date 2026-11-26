@@ -124,12 +124,12 @@ function Enter({
 // One round, like a pipeline through the link bar (the canvas demo "Drop and
 // spread"):
 //   0.00s  the drawn cursor clicks Get clips (MockClipBar);
-//   0.25s  the clips on show slide off to the right;
-//   0.30s  the long video glides down behind the bar into the clip row,
+//   0.15s  the clips on show slide off to the right;
+//   0.18s  the long video glides down behind the bar into the clip row,
 //          shrinking as it goes, and fades there;
-//   0.35s  the next long video slides in from the top;
-//   0.85s  a soft green flash marks the hand-off in the row;
-//   0.95s  the new clips spread outward from the middle with an overshoot.
+//   0.20s  the next long video slides in from the top;
+//   0.50s  a soft green flash marks the hand-off in the row;
+//   0.55s  the new clips spread outward from the middle with an overshoot.
 // Then it holds until CLIP_ROUND_MS is up. Every round shares one ratio
 // order, so the row's layout, and the paths measured from it, never change.
 
@@ -151,16 +151,16 @@ const CLIP_MOTION = {
     scale: 1,
     opacity: 1,
     transition: {
-      duration: 0.6,
+      duration: 0.45,
       ease: [0.34, 1.45, 0.64, 1] as const,
       // Outward from the middle: the centre clips first, the ends last.
-      delay: 0.95 + Math.abs((c?.i ?? 0) - 2.5) * 0.08,
+      delay: 0.55 + Math.abs((c?.i ?? 0) - 2.5) * 0.05,
     },
   }),
   gone: () => ({
     x: 360,
     opacity: 0,
-    transition: { duration: 0.5, ease: [0.55, 0, 0.75, 0.3] as const, delay: 0.25 },
+    transition: { duration: 0.35, ease: [0.55, 0, 0.75, 0.3] as const, delay: 0.15 },
   }),
 };
 
@@ -221,12 +221,12 @@ function ClippingPanel({ active, load, playing }: PanelProps) {
             key={key}
             className={`${frameSkin} absolute inset-0`}
             initial={{ y: "-150%", scale: 0.9, opacity: 0 }}
-            animate={{ y: 0, scale: 1, opacity: 1, transition: { delay: 0.35, duration: 0.65, ease: [0.22, 1, 0.36, 1] } }}
+            animate={{ y: 0, scale: 1, opacity: 1, transition: { delay: 0.2, duration: 0.45, ease: [0.22, 1, 0.36, 1] } }}
             exit={{
               y: geo.dropY,
               scale: [1, Math.min(0.56, geo.dropScale), Math.min(0.5, geo.dropScale)],
               opacity: [1, 1, 0],
-              transition: { duration: 1.05, times: [0, 0.7, 1], ease: [0.65, 0, 0.35, 1], delay: 0.3 },
+              transition: { duration: 0.65, times: [0, 0.7, 1], ease: [0.65, 0, 0.35, 1], delay: 0.18 },
             }}
           >
             <LoopVideo {...media(r.long)} load={load} playing={playing} />
@@ -259,7 +259,7 @@ function ClippingPanel({ active, load, playing }: PanelProps) {
           className="pointer-events-none absolute left-1/2 top-1/2 h-[120px] w-[240px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(closest-side,color-mix(in_oklab,var(--emerald-bright)_55%,transparent),transparent)]"
           initial={{ opacity: 0, scale: 0.4 }}
           animate={{ opacity: [0, 0.9, 0], scale: [0.4, 1, 1.9] }}
-          transition={{ duration: 0.7, times: [0, 0.4, 1], ease: "easeOut", delay: 0.85 }}
+          transition={{ duration: 0.5, times: [0, 0.4, 1], ease: "easeOut", delay: 0.5 }}
         />
         <AnimatePresence initial={false} mode="popLayout">
           <motion.ul
