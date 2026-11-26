@@ -9,7 +9,7 @@ import { Prisma, type Clip } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { AUTOCLIP_PRICING_DEFAULTS, analysisRefId, parseAutoClipPricing, type AutoClipPricing } from "@/lib/autoclip-pricing";
 import { restoreSpend, grantCredits } from "@/lib/credits";
-import { chargeRunMinutes, refundRunMinutes } from "@/lib/autoclip-minutes";
+import { addRunAiCost, chargeRunMinutes, refundRunMinutes } from "@/lib/autoclip-minutes";
 import { overflowCreditsFor } from "@/lib/plans/tiers";
 import { resolveFontFile } from "@/lib/editor/filtergraph";
 import { downloadFile } from "@/utils/download";
@@ -1333,6 +1333,7 @@ export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATT
           aspect: aspectRatio,
           instructions,
           allowAiVideo: payload.aiVideoBroll === true,
+          sourceDurationSec: durationSec,
           clips: segments.map((seg, i) => ({
             index: i,
             start: seg.start,
@@ -1345,6 +1346,7 @@ export async function pickJob(payload: PickPayload, ctx: JobContext = SINGLE_ATT
             brollOffsetSec: seg.brollOffsetSec,
           })),
         }), { meta: { clipCount: segments.length } });
+        if (ai) void addRunAiCost(project.userId, projectId, ai.spentUsd);
       } catch (err) {
         logger.warn("auto-clip", `AI stages failed for ${projectId}; rendering without them`, err);
         ai = null;

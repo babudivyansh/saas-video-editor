@@ -18,7 +18,7 @@ import type { WordTiming } from "@/utils/elevenlabs";
 import type { SignalTrack } from "@/lib/signal-track";
 import { computeBrollWindow, planBrollWindows, type BrollCue } from "@/lib/broll";
 import type { TierId } from "@/lib/plans/tiers";
-import { getAutoClipAiConfig, resolveAiFeatures, type AiFeatureSet, type AutoClipAiConfig } from "@/lib/autoclip-ai/config";
+import { getAutoClipAiConfig, resolveAiFeatures, runCeilingUsd, type AiFeatureSet, type AutoClipAiConfig } from "@/lib/autoclip-ai/config";
 import { AiBudget } from "@/lib/autoclip-ai/budget";
 import { generateEditPlan, type ResolvedEditPlan } from "@/lib/autoclip-ai/edit-plan";
 import { analyzeClipScenes } from "@/lib/autoclip-ai/scene-vision";
@@ -113,6 +113,8 @@ export async function runAiStages(args: {
   instructions: string;
   allowAiVideo: boolean;
   clips: AiClipInput[];
+  /** Source length; shrinks the spend cap on a short source (runCeilingUsd). */
+  sourceDurationSec?: number;
   /** Injected in tests. */
   cfg?: AutoClipAiConfig;
 }): Promise<AiRunResult | null> {
@@ -120,7 +122,7 @@ export async function runAiStages(args: {
   const features = resolveAiFeatures(cfg, args.tier);
   if (!Object.values(features).some(Boolean)) return null;
 
-  const budget = new AiBudget(cfg.costCeilingUsd[args.tier] ?? 0);
+  const budget = new AiBudget(runCeilingUsd(cfg, args.tier, args.sourceDurationSec));
   const skipped: string[][] = args.clips.map(() => []);
   const plans: (ResolvedEditPlan | null)[] = args.clips.map(() => null);
   const scenes: (SceneShot[] | null)[] = args.clips.map(() => null);

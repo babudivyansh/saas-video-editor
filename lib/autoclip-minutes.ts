@@ -44,6 +44,24 @@ function logRunCost(userId: string, projectId: string, sourceMinutes: number, ov
   });
 }
 
+/**
+ * Adds a run's measured optional-AI spend (generated B-roll, scene vision...)
+ * to the Generation row logRunCost wrote, so the cost dashboards see what the
+ * run really spent rather than a flat per-minute guess. Best-effort: a free
+ * re-run wrote no row, and then there is nothing to add to.
+ */
+export async function addRunAiCost(userId: string, projectId: string, usd: number): Promise<void> {
+  if (!(usd > 0)) return;
+  try {
+    await prisma.generation.updateMany({
+      where: { userId, toolSlug: "auto-clip", prompt: runMinutesRefId(projectId) },
+      data: { estimatedCostUsd: { increment: Math.round(usd * 10_000) / 10_000 } },
+    });
+  } catch (err) {
+    logger.warn("auto-clip", `could not record AI spend for ${projectId}`, err);
+  }
+}
+
 export const runMinutesRefId = (projectId: string) => `auto-clip:${projectId}`;
 export const overflowRefId = (projectId: string) => `auto-clip-overflow:${projectId}`;
 

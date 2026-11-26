@@ -25,10 +25,11 @@
 //   standard  eleven_v4_turbo / flash, 0.5 credits per char  ~$0.10 / 1,000 chars
 //   studio    eleven_v4,               1.0 credit per char   ~$0.20 / 1,000 chars
 //
-// At $0.0784 net per Clipiro credit those rates come to ~2.6x cost on Pro
-// (about 3x on Scale): see audio-pricing.test.ts for the arithmetic.
-export const VOICEOVER_CHARS_PER_CREDIT = 300;
-export const VOICEOVER_STUDIO_CHARS_PER_CREDIT = 150;
+// 300/150 chars per credit came to ~2.6x cost, the only credit tool under the
+// 3x target (pricing audit 2026-11-26). 250/125 brings both to ~3.1x at
+// $0.0784 net per Clipiro credit: see audio-pricing.test.ts.
+export const VOICEOVER_CHARS_PER_CREDIT = 250;
+export const VOICEOVER_STUDIO_CHARS_PER_CREDIT = 125;
 
 /** "standard" = the fast 0.5x model; "studio" = the full-quality 1.0x model. */
 export type VoiceoverQuality = "standard" | "studio";

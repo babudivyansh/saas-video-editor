@@ -100,17 +100,21 @@ export function formatBytes(bytes: number): string {
  * Revenue per credit at the CHEAPEST live SKU — the floor every model price is
  * checked against (lib/models/pricing.test.ts).
  *
- * Derivation, from prisma/seed.ts and lib/currency.ts's FX default:
+ * Original derivation (2026-09, when Studio Yearly was 33% off and granted 400
+ * credits a month):
  *   Studio Yearly = round(499900 x 12 x 0.67 / 100) x 100 = 4,019,200 paise
  *   4,019,200 paise / (400 cr/mo x 12) = ₹8.373 per credit
  *   ₹8.373 / 88 INR-per-USD                 = $0.0952 per credit
  *
- * This replaces a hardcoded $0.099, documented as "Studio Yearly ≈ ₹9.41/credit
- * at ₹95/$1" — both figures went stale when the grants moved to 60/160/400 and
- * the FX default moved to 88, leaving every margin ~4% thinner than the CI guard
- * claimed. Keep this in step with whichever SKU is actually cheapest per credit;
- * it is deliberately the floor, not an average, so a model that clears it clears
- * it for every customer.
+ * STALE INPUTS, VALUE KEPT ON PURPOSE (pricing audit 2026-11-26): since
+ * 2026-10-30 yearly plans are 25% off and Agency (studio) grants 300 credits,
+ * so the same arithmetic now gives ₹12.50 = $0.142 per credit, and the cheapest
+ * pure-credit SKU (Agency Pack, ₹8,999 / 640) is ₹14.06 = $0.160. Since the
+ * Clip Minutes switch a plan's price also pays for its minutes, so no plan SKU
+ * gives a clean per-credit figure any more. $0.0952 stays as a deliberately
+ * conservative floor: every price that clears it clears every real SKU with
+ * room to spare. Lower it only after deciding how plan revenue is split
+ * between minutes and credits.
  *
  * NOTE: this is the LIST-price floor. Coupons cut it further, which is why
  * lib/coupons.ts caps the discount a subscription cart can take.
@@ -197,8 +201,9 @@ export const FREE_TIER_SIGNUP_MINUTES = 30;
 export const AUTOCLIP_RERUN_FREE_WINDOW_DAYS = 7;
 
 /** When a user is out of minutes they can opt in to pay the shortfall in AI
- *  credits at this rate. 3 minutes cost ~$0.0375 against ~$0.078 of net credit
- *  revenue, so this still clears 2x — and nobody is hard-blocked mid-project. */
+ *  credits at this rate. 3 minutes cost ~$0.024 (2026-11-26 measured
+ *  $0.008/min) against ~$0.078 of net credit revenue, so this clears 3x — and
+ *  nobody is hard-blocked mid-project. */
 export const OVERFLOW_MINUTES_PER_CREDIT = 3;
 
 /**

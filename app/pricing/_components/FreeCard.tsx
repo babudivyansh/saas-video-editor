@@ -9,15 +9,19 @@ import Link from "next/link";
 import type { Currency } from "@/lib/currency-shared";
 import {
   FREE_TIER_MONTHLY_BONUS_CREDITS, FREE_TIER_MONTHLY_BONUS_MINUTES, FREE_TIER_SIGNUP_MINUTES, STORAGE_LIMIT_GB,
+  TIER_MAX_AUTOCLIP_SOURCE_SECONDS,
 } from "@/lib/plans/tiers";
 import { TIER_TAGLINE } from "@/lib/plans/display";
 import { CheckIcon } from "@/app/components/billing/PlanCard";
 
 export function FreeCard({ currency }: { currency: Currency }) {
+  // The signup grant and the monthly drip are two different numbers. Shown
+  // side by side without a "then" ("15 every month" over "30 to start") they
+  // read as a contradiction, so the headline states the sequence.
   const perks = [
-    `${FREE_TIER_SIGNUP_MINUTES} Clip Minutes to start`,
+    `${FREE_TIER_MONTHLY_BONUS_CREDITS} AI credits every month`,
     "All free tools: compressor, MP3, downloaders",
-    "Auto Clips from your minutes (watermarked)",
+    `Auto Clips up to ${TIER_MAX_AUTOCLIP_SOURCE_SECONDS.free / 60} min long, 720p, watermarked`,
     `${STORAGE_LIMIT_GB.free * 1000} MB storage`,
   ];
   return (
@@ -48,7 +52,7 @@ export function FreeCard({ currency }: { currency: Currency }) {
       </div>
 
       <div className="flex flex-1 flex-col gap-3 border-t border-line pt-5">
-        <p className="text-sm font-semibold text-fg">{FREE_TIER_MONTHLY_BONUS_MINUTES} Clip Minutes + {FREE_TIER_MONTHLY_BONUS_CREDITS} AI credits every month</p>
+        <p className="text-sm font-semibold text-fg">{FREE_TIER_SIGNUP_MINUTES} Clip Minutes to start, then {FREE_TIER_MONTHLY_BONUS_MINUTES} every month</p>
         <ul className="space-y-3">
           {perks.map(p => (
             <li key={p} className="flex items-start gap-2.5 text-sm text-fg-muted">

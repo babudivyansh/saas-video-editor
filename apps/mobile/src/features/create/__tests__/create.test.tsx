@@ -286,7 +286,7 @@ describe("AI Media", () => {
   it("prices a voiceover by length", async () => {
     open("/create/ai-media?tab=voiceover");
     expect(await screen.findByText("1 credit")).toBeOnTheScreen();
-    await act(async () => fireEvent.changeText(screen.getByLabelText("Script"), "x".repeat(501)));
+    await act(async () => fireEvent.changeText(screen.getByLabelText("Script"), "x".repeat(251)));
     expect(screen.getByText("2 credits")).toBeOnTheScreen();
   });
 

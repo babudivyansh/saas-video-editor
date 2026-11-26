@@ -27,6 +27,14 @@ import { runFFmpegArgs, ffmpegInputArgs } from "@/utils/ffmpeg-render";
 export const MAX_FRAMES = 120;
 /** Never sample denser than this, even on a short source. */
 export const MIN_INTERVAL_SEC = 1;
+/** Default spacing for a short source. One frame a second meant a 1-minute
+ *  source made 60 Gemini calls, ~5x what its one billed Clip Minute covers
+ *  (pricing audit 2026-11-26). A facecam or a seated speaker barely moves in
+ *  3 s. Changes nothing above 6 minutes, where MAX_FRAMES sets the spacing. */
+export const SHORT_SOURCE_INTERVAL_SEC = 3;
+/** ...but a short source still gets this many frames, so a 30 s clip is not
+ *  placed from a handful of looks. */
+export const MIN_FRAMES = 20;
 // One frame per call. Batching frames into one request was tried and the
 // boxes stopped matching their frame: with 15 images in context the model
 // returned near-full-frame boxes. Localisation is reliable one image at a time.
@@ -88,7 +96,10 @@ const answerSchema = z.preprocess(
 /** Evenly spaced sample times, a half-interval in from each end. */
 export function sampleTimes(durationSec: number): number[] {
   if (!(durationSec > 0)) return [];
-  const interval = Math.max(MIN_INTERVAL_SEC, durationSec / MAX_FRAMES);
+  const interval = Math.max(
+    MIN_INTERVAL_SEC,
+    Math.min(Math.max(SHORT_SOURCE_INTERVAL_SEC, durationSec / MAX_FRAMES), durationSec / MIN_FRAMES),
+  );
   const out: number[] = [];
   for (let t = interval / 2; t < durationSec && out.length < MAX_FRAMES; t += interval) {
     out.push(Math.round(t * 1000) / 1000);

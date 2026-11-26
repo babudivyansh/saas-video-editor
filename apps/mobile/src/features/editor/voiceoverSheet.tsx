@@ -12,7 +12,7 @@ import { insertMedia } from "./docOps";
 import { clock, useEditor } from "./store";
 
 // Voiceover: pick a voice, write the script, and the server reads it (POST
-// /jobs { type: "voiceover" }, the web's own tool and price: 1 credit per 300
+// /jobs { type: "voiceover" }, the web's own tool and price: 1 credit per 250
 // characters, times the voice's rate). The result is saved in Assets
 // (Phase 5.5) and laid on the audio track at the playhead.
 
@@ -87,7 +87,7 @@ export function VoiceoverSheet({ visible, onClose }: { visible: boolean; onClose
             </View>
           )}
           <Text style={type(12, "regular", { color: colors.fgMuted })}>
-            {script.trim() ? `${credits} AI credit${credits === 1 ? "" : "s"} · ` : ""}1 credit per 300 characters
+            {script.trim() ? `${credits} AI credit${credits === 1 ? "" : "s"} · ` : ""}1 credit per 250 characters
           </Text>
           <Button label="Add voiceover" fullWidth disabled={!script.trim() || !voice} onPress={() => void make()} />
         </>
