@@ -214,8 +214,10 @@ async function main() {
         maxRedemptions: c.maxRedemptions ?? null,
         perUserLimit: c.perUserLimit ?? 1,
         firstPurchaseOnly: c.firstPurchaseOnly ?? false,
-        featured: c.featured ?? false,
-        active: true,
+        // `active` and `featured` are left alone on update: they are admin
+        // toggles (/admin coupons), and the seed also runs against prod. It
+        // used to force active: true, so a re-seed would switch back on a
+        // coupon an admin had turned off (TOPUP15 is off in prod).
         expiresAt: c.expiresAt ?? null,
       },
       create: {
