@@ -23,7 +23,7 @@ vi.mock("@/utils/ffmpeg-render", () => ({
 }));
 
 const {
-  sampleTimes, answerToFaceBoxes, detectFacesWithGemini, faceAnswerSchema, MAX_FRAMES,
+  sampleTimes, answerToFaceBoxes, detectFacesWithGemini, faceAnswerSchema, MAX_FRAMES, MIN_FRAMES,
   Limiter, spreadOrder, answeredCoverageOk, jitteredBackoff, GLOBAL_CALL_CONCURRENCY,
 } = await import("@/lib/face-detect-gemini");
 
@@ -38,8 +38,20 @@ describe("sampleTimes", () => {
     expect(t).toHaveLength(MAX_FRAMES);
     expect(t[1] - t[0]).toBeCloseTo(60, 3);
   });
-  it("samples a short source once a second", () => {
+  it("samples a very short source once a second", () => {
     expect(sampleTimes(5)).toEqual([0.5, 1.5, 2.5, 3.5, 4.5]);
+  });
+  it("keeps MIN_FRAMES on a short source, denser than 3 s", () => {
+    const t = sampleTimes(30);
+    expect(t).toHaveLength(MIN_FRAMES);
+    expect(t[1] - t[0]).toBeCloseTo(1.5, 3);
+  });
+  it("samples a 1-minute source every 3 s, not every second", () => {
+    expect(sampleTimes(60)).toHaveLength(20);
+  });
+  it("leaves sources of 6 minutes and up on MAX_FRAMES", () => {
+    expect(sampleTimes(6 * 60)).toHaveLength(MAX_FRAMES);
+    expect(sampleTimes(10 * 60)).toHaveLength(MAX_FRAMES);
   });
   it("is empty for no duration", () => {
     expect(sampleTimes(0)).toEqual([]);

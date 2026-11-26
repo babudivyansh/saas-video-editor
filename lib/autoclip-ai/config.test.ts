@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  AI_FEATURES, AUTOCLIP_AI_DEFAULTS, aiFeatureOn, deepMergeConfig, mergeAutoClipAiConfig, resolveAiFeatures,
+  AI_FEATURES, AUTOCLIP_AI_DEFAULTS, aiFeatureOn, deepMergeConfig, mergeAutoClipAiConfig, resolveAiFeatures, runCeilingUsd,
 } from "@/lib/autoclip-ai/config-shared";
 import { AiBudget } from "@/lib/autoclip-ai/budget";
 
@@ -88,5 +88,18 @@ describe("config versioning", () => {
     const cfg = mergeAutoClipAiConfig({ v: 2, features: { brollGenerateImage: { enabled: false } }, broll: { maxGeneratedPerClip: 1 } });
     expect(cfg.features.brollGenerateImage.enabled).toBe(false);
     expect(cfg.broll.maxGeneratedPerClip).toBe(1);
+  });
+
+  it("shrinks the per-run spend cap on a short source, never above the flat ceiling", () => {
+    const cfg = mergeAutoClipAiConfig(null);
+    // Free: $0.005 a source minute, flat $0.05.
+    expect(runCeilingUsd(cfg, "free", 60)).toBeCloseTo(0.005);
+    expect(runCeilingUsd(cfg, "free", 30)).toBeCloseTo(0.005); // 1-minute floor, as billed
+    expect(runCeilingUsd(cfg, "free", 30 * 60)).toBeCloseTo(0.05);
+    // Agency: $0.05 a minute up to the flat $1.50.
+    expect(runCeilingUsd(cfg, "studio", 60)).toBeCloseTo(0.05);
+    expect(runCeilingUsd(cfg, "studio", 60 * 60)).toBeCloseTo(1.5);
+    // No duration known: the flat ceiling, as before.
+    expect(runCeilingUsd(cfg, "pro")).toBe(cfg.costCeilingUsd.pro);
   });
 });

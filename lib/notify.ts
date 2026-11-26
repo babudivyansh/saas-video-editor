@@ -47,7 +47,9 @@ export type NotificationType =
   // Email delivery trouble (lib/email/router/alerts.ts): a provider down,
   // quota near its limit, every provider unavailable. In-app on purpose —
   // emailing "email is broken" through the broken providers is circular.
-  | "admin_email_alert";
+  | "admin_email_alert"
+  // A shared provider pool nearing its limit (lib/admin/elevenlabs-quota.ts).
+  | "admin_provider_quota";
 
 export interface NotifyInput {
   userId: string;

@@ -16,7 +16,7 @@ import { saveToolResult } from "@/lib/tool-results";
 
 export const maxDuration = 120;
 
-// Priced by length (lib/audio-pricing.ts): 1 credit per 300 characters, times
+// Priced by length (lib/audio-pricing.ts): 1 credit per 250 characters, times
 // the voice's own provider rate. The cap is the v4 models' own per-request
 // limit (it was 2,000 while the account was on the free tier); it bounds one
 // request, not the margin.

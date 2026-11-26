@@ -71,6 +71,7 @@ vi.mock("@/lib/credits", () => ({
 const heldMinutes = new Map<string, number>();
 vi.mock("@/lib/autoclip-minutes", () => ({
   chargeRunMinutes: vi.fn(async () => ({ ok: true, minutes: 0, overflowCredits: 0 })),
+  addRunAiCost: vi.fn(async () => {}),
   refundRunMinutes: vi.fn(async (_u: string, projectId: string) => {
     const key = `auto-clip:${projectId}`;
     const net = heldMinutes.get(key) ?? 0;

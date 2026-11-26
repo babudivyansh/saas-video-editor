@@ -77,6 +77,27 @@ export interface AutoClipAiConfig {
   };
 }
 
+/**
+ * Per-run AI spend also scales with the source: at most this much per source
+ * minute, on top of the flat costCeilingUsd. A run bills 1 Clip Minute per
+ * source minute with a 1-minute floor, but B-roll and the other extras cost
+ * the same on a 1-minute source as on a 30-minute one, so thirty 1-minute free
+ * runs could spend 30x the flat free ceiling against 30 billed minutes
+ * (pricing audit 2026-11-26). Paid minutes earn ~$0.035-0.047 net each, so
+ * $0.05 a minute keeps a short paid run whole; free minutes earn nothing.
+ */
+export const AI_CEILING_PER_SOURCE_MINUTE_USD: Record<TierId, number> = {
+  free: 0.005, creator: 0.05, pro: 0.05, studio: 0.05,
+};
+
+/** The spend cap for one run: the tier's flat ceiling, or less on a short source. */
+export function runCeilingUsd(cfg: AutoClipAiConfig, tier: TierId, sourceDurationSec?: number): number {
+  const flat = cfg.costCeilingUsd[tier] ?? 0;
+  if (!(sourceDurationSec && sourceDurationSec > 0)) return flat;
+  const minutes = Math.max(1, Math.ceil(sourceDurationSec / 60));
+  return Math.min(flat, minutes * AI_CEILING_PER_SOURCE_MINUTE_USD[tier]);
+}
+
 const ALL_TIERS: TierId[] = [...TIER_ORDER];
 const off = (tiers: TierId[] = ALL_TIERS): FeatureGate => ({ enabled: false, tiers });
 

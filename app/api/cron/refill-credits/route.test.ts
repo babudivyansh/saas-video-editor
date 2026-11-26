@@ -32,6 +32,7 @@ vi.mock("razorpay", () => ({
 vi.mock("@/lib/email", () => ({ sendCreditsRefilledEmail: vi.fn(async () => {}) }));
 vi.mock("@/lib/logger", () => ({ logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
 vi.mock("@/lib/redis", () => ({ redis: { set: vi.fn(async () => {}) } }));
+vi.mock("@/lib/admin/elevenlabs-quota", () => ({ checkElevenLabsQuota: vi.fn(async () => null) }));
 // The Clip Minutes engine has its own real-database suite (lib/minutes.test.ts);
 // here we only assert the cron drives it at the right moments.
 const minutes = vi.hoisted(() => ({

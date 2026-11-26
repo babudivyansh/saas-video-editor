@@ -224,10 +224,10 @@ export const AUDIO_TOOLS = {
 } as const;
 export type AudioToolId = keyof typeof AUDIO_TOOLS;
 
-/** lib/audio-pricing.ts voiceoverCredits: 1 credit per 300 chars, 150 in Studio quality, times the voice's rate. */
-export const VOICEOVER_CHARS_PER_CREDIT = 300;
+/** lib/audio-pricing.ts voiceoverCredits: 1 credit per 250 chars, 125 in Studio quality, times the voice's rate. */
+export const VOICEOVER_CHARS_PER_CREDIT = 250;
 export const voiceoverCredits = (chars: number, quality: "standard" | "studio" = "standard", multiplier = 1) =>
-  Math.ceil(Math.max(1, Math.ceil(chars / (quality === "studio" ? 150 : VOICEOVER_CHARS_PER_CREDIT))) * (Number.isFinite(multiplier) && multiplier > 1 ? multiplier : 1));
+  Math.ceil(Math.max(1, Math.ceil(chars / (quality === "studio" ? 125 : VOICEOVER_CHARS_PER_CREDIT))) * (Number.isFinite(multiplier) && multiplier > 1 ? multiplier : 1));
 /**
  * The file-in, file-out AI tools (Phase 10.3): what each takes, its limits on
  * the phone and its plan. Prices are the web routes' own (pinned by

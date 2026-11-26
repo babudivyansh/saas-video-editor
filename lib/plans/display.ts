@@ -127,7 +127,9 @@ export function tierHighlights(tier: Exclude<TierId, "free">): TierHighlights {
   if (tier === "creator") {
     return {
       bullets: [
-        `Unlimited Auto Clips, ${clipHours}-hour uploads`,
+        // Not "Unlimited Auto Clips": runs are capped by Clip Minutes. What is
+        // unlimited is the number of clips one video yields.
+        `Any number of clips per video, ${clipHours}-hour uploads`,
         "No watermark, full-resolution exports",
         // caption-render carries requiredTier: "creator" in lib/tool-costs.ts.
         "Animated captions",

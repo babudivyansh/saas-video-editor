@@ -58,7 +58,7 @@ export const TOOL_COSTS: Record<string, ToolCost> = {
   // Audio tools are priced by LENGTH since 2026-09-26 (lib/audio-pricing.ts);
   // creditCost/costUsd here are per UNIT — the "from" price the tools page and
   // cost table show — and the route charges units x rate.
-  "voiceover":        { creditCost: 1, costUsd: 0.03, costBasis: "Per 300 characters: ~$0.10/1,000 chars (ElevenLabs v4 Turbo/Flash, 0.5 credits per char at ~$0.20 per 1,000 credits); Studio quality (eleven_v4) 1 credit per 150 chars; x the voice's rate", generationType: "audio" },
+  "voiceover":        { creditCost: 1, costUsd: 0.025, costBasis: "Per 250 characters: ~$0.10/1,000 chars (ElevenLabs v4 Turbo/Flash, 0.5 credits per char at ~$0.20 per 1,000 credits); Studio quality (eleven_v4) 1 credit per 125 chars; x the voice's rate", generationType: "audio" },
   "vocal-remover":    { creditCost: 1, costUsd: 0.021, costBasis: "Per 30 seconds: $0.0007/s (fal.ai Demucs), 5-min cap", generationType: "audio" },
   // Fixed in Phase 1: was 2cr flat (≈$0.20 revenue) against real cost that could
   // run $1-2/generation uncapped — a confirmed loss-making price. Now
@@ -94,12 +94,18 @@ export const TOOL_COSTS: Record<string, ToolCost> = {
   // Since 2026-09-26 a run is billed in CLIP MINUTES (1 per source minute, see
   // lib/autoclip-minutes.ts), so it spends no credits: creditCost is 0 and the
   // public cost table labels it in minutes (app/api/tool-costs). costUsd is
-  // the audited cost PER SOURCE MINUTE on the GPU face-tracking path — Scribe
-  // $0.0037 + RunPod ASD ~$0.0058 (estimate) + Gemini + render/S3.
+  // the cost PER SOURCE MINUTE of the path prod actually runs (2026-11-26
+  // audit, 89 prod runs averaging ~11.5 source minutes): Scribe $0.0037/min,
+  // plus the per-run Gemini clip pick (~$0.02) and Gemini face detection
+  // (~$0.03) spread over an average run (~$0.0043/min). The old $0.0125
+  // assumed a RunPod speaker tracker that was never deployed. Optional AI
+  // extras (generated B-roll etc.) vary per run and are NOT in this figure:
+  // the pipeline adds each run's measured AiBudget spend to its Generation row
+  // (addRunAiCost in lib/autoclip-minutes.ts).
   "auto-clip": {
     creditCost: 0,
-    costUsd: 0.0125,
-    costBasis: "Per source minute: ElevenLabs Scribe STT + RunPod ASD face tracking (estimate) + Gemini selection + render/S3",
+    costUsd: 0.008,
+    costBasis: "Per source minute: ElevenLabs Scribe STT + Gemini clip pick + Gemini face detection (per-run costs averaged); AI B-roll logged per run on top",
     generationType: "video",
   },
   // TODO verify-before-ship: ElevenLabs Dubbing is billed per minute of audio.
@@ -124,7 +130,7 @@ export const TOOL_COSTS: Record<string, ToolCost> = {
   // keyed off THIS map, so none of them reached cost reporting at all. The
   // numbers below are the constants those routes already use: this makes them
   // visible, it does not change anyone's price.
-  "generate-voice":     { creditCost: 1, costUsd: 0.03, costBasis: "Per 300 characters: ~$0.10/1,000 chars (ElevenLabs v4 Turbo/Flash) — same rate as the voiceover tool", generationType: "audio" },
+  "generate-voice":     { creditCost: 1, costUsd: 0.025, costBasis: "Per 250 characters: ~$0.10/1,000 chars (ElevenLabs v4 Turbo/Flash) — same rate as the voiceover tool", generationType: "audio" },
   "voice-preview":      { creditCost: 0, costUsd: 0.002, costBasis: "One ~35-char TTS sample. Free to the user; authenticated and capped at 20/hr so the cost is bounded by accounts, not IPs", generationType: "audio" },
   "music-generate":     { creditCost: 4, costUsd: 0.075, costBasis: "ElevenLabs Music $0.15/min, 30s default bed (verify-before-ship: the Music API is paid-plan only and 402s on the current free account, so this rate is published pricing, not a measured call). Gated creator+", generationType: "audio" },
   "compile":            { creditCost: 1, costUsd: 0, costBasis: "FFmpeg render only — TTS is charged when the voice is generated", generationType: "video" },

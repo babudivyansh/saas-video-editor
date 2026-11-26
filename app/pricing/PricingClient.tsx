@@ -405,8 +405,8 @@ function PricingPageInner({ initialPlans }: { initialPlans: DbPlan[] }) {
           <p className="mt-1.5 text-sm leading-relaxed text-fg-muted">
             AutoClip is billed in Clip Minutes: one minute per minute of uploaded video, however many clips it makes, and
             re-running the same video within {AUTOCLIP_RERUN_FREE_WINDOW_DAYS} days is free. The other AI tools share one
-            credit balance, and the free utilities cost nothing. The free plan includes {FREE_TIER_MONTHLY_BONUS_MINUTES}{" "}
-            watermarked Clip Minutes a month with no card{savePct ? `, and yearly billing saves ${savePct}%` : ""}.
+            credit balance, and the free utilities cost nothing. The free plan starts with {FREE_TIER_SIGNUP_MINUTES}{" "}
+            watermarked Clip Minutes, then {FREE_TIER_MONTHLY_BONUS_MINUTES} a month, with no card{savePct ? `, and yearly billing saves ${savePct}%` : ""}.
           </p>
         </div>
       </section>

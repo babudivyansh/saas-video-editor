@@ -220,8 +220,13 @@ async function handleGET(req: NextRequest) {
     freeGranted++;
   }
 
+  // Daily is often enough: the pool resets monthly, and 80% leaves days of room.
+  const { checkElevenLabsQuota } = await import("@/lib/admin/elevenlabs-quota");
+  const elevenLabsQuotaAlert = await checkElevenLabsQuota();
+
   return NextResponse.json({
     ok: true,
+    elevenLabsQuotaAlert,
     refilled,
     expired,
     bonusExpired,

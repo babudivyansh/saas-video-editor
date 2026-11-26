@@ -55,7 +55,8 @@ export function bfPlanEligibleFor(user: { subscriptionEndsAt?: string | null; tr
 export const BF_COPY = {
   label: "Black Friday",
   packTag: "2× Black Friday",
-  planTag: "2× first month",
+  // Only Clip Minutes double; credits do not, so the tag says which.
+  planTag: "2× minutes, month 1",
   ticker: `Black Friday: 2× Clip Minutes on every pack and plan · ends ${BLACK_FRIDAY.endLabel}`,
   packs: `Packs are 2× until ${BLACK_FRIDAY.endLabel}`,
   trial: `Subscribe before ${BLACK_FRIDAY.endLabel} and your first month's minutes are doubled`,
