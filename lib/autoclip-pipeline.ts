@@ -2575,8 +2575,9 @@ export async function renderJob(payload: RenderPayload, ctx: JobContext = SINGLE
 
     // Tier decided once per run, inside the worker, so it's correct even for
     // jobs queued across an upgrade.
-    const { getUserTier } = await import("@/lib/auth");
-    const watermark = (await getUserTier(project.userId)) === "free";
+    // Free plan, unless a minute pack paid for or recently came with it.
+    const { clipWatermarkFor } = await import("@/lib/clip-watermark");
+    const watermark = await clipWatermarkFor(project.userId, projectId);
 
     // Where each clip encodes. Resolved once per run rather than per clip: it
     // depends on the user's tier and the source dimensions, neither of which
@@ -2800,8 +2801,9 @@ export async function rerenderJob(payload: RerenderPayload): Promise<void> {
       });
     }
 
-    const { getUserTier } = await import("@/lib/auth");
-    const watermark = (await getUserTier(project.userId)) === "free";
+    // Free plan, unless a minute pack paid for or recently came with it.
+    const { clipWatermarkFor } = await import("@/lib/clip-watermark");
+    const watermark = await clipWatermarkFor(project.userId, projectId);
     const { ok } = await renderOneClip(projectId, updatedClip, renderSource, watermark, "cpu", localSource);
     // renderOneClip swallows its own error and marks the clip failed, so a
     // failed re-render used to leave the user charged for a clip they never

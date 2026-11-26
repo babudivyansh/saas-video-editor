@@ -49,6 +49,21 @@ export function sourceFileError(f: { type: string; name: string; size: number },
   return null;
 }
 
+/**
+ * True when a file is refused only because of the PLAN (too big or too long),
+ * which is an upgrade moment, not a mistake: the launch box and the AutoClip
+ * page then show the trial offer instead of a red error.
+ */
+export function overPlanLimit(
+  f: { size: number } | null,
+  sec: number | null | undefined,
+  tier: TierId | null | undefined,
+): boolean {
+  if (!tier) return false; // plan still loading: the checks above defer too
+  if (f && f.size > maxUploadBytesForTier(tier)) return true;
+  return sec != null && Number.isFinite(sec) && sec > TIER_MAX_AUTOCLIP_SOURCE_SECONDS[tier];
+}
+
 /** Length, once the file's metadata (or a library asset's record) has it. */
 export function sourceDurationError(sec: number | null | undefined, tier: TierId | null | undefined): string | null {
   if (sec == null || !Number.isFinite(sec)) return null;

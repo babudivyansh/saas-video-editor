@@ -56,8 +56,9 @@ describe("fireLowMinutesEmail", () => {
 
   it("measures a free account against the free monthly grant, with the free CTA tier", async () => {
     user = creator({ plan: null, subscriptionEndsAt: null, monthlyMinutes: 0 });
-    fireLowMinutesEmail("u2", 3);
+    // 20% of the free 10-minute monthly grant, rounded up, is 2.
+    fireLowMinutesEmail("u2", 2);
     await settle();
-    expect(sendLowMinutesEmail).toHaveBeenCalledWith("a@test.invalid", "A", 3, "free");
+    expect(sendLowMinutesEmail).toHaveBeenCalledWith("a@test.invalid", "A", 2, "free");
   });
 });

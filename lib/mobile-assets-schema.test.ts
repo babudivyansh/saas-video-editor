@@ -18,8 +18,8 @@ describe("mobile Assets rules match the web", () => {
 
   it("explains why an upload won't fit", () => {
     const MB = 1024 ** 2;
-    expect(assetUploadProblem(300 * MB, 0, "free")).toMatch(/bigger than your plan/);
-    expect(assetUploadProblem(100 * MB, 450 * MB, "free")).toMatch(/Not enough storage/);
+    expect(assetUploadProblem(1100 * MB, 0, "free")).toMatch(/bigger than your plan/);
+    expect(assetUploadProblem(100 * MB, 1450 * MB, "free")).toMatch(/Not enough storage/);
     expect(assetUploadProblem(100 * MB, 0, "free")).toBeNull();
   });
 });

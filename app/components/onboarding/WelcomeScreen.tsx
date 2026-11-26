@@ -40,7 +40,7 @@ const STEP_COPY: Record<Step, { title: string; body: string }> = {
   goal: { title: "", body: "" }, // uses the personalized-greeting branch below instead
   preferences: {
     title: "What do you make?",
-    body: "One tap — it helps us pick the right defaults and tips for you.",
+    body: "One tap, then paste a link to your first video. Clips come back in a few minutes.",
   },
   "tour-offer": {
     title: "Nice choice!",
@@ -52,8 +52,14 @@ export function WelcomeScreen({ firstName, resumeProject, onStartTour, onClose }
   const router = useRouter();
   const { isSubmitting, completeOnboarding, skipOnboarding, saveIntendedUse, trackEvent } = useOnboarding();
   const [pendingGoal, setPendingGoal] = useState<PrimaryGoalId | "resume" | null>(null);
-  const [step, setStep] = useState<Step>("goal");
-  const [chosenGoal, setChosenGoal] = useState<{ id: PrimaryGoalId; href: string } | null>(null);
+  // Straight to the one question that matters (2026-11-26 conversion plan):
+  // 46 of the 52 people who ever ran AutoClip did it within an hour of signing
+  // up, and every screen before the link box cost some of them. AutoClip is
+  // the product, so the goal picker is skipped and the goal is AutoClip; the
+  // other goals' tools are one click away on Home.
+  const [step, setStep] = useState<Step>("preferences");
+  const [chosenGoal, setChosenGoal] = useState<{ id: PrimaryGoalId; href: string } | null>({ id: "auto-clip", href: "/dashboard" });
+  const goalRecorded = useRef(false);
   const [pickedUse, setPickedUse] = useState<IntendedUseId | null>(null);
   const [savingUse, setSavingUse] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -90,6 +96,10 @@ export function WelcomeScreen({ firstName, resumeProject, onStartTour, onClose }
   async function handleIntendedUse(id: IntendedUseId) {
     setPickedUse(id);
     setSavingUse(true);
+    if (!goalRecorded.current && chosenGoal) {
+      goalRecorded.current = true;
+      await completeOnboarding(chosenGoal.id);
+    }
     await saveIntendedUse(id);
     trackEvent("welcome_preferences_saved", { intendedUse: id });
     setSavingUse(false);
@@ -105,6 +115,12 @@ export function WelcomeScreen({ firstName, resumeProject, onStartTour, onClose }
     if (chosenGoal?.id !== "auto-clip") {
       setStep("tour-offer");
       return;
+    }
+    // Skipped the question without answering: still counts as onboarded, so
+    // the welcome doesn't come back on the next visit.
+    if (!goalRecorded.current) {
+      goalRecorded.current = true;
+      void skipOnboarding();
     }
     onClose();
     requestAnimationFrame(() => document.getElementById(LAUNCH_URL_INPUT_ID)?.focus());
@@ -127,7 +143,9 @@ export function WelcomeScreen({ firstName, resumeProject, onStartTour, onClose }
 
   const heading = step === "goal"
     ? (firstName ? `Hey ${firstName}, let's get you started` : "Let's get you started")
-    : STEP_COPY[step].title;
+    : step === "preferences" && firstName
+      ? `Hey ${firstName}, what do you make?`
+      : STEP_COPY[step].title;
   const subtext = step === "goal"
     ? "Clipiro turns raw footage and simple prompts into finished, share-ready videos — clips, AI images, voiceovers, and full edits, all in one place."
     : STEP_COPY[step].body;

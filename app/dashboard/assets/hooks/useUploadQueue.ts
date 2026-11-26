@@ -22,6 +22,9 @@ export interface UploadItem {
   status: UploadStatus;
   progress: number; // 0-100
   error?: string;
+  /** Refused by the plan's file-size or storage limit (HTTP 413 / 402): the
+   *  queue offers the trial instead of only showing the error. */
+  planLimit?: boolean;
   asset?: Asset;
   supportsPauseResume: boolean;
 }
@@ -129,7 +132,7 @@ export function useUploadQueue() {
         updateItem(id, { status: data.duplicate ? "duplicate" : "done", progress: 100, asset: data.asset });
         invalidate();
       } else {
-        updateItem(id, { status: "error", error: data.error ?? `Upload failed (${xhr.status})` });
+        updateItem(id, { status: "error", error: data.error ?? `Upload failed (${xhr.status})`, planLimit: xhr.status === 413 || xhr.status === 402 });
       }
     };
     xhr.onerror = () => { xhrRefs.current.delete(id); updateItem(id, { status: "error", error: "Network error" }); };
@@ -152,7 +155,11 @@ export function useUploadQueue() {
         };
         multipartRefs.current.set(id, state);
       } catch (e) {
-        updateItem(id, { status: "error", error: e instanceof AssetApiError ? e.message : "Upload failed to start" });
+        updateItem(id, {
+          status: "error",
+          error: e instanceof AssetApiError ? e.message : "Upload failed to start",
+          planLimit: e instanceof AssetApiError && (e.status === 413 || e.status === 402),
+        });
         return;
       }
     }

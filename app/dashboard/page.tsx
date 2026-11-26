@@ -26,6 +26,7 @@ import { ContinueSection } from "@/app/components/dashboard/ContinueSection";
 import type { ClipRow } from "@/app/dashboard/projects/components/clipRow";
 import type { ProjectRow } from "@/app/dashboard/projects/components/projectUi";
 import { AutoClipLaunchBox } from "@/app/components/dashboard/AutoClipLaunchBox";
+import { LowMinutesOffer } from "@/app/components/dashboard/LowMinutesOffer";
 import { DemoProjects } from "@/app/components/dashboard/DemoProjects";
 import { HomeEmptyState, RecentProjects, ToolChips, TopClips, WhatsNew } from "@/app/components/dashboard/HomeSections";
 import { HomeTopBar } from "@/app/components/dashboard/HomeTopBar";
@@ -326,6 +327,10 @@ function DashboardPageInner() {
 
           <div className="mt-8 xl:mt-14">
             <AutoClipLaunchBox />
+          </div>
+
+          <div className="mx-auto mt-5 w-full max-w-[800px] empty:hidden">
+            <LowMinutesOffer hasRuns={!!summary?.hasAnyProjects} />
           </div>
 
           {/* Diwali 2026 offer — nothing outside 8–15 Nov. */}

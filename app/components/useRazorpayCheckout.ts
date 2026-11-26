@@ -3,6 +3,8 @@
 import { useState, useCallback } from "react";
 import { useAuth } from "@/app/components/AuthContext";
 import { loadRazorpayScript } from "@/lib/razorpay";
+import { trackFunnel } from "@/app/components/billing/trackFunnel";
+import type { UpgradePlacement } from "@/lib/conversion";
 
 // Razorpay attaches its constructor to window once the checkout script loads.
 // Why a trial was refused after the mandate was approved. The subscription is
@@ -24,7 +26,10 @@ interface RazorpaySuccess {
 }
 declare global {
   interface Window {
-    Razorpay: new (options: Record<string, unknown>) => { open(): void };
+    Razorpay: new (options: Record<string, unknown>) => {
+      open(): void;
+      on?(event: "payment.failed", cb: (resp: { error?: { code?: string; description?: string; reason?: string } }) => void): void;
+    };
   }
 }
 
@@ -44,6 +49,8 @@ export interface StartCheckoutArgs {
    *  dunning banner's "View plans", where the customer already paid for time
    *  still remaining. Server-validated/recomputed, never trusted as-is. */
   resumeFromPeriodEnd?: boolean;
+  /** Which upgrade offer led here, for the paywall funnel (lib/conversion.ts). */
+  placement?: UpgradePlacement;
   /** Fired from the Razorpay success handler (e.g. refreshUser + toast, or a redirect). */
   onSuccess?: () => void;
   /** Surface a checkout error. Defaults to window.alert. */
@@ -75,7 +82,7 @@ export function useRazorpayCheckout(): UseRazorpayCheckout {
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const startCheckout = useCallback(
-    async ({ planId, addonIds = [], couponCode, trial, currency, resumeFromPeriodEnd, onSuccess, onError }: StartCheckoutArgs) => {
+    async ({ planId, addonIds = [], couponCode, trial, currency, resumeFromPeriodEnd, placement = "other", onSuccess, onError }: StartCheckoutArgs) => {
       const fail = (message: string) => (onError ? onError(message) : alert(message));
       if (!user || !token) {
         fail("Please sign in to continue.");
@@ -97,7 +104,7 @@ export function useRazorpayCheckout(): UseRazorpayCheckout {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ planId, addonIds, couponCode, trial, currency, resumeFromPeriodEnd }),
+          body: JSON.stringify({ planId, addonIds, couponCode, trial, currency, resumeFromPeriodEnd, placement }),
         });
 
         if (!res.ok) {
@@ -162,8 +169,21 @@ export function useRazorpayCheckout(): UseRazorpayCheckout {
             }
           },
           modal: {
-            ondismiss: () => setActiveId(null),
+            ondismiss: () => {
+              setActiveId(null);
+              // Closed without paying (a successful payment calls handler instead).
+              trackFunnel({ type: "checkout", stage: "dismissed", plan: planId, placement, trial: !!trial });
+            },
           },
+        });
+
+        // A declined card, a UPI timeout, a mandate the bank refused. Razorpay
+        // lets the customer retry in the same modal, so this can fire more
+        // than once before a success or a dismiss.
+        rzp.on?.("payment.failed", (resp) => {
+          const err = resp?.error;
+          const reason = [err?.code, err?.reason, err?.description].filter(Boolean).join(": ").slice(0, 200) || undefined;
+          trackFunnel({ type: "checkout", stage: "failed", plan: planId, placement, trial: !!trial, reason });
         });
 
         rzp.open();

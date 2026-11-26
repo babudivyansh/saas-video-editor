@@ -34,11 +34,12 @@ beforeEach(() => {
 });
 
 describe("resolveUploadPolicy — effective = min(plan, feature, provider)", () => {
-  it("Free + Subtitle Remover: plan (250MB) binds under the feature's 500MB cap", async () => {
+  it("Free + Subtitle Remover: the feature's 500MB cap binds under the free plan's 1GB", async () => {
     tier = "free";
     const policy = await resolveUploadPolicy("u1", "subtitle-remover");
-    expect(policy.effectiveMaxBytes).toBe(MAX_UPLOAD_BYTES_BY_TIER.free);
-    expect(policy.limitingFactor).toBe("plan");
+    expect(MAX_UPLOAD_BYTES_BY_TIER.free).toBeGreaterThan(500 * 1024 ** 2);
+    expect(policy.effectiveMaxBytes).toBe(500 * 1024 ** 2);
+    expect(policy.limitingFactor).toBe("feature");
   });
 
   it("Creator + Subtitle Remover: the feature's 500MB cap binds under the plan's 1GB", async () => {
@@ -185,7 +186,9 @@ describe("assertWithinUploadPolicy", () => {
 
   it("only suggests an upgrade when the plan is the limiting factor", async () => {
     tier = "free";
-    const planBound = await resolveUploadPolicy("u1", "subtitle-remover"); // plan binds on free
+    // No tool's own cap is above the free plan's 1 GB any more, so the plan-bound
+    // case is the same policy with the plan as its binding term.
+    const planBound = { ...(await resolveUploadPolicy("u1", "subtitle-remover")), limitingFactor: "plan" as const };
     try {
       assertWithinUploadPolicy(planBound, planBound.effectiveMaxBytes + 1);
       throw new Error("expected to throw");
@@ -216,8 +219,8 @@ describe("assertWithinUploadPolicy", () => {
 
 describe("cross-plan boundary tests — canonical per-tier upload limits", () => {
   const cases: Array<["free" | "creator" | "pro" | "studio", number]> = [
-    ["free", 250 * 1024 ** 2],
-    ["creator", 1 * 1024 ** 3],
+    ["free", 1 * 1024 ** 3],
+    ["creator", 1.5 * 1024 ** 3],
     ["pro", 2 * 1024 ** 3],
     ["studio", 5 * 1024 ** 3],
   ];

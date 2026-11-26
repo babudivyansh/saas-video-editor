@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 // ── A tiny in-memory prisma: just the calls webhooks.ts makes ──────────────
-type Msg = { id: string; status: string; providerMessageId: string | null; acceptedAt: Date | null; provider: string | null; deliveredAt?: Date; failedAt?: Date };
+type Msg = { id: string; status: string; providerMessageId: string | null; acceptedAt: Date | null; provider: string | null; deliveredAt?: Date; failedAt?: Date; openedAt?: Date | null; clickedAt?: Date | null };
 type Ev = { id: string; provider: string; eventKey: string; processedAt: Date | null; matched?: boolean };
 const messages = new Map<string, Msg>();
 const events: Ev[] = [];
@@ -24,10 +24,16 @@ vi.mock("@/lib/prisma", () => ({
       findUnique: vi.fn(async ({ where }: { where: { id: string } }) => messages.get(where.id) ?? null),
       findFirst: vi.fn(async ({ where }: { where: { providerMessageId: string } }) =>
         [...messages.values()].find((m) => m.providerMessageId === where.providerMessageId) ?? null),
-      updateMany: vi.fn(async ({ where, data }: { where: { id: string; status: string }; data: Partial<Msg> }) => {
+      updateMany: vi.fn(async ({ where, data }: { where: { id: string } & Record<string, unknown>; data: Partial<Msg> }) => {
         if (failNextMessageUpdate) { failNextMessageUpdate = false; throw new Error("db down"); }
         const m = messages.get(where.id);
-        if (!m || m.status !== where.status) return { count: 0 };
+        if (!m) return { count: 0 };
+        // Every other where-field must match (null matches unset).
+        for (const [k, v] of Object.entries(where)) {
+          if (k === "id") continue;
+          const cur = (m as Record<string, unknown>)[k];
+          if (v === null ? cur != null : cur !== v) return { count: 0 };
+        }
         Object.assign(m, data);
         return { count: 1 };
       }),
@@ -138,6 +144,37 @@ describe("Brevo webhook route", () => {
   });
 });
 
+describe("opens and clicks", () => {
+  it("stamp openedAt / clickedAt once, without touching the status", async () => {
+    await brevoRoute.POST(brevoReq(brevoEvent("delivered", 1000)));
+    await brevoRoute.POST(brevoReq(brevoEvent("opened", 2000)));
+    await brevoRoute.POST(brevoReq(brevoEvent("opened", 3000)));
+    const m = messages.get(MSG_ID)!;
+    expect(m.status).toBe("delivered");
+    expect(m.openedAt).toEqual(new Date(2000));
+    expect(m.clickedAt ?? null).toBeNull();
+  });
+
+  it("a click also counts as an open the pixel missed", async () => {
+    await brevoRoute.POST(brevoReq(brevoEvent("click", 5000)));
+    const m = messages.get(MSG_ID)!;
+    expect(m.clickedAt).toEqual(new Date(5000));
+    expect(m.openedAt).toEqual(new Date(5000));
+    expect(m.status).toBe("accepted");
+  });
+
+  it("are parsed for Mailjet and Resend too", () => {
+    expect(W.parseMailjetEvent({ event: "open", Message_GUID: "g", time: 1 })?.kind).toBe("opened");
+    expect(W.parseMailjetEvent({ event: "click", Message_GUID: "g", time: 1 })?.kind).toBe("clicked");
+    expect(W.parseResendDelivery("svix_1", { type: "email.clicked", data: { email_id: "e" } })?.kind).toBe("clicked");
+  });
+
+  it("never advance a status", () => {
+    expect(W.advances("accepted", "opened")).toBe(false);
+    expect(W.advances("accepted", "clicked")).toBe(false);
+  });
+});
+
 describe("Mailjet webhook route", () => {
   const mjReq = (body: unknown, password = "mj-secret") =>
     new NextRequest("https://clipiro.com/api/webhooks/mailjet", {
@@ -151,8 +188,10 @@ describe("Mailjet webhook route", () => {
       { event: "sent", time: 100, MessageID: 42, CustomID: MSG_ID, email: "person@example.com" },
       { event: "open", time: 101, MessageID: 42, CustomID: MSG_ID, email: "person@example.com" },
     ]));
-    expect(await res.json()).toMatchObject({ applied: 1, ignored: 1 });
+    // The open is applied too (it stamps openedAt) without moving the status.
+    expect(await res.json()).toMatchObject({ applied: 2, ignored: 0 });
     expect(messages.get(MSG_ID)!.status).toBe("delivered");
+    expect(messages.get(MSG_ID)!.openedAt).toEqual(new Date(101_000));
   });
 
   it("a soft bounce is 'deferred', not a suppression", async () => {

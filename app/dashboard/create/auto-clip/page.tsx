@@ -22,7 +22,8 @@ import { OVERFLOW_MINUTES_PER_CREDIT, overflowCreditsFor } from "@/lib/plans/tie
 import { MAX_INSTRUCTIONS_CHARS } from "@/lib/autoclip-create-input";
 import { IcFilm, IcCloud, IcFile, IcX, IcSparkle, apiFetch, importUrlAndWait, ASPECTS } from "./_components/shared";
 import { clipEditorHref, projectHref } from "@/lib/project-links";
-import { sourceDurationError, sourceFileError, sourceLimitsHint } from "@/lib/autoclip-source";
+import { overPlanLimit, sourceDurationError, sourceFileError, sourceLimitsHint } from "@/lib/autoclip-source";
+import { UpgradeOfferCard, useUpgradeOfferState } from "@/app/components/billing/UpgradeOfferCard";
 import { FlowHeader, PresetCards, QuestionHeading, StepFooter, flowStyles as fs, videoKindFor, type FlowStep, type Preset, type PresetId } from "./_components/FlowParts";
 import { usesFacecam, type FacecamBox, type SpeakerMode } from "@/lib/speaker-modes";
 import { LayoutTemplatePicker } from "@/app/components/auto-clip/LayoutTemplatePicker";
@@ -58,6 +59,9 @@ function AutoClipFlow() {
   const [importedUrl, setImportedUrl] = useState<string | null>(null);
   const [importedTitle, setImportedTitle] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
+  // The error that was a plan size limit (an upgrade moment). Compared with
+  // importError, so a later, different error shows as a plain error.
+  const [fileLimitError, setFileLimitError] = useState<string | null>(null);
   // A video reused from the Global Asset Library — already hosted on our S3,
   // so unlike importedUrl (a third-party link the URL-import route still has
   // to download) this only needs a project created with its URL, no import step.
@@ -204,7 +208,7 @@ function AutoClipFlow() {
     // Checked here because a drop bypasses the input's `accept`, and the
     // server only said no after the whole upload had finished.
     const fileError = sourceFileError(f, tier);
-    if (fileError) { setImportError(fileError); return; }
+    if (fileError) { setImportError(fileError); setFileLimitError(overPlanLimit(f, null, tier) ? fileError : null); return; }
     setImportError(null);
     if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
     setFile(f);
@@ -232,6 +236,8 @@ function AutoClipFlow() {
 
   // Length is only known once the file's metadata loads (effect above).
   const durationError = sourceDurationError(sourceDurationSec, tier);
+  const durationOverLimit = !!durationError && overPlanLimit(null, sourceDurationSec, tier);
+  const offer = useUpgradeOfferState();
 
   // Covers the awaits before the status flips (project create, URL import):
   // the button showed nothing for those seconds, and a second click made a
@@ -399,8 +405,21 @@ function AutoClipFlow() {
 
   const alerts = (
     <>
-      {durationError && <p role="alert" className="rounded-xl border border-error/40 bg-error/10 px-3 py-2 text-xs font-medium text-error">{durationError}</p>}
-      {importError && <p role="alert" className="rounded-xl border border-error/40 bg-error/10 px-3 py-2 text-xs font-medium text-error">{importError}</p>}
+      {durationError && (durationOverLimit ? (
+        <UpgradeOfferCard placement="file_limit" title="This video is longer than your plan allows" body={durationError} />
+      ) : (
+        <p role="alert" className="rounded-xl border border-error/40 bg-error/10 px-3 py-2 text-xs font-medium text-error">{durationError}</p>
+      ))}
+      {importError && (importError === fileLimitError ? (
+        <UpgradeOfferCard
+          placement="file_limit"
+          title="This file is bigger than your plan allows"
+          body={<>{importError} A YouTube or Twitch link of the same video works too: paste it above.</>}
+          onDismiss={() => setImportError(null)}
+        />
+      ) : (
+        <p role="alert" className="rounded-xl border border-error/40 bg-error/10 px-3 py-2 text-xs font-medium text-error">{importError}</p>
+      ))}
     </>
   );
 
@@ -524,7 +543,15 @@ function AutoClipFlow() {
                   <button type="button" onClick={() => setStep(2)} className="ml-auto text-[13px] font-semibold text-primary hover:underline">Change</button>
                 </div>
                 {alerts}
-                {paymentBlock && (
+                {paymentBlock?.kind === "minutes" && offer.isFree && (
+                  <UpgradeOfferCard
+                    placement="minutes_short"
+                    title="Not enough Clip Minutes for this video"
+                    body={`It needs ${paymentBlock.required ?? "more"} minutes${paymentBlock.balance != null ? ` and you have ${paymentBlock.balance}` : ""}. Nothing was charged.${paymentBlock.overflowCredits ? ` Or tick "pay the rest in AI credits" below (${paymentBlock.overflowCredits} credit${paymentBlock.overflowCredits === 1 ? "" : "s"}).` : ""}`}
+                    onDismiss={clearPaymentBlock}
+                  />
+                )}
+                {paymentBlock && !(paymentBlock.kind === "minutes" && offer.isFree) && (
                   <div role="alert" className="flex flex-wrap items-center gap-3 rounded-xl border border-warning/40 bg-tint-amber px-4 py-3 text-sm">
                     <p className="min-w-[16rem] flex-1 text-fg">
                       {paymentBlock.kind === "free_limit"

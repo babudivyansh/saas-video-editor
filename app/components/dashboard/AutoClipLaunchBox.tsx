@@ -14,6 +14,7 @@ import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { AssetPicker } from "@/app/components/assets/AssetPicker";
 import { useOpenPlans } from "@/app/components/billing/BillingOverlayContext";
+import { UpgradeOfferCard, useUpgradeOfferState } from "@/app/components/billing/UpgradeOfferCard";
 import { useAuth } from "@/app/components/AuthContext";
 import { DEFAULT_TEMPLATE_ID, indexForTemplateId } from "@/lib/captions/legacyStyleIndex";
 import { ACCEPTED_VIDEO_TYPES } from "@/lib/autoclip-source";
@@ -152,7 +153,8 @@ function HeroTitle() {
 
 export function AutoClipLaunchBox() {
   const t = useTranslations("Dashboard");
-  const openPlans = useOpenPlans();
+  const openPlans = useOpenPlans("minutes_short");
+  const offer = useUpgradeOfferState();
   const router = useRouter();
   const [url, setUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -201,8 +203,18 @@ export function AutoClipLaunchBox() {
   }
 
   const uploading = view?.state === "uploading" || view?.state === "processing";
-  const message = launch.pickError ?? launch.startError ?? (view?.state === "error" ? view.error : null) ?? error;
+  // A plan limit (too big / too long) shows the upgrade card, not red text.
+  const limitCard = !!launch.pickLimit && !!launch.pickError;
+  const message = (limitCard ? null : launch.pickError) ?? launch.startError ?? (view?.state === "error" ? view.error : null) ?? error;
   const block = launch.paymentBlock;
+  // Not enough minutes, on the free plan: the trial and the entry pack are the
+  // answers, not "pay with credits" alone.
+  const minutesCard = block?.kind === "minutes" && offer.isFree;
+
+  function pasteLinkInstead() {
+    launch.clear();
+    requestAnimationFrame(() => document.getElementById(LAUNCH_URL_INPUT_ID)?.focus());
+  }
   // The AutoClip page, with this video picked and the presets set — for a run
   // that needs the options this box doesn't have.
   const autoClipHref = `/dashboard/create/auto-clip?${presets().toString()}${launch.assetId ? `&asset=${encodeURIComponent(launch.assetId)}` : ""}`;
@@ -252,7 +264,36 @@ export function AutoClipLaunchBox() {
         </div>
         </div>
         {message && <p id="launch-error" role="alert" className="mt-2 pl-4 text-xs text-error">{message}</p>}
-        {block && (
+        {limitCard && (
+          <div className="mt-3">
+            <UpgradeOfferCard
+              placement="file_limit"
+              title={launch.pickLimit === "size" ? "This file is bigger than your plan allows" : "This video is longer than your plan allows"}
+              body={launch.pickError}
+              alternative={launch.pickLimit === "size"
+                ? { label: "Paste a YouTube or Twitch link instead", onClick: pasteLinkInstead }
+                : undefined}
+              onDismiss={launch.clear}
+            />
+          </div>
+        )}
+        {minutesCard && block?.kind === "minutes" && (
+          <div className="mt-3">
+            <UpgradeOfferCard
+              placement="minutes_short"
+              title="Not enough Clip Minutes for this video"
+              body={
+                <>
+                  It needs {block.required ?? "more"} minutes{block.balance != null ? ` and you have ${block.balance}` : ""}. Nothing was charged.
+                  {block.overflowCredits ? (
+                    <>{" "}<Link href={autoClipHref} className="font-semibold text-primary hover:underline">{t("home.payWithCredits")}</Link></>
+                  ) : null}
+                </>
+              }
+            />
+          </div>
+        )}
+        {block && !minutesCard && (
           <div role="alert" className="mt-3 rounded-2xl border border-warning/40 bg-tint-amber px-4 py-3 text-sm text-fg">
             {block.kind === "free_limit" ? (
               <>

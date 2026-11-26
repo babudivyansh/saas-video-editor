@@ -1,5 +1,8 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { listableMinutePacks } from "@/lib/conversion";
+import { trackFunnel } from "@/app/components/billing/trackFunnel";
+import type { UpgradePlacement } from "@/lib/conversion";
 import { useAuth } from "@/app/components/AuthContext";
 import { useRazorpayCheckout } from "@/app/components/useRazorpayCheckout";
 import { PURCHASABLE_TIER_ORDER, TIER_LABEL, TRIAL_CREDITS, TRIAL_DAYS, TRIAL_MINUTES, isTrialPlan } from "@/lib/plans/tiers";
@@ -37,6 +40,11 @@ interface PlansModalProps {
   resumeFromPeriodEnd?: boolean;
   /** Opens Manage subscription (cancel, resume, receipts) from the plan strip. */
   onManage?: () => void;
+  /** Go straight to one offer (BillingOverlayContext OpenBillingOptions). */
+  intent?: "trial" | "pack";
+  packSlug?: string;
+  /** Which upgrade offer opened the plans, for the paywall funnel. */
+  placement?: UpgradePlacement;
 }
 
 // "Browse all plans + top-ups", rendered as one of BillingOverlay's views so
@@ -49,7 +57,7 @@ interface PlansModalProps {
 // add-on packs and take a coupon at plan checkout, but a subscription is billed
 // at its synced Razorpay plan amount, so neither was ever charged or applied.
 // Packs now have their own Buy buttons (2026-09-25).
-export function PlansModal({ onPurchaseSuccess, resumeFromPeriodEnd = false, onManage }: PlansModalProps) {
+export function PlansModal({ onPurchaseSuccess, resumeFromPeriodEnd = false, onManage, intent, packSlug, placement = "other" }: PlansModalProps) {
   const { user } = useAuth();
   const { startCheckout, activeId } = useRazorpayCheckout();
 
@@ -71,6 +79,11 @@ export function PlansModal({ onPurchaseSuccess, resumeFromPeriodEnd = false, onM
   const [checkoutError, setCheckoutError] = useState("");
   const creatorDiscount = useCreatorDiscount(!!user);
 
+  // Once per opening of this view.
+  useEffect(() => {
+    trackFunnel({ type: "plans_viewed", placement });
+  }, [placement]);
+
   useEffect(() => {
     fetch("/api/plans")
       .then(res => (res.ok ? res.json() : { plans: [] }))
@@ -81,7 +94,7 @@ export function PlansModal({ onPurchaseSuccess, resumeFromPeriodEnd = false, onM
 
   const subs = plans.filter(p => p.kind === "subscription");
   const packs = plans.filter(p => p.kind === "pack");
-  const minutePacks = plans.filter(p => p.kind === "minute_pack");
+  const minutePacks = listableMinutePacks(plans.filter(p => p.kind === "minute_pack"), user);
 
   const hasActivePlan = !!user?.subscriptionEndsAt && new Date(user.subscriptionEndsAt) > new Date();
   const currentPlan = subs.find(p => p.slug === user?.plan?.slug) ?? null;
@@ -104,6 +117,24 @@ export function PlansModal({ onPurchaseSuccess, resumeFromPeriodEnd = false, onM
   const bfLive = useBlackFridayLive();
   const bfPlanEligible = bfPlanEligibleFor(user);
 
+  // An upgrade offer that asked for one thing ("Start 3-day trial", "Get 40
+  // minutes for ₹199") lands on it, once, as soon as the plans have loaded.
+  const intentHandled = useRef(false);
+  useEffect(() => {
+    if (intentHandled.current || plansLoading || !intent) return;
+    intentHandled.current = true;
+    if (intent === "trial") {
+      const trialPlan = plans.find(p => isTrialPlan(p));
+      if (trialPlan && trialEligible) openCheckout(trialPlan, true);
+    } else if (intent === "pack" && packSlug) {
+      const pack = plans.find(p => p.slug === packSlug && (p.kind === "pack" || p.kind === "minute_pack"));
+      if (pack) handleBuyPack(pack);
+    }
+    // openCheckout / handleBuyPack are plain functions recreated each render;
+    // this runs once, after the plans arrive.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plansLoading, intent, packSlug, plans, trialEligible]);
+
   function openCheckout(plan: DbPlan, trial = false) {
     setCheckoutPlan(plan);
     setCheckoutTrial(trial);
@@ -122,6 +153,7 @@ export function PlansModal({ onPurchaseSuccess, resumeFromPeriodEnd = false, onM
       planId: checkoutPlan.slug,
       currency,
       resumeFromPeriodEnd,
+      placement,
       ...(checkoutTrial
         ? {
             trial: true,
@@ -139,7 +171,7 @@ export function PlansModal({ onPurchaseSuccess, resumeFromPeriodEnd = false, onM
 
   // A credit pack is its own one-time purchase — no plan required.
   function handleBuyPack(pack: DbPlan) {
-    startCheckout({ planId: pack.slug, currency, onSuccess: () => { onPurchaseSuccess(); } });
+    startCheckout({ planId: pack.slug, currency, placement, onSuccess: () => { onPurchaseSuccess(); } });
   }
 
   const trial = trialStatus(user);

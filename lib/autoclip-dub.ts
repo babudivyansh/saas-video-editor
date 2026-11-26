@@ -160,8 +160,8 @@ async function renderCaptionFreeClip(clip: Clip, outPath: string): Promise<boole
   try {
     const sourcePath = path.join(work, "source.mp4");
     await downloadFile(await freshSourceUrl(project.uploadedVideoUrl, project.userId), sourcePath);
-    const [{ getUserTier }, { renderClipFile }] = await Promise.all([import("@/lib/auth"), import("@/lib/autoclip-pipeline")]);
-    const watermark = (await getUserTier(project.userId)) === "free";
+    const [{ clipWatermarkFor }, { renderClipFile }] = await Promise.all([import("@/lib/clip-watermark"), import("@/lib/autoclip-pipeline")]);
+    const watermark = await clipWatermarkFor(project.userId, clip.projectId);
     await renderClipFile({ projectId: clip.projectId, clip, videoPath: sourcePath, tmp: work, outPath, captions: false, watermark });
     return true;
   } finally {

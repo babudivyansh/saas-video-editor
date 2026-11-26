@@ -28,6 +28,7 @@ import {
   SORT_LABELS, isEditable, isReady, stepClip, visibleClips,
   type ClipLayout, type ClipSort, type ClipsSource, type CollectionClipsResponse, type DemoClipsResponse, type ProjectClipsResponse, type ViewClip,
 } from "./model";
+import { RunSampleBanner } from "./RunSampleBanner";
 import { DemoCredit } from "./DemoCredit";
 
 // A project's clips (or a collection's), as OpusClip lays them out: a list
@@ -285,6 +286,7 @@ export function ClipsView({ source }: { source: ClipsSource }) {
       </div>
 
       {source.kind === "project" && readyCount > 0 && <WatermarkUpgradeBanner />}
+      {demo && <RunSampleBanner slug={demo.slug} />}
       {project?.status === "completed" && <ScorePerformanceBanner />}
       {project && project.status !== "completed" && project.status !== "failed" && (
         <div className="flex flex-col gap-2">

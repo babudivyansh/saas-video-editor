@@ -13,7 +13,9 @@ import { TRIAL_DAYS } from "@/lib/plans/tiers";
 let user: { tier: string; trialUsedAt: string | null; hasPurchased?: boolean } | null;
 vi.mock("@/app/components/AuthContext", () => ({ useAuth: () => ({ user }) }));
 const openPlans = vi.fn();
-vi.mock("@/app/components/billing/BillingOverlayContext", () => ({ useOpenPlans: () => openPlans }));
+const openOffer = vi.fn();
+vi.mock("@/app/components/billing/BillingOverlayContext", () => ({ useOpenPlans: () => openPlans, useOpenOffer: () => openOffer }));
+vi.mock("@/app/components/billing/trackFunnel", () => ({ trackFunnel: vi.fn(), useTrackShown: vi.fn() }));
 
 const { WatermarkUpgradeBanner, WatermarkDownloadGateProvider, useWatermarkDownloadGate } = await import("./WatermarkUpgrade");
 
@@ -31,6 +33,7 @@ beforeEach(() => {
   localStorage.clear();
   sessionStorage.clear();
   openPlans.mockClear();
+  openOffer.mockClear();
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -39,7 +42,8 @@ describe("WatermarkUpgradeBanner", () => {
     render(<WatermarkUpgradeBanner />);
     const cta = await screen.findByRole("button", { name: `Try Pro free for ${TRIAL_DAYS} days` });
     await userEvent.click(cta);
-    expect(openPlans).toHaveBeenCalledTimes(1);
+    // Straight to the trial's checkout, not the plans list.
+    expect(openOffer).toHaveBeenCalledWith({ intent: "trial" });
   });
 
   it("says 'See plans' once the trial is used", async () => {
@@ -84,11 +88,11 @@ describe("WatermarkDownloadGateProvider", () => {
     expect(screen.queryByText("Download with the watermark?")).toBeNull();
   });
 
-  it("the upgrade button opens the plans view instead of downloading", async () => {
+  it("the upgrade button opens the trial checkout instead of downloading", async () => {
     renderGate();
     await userEvent.click(screen.getByText("Download"));
     await userEvent.click(screen.getByRole("button", { name: `Try Pro free for ${TRIAL_DAYS} days` }));
-    expect(openPlans).toHaveBeenCalledTimes(1);
+    expect(openOffer).toHaveBeenCalledWith({ intent: "trial" });
   });
 
   it("never interrupts a paying user", async () => {

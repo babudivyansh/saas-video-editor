@@ -15,7 +15,9 @@ export const FUNNEL_RANGES = [7, 30, 90] as const;
 export type FunnelRange = (typeof FUNNEL_RANGES)[number];
 
 export interface FunnelStep {
-  key: "signed_up" | "uploaded" | "ran_autoclip" | "got_clips" | "downloaded" | "trial" | "paid";
+  key:
+    | "signed_up" | "uploaded" | "ran_autoclip" | "got_clips" | "downloaded"
+    | "saw_upgrade" | "opened_plans" | "started_checkout" | "trial" | "paid";
   label: string;
   users: number;
   /** Set when the step's data only exists from a recent date. */
@@ -40,6 +42,27 @@ export interface FailureRow {
   topReason: string | null;
 }
 
+/** One upgrade offer's numbers over the window (UserEvent rows). */
+export interface PlacementRow {
+  placement: string;
+  /** Distinct users who saw / clicked it. */
+  shown: number;
+  clicked: number;
+  /** Distinct users who opened plans or started checkout from it. */
+  plansViewed: number;
+  checkoutStarted: number;
+  checkoutFailed: number;
+  checkoutDismissed: number;
+}
+
+export interface EmailEngagementRow {
+  template: string;
+  sent: number;
+  delivered: number;
+  opened: number;
+  clicked: number;
+}
+
 export interface FunnelReport {
   days: FunnelRange;
   steps: FunnelStep[];
@@ -47,7 +70,24 @@ export interface FunnelReport {
   retention: RetentionRow[];
   autoClipFailures: { reason: string; count: number }[];
   toolFailures: FailureRow[];
+  /** Paywall funnel by placement (events recorded from 26 Nov 2026). */
+  placements: PlacementRow[];
+  /** Most common Razorpay failure reasons. */
+  checkoutFailures: { reason: string; count: number }[];
+  /** Trials started in the window, and how many of those were later charged. */
+  trialToPaid: { trials: number; paid: number };
+  /** Onboarding and upgrade emails: are they arriving and being opened? */
+  emailEngagement: EmailEngagementRow[];
+  /** Delivery webhooks received in the window, all providers. 0 means the
+   *  provider dashboards aren't sending them, so "delivered" can't be known. */
+  deliveryWebhooks: number;
 }
+
+/** The onboarding and upgrade emails the funnel cares about. */
+const FUNNEL_TEMPLATES = [
+  "welcome", "first-run-nudge", "onboarding-day-1", "onboarding-day-3", "onboarding-day-7",
+  "first-video-success", "low-minutes", "minutes-expiring",
+];
 
 const DAY = 86_400_000;
 
@@ -55,7 +95,11 @@ export async function getFunnelReport(days: FunnelRange, now: Date = new Date())
   const since = new Date(now.getTime() - days * DAY);
   const ready = Prisma.join(RUN_READY_STATUSES);
 
-  const [funnelRows, medianRows, retentionRows, runFailures, toolRows] = await Promise.all([
+  const templates = Prisma.join(FUNNEL_TEMPLATES);
+  const [
+    funnelRows, medianRows, retentionRows, runFailures, toolRows,
+    placementRows, failureRows, trialRows, emailRows, webhookCount,
+  ] = await Promise.all([
     prisma.$queryRaw<Array<Record<string, bigint>>>`
       SELECT
         COUNT(*) AS signed_up,
@@ -64,6 +108,9 @@ export async function getFunnelReport(days: FunnelRange, now: Date = new Date())
         COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM "Project" p WHERE p."userId" = u.id AND p."productType" = ${AUTOCLIP})) AS ran_autoclip,
         COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM "Project" p WHERE p."userId" = u.id AND p."productType" = ${AUTOCLIP} AND p.status IN (${ready}))) AS got_clips,
         COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM "UserEvent" e WHERE e."userId" = u.id AND e.type = 'download')) AS downloaded,
+        COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM "UserEvent" e WHERE e."userId" = u.id AND e.type = 'upgrade_prompt')) AS saw_upgrade,
+        COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM "UserEvent" e WHERE e."userId" = u.id AND e.type = 'plans_viewed')) AS opened_plans,
+        COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM "UserEvent" e WHERE e."userId" = u.id AND e.type = 'checkout')) AS started_checkout,
         COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM "SubscriptionEvent" s WHERE s."userId" = u.id AND s.type = 'trial_started')) AS trial,
         COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM "Purchase" pu WHERE pu."userId" = u.id AND pu."amountInPaise" > 0)) AS paid
       FROM "User" u
@@ -120,6 +167,40 @@ export async function getFunnelReport(days: FunnelRange, now: Date = new Date())
       HAVING COUNT(*) FILTER (WHERE g.status IN ('failed', 'refunded')) > 0
       ORDER BY 3 DESC
       LIMIT 10`,
+    prisma.$queryRaw<Array<{ placement: string | null; shown: bigint; clicked: bigint; plans: bigint; started: bigint; failed: bigint; dismissed: bigint }>>`
+      SELECT e.meta->>'placement' AS placement,
+             COUNT(DISTINCT e."userId") FILTER (WHERE e.type = 'upgrade_prompt' AND e.meta->>'action' = 'shown') AS shown,
+             COUNT(DISTINCT e."userId") FILTER (WHERE e.type = 'upgrade_prompt' AND e.meta->>'action' = 'clicked') AS clicked,
+             COUNT(DISTINCT e."userId") FILTER (WHERE e.type = 'plans_viewed') AS plans,
+             COUNT(DISTINCT e."userId") FILTER (WHERE e.type = 'checkout' AND e.meta->>'stage' = 'started') AS started,
+             COUNT(DISTINCT e."userId") FILTER (WHERE e.type = 'checkout' AND e.meta->>'stage' = 'failed') AS failed,
+             COUNT(DISTINCT e."userId") FILTER (WHERE e.type = 'checkout' AND e.meta->>'stage' = 'dismissed') AS dismissed
+      FROM "UserEvent" e
+      WHERE e.type IN ('upgrade_prompt', 'plans_viewed', 'checkout') AND e."createdAt" >= ${since} AND e."createdAt" < ${now}
+      GROUP BY 1
+      ORDER BY 2 DESC, 5 DESC`,
+    prisma.$queryRaw<Array<{ reason: string | null; count: bigint }>>`
+      SELECT COALESCE(e.meta->>'reason', 'No reason given') AS reason, COUNT(*) AS count
+      FROM "UserEvent" e
+      WHERE e.type = 'checkout' AND e.meta->>'stage' = 'failed' AND e."createdAt" >= ${since} AND e."createdAt" < ${now}
+      GROUP BY 1 ORDER BY 2 DESC LIMIT 6`,
+    prisma.$queryRaw<Array<{ trials: bigint; paid: bigint }>>`
+      SELECT COUNT(DISTINCT s."userId") AS trials,
+             COUNT(DISTINCT s."userId") FILTER (WHERE EXISTS (
+               SELECT 1 FROM "SubscriptionEvent" c WHERE c."userId" = s."userId" AND c.type = 'charged' AND c."createdAt" > s."createdAt")) AS paid
+      FROM "SubscriptionEvent" s
+      WHERE s.type = 'trial_started' AND s."createdAt" >= ${since} AND s."createdAt" < ${now}`,
+    prisma.$queryRaw<Array<{ template: string; sent: bigint; delivered: bigint; opened: bigint; clicked: bigint }>>`
+      SELECT m."templateId" AS template,
+             COUNT(*) AS sent,
+             COUNT(m."deliveredAt") AS delivered,
+             COUNT(m."openedAt") AS opened,
+             COUNT(m."clickedAt") AS clicked
+      FROM "EmailMessage" m
+      WHERE m."templateId" IN (${templates}) AND m."createdAt" >= ${since} AND m."createdAt" < ${now}
+        AND m."providerMessageId" IS NOT NULL
+      GROUP BY 1 ORDER BY 2 DESC`,
+    prisma.emailWebhookEvent.count({ where: { receivedAt: { gte: since, lt: now } } }),
   ]);
 
   const f = funnelRows[0] ?? {};
@@ -138,6 +219,9 @@ export async function getFunnelReport(days: FunnelRange, now: Date = new Date())
       { key: "ran_autoclip", label: "Started an AutoClip run", users: n("ran_autoclip") },
       { key: "got_clips", label: "Got clips back", users: n("got_clips") },
       { key: "downloaded", label: "Downloaded a file", users: n("downloaded"), note: "Recorded from 19 Nov 2026" },
+      { key: "saw_upgrade", label: "Saw an upgrade offer", users: n("saw_upgrade"), note: "Recorded from 26 Nov 2026" },
+      { key: "opened_plans", label: "Opened the plans", users: n("opened_plans"), note: "Recorded from 26 Nov 2026" },
+      { key: "started_checkout", label: "Started a checkout", users: n("started_checkout"), note: "Recorded from 26 Nov 2026" },
       { key: "trial", label: "Started a Pro trial", users: n("trial") },
       { key: "paid", label: "Paid", users: n("paid") },
     ],
@@ -151,5 +235,24 @@ export async function getFunnelReport(days: FunnelRange, now: Date = new Date())
     })),
     autoClipFailures: runFailures.map((r) => ({ reason: r.failureReason ?? "No reason recorded", count: r._count._all })),
     toolFailures: toolRows.map((r) => ({ label: r.label, total: Number(r.total), failed: Number(r.failed), topReason: r.top_reason })),
+    placements: placementRows.map((r) => ({
+      placement: r.placement ?? "other",
+      shown: Number(r.shown),
+      clicked: Number(r.clicked),
+      plansViewed: Number(r.plans),
+      checkoutStarted: Number(r.started),
+      checkoutFailed: Number(r.failed),
+      checkoutDismissed: Number(r.dismissed),
+    })),
+    checkoutFailures: failureRows.map((r) => ({ reason: r.reason ?? "No reason given", count: Number(r.count) })),
+    trialToPaid: { trials: Number(trialRows[0]?.trials ?? 0), paid: Number(trialRows[0]?.paid ?? 0) },
+    emailEngagement: emailRows.map((r) => ({
+      template: r.template,
+      sent: Number(r.sent),
+      delivered: Number(r.delivered),
+      opened: Number(r.opened),
+      clicked: Number(r.clicked),
+    })),
+    deliveryWebhooks: webhookCount,
   };
 }

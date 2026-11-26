@@ -38,7 +38,7 @@ describe("email registry", () => {
   // 47 → 48: trial-started. A trial customer authorised a mandate while paying
   // ₹0 and was told nothing about when the first charge would come.
   it("covers every send function in lib/email.ts", () => {
-    expect(entries).toHaveLength(57); // +campaign (2026-11-24), +clip-minutes-launch, +low-minutes (2026-09-27), +email-changed (2026-09-29), +admin-new-signup (2026-10-22), +two-factor-lockout (2026-10-23), +first-run-nudge, +admin-daily-digest, +admin-staff-alert (2026-11-19)
+    expect(entries).toHaveLength(58); // +minutes-expiring (2026-11-26), +campaign (2026-11-24), +clip-minutes-launch, +low-minutes (2026-09-27), +email-changed (2026-09-29), +admin-new-signup (2026-10-22), +two-factor-lockout (2026-10-23), +first-run-nudge, +admin-daily-digest, +admin-staff-alert (2026-11-19)
   });
 
   it("keys match each entry's declared id", () => {

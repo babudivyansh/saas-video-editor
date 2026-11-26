@@ -20,10 +20,10 @@ describe("sourceFileError", () => {
   });
 
   it("names the plan and its limit", () => {
-    expect(sourceFileError(mp4(300 * 1024 ** 2), "free")).toBe(
-      "That video is over 250 MB, the Starter plan's limit. Trim or compress it, or upgrade for larger files.",
+    expect(sourceFileError(mp4(1.2 * 1024 ** 3), "free")).toBe(
+      "That video is over 1 GB, the Starter plan's limit. Trim or compress it, or upgrade for larger files.",
     );
-    expect(sourceFileError(mp4(2 * 1024 ** 3), "creator")).toMatch(/over 1 GB, the Creator plan's limit/);
+    expect(sourceFileError(mp4(2 * 1024 ** 3), "creator")).toMatch(/over 1.5 GB, the Creator plan's limit/);
   });
 
   it("defers to the server while the plan is unknown", () => {
@@ -64,7 +64,7 @@ describe("sourceDurationError", () => {
 
 describe("sourceLimitsHint", () => {
   it("shows the plan's own limits, not the old flat 500 MB / 1 h 30 m", () => {
-    expect(sourceLimitsHint("free")).toBe("MP4, MOV or WebM · up to 250 MB · 1 min to 30 min");
+    expect(sourceLimitsHint("free")).toBe("MP4, MOV or WebM · up to 1 GB · 1 min to 30 min");
     expect(sourceLimitsHint("pro")).toBe("MP4, MOV or WebM · up to 2 GB · 1 min to 4 h");
     expect(sourceLimitsHint("studio")).toBe("MP4, MOV or WebM · up to 5 GB · 1 min to 6 h");
   });

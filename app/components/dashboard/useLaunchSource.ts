@@ -8,7 +8,7 @@ import { useInsufficientCredits } from "@/app/components/billing/CreditModalCont
 import { useAuth } from "@/app/components/AuthContext";
 import { getStoredToken, useVideoGenerate, type RunSettings } from "@/app/hooks/useVideoGenerate";
 import { discardDraftProject } from "@/lib/discard-draft-project";
-import { readVideoDuration, sourceDurationError, sourceFileError } from "@/lib/autoclip-source";
+import { overPlanLimit, readVideoDuration, sourceDurationError, sourceFileError } from "@/lib/autoclip-source";
 import { projectHref } from "@/lib/project-links";
 
 // The video behind Home's launch box: a file from the computer, uploaded right
@@ -41,6 +41,9 @@ export function useLaunchSource() {
   const [source, setSource] = useState<Source | null>(null);
   const [checking, setChecking] = useState(false);
   const [pickError, setPickError] = useState<string | null>(null);
+  // The pick was refused by the plan's size or length limit — the box shows
+  // the upgrade offer instead of a plain error (conversion plan 2026-11-26).
+  const [pickLimit, setPickLimit] = useState<"size" | "length" | null>(null);
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
 
@@ -54,6 +57,7 @@ export function useLaunchSource() {
 
   const resetMessages = useCallback(() => {
     setPickError(null);
+    setPickLimit(null);
     setStartError(null);
     clearPaymentBlock();
   }, [clearPaymentBlock]);
@@ -75,13 +79,14 @@ export function useLaunchSource() {
   const chooseFile = useCallback(async (file: File) => {
     resetMessages();
     const fileError = sourceFileError(file, tier);
-    if (fileError) { setPickError(fileError); return; }
+    if (fileError) { setPickError(fileError); setPickLimit(overPlanLimit(file, null, tier) ? "size" : null); return; }
     // Length is checked before a byte goes up: an hour-long upload that
     // AutoClip then refuses is the worst way to find out.
     setChecking(true);
-    const durationError = sourceDurationError(await readVideoDuration(file), tier);
+    const sec = await readVideoDuration(file);
+    const durationError = sourceDurationError(sec, tier);
     setChecking(false);
-    if (durationError) { setPickError(durationError); return; }
+    if (durationError) { setPickError(durationError); setPickLimit(overPlanLimit(null, sec, tier) ? "length" : null); return; }
     dropUpload(source);
     const [itemId] = await queue.addFiles([file]);
     setSource({ kind: "upload", itemId, localUrl: URL.createObjectURL(file) });
@@ -91,7 +96,7 @@ export function useLaunchSource() {
     resetMessages();
     if (asset.kind !== "video") { setPickError("Pick a video. AutoClip cuts clips from video."); return; }
     const durationError = sourceDurationError(asset.duration, tier);
-    if (durationError) { setPickError(durationError); return; }
+    if (durationError) { setPickError(durationError); setPickLimit(overPlanLimit(null, asset.duration, tier) ? "length" : null); return; }
     dropUpload(source);
     setSource({ kind: "asset", asset });
   }, [source, dropUpload, resetMessages, tier]);
@@ -159,7 +164,7 @@ export function useLaunchSource() {
   const assetId = source?.kind === "asset" ? source.asset.id : source?.kind === "upload" ? queue.items.find((i) => i.id === source.itemId)?.asset?.id ?? null : null;
 
   return {
-    view, ready, checking, starting, pickError, startError, paymentBlock, assetId,
+    view, ready, checking, starting, pickError, pickLimit, startError, paymentBlock, assetId,
     chooseFile, chooseAsset, clear, retryUpload, start,
   };
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { listableMinutePacks } from "@/lib/conversion";
 import SiteNavbar from "@/app/components/SiteNavbar";
 import SiteFooter from "@/app/components/SiteFooter";
 import { SkipLink } from "@/app/components/ui/SkipLink";
@@ -9,6 +10,7 @@ import FaqAccordion from "@/app/components/ui/FaqAccordion";
 import { ToastProvider, useToast } from "@/app/components/ui/Toast";
 import { useAuth } from "@/app/components/AuthContext";
 import { useRazorpayCheckout } from "@/app/components/useRazorpayCheckout";
+import { trackFunnel } from "@/app/components/billing/trackFunnel";
 import {
   PURCHASABLE_TIER_ORDER, TIER_LABEL, TRIAL_CREDITS, TRIAL_DAYS, TRIAL_MINUTES, isTrialPlan, renewalNeedsApproval,
   AUTOCLIP_RERUN_FREE_WINDOW_DAYS, FREE_TIER_MONTHLY_BONUS_CREDITS, FREE_TIER_MONTHLY_BONUS_MINUTES, FREE_TIER_SIGNUP_MINUTES, SUBSCRIPTION_ROLLOVER_CAP_MULTIPLIER,
@@ -81,6 +83,11 @@ export default function PricingClient({ initialPlans }: { initialPlans: DbPlan[]
 
 function PricingPageInner({ initialPlans }: { initialPlans: DbPlan[] }) {
   const { user, openAuthModal, isLoading: authLoading } = useAuth();
+  // A signed-in visit to /pricing is a plans view in the paywall funnel.
+  const signedInId = user?.id ?? null;
+  useEffect(() => {
+    if (signedInId) trackFunnel({ type: "plans_viewed", placement: "pricing_page" });
+  }, [signedInId]);
   const { startCheckout, activeId } = useRazorpayCheckout();
   const { showToast } = useToast();
   // Server-rendered plans (page.tsx); fetched here only when the server had
@@ -168,7 +175,7 @@ function PricingPageInner({ initialPlans }: { initialPlans: DbPlan[] }) {
   }, [showToast]);
 
   const packs = plans.filter(p => p.kind === "pack");
-  const minutePacks = plans.filter(p => p.kind === "minute_pack");
+  const minutePacks = listableMinutePacks(plans.filter(p => p.kind === "minute_pack"), user);
   const subs  = plans.filter(p => p.kind === "subscription");
   const savePct = yearlySavePct(subs, currency);
 
@@ -202,6 +209,7 @@ function PricingPageInner({ initialPlans }: { initialPlans: DbPlan[] }) {
     if (!checkoutPlan) return;
     setCheckoutError("");
     startCheckout({
+      placement: "pricing_page",
       planId: checkoutPlan.slug,
       trial: checkoutTrial,
       currency,
@@ -227,6 +235,7 @@ function PricingPageInner({ initialPlans }: { initialPlans: DbPlan[] }) {
     if (!user) { openAuthModal("register", pack.name); return; }
     setCheckoutError("");
     startCheckout({
+      placement: "pricing_page",
       planId: pack.slug,
       currency,
       onSuccess: () => {
