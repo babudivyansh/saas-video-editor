@@ -16,10 +16,12 @@ import { aiClippingIndianCreators } from "./content/ai-clipping-indian-creators"
 import { clipGta6Streams } from "./content/clip-gta-6-streams";
 import { blackFriday2026 } from "./content/black-friday-2026";
 import { tiktokAiLikenessDetection } from "./content/tiktok-ai-likeness-detection";
+import { facebookCreatorFastTrack } from "./content/facebook-creator-fast-track";
 
 export const BLOG_POSTS: BlogPost[] = [
   // Time-limited (ends 30 Nov 2026): listed first while the sale runs.
   blackFriday2026,
+  facebookCreatorFastTrack,
   tiktokAiLikenessDetection,
   podcastToViralClips,
   hooksThatStopTheScroll,
