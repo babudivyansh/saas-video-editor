@@ -24,6 +24,21 @@ export function buildAggregateRatingSchema(summary: ReviewSummary) {
   };
 }
 
+// What a review is about. A Review with no itemReviewed is an invalid
+// review-snippet item in Search Console, so the standalone review page
+// (/reviews/[id]) carries it; nested reviews inherit it from their parent.
+const CLIPIRO_APP = {
+  "@type": "SoftwareApplication",
+  name: "Clipiro",
+  url: SITE_URL,
+  applicationCategory: "MultimediaApplication",
+  operatingSystem: "Web",
+} as const;
+
+export function buildStandaloneReviewSchema(review: PublicReviewDTO) {
+  return { "@context": "https://schema.org", ...buildReviewSchema(review), itemReviewed: CLIPIRO_APP };
+}
+
 export function buildReviewSchema(review: PublicReviewDTO) {
   return {
     "@type": "Review",
@@ -44,8 +59,13 @@ export function buildSoftwareApplicationWithReviewsSchema(summary: ReviewSummary
     applicationCategory: "MultimediaApplication",
     operatingSystem: "Web",
     offers: { "@type": "Offer", price: "0", priceCurrency: "INR" },
-    ...(aggregateRating ? { aggregateRating } : {}),
-    ...(topReviews.length > 0 ? { review: topReviews.map(buildReviewSchema) } : {}),
+    // Google rejects an item with several `review`s but no aggregateRating
+    // ("Multiple reviews without aggregateRating object"), so the review list
+    // waits behind the same MINIMUM_REVIEWS_FOR_RATING gate as the rating.
+    // The reviews still render on the page; only the markup is held back.
+    ...(aggregateRating && topReviews.length > 0
+      ? { aggregateRating, review: topReviews.map(buildReviewSchema) }
+      : {}),
   };
 }
 
