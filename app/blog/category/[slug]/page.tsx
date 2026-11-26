@@ -60,18 +60,23 @@ export default async function BlogCategoryPage({ params }: { params: Promise<{ s
       <JsonLd data={breadcrumbSchema} />
       <SiteNavbar solid />
       <main>
-        <section className="border-b border-line bg-gray-50/60">
-          <div className="mx-auto w-full max-w-[80rem] px-4 md:px-10 py-20 text-center">
+        <section className="relative overflow-hidden px-4 pb-6 pt-14 text-center sm:pt-20">
+          {/* Soft lime glow behind the headline, as on /pricing. */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute left-1/2 top-[-380px] h-[700px] w-[800px] max-w-full -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,color-mix(in_oklab,var(--primary)_10%,transparent),transparent)]"
+          />
+          <div className="relative mx-auto flex max-w-4xl flex-col items-center gap-5">
             <div className="flex justify-center">
               <Breadcrumbs
                 items={[{ label: "Home", href: "/" }, { label: "Blog", href: "/blog" }, { label: category.label }]}
               />
             </div>
-            <span className="mt-4 block text-xs font-bold uppercase tracking-widest text-brand">Category</span>
-            <h1 className="mx-auto mt-3 max-w-3xl text-4xl font-extrabold leading-tight text-ink md:text-5xl">
+            <p className="font-mono text-xs uppercase tracking-[0.12em] text-primary">Category</p>
+            <h1 className="text-4xl font-semibold leading-[1.05] tracking-[-0.03em] text-fg sm:text-6xl">
               {category.title}
             </h1>
-            <p className="mx-auto mt-5 max-w-2xl text-lg text-ink-soft">{category.blurb}</p>
+            <p className="max-w-xl text-base leading-relaxed text-fg-muted sm:text-lg">{category.blurb}</p>
           </div>
         </section>
 

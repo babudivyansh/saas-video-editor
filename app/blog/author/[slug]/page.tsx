@@ -53,8 +53,13 @@ export default async function BlogAuthorPage({ params }: { params: Promise<{ slu
       <JsonLd data={breadcrumbSchema} />
       <SiteNavbar solid />
       <main>
-        <section className="border-b border-line bg-gray-50/60">
-          <div className="mx-auto w-full max-w-[80rem] px-4 md:px-10 py-20 text-center">
+        <section className="relative overflow-hidden px-4 pb-6 pt-14 text-center sm:pt-20">
+          {/* Soft lime glow behind the headline, as on /pricing. */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute left-1/2 top-[-380px] h-[700px] w-[800px] max-w-full -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,color-mix(in_oklab,var(--primary)_10%,transparent),transparent)]"
+          />
+          <div className="relative mx-auto flex max-w-4xl flex-col items-center gap-5">
             <div className="flex justify-center">
               <Breadcrumbs
                 items={[{ label: "Home", href: "/" }, { label: "Blog", href: "/blog" }, { label: author.name }]}
@@ -67,15 +72,15 @@ export default async function BlogAuthorPage({ params }: { params: Promise<{ slu
                 alt={author.avatar.alt}
                 width={author.avatar.width}
                 height={author.avatar.height}
-                className="mx-auto mt-6 h-20 w-20 rounded-full object-cover"
+                className="h-20 w-20 rounded-full object-cover"
               />
             )}
 
-            <span className="mt-4 block text-xs font-bold uppercase tracking-widest text-brand">Author</span>
-            <h1 className="mx-auto mt-3 max-w-3xl text-4xl font-extrabold leading-tight text-ink md:text-5xl">
+            <p className="font-mono text-xs uppercase tracking-[0.12em] text-primary">Author</p>
+            <h1 className="text-4xl font-semibold leading-[1.05] tracking-[-0.03em] text-fg sm:text-6xl">
               {author.name}
             </h1>
-            {author.bio && <p className="mx-auto mt-5 max-w-2xl text-lg text-ink-soft">{author.bio}</p>}
+            {author.bio && <p className="max-w-xl text-base leading-relaxed text-fg-muted sm:text-lg">{author.bio}</p>}
 
             {author.links && author.links.length > 0 && (
               <div className="mt-5 flex flex-wrap justify-center gap-4">

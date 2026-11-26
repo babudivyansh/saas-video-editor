@@ -36,9 +36,9 @@ export default function MockClipBar({ press }: { press: number }) {
       return;
     }
     if (reduce) return;
-    animateCursor(cursorScope.current, { x: [-14, 0, 0, 0], y: [10, 0, 2, 0], scale: [1, 1, 0.84, 1] }, { duration: 0.5, times: [0, 0.4, 0.6, 1] });
-    animateButton(buttonScope.current, { scale: [1, 1, 0.93, 1.03, 1] }, { duration: 0.6, times: [0, 0.35, 0.55, 0.8, 1] });
-    animateRipple(rippleScope.current, { scale: [1, 1, 1.45], opacity: [0, 0.55, 0] }, { duration: 0.9, times: [0, 0.3, 1] });
+    animateCursor(cursorScope.current, { x: [-14, 0, 0, 0], y: [10, 0, 2, 0], scale: [1, 1, 0.84, 1] }, { duration: 0.35, times: [0, 0.4, 0.6, 1] });
+    animateButton(buttonScope.current, { scale: [1, 1, 0.93, 1.03, 1] }, { duration: 0.4, times: [0, 0.35, 0.55, 0.8, 1] });
+    animateRipple(rippleScope.current, { scale: [1, 1, 1.45], opacity: [0, 0.55, 0] }, { duration: 0.6, times: [0, 0.3, 1] });
   }, [press, reduce, animateButton, buttonScope, animateCursor, cursorScope, animateRipple, rippleScope]);
 
   return (
