@@ -2,6 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import type { UploadItem } from "../hooks/useUploadQueue";
+import { UpgradeOfferCard } from "@/app/components/billing/UpgradeOfferCard";
 
 function fmtSize(bytes: number) {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
@@ -31,6 +32,8 @@ interface UploadQueuePanelProps {
 export function UploadQueuePanel({ items, onPause, onResume, onRetry, onCancel, onDismiss, onClearFinished }: UploadQueuePanelProps) {
   if (items.length === 0) return null;
   const activeCount = items.filter((it) => it.status === "uploading" || it.status === "processing").length;
+  // One offer for the queue, not one per refused file.
+  const limited = items.find((it) => it.status === "error" && it.planLimit);
 
   return (
     <div className="fixed bottom-6 right-6 z-40 w-80 max-w-[95vw] bg-panel rounded-[var(--radius-card)] border border-card-border shadow-xl overflow-hidden">
@@ -40,6 +43,11 @@ export function UploadQueuePanel({ items, onPause, onResume, onRetry, onCancel, 
         </span>
         <button onClick={onClearFinished} className="text-[11px] font-semibold text-ink-soft hover:text-brand cursor-pointer">Clear finished</button>
       </div>
+      {limited && (
+        <div className="px-3 pt-3">
+          <UpgradeOfferCard compact placement="file_limit" title="Over your plan's upload limit" body={limited.error} />
+        </div>
+      )}
       <div className="max-h-80 overflow-y-auto divide-y divide-card-border">
         <AnimatePresence initial={false}>
           {items.map((it) => (

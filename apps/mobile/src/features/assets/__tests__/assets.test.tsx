@@ -93,8 +93,8 @@ describe("Assets", () => {
   });
 
   it("refuses uploads that don't fit the plan", async () => {
-    setMockScenario("account", "empty"); // Free: 250 MB per file, 0.5 GB total
-    pickDocument.mockResolvedValue({ canceled: false, assets: [{ name: "huge.mp4", size: 300 * MB, mimeType: "video/mp4", uri: "file:///huge.mp4" }] });
+    setMockScenario("account", "empty"); // Free: 1 GB per file, 1.5 GB total
+    pickDocument.mockResolvedValue({ canceled: false, assets: [{ name: "huge.mp4", size: 1100 * MB, mimeType: "video/mp4", uri: "file:///huge.mp4" }] });
     open("/projects/assets");
     await screen.findByText("Starter storage");
     press("Upload");

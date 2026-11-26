@@ -495,6 +495,18 @@ export const EMAIL_REGISTRY: Record<string, TemplateEntry<never>> = {
     build: lifecycle.onboardingDay7,
     samples: { default: { name: "Divyansh", minutesLeft: 18 } },
   }),
+  "minutes-expiring": entry({
+    id: "minutes-expiring",
+    title: "Free minutes expiring",
+    group: "lifecycle",
+    category: "usageAlerts",
+    trigger: "Onboarding cron, ~3 days before a free account's bonus Clip Minutes expire (once per expiry)",
+    build: lifecycle.minutesExpiring,
+    samples: {
+      "trial open": { name: "Divyansh", minutesLeft: 12, expiresAt: new Date("2026-12-20T00:00:00Z"), trialEligible: true },
+      "trial used": { name: "Divyansh", minutesLeft: 4, expiresAt: new Date("2026-12-20T00:00:00Z"), trialEligible: false },
+    },
+  }),
   "reengagement-7d": entry({
     id: "reengagement-7d",
     title: "Re-engagement (7 days)",

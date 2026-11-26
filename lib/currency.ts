@@ -49,6 +49,7 @@ export const USD_PRICE_BOOK_DEFAULTS: Record<string, number> = {
   // it's meant to top up (1,000 min at $0.068/min vs Creator's $0.10/min).
   // These keep the same ratio to Creator's per-minute price that the INR
   // packs have (₹7.99 / ₹6.66 / ₹6.00 against ₹6.66): 1.2x, 1.0x, 0.9x.
+  minutes_40: 299,     // $0.075/min — the one-per-account first pack
   minutes_100: 1199,   // $0.120/min
   minutes_300: 2999,   // $0.100/min
   minutes_1000: 8999,  // $0.090/min

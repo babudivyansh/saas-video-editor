@@ -13,7 +13,9 @@
 
 import { createContext, useCallback, useContext, useState, useSyncExternalStore } from "react";
 import { useAuth } from "@/app/components/AuthContext";
-import { useOpenPlans } from "@/app/components/billing/BillingOverlayContext";
+import { useOpenOffer, useOpenPlans } from "@/app/components/billing/BillingOverlayContext";
+import { trackFunnel, useTrackShown } from "@/app/components/billing/trackFunnel";
+import type { UpgradePlacement } from "@/lib/conversion";
 import { Modal } from "@/app/components/ui/Modal";
 import { Button } from "@/app/components/ui/Button";
 import { TRIAL_DAYS } from "@/lib/plans/tiers";
@@ -35,6 +37,18 @@ function ctaLabel(trialEligible: boolean): string {
   return trialEligible ? `Try Pro free for ${TRIAL_DAYS} days` : "See plans";
 }
 
+/** The CTA: the trial's checkout in one click when it's open, else the plans.
+ *  Records the click against its placement (lib/conversion.ts). */
+function useUpgradeCta(placement: UpgradePlacement, trialEligible: boolean): () => void {
+  const openPlans = useOpenPlans(placement);
+  const openOffer = useOpenOffer(placement);
+  return useCallback(() => {
+    trackFunnel({ type: "upgrade_prompt", placement, action: "clicked", offer: trialEligible ? "trial" : "plans" });
+    if (trialEligible) openOffer({ intent: "trial" });
+    else openPlans();
+  }, [placement, trialEligible, openOffer, openPlans]);
+}
+
 // ── Banner ────────────────────────────────────────────────────────────────────
 
 function subscribeStorage(onChange: () => void): () => void {
@@ -52,14 +66,16 @@ function readSnoozed(): boolean {
 
 export function WatermarkUpgradeBanner() {
   const { isFree, trialEligible } = useFreeTierState();
-  const openPlans = useOpenPlans();
+  const openPlans = useUpgradeCta("watermark_banner", trialEligible);
   // The server snapshot says "snoozed": localStorage isn't readable during
   // SSR, and a banner that flashes then vanishes for someone who snoozed it is
   // worse than one that appears a tick late.
   const storedSnooze = useSyncExternalStore(subscribeStorage, readSnoozed, () => true);
   const [dismissed, setDismissed] = useState(false);
+  const visible = isFree && !storedSnooze && !dismissed;
+  useTrackShown("watermark_banner", visible, trialEligible ? "trial" : "plans");
 
-  if (!isFree || storedSnooze || dismissed) return null;
+  if (!visible) return null;
 
   function dismiss() {
     setDismissed(true);
@@ -121,7 +137,7 @@ function startDownload(href: string) {
  */
 export function WatermarkDownloadGateProvider({ children }: { children: React.ReactNode }) {
   const { isFree, trialEligible } = useFreeTierState();
-  const openPlans = useOpenPlans();
+  const openPlans = useUpgradeCta("download_gate", trialEligible);
   const [pending, setPending] = useState<string | null>(null);
 
   const markSeen = () => {
@@ -137,7 +153,8 @@ export function WatermarkDownloadGateProvider({ children }: { children: React.Re
     }
     e.preventDefault();
     setPending(href);
-  }, [isFree]);
+    trackFunnel({ type: "upgrade_prompt", placement: "download_gate", action: "shown", offer: trialEligible ? "trial" : "plans" });
+  }, [isFree, trialEligible]);
 
   return (
     <GateCtx.Provider value={gate}>

@@ -11,6 +11,9 @@ import { MAX_UPLOAD_BYTES_BY_TIER } from "@/lib/plans/tiers";
 // policy, not a stand-in.
 
 let tier: "free" | "creator" | "pro" | "studio" = "free";
+/** A Buffer that reports `n` bytes without allocating them: the per-file cap
+ *  is checked on .length before the bytes are read, and free's cap is 1 GB. */
+const reportsSize = (n: number) => Object.defineProperty(Buffer.alloc(1), "length", { value: n }) as Buffer;
 
 const assetStore = new Map<string, Record<string, unknown>>();
 let nextId = 1;
@@ -142,8 +145,8 @@ describe("adoptUploadedBytes", () => {
   });
 
   it("rejects a file over the tier's per-file cap with a friendly upgrade message, before ever touching storage", async () => {
-    tier = "free"; // 250 MB cap
-    const oversized = Buffer.alloc(260 * 1024 ** 2);
+    tier = "free"; // 1 GB cap
+    const oversized = reportsSize(1024 ** 3 + 1);
     await expect(
       adoptUploadedBytes({ userId: "u1", bytes: oversized, mimeType: "video/mp4", name: "big.mp4", sourceFeature: "upload" }),
     ).rejects.toMatchObject({ name: "AssetLimitError", kind: "file_size" });
@@ -154,13 +157,13 @@ describe("adoptUploadedBytes", () => {
 
   it("allows the same file size on a higher tier (studio: 5 GB cap)", async () => {
     tier = "studio";
-    const bytes = Buffer.alloc(300 * 1024 ** 2); // 300 MB — over free's cap, under studio's
+    const bytes = Buffer.alloc(300 * 1024 ** 2); // 300 MB — under studio's 5 GB cap
     const result = await adoptUploadedBytes({ userId: "u1", bytes, mimeType: "video/mp4", name: "big.mp4", sourceFeature: "upload" });
     expect(result.duplicate).toBe(false);
   });
 
   it("rejects when the cumulative storage quota would be exceeded", async () => {
-    aggregateImpl.mockResolvedValueOnce({ _sum: { size: 0.49 * 1024 ** 3 } }); // free tier: 0.5 GB limit
+    aggregateImpl.mockResolvedValueOnce({ _sum: { size: 1.49 * 1024 ** 3 } }); // free tier: 1.5 GB limit
     const bytes = Buffer.alloc(20 * 1024 ** 2); // pushes usage past the free cap
     await expect(
       adoptUploadedBytes({ userId: "u1", bytes, mimeType: "video/mp4", name: "x.mp4", sourceFeature: "upload" }),
@@ -293,10 +296,10 @@ describe("adoptExistingS3Object", () => {
 
   it("lets a shared sample past a full quota and the per-file cap, and leaves samples out of the quota sum", async () => {
     tier = "free";
-    aggregateImpl.mockResolvedValue({ _sum: { size: 0.5 * 1024 ** 3 } }); // already full
+    aggregateImpl.mockResolvedValue({ _sum: { size: 1.5 * 1024 ** 3 } }); // already full
     const result = await adoptExistingS3Object({
       userId: "u1", s3Key: "samples/vlog.mp4", mimeType: "video/mp4",
-      name: "Sample", size: 290 * 1024 ** 2, sourceFeature: "sample", skipModeration: true,
+      name: "Sample", size: 1.2 * 1024 ** 3, sourceFeature: "sample", skipModeration: true,
     });
     expect(result.duplicate).toBe(false);
     // An ordinary file still hits the full quota, and the sum it checks skips samples.
@@ -313,9 +316,9 @@ describe("adoptExistingS3Object", () => {
 describe("assertUploadAllowed — multipart pre-flight (no dedup, declared size only)", () => {
   it("enforces the same per-tier cap as adoptUploadedBytes", async () => {
     tier = "free";
-    await expect(assertUploadAllowed("u1", 300 * 1024 ** 2)).rejects.toBeInstanceOf(AssetLimitError);
+    await expect(assertUploadAllowed("u1", 1.2 * 1024 ** 3)).rejects.toBeInstanceOf(AssetLimitError);
     tier = "studio";
-    await expect(assertUploadAllowed("u1", 300 * 1024 ** 2)).resolves.toBe("studio");
+    await expect(assertUploadAllowed("u1", 1.2 * 1024 ** 3)).resolves.toBe("studio");
   });
 });
 

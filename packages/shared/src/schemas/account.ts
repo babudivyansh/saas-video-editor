@@ -42,7 +42,7 @@ export const ROLLOVER_MULTIPLIER = 2;
 export const MONEY_BACK_DAYS = 3;
 
 export const PLANS = [
-  { tier: "free", name: "Starter", tagline: "Try every tool, no card", monthlyCents: 0, yearlyCents: 0, minutes: 15, credits: 10, storageGb: 0.5, uploadHours: 0.5, perks: ["Watermarked Auto Clips"] },
+  { tier: "free", name: "Starter", tagline: "Try every tool, no card", monthlyCents: 0, yearlyCents: 0, minutes: 10, credits: 10, storageGb: 1.5, uploadHours: 0.5, perks: ["Watermarked Auto Clips"] },
   { tier: "creator", name: "Creator", tagline: "For a steady posting habit", monthlyCents: 1500, yearlyCents: 13500, minutes: 200, credits: 50, storageGb: 2, uploadHours: 2, perks: ["No watermark, animated captions", "Social Tracker"] },
   { tier: "pro", name: "Pro", tagline: "Premium models, more output", monthlyCents: 2900, yearlyCents: 26100, minutes: 400, credits: 150, storageGb: 5, uploadHours: 4, perks: ["Clip Dubbing, Face Swap", "Priority rendering"] },
   { tier: "studio", name: "Agency", tagline: "High volume, fastest queue", monthlyCents: 5900, yearlyCents: 53100, minutes: 1000, credits: 300, storageGb: 15, uploadHours: 6, perks: ["Nano Banana Pro", "Fastest rendering"] },
@@ -56,6 +56,7 @@ export const CREDIT_PACKS = [
   { id: "pack_studio", name: "Agency", credits: 640, cents: 10199, bestValue: true },
 ] as const;
 export const MINUTE_PACKS = [
+  { id: "minutes_40", minutes: 40, cents: 299 },
   { id: "minutes_100", minutes: 100, cents: 1199 },
   { id: "minutes_300", minutes: 300, cents: 2999 },
   { id: "minutes_1000", minutes: 1000, cents: 8999 },

@@ -12,6 +12,8 @@ import { isTrialPlan, TRIAL_DAYS } from "@/lib/plans/tiers";
 import { syncRazorpayPlan } from "@/lib/billing/razorpay-plans";
 import { describeRazorpayError, isMissingRazorpayPlan } from "@/lib/billing/razorpay-errors";
 import { redis } from "@/lib/redis";
+import { recordFunnelEvent } from "@/lib/user-events";
+import { ENTRY_PACK_SLUG, isUpgradePlacement } from "@/lib/conversion";
 import { DIWALI, DIWALI_MONTHLY_BONUS_NOTE, diwaliMonthlyBonusApplies, diwaliOfferFor } from "@/lib/campaigns/diwali";
 import { creatorDiscountFor, creatorDiscountMinor } from "@/lib/creator-program";
 import {
@@ -43,6 +45,23 @@ async function handlePOST(req: NextRequest) {
   if (!basePlan || !basePlan.active) {
     return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
   }
+
+  // The ₹199 entry pack is priced below Creator's per-minute rate because it
+  // is a first purchase, so it is one per account.
+  if (basePlan.slug === ENTRY_PACK_SLUG) {
+    const already = await prisma.purchase.count({
+      where: { userId: auth.userId, status: { in: ["captured", "refunded"] }, plan: { slug: ENTRY_PACK_SLUG } },
+    });
+    if (already > 0) {
+      return NextResponse.json(
+        { error: "The First Pack is one per account. The 100-minute pack is the next size up." },
+        { status: 400 },
+      );
+    }
+  }
+
+  // Which upgrade offer brought them here (lib/conversion.ts), for the funnel.
+  const placement = isUpgradePlacement(body.placement) ? body.placement : "other";
 
   // Black Friday 2026 (lib/campaigns/black-friday.ts). The window is judged
   // HERE and stamped on the Razorpay notes, so a payment or a trial's first
@@ -369,6 +388,10 @@ async function handlePOST(req: NextRequest) {
       }
     }
 
+    await recordFunnelEvent(auth.userId, {
+      type: "checkout",
+      meta: { stage: "started", plan: basePlan.slug, placement, trial: wantsTrial },
+    });
     return NextResponse.json({
       mode: "subscription" as const,
       subscriptionId: subscription.id,
@@ -411,6 +434,7 @@ async function handlePOST(req: NextRequest) {
     return NextResponse.json({ error: "Could not start checkout. Please try again." }, { status: 502 });
   }
 
+  await recordFunnelEvent(auth.userId, { type: "checkout", meta: { stage: "started", plan: basePlan.slug, placement } });
   return NextResponse.json({
     mode: "order" as const,
     orderId: order.id,

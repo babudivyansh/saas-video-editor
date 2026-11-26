@@ -13,7 +13,9 @@
 //   4. suppress the address on a permanent bounce or a complaint.
 //
 // "Delivered" means the receiving mail server took it — not that anyone
-// opened it. Opens and clicks are deliberately ignored.
+// opened it. Opens and clicks don't move the status: they only stamp
+// openedAt / clickedAt (first one wins), so the admin funnel can compare
+// onboarding emails. Opens are approximate; clicks are the reliable signal.
 
 import crypto from "node:crypto";
 import { prisma } from "@/lib/prisma";
@@ -21,7 +23,12 @@ import { logger } from "@/lib/logger";
 import { markDelivery, suppress } from "@/lib/email/suppression";
 import type { ProviderName } from "./types";
 
-export type DeliveryKind = "accepted" | "delivered" | "deferred" | "bounced" | "complained" | "failed" | "ignored";
+export type DeliveryKind =
+  | "accepted" | "delivered" | "deferred" | "bounced" | "complained" | "failed"
+  | "opened" | "clicked" | "ignored";
+
+/** Engagement events: stamped on the message, never a status change. */
+const isEngagement = (k: DeliveryKind): k is "opened" | "clicked" => k === "opened" || k === "clicked";
 
 export interface DeliveryEvent {
   provider: ProviderName;
@@ -42,13 +49,13 @@ export interface DeliveryEvent {
 const RANK: Record<string, number> = {
   pending: 0, sending: 0, unknown: 0, deferred: 2, accepted: 1, delivered: 3, bounced: 4, failed: 4, complained: 5,
 };
-const KIND_STATUS: Record<Exclude<DeliveryKind, "ignored">, string> = {
+const KIND_STATUS: Record<Exclude<DeliveryKind, "ignored" | "opened" | "clicked">, string> = {
   accepted: "accepted", delivered: "delivered", deferred: "deferred", bounced: "bounced", complained: "complained", failed: "failed",
 };
 
 /** Would this event move the message forward? Exported for tests. */
 export function advances(current: string, kind: DeliveryKind): boolean {
-  if (kind === "ignored") return false;
+  if (kind === "ignored" || isEngagement(kind)) return false;
   // A provider-side "deferred" (soft bounce, greylisting) after acceptance is
   // still progress; our own "deferred" (waiting to retry) is not overridden
   // by a provider's accepted/deferred for a different attempt.
@@ -104,6 +111,10 @@ export function parseBrevoEvent(raw: Record<string, unknown>): DeliveryEvent | n
     error: "failed",
     spam: "complained",
     complaint: "complained",
+    opened: "opened",
+    unique_opened: "opened",
+    proxy_open: "opened",
+    click: "clicked",
   } as Record<string, DeliveryKind>)[event] ?? "ignored";
   return {
     provider: "brevo",
@@ -133,6 +144,8 @@ export function parseMailjetEvent(raw: Record<string, unknown>): DeliveryEvent |
     bounce: hard ? "bounced" : "deferred",
     blocked: "failed",
     spam: "complained",
+    open: "opened",
+    click: "clicked",
   } as Record<string, DeliveryKind>)[event] ?? "ignored";
   return {
     provider: "mailjet",
@@ -166,6 +179,8 @@ export function parseResendDelivery(svixId: string, raw: {
     "email.bounced": "bounced",
     "email.complained": "complained",
     "email.failed": "failed",
+    "email.opened": "opened",
+    "email.clicked": "clicked",
   } as Record<string, DeliveryKind>)[raw.type] ?? "ignored";
   return {
     provider: "resend",
@@ -220,11 +235,20 @@ export async function applyDeliveryEvent(e: DeliveryEvent): Promise<ApplyResult>
 
     if (!message) {
       result = "unmatched";
+    } else if (isEngagement(e.kind)) {
+      const at = e.occurredAt ?? new Date();
+      const field = e.kind === "opened" ? "openedAt" : "clickedAt";
+      // First one only; a click also proves an open the pixel may have missed.
+      await prisma.emailMessage.updateMany({ where: { id: message.id, [field]: null }, data: { [field]: at } });
+      if (e.kind === "clicked") {
+        await prisma.emailMessage.updateMany({ where: { id: message.id, openedAt: null }, data: { openedAt: at } });
+      }
+      result = "applied";
     } else if (!advances(message.status, e.kind)) {
       result = "stale";
     } else {
       const at = e.occurredAt ?? new Date();
-      const status = KIND_STATUS[e.kind as Exclude<DeliveryKind, "ignored">];
+      const status = KIND_STATUS[e.kind as keyof typeof KIND_STATUS];
       // Conditional on the status we read, so two events racing can't
       // regress each other.
       await prisma.emailMessage.updateMany({

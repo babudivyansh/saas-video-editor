@@ -49,8 +49,12 @@ describe("getFunnelReport (database)", () => {
     if (!dbUp) ctx.skip();
     const r = await getFunnelReport(30, NOW);
     expect(Object.fromEntries(r.steps.map((s) => [s.key, s.users]))).toEqual({
-      signed_up: 3, uploaded: 2, ran_autoclip: 2, got_clips: 1, downloaded: 1, trial: 0, paid: 1,
+      signed_up: 3, uploaded: 2, ran_autoclip: 2, got_clips: 1, downloaded: 1,
+      saw_upgrade: 0, opened_plans: 0, started_checkout: 0, trial: 0, paid: 1,
     });
+    // The paywall sections load (no upgrade events in this fixture).
+    expect(r.placements).toEqual([]);
+    expect(r.trialToPaid).toEqual({ trials: 0, paid: 0 });
     expect(r.medianHoursToFirstRun).toBe(0);
     expect(r.retention.reduce((n, w) => n + w.signups, 0)).toBe(3);
     // Only A came back, 10 days after joining: counted at day 1 and 7, not 30.

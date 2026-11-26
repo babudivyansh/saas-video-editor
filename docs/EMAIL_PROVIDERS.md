@@ -120,12 +120,18 @@ Each provider gives you the exact records; add them at the DNS host for clipiro.
 
 | Provider | URL | Auth | Events |
 |---|---|---|---|
-| Brevo | `https://clipiro.com/api/webhooks/brevo` | Token auth = `BREVO_WEBHOOK_SECRET` (sent as `Authorization: Bearer`) or Basic auth with that password | request, delivered, soft_bounce, hard_bounce, blocked, spam, invalid_email, deferred, error |
-| Mailjet | `https://mailjet:<MAILJET_WEBHOOK_SECRET>@clipiro.com/api/webhooks/mailjet` | Basic auth in URL (Mailjet's only option) | sent, bounce, blocked, spam |
-| Resend | `https://clipiro.com/api/webhooks/resend` (existing) | Svix signature, `RESEND_WEBHOOK_SECRET` | add email.sent, email.delivery_delayed, email.failed to the existing three |
+| Brevo | `https://clipiro.com/api/webhooks/brevo` | Token auth = `BREVO_WEBHOOK_SECRET` (sent as `Authorization: Bearer`) or Basic auth with that password | request, delivered, soft_bounce, hard_bounce, blocked, spam, invalid_email, deferred, error, **opened, click** |
+| Mailjet | `https://mailjet:<MAILJET_WEBHOOK_SECRET>@clipiro.com/api/webhooks/mailjet` | Basic auth in URL (Mailjet's only option) | sent, bounce, blocked, spam, **open, click** |
+| Resend | `https://clipiro.com/api/webhooks/resend` (existing) | Svix signature, `RESEND_WEBHOOK_SECRET` | add email.sent, email.delivery_delayed, email.failed, **email.opened, email.clicked** to the existing three |
 
 All three fail closed without their secret, dedupe redeliveries, apply status
-only forwards, and suppress on hard bounce / complaint.
+only forwards, and suppress on hard bounce / complaint. Opens and clicks only
+stamp `EmailMessage.openedAt` / `clickedAt` (Admin → Analytics → Onboarding
+emails); turn on open and click tracking in each provider too.
+
+**As of 26 Nov 2026 prod had received no webhook events at all** (the table
+was empty), so no message has a delivered status. Admin → Analytics says so
+until the first event arrives.
 
 ## Rollout
 

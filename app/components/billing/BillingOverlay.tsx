@@ -111,7 +111,7 @@ export function BillingOverlay({ state, onClose }: { state: BillingOverlayState;
     } else {
       // Also clear the params the redirect and the emails add, so closing the
       // overlay leaves a clean URL behind.
-      ["billing", "tab", "view", "success", "autotopup"].forEach(k => params.delete(k));
+      ["billing", "tab", "view", "success", "autotopup", "intent", "pack", "src"].forEach(k => params.delete(k));
     }
     const qs = params.toString();
     // Nothing to mirror: navigating anyway is not a no-op. A same-URL replace
@@ -169,7 +169,16 @@ export function BillingOverlay({ state, onClose }: { state: BillingOverlayState;
       )}
 
       {view === "plans" && (
-        <PlansModal onPurchaseSuccess={handlePurchaseSuccess} resumeFromPeriodEnd={resumeFromPeriodEnd} onManage={() => setView("manage")} />
+        <PlansModal
+          onPurchaseSuccess={handlePurchaseSuccess}
+          resumeFromPeriodEnd={resumeFromPeriodEnd}
+          onManage={() => setView("manage")}
+          // The offer applies only to the view the overlay was opened on, not
+          // to a later click through Billing → Upgrade.
+          intent={plansDirect ? state.intent : undefined}
+          packSlug={plansDirect ? state.packSlug : undefined}
+          placement={plansDirect ? state.placement ?? "other" : "billing_panel"}
+        />
       )}
     </Modal>
   );

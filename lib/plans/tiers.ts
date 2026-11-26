@@ -47,8 +47,11 @@ export const PLAN_NAME: Record<TierId, string> = { free: "Starter", ...TIER_LABE
 // `limitBytes`) instead of a hardcoded display constant. SidebarAccount.tsx
 // does not render a storage meter at all — it's a lightweight account
 // popover, not the place this value is displayed.
+// free 0.5 -> 1.5 on 2026-11-26, with the free file cap 250 MB -> 1 GB: gameplay
+// recordings are big, and 37 uploads had been turned away at 250 MB. Minutes,
+// not bytes, are what limit a free account's cost. Still under Creator's 2.
 export const STORAGE_LIMIT_GB: Record<TierId, number> = {
-  free: 0.5,
+  free: 1.5,
   creator: 2,
   pro: 5,
   studio: 15,
@@ -67,8 +70,8 @@ export function storageLimitBytesForTier(tier: TierId): number {
 // tool routes under app/api/tools/* (lib/upload-policy.ts's
 // resolveUploadPolicy). Numbers are business policy and freely tunable.
 export const MAX_UPLOAD_BYTES_BY_TIER: Record<TierId, number> = {
-  free: 250 * 1024 ** 2, // 250 MB
-  creator: 1 * 1024 ** 3, // 1 GB
+  free: 1 * 1024 ** 3, // 1 GB (250 MB until 2026-11-26)
+  creator: 1.5 * 1024 ** 3, // 1.5 GB (1 GB until 2026-11-26, when free moved up to 1 GB)
   pro: 2 * 1024 ** 3, // 2 GB
   studio: 5 * 1024 ** 3, // 5 GB
 };
@@ -188,12 +191,16 @@ export const TIER_MAX_AUTOCLIP_SOURCE_SECONDS: Record<TierId, number> = {
  *  (replaces the old "2 runs a month" allowance). 30 -> 15 in the 2026-10-30
  *  restructure: most free minutes expired unused, and a recurring 30 a month
  *  per email was the cheapest thing to farm. New accounts still start with
- *  FREE_TIER_SIGNUP_MINUTES. */
-export const FREE_TIER_MONTHLY_BONUS_MINUTES = 15;
+ *  FREE_TIER_SIGNUP_MINUTES. 15 -> 10 on 2026-11-26 (conversion plan): free
+ *  is a taste, the trial is the way to more. */
+export const FREE_TIER_MONTHLY_BONUS_MINUTES = 10;
 
 /** One-off Clip Minutes a new account starts with (same bonus bucket and expiry
- *  as the monthly drip), so a first AutoClip run of a real video still fits. */
-export const FREE_TIER_SIGNUP_MINUTES = 30;
+ *  as the monthly drip), so a first AutoClip run of a real video still fits.
+ *  30 -> 15 on 2026-11-26: the median first run was 7 minutes and 15 covers
+ *  74% of first runs, while 30 meant almost nobody ever ran out. Accounts that
+ *  already have minutes keep them. */
+export const FREE_TIER_SIGNUP_MINUTES = 15;
 
 /** Re-running a source this user already paid for, within this many days, is
  *  free — its transcript and face timeline are cached, so a re-run costs us
@@ -228,8 +235,10 @@ export const TRIAL_CREDITS = 15;
 
 /** Clip Minutes granted with the Pro trial (2026-09-26 model). Without them a
  *  trial user met Pro's headline feature, Auto Clips, with a zero balance. Same
- *  one-off, subscription-bucket treatment as TRIAL_CREDITS. */
-export const TRIAL_MINUTES = 30;
+ *  one-off, subscription-bucket treatment as TRIAL_CREDITS. 30 -> 60 on
+ *  2026-11-26: at 30 the trial gave no more minutes than a new free account
+ *  did, so "start a trial" only bought a watermark-free version. */
+export const TRIAL_MINUTES = 60;
 
 /** Length of the Pro trial. 7 -> 3 on 2026-11-20 (with 60 -> 30 minutes and
  *  25 -> 15 credits): a shorter window adds urgency, and the first charge

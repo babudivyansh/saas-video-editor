@@ -139,12 +139,12 @@ describe("AutoClip", () => {
 
   it("checks a picked file against the plan's size limit", async () => {
     server.restore();
-    serve(accountFixture({ tier: "free", minutes: 30 })); // Free: 250 MB
-    pickDocument.mockResolvedValue(picked("talk.mp4", 300 * MB, "video/mp4"));
+    serve(accountFixture({ tier: "free", minutes: 15 })); // Free: 1 GB
+    pickDocument.mockResolvedValue(picked("talk.mp4", 1100 * MB, "video/mp4"));
     open("/create/autoclip");
     fireEvent.press(await screen.findByRole("button", { name: /^Upload video/ }));
     await act(async () => fireEvent.press(screen.getByRole("radio", { name: /^Files/ })));
-    expect(await screen.findByText(/over your Starter plan's 250 MB limit/)).toBeOnTheScreen();
+    expect(await screen.findByText(/over your Starter plan's 1 GB limit/)).toBeOnTheScreen();
     expect(useAutoClipDraft.getState().source).toBeNull();
   });
 

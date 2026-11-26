@@ -91,6 +91,7 @@ export function InsufficientCreditsModal({ info, onClose }: {
   function buy() {
     if (!selectedPack) return;
     void startCheckout({
+      placement: "minutes_short",
       planId: selectedPack.slug,
       couponCode: coupon?.code,
       onSuccess: () => {

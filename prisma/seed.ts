@@ -106,6 +106,11 @@ const PACKS: SeedPlan[] = [
 // minutes UI shipped (Stage 4): /pricing, the plans modal and Billing > Top Up
 // all sell them, and the receipt reports minutes rather than "0 credits".
 const MINUTE_PACKS: SeedPlan[] = [
+  // The first pack (conversion plan, 2026-11-26): ₹199 for 40, below Creator's
+  // per-minute price on purpose — it's a first purchase for a free account, so
+  // api/billing/checkout allows one per account, and clips made in the 30 days
+  // after buying it carry no watermark (lib/clip-watermark.ts).
+  { slug: "minutes_40",   name: "First Pack · 40 Clip Minutes", priceInPaise: 19900, credits: 0, minutes: 40, sortOrder: 49, kind: "minute_pack", active: true, features: ["40 Clip Minutes", "No watermark for 30 days", "One per account"] },
   { slug: "minutes_100",  name: "100 Clip Minutes",   priceInPaise: 79900,  credits: 0, minutes: 100,  sortOrder: 50, kind: "minute_pack", active: true, features: ["100 Clip Minutes", "One-time top-up", "Never expires"] },
   { slug: "minutes_300",  name: "300 Clip Minutes",   priceInPaise: 199900, credits: 0, minutes: 300,  sortOrder: 51, kind: "minute_pack", active: true, features: ["300 Clip Minutes", "One-time top-up", "Never expires"] },
   { slug: "minutes_1000", name: "1,000 Clip Minutes", priceInPaise: 599900, credits: 0, minutes: 1000, sortOrder: 52, kind: "minute_pack", active: true, features: ["1,000 Clip Minutes", "Best value", "Never expires"] },

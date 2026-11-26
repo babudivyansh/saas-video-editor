@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
   sendFirstRunNudgeEmail,
+  sendMinutesExpiringEmail,
   sendFirstVideoSuccessEmail,
   sendOnboardingDay1Email,
   sendOnboardingDay3Email,
@@ -24,6 +25,8 @@ import { withCronTracking } from "@/lib/cron-tracking";
 // Day 1:  nudge, 24h after signup, only if no AutoClip run was started
 // Day 3:  adaptive — "make them yours" if they have clips, else a second nudge
 // Day 7:  upgrade prompt (free users only)
+// Expiring: ~3 days before a free account's bonus Clip Minutes expire, if it
+//         still has some (900 free minutes had expired unused, unannounced).
 // First clips: the watermark → Pro-trial upsell, 2h+ after a free user's
 //         first completed AutoClip run (moved here from lib/credit-events.ts,
 //         which fired it on a CREDIT spend — AutoClip spends minutes, so most
@@ -46,6 +49,10 @@ const FIRST_CLIPS_DELAY_MS = 2 * 60 * 60 * 1000;
 const FIRST_CLIPS_MAX_ACCOUNT_AGE_DAYS = 30;
 /** The first "paste a link" nudge goes this long after signup. */
 const ACTIVATION_NUDGE_DELAY_MS = 60 * 60 * 1000;
+/** The expiry reminder goes when the minutes have this long left. A 24-hour
+ *  window, so an hourly run catches every account once. */
+const EXPIRY_REMINDER_LEAD_MS = 3 * 24 * 60 * 60 * 1000;
+const EXPIRY_REMINDER_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 /** AutoClip runs the user started (anything past an empty draft). */
 function startedRuns(userId: string) {
@@ -63,7 +70,7 @@ async function handleGET(req: NextRequest) {
   }
 
   const now = new Date();
-  const results = { nudge: 0, day1: 0, day1Skipped: 0, day3: 0, day7: 0, firstClips: 0, errors: 0 };
+  const results = { nudge: 0, day1: 0, day1Skipped: 0, day3: 0, day7: 0, expiring: 0, firstClips: 0, errors: 0 };
 
   function daysAgo(d: number) {
     return new Date(now.getTime() - d * 24 * 60 * 60 * 1000);
@@ -174,6 +181,49 @@ async function handleGET(req: NextRequest) {
     }
   } catch (e) {
     logger.error("cron/onboarding", "day7 batch error", e);
+  }
+
+  // ── Expiring free minutes ─────────────────────────────────────────────────
+  // Free accounts only (no plan, or a plan that has ended): a subscriber's
+  // bonus minutes are a small part of their balance. minutesExpiryReminderFor
+  // holds the expiry date already reminded about, so a new monthly grant (a
+  // new expiry date) gets its own reminder, and an hourly run never repeats.
+  try {
+    const from = new Date(now.getTime() + EXPIRY_REMINDER_LEAD_MS - EXPIRY_REMINDER_WINDOW_MS);
+    const to = new Date(now.getTime() + EXPIRY_REMINDER_LEAD_MS);
+    const users = await prisma.user.findMany({
+      where: {
+        bonusMinutes: { gt: 0 },
+        bonusMinutesExpireAt: { gt: from, lte: to },
+        role: "USER",
+        purgedAt: null,
+        deactivatedAt: null,
+        OR: [{ planId: null }, { subscriptionEndsAt: null }, { subscriptionEndsAt: { lt: now } }],
+      },
+      select: {
+        id: true, email: true, name: true, bonusMinutes: true, bonusMinutesExpireAt: true,
+        minutesExpiryReminderFor: true, trialUsedAt: true,
+        _count: { select: { purchases: { where: { status: "captured" } } } },
+      },
+    });
+
+    for (const u of users) {
+      const expiresAt = u.bonusMinutesExpireAt!;
+      if (u.minutesExpiryReminderFor && u.minutesExpiryReminderFor.getTime() === expiresAt.getTime()) continue;
+      try {
+        if (await shouldSendCategory(u.id, "usageAlerts")) {
+          const trialEligible = !u.trialUsedAt && u._count.purchases === 0;
+          await sendMinutesExpiringEmail(u.email, greetingName(u.name), u.bonusMinutes, expiresAt, trialEligible);
+          results.expiring++;
+        }
+        await prisma.user.update({ where: { id: u.id }, data: { minutesExpiryReminderFor: expiresAt } });
+      } catch (e) {
+        logger.error("cron/onboarding", `expiry reminder error for ${u.id}`, e);
+        results.errors++;
+      }
+    }
+  } catch (e) {
+    logger.error("cron/onboarding", "expiry reminder batch error", e);
   }
 
   // ── First clips: watermark → Pro trial upsell ─────────────────────────────

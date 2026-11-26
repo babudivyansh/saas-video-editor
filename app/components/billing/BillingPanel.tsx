@@ -9,6 +9,7 @@
 // dialogs stacked on top of it.
 
 import { useState, useEffect, useRef } from "react";
+import { listableMinutePacks } from "@/lib/conversion";
 import Link from "next/link";
 import { useAuth } from "@/app/components/AuthContext";
 import { useRazorpayCheckout } from "@/app/components/useRazorpayCheckout";
@@ -236,7 +237,7 @@ export function BillingPanel({
     ]).then(([plansData, couponData, summaryData, historyData, purchasesData]) => {
       const all: DbPlan[] = plansData.plans ?? [];
       setPacks(all.filter(p => p.kind === "pack"));
-      setMinutePacks(all.filter(p => p.kind === "minute_pack"));
+      setMinutePacks(listableMinutePacks(all.filter(p => p.kind === "minute_pack"), user));
       setAddons(all.filter(p => p.kind === "addon"));
       const featured: LaunchCoupon[] = couponData.coupons ?? [];
       if (featured.length > 0) setLaunch(featured[0]);
@@ -303,6 +304,7 @@ export function BillingPanel({
   function handleBuy(slug: string) {
     setError("");
     startCheckout({
+      placement: "billing_panel",
       planId: slug,
       // Coupons are INR-native and the server rejects a code sent with USD, so
       // only forward one on the currency it can actually apply to.

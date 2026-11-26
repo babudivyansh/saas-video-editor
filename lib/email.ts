@@ -273,6 +273,12 @@ export async function sendFirstRunNudgeEmail(
   await sendTemplate("first-run-nudge", to, { name, minutesLeft, intendedUse });
 }
 
+export async function sendMinutesExpiringEmail(
+  to: string, name: string, minutesLeft: number, expiresAt: Date, trialEligible: boolean,
+): Promise<void> {
+  await sendTemplate("minutes-expiring", to, { name, minutesLeft, expiresAt, trialEligible });
+}
+
 export async function sendOnboardingDay1Email(
   to: string, name: string, minutesLeft: number,
 ): Promise<void> {

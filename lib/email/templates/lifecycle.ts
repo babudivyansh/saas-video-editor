@@ -8,15 +8,18 @@
 
 import type { EmailDocument } from "../layout";
 import { html } from "../html";
-import { greet, plural } from "../format";
+import { formatDateShort, greet, plural } from "../format";
 import { APP_URL, PRODUCT_NAME } from "../tokens";
-import { TRIAL_DAYS } from "@/lib/plans/tiers";
+import { TRIAL_DAYS, TRIAL_MINUTES } from "@/lib/plans/tiers";
 
 const DASHBOARD_URL = `${APP_URL}/dashboard`;
 // The in-app plans view (BillingOverlayContext PLANS_HREF), not the marketing
 // /pricing page: a signed-in user lands on the same plans + trial screen the
 // app's own Upgrade buttons open, already logged in.
 const PLANS_URL = `${APP_URL}/dashboard?billing=1&view=plans`;
+/** Straight to the Pro trial's "₹0 due today" checkout, tagged with the email
+ *  it came from (BillingOverlayContext reads intent= and src=). */
+const trialUrl = (template: string) => `${APP_URL}/dashboard?billing=1&view=plans&intent=trial&src=email_${template}`;
 
 /** The three steps every "you haven't started yet" email repeats. */
 const HOW_IT_WORKS = [
@@ -50,7 +53,7 @@ export function welcome(p: { firstName: string; minutes: number }): EmailDocumen
       {
         kind: "paragraph",
         tone: "fine",
-        text: "Tip: start with a video of 10–30 minutes. It's quick to process and leaves you minutes for a second try.",
+        text: "Tip: start with a video under 10 minutes, or a link to one. It's quick to process and leaves you minutes for a second try.",
       },
     ],
   };
@@ -84,7 +87,7 @@ export function firstRunNudge(p: { name: string; minutesLeft: number; intendedUs
       {
         kind: "paragraph",
         tone: "fine",
-        text: "Tip: a 10–30 minute video is quick to process and leaves you minutes for a second try.",
+        text: "Tip: a video under 10 minutes is quick to process and leaves you minutes for a second try. Short on time? Open a demo project on Home to see what comes back.",
       },
     ],
   };
@@ -252,6 +255,43 @@ export function firstVideoSuccess(p: { name: string; clipCount: number }): Email
       },
       { kind: "button", href: PLANS_URL, label: `Start my ${TRIAL_DAYS}-day free trial` },
       { kind: "paragraph", tone: "fine", text: "Cancel any time during the trial and you won't be charged." },
+    ],
+  };
+}
+
+/**
+ * Free Clip Minutes about to expire (conversion plan, 2026-11-26): 900 free
+ * minutes had expired unused, silently. Sent ~3 days before
+ * bonusMinutesExpireAt (app/api/cron/onboarding), once per expiry.
+ */
+export function minutesExpiring(p: {
+  name: string;
+  minutesLeft: number;
+  expiresAt: Date;
+  trialEligible: boolean;
+}): EmailDocument {
+  const when = formatDateShort(p.expiresAt);
+  return {
+    subject: `Your ${p.minutesLeft} free Clip ${plural(p.minutesLeft, "Minute")} expire on ${when}`,
+    preheader: "Turn a stream or podcast into clips before they go.",
+    blocks: [
+      { kind: "heading", text: `Use them before ${when}, ${greet(p.name)}` },
+      {
+        kind: "paragraph",
+        text: html`You have <strong>${p.minutesLeft} free Clip ${plural(p.minutesLeft, "Minute")}</strong> that expire on
+          <strong>${when}</strong>. That's enough to clip ${p.minutesLeft} minutes of video: paste a YouTube or Twitch link
+          and AutoClip does the rest.`,
+      },
+      { kind: "hero", label: "Free Clip Minutes left", value: String(p.minutesLeft), caption: `expire ${when}`, tone: "warning" },
+      { kind: "button", href: DASHBOARD_URL, label: "Make clips now" },
+      p.trialEligible
+        ? {
+            kind: "paragraph",
+            tone: "fine",
+            text: html`Need more? A ${TRIAL_DAYS}-day Pro trial adds ${TRIAL_MINUTES} minutes with no watermark, ₹0 today.
+              <a href="${trialUrl("minutes_expiring")}">Start the trial</a>.`,
+          }
+        : { kind: "paragraph", tone: "fine", text: FREE_LIMITS },
     ],
   };
 }

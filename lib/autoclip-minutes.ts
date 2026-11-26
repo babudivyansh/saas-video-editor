@@ -24,6 +24,8 @@ import { spendCredits, restoreSpend, logToolGeneration } from "@/lib/credits";
 import { AUTOCLIP_RERUN_FREE_WINDOW_DAYS, overflowCreditsFor } from "@/lib/plans/tiers";
 import { logger } from "@/lib/logger";
 import { TOOL_COSTS } from "@/lib/tool-costs";
+import { s3KeyFromStoredUrl } from "@/lib/source-url";
+import { SAMPLE_KEY_PREFIX } from "@/lib/sample-projects";
 
 /**
  * The AI-spend and margin dashboards aggregate Generation rows, and a run paid
@@ -121,8 +123,33 @@ export async function findPaidRunOfSameSource(
   return null;
 }
 
+/**
+ * A user's FIRST run on one of our sample videos (lib/sample-projects.ts) is
+ * free (conversion plan, 2026-11-26): a sample is 10 minutes, which would have
+ * eaten most of a new account's 15 free minutes just to see what AutoClip does.
+ * One free run per sample per account, so three at most (~$0.30 of compute);
+ * running the same sample again is charged as usual.
+ */
+export async function isFreeSampleRun(userId: string, uploadedVideoUrl: string, projectId: string): Promise<boolean> {
+  const key = s3KeyFromStoredUrl(uploadedVideoUrl);
+  if (!key || !key.startsWith(SAMPLE_KEY_PREFIX)) return false;
+  const earlier = await prisma.project.count({
+    where: {
+      userId,
+      id: { not: projectId },
+      status: { notIn: ["draft", "failed"] },
+      OR: [
+        { uploadedVideoUrl: sourceIdentity(uploadedVideoUrl) },
+        { uploadedVideoUrl: { startsWith: `${sourceIdentity(uploadedVideoUrl)}?` } },
+        { uploadedVideoUrl: { endsWith: `/${key}` } },
+      ],
+    },
+  });
+  return earlier === 0;
+}
+
 export type RunCharge =
-  | { ok: true; minutes: number; overflowCredits: number; freeRerunOf?: string; alreadyCharged?: boolean }
+  | { ok: true; minutes: number; overflowCredits: number; freeRerunOf?: string; alreadyCharged?: boolean; freeSample?: boolean }
   | { ok: false; needed: number; available: number; overflowCredits: number };
 
 /**
@@ -152,6 +179,12 @@ export async function chargeRunMinutes(params: {
 
   const rerunOf = await findPaidRunOfSameSource(userId, uploadedVideoUrl, projectId);
   if (rerunOf) return { ok: true, minutes: 0, overflowCredits: 0, freeRerunOf: rerunOf };
+
+  if (await isFreeSampleRun(userId, uploadedVideoUrl, projectId)) {
+    // Still a real run for the cost dashboards: we pay for it.
+    logRunCost(userId, projectId, needed, 0);
+    return { ok: true, minutes: 0, overflowCredits: 0, freeSample: true };
+  }
 
   const spend = await spendMinutes({ userId, amount: needed, reason: "spend:auto-clip", refId });
   if (spend.ok) {
@@ -220,6 +253,7 @@ export async function precheckRunMinutes(params: {
   const { total } = await getMinuteBalances(params.userId);
   if (total >= needed) return { ok: true };
   if (await findPaidRunOfSameSource(params.userId, params.uploadedVideoUrl, params.projectId)) return { ok: true };
+  if (await isFreeSampleRun(params.userId, params.uploadedVideoUrl, params.projectId)) return { ok: true };
   const overflowCredits = overflowCreditsFor(needed - total);
   if (params.allowCreditOverflow) {
     const { getBalances } = await import("@/lib/credits");

@@ -87,9 +87,9 @@ beforeEach(() => {
 });
 
 describe("POST /api/upload/multipart/complete — authoritative size verification", () => {
-  it("Scenario A: Free plan, declared 100MB, actual object 260MB — REJECT on real ContentLength", async () => {
+  it("Scenario A: Free plan, declared 100MB, actual object 1.1GB — REJECT on real ContentLength", async () => {
     tier = "free";
-    actualObjectBytes = 260 * 1024 ** 2;
+    actualObjectBytes = 1.1 * 1024 ** 3;
     const res = await POST(completeRequest(100 * 1024 ** 2));
     expect(res.status).toBe(413);
     const json = await res.json();
@@ -98,9 +98,9 @@ describe("POST /api/upload/multipart/complete — authoritative size verificatio
     expect(pendingDelete).toHaveBeenCalled();
   });
 
-  it("Scenario B: Creator plan declares 500MB, actual object 1.1GB — REJECT", async () => {
-    tier = "creator"; // 1GB cap
-    actualObjectBytes = 1.1 * 1024 ** 3;
+  it("Scenario B: Creator plan declares 500MB, actual object 1.6GB — REJECT", async () => {
+    tier = "creator"; // 1.5GB cap
+    actualObjectBytes = 1.6 * 1024 ** 3;
     const res = await POST(completeRequest(500 * 1024 ** 2));
     expect(res.status).toBe(413);
     expect(deleteS3Object).toHaveBeenCalled();
@@ -108,7 +108,7 @@ describe("POST /api/upload/multipart/complete — authoritative size verificatio
 
   it("Scenario C: actual object exactly at the tier limit — PASS", async () => {
     tier = "free";
-    actualObjectBytes = 250 * 1024 ** 2; // exactly free's cap
+    actualObjectBytes = 1024 ** 3; // exactly free's cap
     const res = await POST(completeRequest(1)); // declared size is irrelevant/ignored
     expect(res.status).toBe(200);
     expect(deleteS3Object).not.toHaveBeenCalled();
@@ -116,7 +116,7 @@ describe("POST /api/upload/multipart/complete — authoritative size verificatio
 
   it("Scenario D: actual object 1 byte above the tier limit — REJECT", async () => {
     tier = "free";
-    actualObjectBytes = 250 * 1024 ** 2 + 1;
+    actualObjectBytes = 1024 ** 3 + 1;
     const res = await POST(completeRequest(1));
     expect(res.status).toBe(413);
     expect(deleteS3Object).toHaveBeenCalled();
@@ -133,7 +133,7 @@ describe("POST /api/upload/multipart/complete — authoritative size verificatio
 
   it("never creates an Asset row when the real size violates entitlement", async () => {
     tier = "free";
-    actualObjectBytes = 300 * 1024 ** 2;
+    actualObjectBytes = 1.2 * 1024 ** 3;
     await POST(completeRequest(1));
     expect(assetCreateImpl).not.toHaveBeenCalled();
   });

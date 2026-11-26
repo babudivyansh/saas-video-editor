@@ -5,6 +5,7 @@ import type { EmailDocument } from "../layout";
 import { html } from "../html";
 import { formatDateShort, greet, plural } from "../format";
 import { APP_URL, PRODUCT_NAME } from "../tokens";
+import { TRIAL_MINUTES } from "@/lib/plans/tiers";
 
 const DASHBOARD_URL = `${APP_URL}/dashboard`;
 const PRICING_URL = `${APP_URL}/pricing`;
@@ -236,7 +237,12 @@ export function lowMinutes(p: {
       },
       paid
         ? { kind: "button", href: `${DASHBOARD_URL}?billing=1&tab=topup`, label: "Top up minutes", tone: "warning" }
-        : { kind: "button", href: PRICING_URL, label: "Get more minutes", tone: "warning" },
+        : {
+            kind: "button",
+            href: `${DASHBOARD_URL}?billing=1&view=plans&intent=trial&src=email_low_minutes`,
+            label: `Try Pro free: ${TRIAL_MINUTES} more minutes`,
+            tone: "warning",
+          },
     ],
   };
 }

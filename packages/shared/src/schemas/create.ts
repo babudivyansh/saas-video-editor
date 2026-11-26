@@ -16,8 +16,8 @@ export const planAtLeast = (plan: PlanTier, min: PlanTier) => PLAN_ORDER.indexOf
 const MB = 1024 * 1024;
 /** AutoClip source limits per plan (tiers.ts MAX_UPLOAD_BYTES_BY_TIER + source length cap). */
 export const AUTOCLIP_LIMITS: Record<PlanTier, { maxBytes: number; maxSourceSec: number }> = {
-  free: { maxBytes: 250 * MB, maxSourceSec: 30 * 60 },
-  creator: { maxBytes: 1024 * MB, maxSourceSec: 2 * 3600 },
+  free: { maxBytes: 1024 * MB, maxSourceSec: 30 * 60 },
+  creator: { maxBytes: 1536 * MB, maxSourceSec: 2 * 3600 },
   pro: { maxBytes: 2048 * MB, maxSourceSec: 4 * 3600 },
   studio: { maxBytes: 5120 * MB, maxSourceSec: 6 * 3600 },
 };

@@ -103,6 +103,9 @@ model User {
   // 1-hour "paste a link" nudge for signups who haven't started an AutoClip
   // run (app/api/cron/onboarding). Set whether or not the email went out.
   activationNudgeSentAt    DateTime?
+  // The bonusMinutesExpireAt a "your free minutes expire in 3 days" email was
+  // last sent for (app/api/cron/onboarding), so each expiry is reminded once.
+  minutesExpiryReminderFor DateTime?
   signupSource             String?
   signupReferrer           String?
   signupLandingPath        String?
@@ -2096,6 +2099,11 @@ model EmailMessage {
   acceptedAt  DateTime?
   deliveredAt DateTime?
   failedAt    DateTime?
+  // First open / first link click reported by the provider's webhook. Opens
+  // are approximate (image-blocking clients never report one, Apple Mail
+  // Privacy reports one for everything) — good enough to compare templates.
+  openedAt    DateTime?
+  clickedAt   DateTime?
 
   attempts EmailAttempt[]
 

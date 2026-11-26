@@ -9,6 +9,7 @@ import Link from "next/link";
 import { Card } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import { ErrorCard } from "../../dashboard/ui";
+import { CONVERSION_REVIEW_DATE, CONVERSION_TARGETS } from "@/lib/conversion";
 
 type Range = 7 | 30 | 90;
 
@@ -19,7 +20,31 @@ interface FunnelReport {
   retention: Array<{ week: string; signups: number; d1: number | null; d7: number | null; d30: number | null }>;
   autoClipFailures: Array<{ reason: string; count: number }>;
   toolFailures: Array<{ label: string; total: number; failed: number; topReason: string | null }>;
+  placements: Array<{
+    placement: string; shown: number; clicked: number; plansViewed: number;
+    checkoutStarted: number; checkoutFailed: number; checkoutDismissed: number;
+  }>;
+  checkoutFailures: Array<{ reason: string; count: number }>;
+  trialToPaid: { trials: number; paid: number };
+  emailEngagement: Array<{ template: string; sent: number; delivered: number; opened: number; clicked: number }>;
+  deliveryWebhooks: number;
 }
+
+/** Plain names for lib/conversion.ts placements. */
+const PLACEMENT_LABEL: Record<string, string> = {
+  file_limit: "File too big / too long",
+  low_minutes: "Low minutes banner",
+  minutes_short: "Not enough minutes for a run",
+  watermark_banner: "Watermark banner (clips page)",
+  download_gate: "First download",
+  header_pill: "Minutes pill",
+  pricing_page: "/pricing",
+  billing_panel: "Billing panel",
+  email: "Email link",
+  other: "Other",
+};
+
+const share = (part: number, whole: number) => (whole > 0 ? (part / whole) * 100 : 0);
 
 const pct = (part: number, whole: number) =>
   whole <= 0 ? "—" : part === 0 ? "0%" : `${((part / whole) * 100).toFixed(part / whole < 0.1 ? 1 : 0)}%`;
@@ -34,6 +59,9 @@ const COMPARE_WITH: Record<string, { key: string; label: string }> = {
   ran_autoclip: { key: "uploaded", label: "of uploaders" },
   got_clips: { key: "ran_autoclip", label: "of AutoClip users" },
   downloaded: { key: "got_clips", label: "of those with clips" },
+  saw_upgrade: { key: "signed_up", label: "of signups" },
+  opened_plans: { key: "saw_upgrade", label: "of those who saw an offer" },
+  started_checkout: { key: "opened_plans", label: "of those who opened plans" },
   trial: { key: "ran_autoclip", label: "of AutoClip users" },
   paid: { key: "ran_autoclip", label: "of AutoClip users" },
 };
@@ -51,6 +79,40 @@ const STEP_JOURNEY: Record<string, string> = {
   ran_autoclip: "journey=ran&",
   paid: "journey=paid&",
 };
+
+/** Phase 5 of the conversion plan: the people to talk to by hand, as CSV. */
+function OutreachDownload({ token }: { token: string | null }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function download() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/conversion/outreach", { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Export failed");
+      const name = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ?? "outreach.csv";
+      const href = URL.createObjectURL(await res.blob());
+      const a = document.createElement("a");
+      a.href = href;
+      a.download = name;
+      a.click();
+      URL.revokeObjectURL(href);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-line pt-4">
+      <Button size="sm" variant="secondary" onClick={download} loading={busy}>Download outreach list (CSV)</Button>
+      <p className="text-xs text-fg-subtle">
+        Heaviest users, free accounts nearly out of minutes, people who hit a plan limit, and every payer. The message to send is in docs/conversion/outreach.md.
+      </p>
+      {error && <p role="alert" className="text-xs text-error">{error}</p>}
+    </div>
+  );
+}
 
 export function FunnelPanel({ token }: { token: string | null }) {
   const [days, setDays] = useState<Range>(30);
@@ -84,6 +146,19 @@ export function FunnelPanel({ token }: { token: string | null }) {
 
   const signups = data.steps[0]?.users ?? 0;
   const ran = data.steps.find((s) => s.key === "ran_autoclip")?.users ?? 0;
+  const stepUsers = (key: string) => data.steps.find((s) => s.key === key)?.users ?? 0;
+  const targets: Array<{ label: string; actual: number | null; baseline: number | null; target: number }> = [
+    { label: "Signups who ran AutoClip", actual: signups ? share(ran, signups) : null, ...CONVERSION_TARGETS.ran_autoclip },
+    { label: "Saw an upgrade offer", actual: signups ? share(stepUsers("saw_upgrade"), signups) : null, ...CONVERSION_TARGETS.saw_upgrade },
+    { label: "Started a trial", actual: signups ? share(stepUsers("trial"), signups) : null, ...CONVERSION_TARGETS.trial },
+    {
+      label: "Trial → paid",
+      actual: data.trialToPaid.trials ? share(data.trialToPaid.paid, data.trialToPaid.trials) : null,
+      ...CONVERSION_TARGETS.trial_to_paid,
+    },
+    { label: "Signup → paid", actual: signups ? share(stepUsers("paid"), signups) : null, ...CONVERSION_TARGETS.paid },
+  ];
+  const fmt = (v: number | null) => (v == null ? "—" : `${v < 10 ? v.toFixed(1) : Math.round(v)}%`);
 
   return (
     <div className="space-y-5 mb-5">
@@ -131,6 +206,130 @@ export function FunnelPanel({ token }: { token: string | null }) {
           </p>
         )}
       </Card>
+
+      <Card shadow padding="lg">
+        <h2 className="text-base font-bold text-fg mb-1">Conversion targets</h2>
+        <p className="text-xs text-fg-subtle mb-3">
+          The 26 Nov 2026 plan, for signups in the last {data.days} days. Review on{" "}
+          {new Date(CONVERSION_REVIEW_DATE).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}.
+        </p>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-[11px] uppercase tracking-wide text-fg-subtle text-left">
+                <th className="font-semibold pb-2">Measure</th>
+                <th className="font-semibold pb-2 text-right">Before</th>
+                <th className="font-semibold pb-2 text-right">Now</th>
+                <th className="font-semibold pb-2 text-right">Target</th>
+              </tr>
+            </thead>
+            <tbody>
+              {targets.map((t) => (
+                <tr key={t.label} className="border-t border-line">
+                  <td className="py-1.5 text-fg">{t.label}</td>
+                  <td className="py-1.5 text-right text-fg-muted tabular-nums">{fmt(t.baseline)}</td>
+                  <td className={`py-1.5 text-right font-semibold tabular-nums ${t.actual != null && t.actual >= t.target ? "text-success" : "text-fg"}`}>
+                    {fmt(t.actual)}
+                  </td>
+                  <td className="py-1.5 text-right text-fg-muted tabular-nums">{fmt(t.target)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <OutreachDownload token={token} />
+      </Card>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <Card shadow padding="lg">
+          <h2 className="text-base font-bold text-fg mb-1">Upgrade offers · last {data.days} days</h2>
+          <p className="text-xs text-fg-subtle mb-3">
+            Distinct people at each step, by the offer they came from. Recorded from 26 Nov 2026.
+          </p>
+          {data.placements.length === 0 ? (
+            <p className="text-sm text-fg-subtle">No upgrade offers recorded yet.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-[11px] uppercase tracking-wide text-fg-subtle text-left">
+                    <th className="font-semibold pb-2">Offer</th>
+                    <th className="font-semibold pb-2 text-right">Saw</th>
+                    <th className="font-semibold pb-2 text-right">Clicked</th>
+                    <th className="font-semibold pb-2 text-right">Plans</th>
+                    <th className="font-semibold pb-2 text-right">Checkout</th>
+                    <th className="font-semibold pb-2 text-right">Failed</th>
+                    <th className="font-semibold pb-2 text-right">Closed</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.placements.map((p) => (
+                    <tr key={p.placement} className="border-t border-line">
+                      <td className="py-1.5 text-fg">{PLACEMENT_LABEL[p.placement] ?? p.placement}</td>
+                      {[p.shown, p.clicked, p.plansViewed, p.checkoutStarted, p.checkoutFailed, p.checkoutDismissed].map((v, i) => (
+                        <td key={i} className={`py-1.5 text-right tabular-nums ${i === 4 && v > 0 ? "text-error font-semibold" : "text-fg-muted"}`}>{v}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {data.checkoutFailures.length > 0 && (
+            <>
+              <h3 className="text-xs font-semibold text-fg-muted mt-4 mb-1.5">Why payments failed</h3>
+              <ul className="space-y-1 text-sm">
+                {data.checkoutFailures.map((f) => (
+                  <li key={f.reason} className="flex justify-between gap-3">
+                    <span className="text-fg-muted break-words">{f.reason}</span>
+                    <span className="font-semibold text-error tabular-nums">{f.count}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </Card>
+
+        <Card shadow padding="lg">
+          <h2 className="text-base font-bold text-fg mb-1">Onboarding emails · last {data.days} days</h2>
+          {data.deliveryWebhooks === 0 ? (
+            <p role="alert" className="text-xs text-warning mb-3">
+              No delivery webhooks arrived in this window, so &quot;delivered&quot; and &quot;opened&quot; can&apos;t be measured. Set the Brevo and
+              Mailjet webhook URLs (docs/EMAIL_PROVIDERS.md) with delivered, opened and click events on.
+            </p>
+          ) : (
+            <p className="text-xs text-fg-subtle mb-3">From the providers&apos; webhooks. Opens are approximate; clicks are reliable.</p>
+          )}
+          {data.emailEngagement.length === 0 ? (
+            <p className="text-sm text-fg-subtle">No onboarding emails sent.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-[11px] uppercase tracking-wide text-fg-subtle text-left">
+                    <th className="font-semibold pb-2">Email</th>
+                    <th className="font-semibold pb-2 text-right">Sent</th>
+                    <th className="font-semibold pb-2 text-right">Delivered</th>
+                    <th className="font-semibold pb-2 text-right">Opened</th>
+                    <th className="font-semibold pb-2 text-right">Clicked</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.emailEngagement.map((e) => (
+                    <tr key={e.template} className="border-t border-line">
+                      <td className="py-1.5 text-fg">{e.template}</td>
+                      <td className="py-1.5 text-right text-fg tabular-nums">{e.sent}</td>
+                      <td className="py-1.5 text-right text-fg-muted tabular-nums">{pct(e.delivered, e.sent)}</td>
+                      <td className="py-1.5 text-right text-fg-muted tabular-nums">{pct(e.opened, e.sent)}</td>
+                      <td className="py-1.5 text-right text-fg-muted tabular-nums">{pct(e.clicked, e.sent)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <Card shadow padding="lg">
