@@ -89,6 +89,7 @@
     "lastEdited": "آخر تعديل",
     "upNext": "التالي",
     "resume": "متابعة",
+    "renderProgress": "جارٍ العرض {progress}%",
     "resumeEditing": "متابعة التحرير",
     "onboarding": "التهيئة الأولية",
     "levelTooltip": "اكسب نقاط الخبرة عبر إتمام المهام أدناه — المزيد من النقاط يفتح مستويات أعلى.",

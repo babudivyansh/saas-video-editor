@@ -3,9 +3,15 @@ import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redis } from "@/lib/redis";
 import { startedResumableWhere } from "@/lib/project-activity";
-import { dashboardSummaryKey, DASHBOARD_SUMMARY_TTL_SECONDS } from "@/lib/dashboard-summary-cache";
+import {
+  dashboardSummaryKey,
+  DASHBOARD_SUMMARY_TTL_SECONDS,
+  DASHBOARD_SUMMARY_ACTIVE_TTL_SECONDS,
+} from "@/lib/dashboard-summary-cache";
+import { withRunProgress } from "@/lib/run-progress";
 
 const CARD_LIMIT = 5;
+const ACTIVE_STATUSES = new Set(["queued", "analyzing", "rendering"]);
 
 export async function GET(req: NextRequest) {
   const auth = await getAuthUser(req);
@@ -36,10 +42,13 @@ export async function GET(req: NextRequest) {
       include: { _count: { select: { clips: true } } },
     }),
   ]);
+  // Project.progress is never written during an AutoClip render — the real
+  // number is on the clips.
+  const inProgressRows = await withRunProgress(inProgress);
 
   const payload = {
     stats: { totalProjects, activeProjects, completedProjects, totalClips },
-    inProgress: inProgress.map(p => ({
+    inProgress: inProgressRows.map(p => ({
       id: p.id,
       title: p.title,
       status: p.status,
@@ -54,7 +63,14 @@ export async function GET(req: NextRequest) {
     hasAnyProjects: totalProjects > 0,
   };
 
-  await redis.set(cacheKey, JSON.stringify(payload), "EX", DASHBOARD_SUMMARY_TTL_SECONDS);
+  // Home polls while a run is moving; a 60s cache would freeze its progress.
+  const active = payload.inProgress.some(p => ACTIVE_STATUSES.has(p.status));
+  await redis.set(
+    cacheKey,
+    JSON.stringify(payload),
+    "EX",
+    active ? DASHBOARD_SUMMARY_ACTIVE_TTL_SECONDS : DASHBOARD_SUMMARY_TTL_SECONDS,
+  );
 
   return NextResponse.json(payload);
 }

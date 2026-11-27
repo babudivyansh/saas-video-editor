@@ -93,6 +93,22 @@ export function ContinueSection({ projects, total, hrefFor, onMenu }: ContinueSe
               className="relative block aspect-[16/8.4] overflow-hidden rounded-2xl border border-line bg-surface-2 hover:border-primary/40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
             >
               <TrackGlyph seed={i} />
+              {/* A moving run shows how far it is, not just a static glyph. */}
+              {p.status === "rendering" && (
+                <span
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={p.progress}
+                  aria-label={t("renderProgress", { progress: p.progress })}
+                  className="absolute inset-x-0 top-0 h-1 bg-fg/10"
+                >
+                  <span
+                    className="block h-full bg-primary transition-[width] duration-700 ease-out"
+                    style={{ width: `${Math.max(2, Math.min(100, p.progress))}%` }}
+                  />
+                </span>
+              )}
               <span className="absolute left-3 top-3 inline-flex h-[22px] items-center rounded-full bg-bg/80 px-2 text-[11px] font-semibold text-fg-muted">
                 {kindFor(p)}
               </span>

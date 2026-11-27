@@ -1,3 +1,4 @@
+import { withRunProgress } from "@/lib/run-progress";
 import {
   CREDIT_PACKS,
   LANGUAGES,
@@ -102,7 +103,9 @@ export async function buildHomeSummary(userId: string): Promise<HomeSummary | nu
     }),
     // The dashboard's "active" (started, resumable) definition.
     prisma.project.count({ where: startedResumableWhere(userId) }),
-    prisma.project.findMany({ where: { userId, status: { in: ["queued", "analyzing", "rendering"] } }, select: { progress: true } }),
+    prisma.project.findMany({ where: { userId, status: { in: ["queued", "analyzing", "rendering"] } }, select: { id: true, status: true, productType: true, progress: true } })
+      // A rendering run's progress is on its clips, not Project.progress.
+      .then(withRunProgress),
   ]);
   const thumbs = await Promise.all(
     top.map(async (c) => ({

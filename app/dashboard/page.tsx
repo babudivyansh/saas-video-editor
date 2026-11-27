@@ -48,6 +48,10 @@ function normalizeQuests(d: QuestData): QuestData {
 // finished this many; after that they shrink to a pill in the top bar.
 const NEW_USER_QUESTS = 3;
 
+// Home re-reads the summary this often while a run is in flight.
+const SUMMARY_POLL_MS = 4000;
+const ACTIVE_RUN_STATUSES = new Set(["queued", "analyzing", "rendering"]);
+
 interface InProgressProject {
   id: string;
   title: string;
@@ -100,6 +104,7 @@ function DashboardPageInner() {
   // users; now it becomes an error card with a retry.
   const [summaryFailed, setSummaryFailed] = useState(false);
   const [summaryAttempt, setSummaryAttempt] = useState(0);
+  const [summaryPoll, setSummaryPoll] = useState(0);
   // Avoids a first-time-layout flash for known-returning users while the real
   // summary fetch is in flight (this client page has no server-fetch seam).
   // Starts false so server-rendered HTML and the first client render match
@@ -153,19 +158,29 @@ function DashboardPageInner() {
 
   useEffect(() => {
     if (!user || !token) return;
-    setSummaryFailed(false);
+    if (summaryPoll === 0) setSummaryFailed(false);
     fetch("/api/dashboard/summary", { headers: { Authorization: `Bearer ${token}` } })
       // Without the r.ok check a 401/500 body ({error:"..."}) parsed fine and was
       // stored as the summary — then `summary?.inProgress[0]` below read [0] of
       // undefined and took the whole dashboard to its error boundary.
       .then(r => (r.ok ? r.json() : null))
       .then((d: DashboardSummary | null) => {
-        if (!d) { setSummaryFailed(true); return; }
+        // A failed background poll keeps the last good summary on screen.
+        if (!d) { if (summaryPoll === 0) setSummaryFailed(true); return; }
         setSummary(d);
         if (d.hasAnyProjects) sessionStorage.setItem(HAS_PROJECTS_STORAGE_KEY, "true");
       })
       .catch(() => {});
-  }, [user, token]);
+  }, [user, token, summaryPoll]);
+
+  // A run that's queued/analyzing/rendering moves on its own; the summary was
+  // fetched once on mount, so its card sat at whatever % it had then.
+  const hasActiveRun = !!summary?.inProgress.some(p => ACTIVE_RUN_STATUSES.has(p.status));
+  useEffect(() => {
+    if (!hasActiveRun) return;
+    const id = setTimeout(() => setSummaryPoll(n => n + 1), SUMMARY_POLL_MS);
+    return () => clearTimeout(id);
+  }, [hasActiveRun, summary]);
 
   async function handleDiscordQuest() {
     if (!token) return;
@@ -243,6 +258,19 @@ function DashboardPageInner() {
     staleTime: 60_000,
   });
   const recentProjects = projectsQuery.data ?? [];
+
+  // When the last in-flight run finishes, its clips and cover now exist —
+  // pull them into the rows below instead of waiting out their staleTime.
+  const hadActiveRun = useRef(false);
+  const refetchProjects = projectsQuery.refetch;
+  const refetchTopClips = heroQuery.refetch;
+  useEffect(() => {
+    if (hadActiveRun.current && !hasActiveRun) {
+      void refetchProjects();
+      void refetchTopClips();
+    }
+    hadActiveRun.current = hasActiveRun;
+  }, [hasActiveRun, refetchProjects, refetchTopClips]);
 
   // null while quests load (nothing shown, so no strip-then-pill flash).
   const questMode: "strip" | "pill" | "done" | null = !questData

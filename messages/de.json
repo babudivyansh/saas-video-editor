@@ -89,6 +89,7 @@
     "lastEdited": "Zuletzt bearbeitet",
     "upNext": "Als Nächstes",
     "resume": "Fortsetzen",
+    "renderProgress": "Wird gerendert {progress} %",
     "resumeEditing": "Weiter bearbeiten",
     "onboarding": "Einführung",
     "levelTooltip": "Sammeln Sie XP, indem Sie die untenstehenden Quests abschließen — mehr XP schaltet höhere Levels frei.",

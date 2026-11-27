@@ -10,6 +10,9 @@ export const dashboardSummaryKey = (userId: string) => `dash-summary:${userId}`;
 
 export const DASHBOARD_SUMMARY_TTL_SECONDS = 60;
 
+/** While a run is queued/analyzing/rendering Home polls for its progress. */
+export const DASHBOARD_SUMMARY_ACTIVE_TTL_SECONDS = 3;
+
 /** Best-effort: a cache that won't drop must never fail the write it follows. */
 export async function invalidateDashboardSummary(userId: string): Promise<void> {
   try {

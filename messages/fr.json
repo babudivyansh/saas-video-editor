@@ -89,6 +89,7 @@
     "lastEdited": "Dernière modification",
     "upNext": "À suivre",
     "resume": "Reprendre",
+    "renderProgress": "Rendu en cours {progress} %",
     "resumeEditing": "Reprendre l’édition",
     "onboarding": "Prise en main",
     "levelTooltip": "Gagnez de l'XP en accomplissant les quêtes ci-dessous — plus d'XP débloque des niveaux plus élevés.",

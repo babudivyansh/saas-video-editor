@@ -6,6 +6,7 @@ import { parseS3Url } from "@/lib/s3-url";
 import { resignOwnedMediaUrl, sourceUrlError } from "@/lib/source-url";
 import { getAssetReadUrl } from "@/utils/s3-upload";
 import { withRateLimit } from "@/lib/with-rate-limit";
+import { withRunProgress } from "@/lib/run-progress";
 
 // Stored media URLs are permanent and unsigned; re-sign before handing one out.
 // Server-written URLs only (clip thumbnails) — see resignOwnedMediaUrl below.
@@ -63,7 +64,8 @@ export async function GET(req: NextRequest) {
     },
   });
   const hasMore = rows.length > limit;
-  const projects = hasMore ? rows.slice(0, limit) : rows;
+  // A rendering run's progress is on its clips, not Project.progress.
+  const projects = await withRunProgress(hasMore ? rows.slice(0, limit) : rows);
   const nextCursor = hasMore ? projects[projects.length - 1].id : null;
 
   if (!withCover) return NextResponse.json({ projects, nextCursor });
