@@ -131,8 +131,11 @@ export default function AdminContentPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
         <Card shadow padding="md">
-          <h2 className="text-sm font-bold text-fg mb-1">Moderation queue</h2>
-          <p className="text-xs text-fg-subtle mb-3">Assets the scan flagged for explicit or violent content. Approve returns one to its owner; Remove deletes it and its file.</p>
+          <div className="flex items-center gap-2 mb-1">
+            <h2 className="text-sm font-bold text-fg flex-1">Moderation queue</h2>
+            <Link href="/admin/content/review" className="text-xs font-semibold text-brand hover:underline">Watch &amp; review all →</Link>
+          </div>
+          <p className="text-xs text-fg-subtle mb-3">Assets the scan flagged for explicit or violent content. Open Content review to watch them; Approve returns one to its owner; Remove deletes it and its file.</p>
           {!a ? null : a.flaggedAssets.length === 0 ? (
             <p className="text-sm text-fg-subtle">Nothing flagged.</p>
           ) : (
