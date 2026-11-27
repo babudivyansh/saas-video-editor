@@ -89,6 +89,7 @@
     "lastEdited": "Última edición",
     "upNext": "A continuación",
     "resume": "Reanudar",
+    "renderProgress": "Renderizando {progress} %",
     "resumeEditing": "Seguir editando",
     "onboarding": "Introducción",
     "levelTooltip": "Gana XP completando las misiones de abajo — más XP desbloquea niveles más altos.",

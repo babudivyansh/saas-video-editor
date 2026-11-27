@@ -89,6 +89,7 @@
     "lastEdited": "最終編集",
     "upNext": "次に",
     "resume": "再開",
+    "renderProgress": "レンダリング中 {progress}%",
     "resumeEditing": "編集を再開",
     "onboarding": "オンボーディング",
     "levelTooltip": "以下のクエストを完了してXPを獲得 — XPが多いほど高いレベルが解放されます。",

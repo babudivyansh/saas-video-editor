@@ -107,6 +107,7 @@
     "lastEdited": "Last edited",
     "upNext": "Up next",
     "resume": "Resume",
+    "renderProgress": "Rendering {progress}%",
     "resumeEditing": "Resume editing",
     "onboarding": "Onboarding",
     "levelTooltip": "Earn XP by completing quests below — more XP unlocks higher levels.",

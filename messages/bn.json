@@ -89,6 +89,7 @@
     "lastEdited": "সর্বশেষ সম্পাদিত",
     "upNext": "এরপর",
     "resume": "চালিয়ে যান",
+    "renderProgress": "রেন্ডার হচ্ছে {progress}%",
     "resumeEditing": "সম্পাদনা চালিয়ে যান",
     "onboarding": "অনবোর্ডিং",
     "levelTooltip": "নিচের কোয়েস্টগুলো সম্পন্ন করে XP অর্জন করুন — বেশি XP উচ্চতর লেভেল আনলক করে।",

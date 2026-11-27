@@ -89,6 +89,7 @@
     "lastEdited": "आख़िरी बार संपादित",
     "upNext": "आगे",
     "resume": "जारी रखें",
+    "renderProgress": "रेंडर हो रहा है {progress}%",
     "resumeEditing": "संपादन जारी रखें",
     "onboarding": "ऑनबोर्डिंग",
     "levelTooltip": "नीचे दिए क्वेस्ट पूरे करके XP कमाएं — अधिक XP से ऊंचे लेवल अनलॉक होते हैं।",

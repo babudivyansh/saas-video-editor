@@ -89,6 +89,7 @@
     "lastEdited": "最近编辑",
     "upNext": "接下来",
     "resume": "继续",
+    "renderProgress": "正在渲染 {progress}%",
     "resumeEditing": "继续编辑",
     "onboarding": "新手引导",
     "levelTooltip": "完成以下任务赚取经验值 — 更多经验值可解锁更高等级。",

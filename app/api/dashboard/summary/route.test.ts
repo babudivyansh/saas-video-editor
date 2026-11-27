@@ -22,6 +22,9 @@ interface Row {
   createdAt: Date;
   updatedAt: Date;
   _count: { clips: number };
+  clips?: { thumbnailUrl: string | null }[];
+  sourceAsset?: { thumbnailS3Key: string | null } | null;
+  uploadedVideoUrl?: string | null;
 }
 
 let projectRows: Row[];
@@ -52,6 +55,12 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
+vi.mock("@/lib/signed-media", () => ({ resignMediaUrl: vi.fn(async (u: string | null) => (u ? `${u}?signed` : null)) }));
+vi.mock("@/lib/source-url", () => ({
+  resignOwnedMediaUrl: vi.fn(async (u: string | null) => (u ? `${u}?owned` : null)),
+}));
+vi.mock("@/utils/s3-upload", () => ({ getAssetReadUrl: vi.fn(async (k: string) => `https://signed/${k}`) }));
+
 vi.mock("@/lib/redis", () => ({
   redis: {
     get: vi.fn(async (k: string) => redisStore.get(k) ?? null),
@@ -73,6 +82,9 @@ function row(over: Partial<Row> = {}): Row {
     createdAt: over.createdAt ?? new Date("2026-01-01"),
     updatedAt: over.updatedAt ?? new Date("2026-01-02"),
     _count: over._count ?? { clips: 0 },
+    clips: over.clips,
+    sourceAsset: over.sourceAsset,
+    uploadedVideoUrl: over.uploadedVideoUrl,
   };
 }
 
@@ -123,6 +135,25 @@ describe("GET /api/dashboard/summary", () => {
     expect(body.inProgress).toHaveLength(5);
     expect(body.stats.activeProjects).toBe(8);
     expect(body.inProgressTotal).toBe(8);
+  });
+
+  it("gives each card a real picture: rendered clip, then source thumbnail, then the source video", async () => {
+    projectRows = [
+      row({ id: "a", clips: [{ thumbnailUrl: "https://b/clip.jpg" }], sourceAsset: { thumbnailS3Key: "t.jpg" } }),
+      row({ id: "b", clips: [], sourceAsset: { thumbnailS3Key: "t.jpg" }, uploadedVideoUrl: "https://b/src.mp4" }),
+      row({ id: "c", clips: [], sourceAsset: null, uploadedVideoUrl: "https://b/src.mp4" }),
+      row({ id: "d", productType: "editor" }),
+    ];
+
+    const body = await (await GET(req())).json();
+    const media = body.inProgress.map((p: { coverUrl: string | null; sourceUrl: string | null }) => [p.coverUrl, p.sourceUrl]);
+
+    expect(media).toEqual([
+      ["https://b/clip.jpg?signed", null],
+      ["https://signed/t.jpg", null],
+      [null, "https://b/src.mp4?owned"],
+      [null, null],
+    ]);
   });
 
   it("exposes updatedAt so editor projects can show when they were last edited", async () => {
