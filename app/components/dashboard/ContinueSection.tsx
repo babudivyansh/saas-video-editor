@@ -5,6 +5,7 @@
 // actions menu beside it (a button inside a link is invalid HTML) — the
 // menu is how users rename or clear an empty draft.
 
+import { useState } from "react";
 import Link from "next/link";
 import { useFormatter, useNow, useTranslations } from "next-intl";
 import { ProjectStatusChip } from "@/app/dashboard/projects/components/projectUi";
@@ -18,6 +19,10 @@ export interface ContinueProject {
   createdAt: string;
   updatedAt: string;
   clipCount: number;
+  /** Signed picture for the card: first rendered clip, else the source's thumbnail. */
+  coverUrl?: string | null;
+  /** Signed source video, when there is no picture yet — the card shows a frame. */
+  sourceUrl?: string | null;
 }
 
 interface ContinueSectionProps {
@@ -58,6 +63,46 @@ function TrackGlyph({ seed }: { seed: number }) {
   );
 }
 
+/**
+ * The card's real picture. Home re-polls the summary every few seconds while a
+ * run is moving, and each poll re-signs the URLs — so the first URL seen for a
+ * card is kept (it is valid for hours), or the image would re-download and
+ * flicker on every poll. A better picture (a rendered clip's thumbnail
+ * replacing a source frame) still swaps in. Falls back to the track glyph when
+ * there is nothing to show or it fails to load.
+ */
+function CardCover({ coverUrl, sourceUrl, seed }: { coverUrl?: string | null; sourceUrl?: string | null; seed: number }) {
+  const [cover, setCover] = useState(coverUrl ?? null);
+  const [source, setSource] = useState(sourceUrl ?? null);
+  const [failed, setFailed] = useState(false);
+  // Adjusting state to new props during render (React's documented pattern):
+  // adopt a URL only when the card had none of that kind yet.
+  if (coverUrl && !cover) { setCover(coverUrl); setFailed(false); }
+  if (sourceUrl && !source && !cover) setSource(sourceUrl);
+
+  if (failed || (!cover && !source)) return <TrackGlyph seed={seed} />;
+  return (
+    <>
+      {cover ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={cover} alt="" onError={() => setFailed(true)} className="absolute inset-0 h-full w-full object-cover group-hover:scale-[1.02] transition-transform" />
+      ) : (
+        // A paused frame a second in (the very first frame is often black).
+        <video
+          src={`${source}#t=1`}
+          preload="metadata"
+          muted
+          playsInline
+          aria-hidden="true"
+          onError={() => setFailed(true)}
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+      )}
+      <span aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-bg/95 via-bg/60 to-transparent" />
+    </>
+  );
+}
+
 // onRename / onDelete stay in the props for callers, but both now live in the
 // card's actions menu (onMenu).
 export function ContinueSection({ projects, total, hrefFor, onMenu }: ContinueSectionProps) {
@@ -92,7 +137,7 @@ export function ContinueSection({ projects, total, hrefFor, onMenu }: ContinueSe
               aria-label={p.title}
               className="relative block aspect-[16/8.4] overflow-hidden rounded-2xl border border-line bg-surface-2 hover:border-primary/40 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
             >
-              <TrackGlyph seed={i} />
+              <CardCover coverUrl={p.coverUrl} sourceUrl={p.sourceUrl} seed={i} />
               {/* A moving run shows how far it is, not just a static glyph. */}
               {p.status === "rendering" && (
                 <span

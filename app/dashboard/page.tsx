@@ -61,6 +61,10 @@ interface InProgressProject {
   createdAt: string;
   updatedAt: string;
   clipCount: number;
+  /** Signed card picture (first rendered clip, else the source's thumbnail). */
+  coverUrl?: string | null;
+  /** Signed source video, shown as a frame when there is no picture yet. */
+  sourceUrl?: string | null;
 }
 
 interface DashboardSummary {
