@@ -674,6 +674,24 @@ export const assetModerateSchema = z
   })
   .strict();
 
+// /api/admin/content/review — the watch-and-approve queue for every user video.
+export const reviewQueueSchema = z.object({
+  kind: z.enum(["asset", "clip"]).default("asset"),
+  filter: z.enum(["flagged", "pending", "reviewed"]).default("pending"),
+  cursor: z.preprocess(blankAsUndefined, z.string().max(100).optional()),
+  limit: z.coerce.number().int().min(1).max(60).default(24),
+});
+export const reviewMediaSchema = z.object({
+  kind: z.enum(["asset", "clip"]),
+  id: z.string().min(1).max(100),
+});
+// Approve is one click (it only marks the item watched, and is audited);
+// removal deletes the user's file, so it needs a reason.
+export const reviewActionSchema = z.discriminatedUnion("action", [
+  z.object({ kind: z.enum(["asset", "clip"]), id: z.string().min(1).max(100), action: z.literal("approve"), reason: z.string().trim().max(500).optional() }).strict(),
+  z.object({ kind: z.enum(["asset", "clip"]), id: z.string().min(1).max(100), action: z.literal("remove"), reason: actionReason }).strict(),
+]);
+
 const alertEmail = z.string().trim().email("Enter a valid email address").max(200);
 export const signupAlertsSchema = z
   .object({

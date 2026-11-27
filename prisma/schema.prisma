@@ -840,6 +840,11 @@ model Clip {
   publishes             ClipPublish[]
   collectionItems       ClipCollectionItem[]
 
+  // Admin content review: every ready clip lands in /admin/content/review
+  // until an admin has watched it. Null = not reviewed yet.
+  adminReviewedAt       DateTime?
+  adminReviewedById     String?
+
   @@index([projectId])
   @@index([projectId, status])
   // Every clip list orders by score desc — this was an unindexed sort.
@@ -848,6 +853,7 @@ model Clip {
   // AutoClip quality charts group by day across every project — Clip had no
   // date index at all, so this was a full table scan.
   @@index([createdAt])
+  @@index([adminReviewedAt, createdAt])
 }
 
 // A dubbed-audio variant of a Clip in another language (P2.2). Captions stay
@@ -1099,6 +1105,10 @@ model Asset {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Admin content review (see Clip.adminReviewedAt). Null = not reviewed yet.
+  adminReviewedAt   DateTime?
+  adminReviewedById String?
+
   auditLogs AssetAuditLog[]
 
   // Back-relations for the two places an Asset is pointed AT as a source.
@@ -1121,6 +1131,7 @@ model Asset {
   @@index([folderId])
   // Storage-growth chart: cumulative bytes per day across all users.
   @@index([createdAt])
+  @@index([adminReviewedAt, createdAt])
 }
 
 // Flat (non-nested) per-user folder for organizing assets.

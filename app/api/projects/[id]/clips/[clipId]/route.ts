@@ -3,9 +3,7 @@ import { z } from "zod";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { withRateLimit } from "@/lib/with-rate-limit";
-import { parseS3Url } from "@/lib/s3-url";
-import { deleteS3Object } from "@/utils/s3-upload";
-import { logger } from "@/lib/logger";
+import { clipDeleteBlocker, deleteClipAndMedia } from "@/lib/clip-delete";
 
 // PATCH / DELETE for a single clip.
 //
@@ -89,53 +87,10 @@ async function handleDELETE(
   const clip = await getOwnedClip(projectId, clipId, auth.userId);
   if (!clip) return NextResponse.json({ error: "Clip not found" }, { status: 404 });
 
-  // A clip with work in flight can't be deleted yet. Deleting the row
-  // underneath a worker crashes the queue with "record not found" rather than
-  // cancelling cleanly — and, worse, it takes the refund with it: a QUEUED
-  // clip is often a paid re-render, and the cascade also removes in-progress
-  // dubs, whose failure path refunds by reading those very rows. So "queued"
-  // counts as busy too, as does a running dub.
-  if (clip.status === "rendering" || clip.status === "queued") {
-    return NextResponse.json(
-      { error: "This clip is still rendering. Wait for it to finish, then delete it." },
-      { status: 409 },
-    );
-  }
-  const activeDub = await prisma.clipDub.count({ where: { clipId, status: { in: ["dubbing", "processing"] } } });
-  if (activeDub > 0) {
-    return NextResponse.json(
-      { error: "This clip is still being dubbed. Wait for it to finish, then delete it." },
-      { status: 409 },
-    );
-  }
+  const blocker = await clipDeleteBlocker(clip);
+  if (blocker) return NextResponse.json({ error: blocker }, { status: 409 });
 
-  // The rendered mp4 may since have been adopted into the asset library. If it
-  // has, the Asset owns those bytes now and its own delete/retention flow is
-  // responsible for them — removing the object here would leave the user with
-  // a library entry pointing at nothing. Only clean up storage that nothing
-  // else references.
-  const objectKeys = [clip.videoUrl, clip.thumbnailUrl]
-    .map((url) => (url ? parseS3Url(url)?.key ?? null : null))
-    .filter((k): k is string => k !== null);
-
-  const referenced = objectKeys.length
-    ? await prisma.asset.findMany({
-        where: { userId: auth.userId, s3Key: { in: objectKeys } },
-        select: { s3Key: true },
-      })
-    : [];
-  const referencedKeys = new Set(referenced.map((a) => a.s3Key));
-
-  await prisma.clip.delete({ where: { id: clipId } });
-
-  // After the row is gone — an orphaned object is recoverable by the cleanup
-  // cron, whereas a deleted object with a live row is a broken clip.
-  for (const key of objectKeys) {
-    if (referencedKeys.has(key)) continue;
-    await deleteS3Object(key).catch((e) => {
-      logger.warn("clips", "clip object cleanup failed", { key, reason: (e as Error).message });
-    });
-  }
+  await deleteClipAndMedia(clip, auth.userId);
 
   return NextResponse.json({ ok: true });
 }
