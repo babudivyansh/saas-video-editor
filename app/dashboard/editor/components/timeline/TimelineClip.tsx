@@ -6,7 +6,8 @@
 // actions and the whole gesture commits as one undo step on pointer-up.
 
 import React, { useRef, useState } from "react";
-import { Pencil, Copy, Trash2, Lock, LockOpen, Eye, EyeOff } from "lucide-react";
+import { Pencil, Copy, Trash2, Lock, LockOpen, Eye, EyeOff, Scissors, ClipboardCopy } from "lucide-react";
+import { ContextMenu, ContextMenuItem, useContextMenu } from "@/app/components/ui/ContextMenu";
 import { useEditorStore } from "../../store/editorStore";
 import { snapCandidates, snapTime } from "@/lib/editor/doc-utils";
 import { useVideoThumbnails } from "../../hooks/useVideoThumbnails";
@@ -48,6 +49,7 @@ export default function TimelineClip({
   const deleteSelected = useEditorStore((s) => s.deleteSelected);
   const thumbnails = useVideoThumbnails(track === "video" ? assetUrl ?? null : null);
 
+  const menu = useContextMenu();
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState("");
 
@@ -65,9 +67,17 @@ export default function TimelineClip({
   const label =
     clip.type === "text" ? clip.name || clip.text || "Text" :
     clip.type === "video" ? "Video" :
-    clip.type === "image" ? (assetName ?? "Image") : "Audio";
+    clip.type === "image" ? clip.name || (assetName ?? "Image") : clip.name || (assetName ?? "Audio");
 
   const beginDrag = (e: React.PointerEvent, mode: DragMode) => {
+    // Only the primary button drags. A right-click's preventDefault +
+    // pointer capture here swallowed the contextmenu event, so the clip
+    // menu never opened.
+    if (e.button !== 0) {
+      e.stopPropagation();
+      select({ clipId: clip.id, track });
+      return;
+    }
     e.stopPropagation();
     e.preventDefault();
     select({ clipId: clip.id, track });
@@ -99,6 +109,26 @@ export default function TimelineClip({
     select({ clipId: clip.id, track });
     deleteSelected();
   };
+
+  const splitThis = () => {
+    select({ clipId: clip.id, track });
+    useEditorStore.getState().splitAtPlayhead();
+  };
+  const copyThis = () => {
+    select({ clipId: clip.id, track });
+    useEditorStore.getState().copySelected();
+  };
+  const toggleLock = () => updateClip(track, clip.id, { locked: !clip.locked }, true);
+  const toggleHidden = () => updateClip(track, clip.id, { hidden: !clip.hidden }, true);
+  // The video track is one continuous lane the export concatenates, so a
+  // hidden video clip has no defined meaning there; hide is for overlays.
+  const canHide = track !== "video";
+  const canRename = track !== "video";
+  // Split at the playhead, only offered when the playhead is inside this clip.
+  const playheadInside = (() => {
+    const t = useEditorStore.getState().currentTime;
+    return t > clip.timelineStart && t < clip.timelineStart + clip.duration;
+  })();
 
   const originClip = (doc: TimelineDoc) => (doc.tracks[track] as AnyClip[]).find((c) => c.id === clip.id);
 
@@ -162,6 +192,10 @@ export default function TimelineClip({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
+      onContextMenu={(e) => {
+        select({ clipId: clip.id, track });
+        menu.show(e);
+      }}
       className={`group/clip absolute bottom-0.5 top-0.5 flex touch-none items-center overflow-hidden rounded-editor-sm border transition-shadow ${
         clip.locked ? "cursor-default" : "cursor-grab"
       } ${colors.bg} ${colors.border} ${clip.hidden ? "opacity-40" : ""} ${
@@ -181,24 +215,25 @@ export default function TimelineClip({
           ))}
         </div>
       )}
-      {/* Text-only hover toolbar: rename/duplicate/delete/lock/hide. Gated on
-          track === "text" so video/audio/image clip rows are unaffected. */}
-      {track === "text" && !renaming && (
+      {/* Hover toolbar on every clip: rename/duplicate/delete/lock/hide. */}
+      {!renaming && (
         <div
           className={`pointer-events-none absolute -top-6 left-0 z-10 flex gap-0.5 rounded-editor-sm border border-editor-border bg-editor-elevated p-0.5 shadow-editor-sm transition-opacity ${
             selected ? "opacity-100 pointer-events-auto" : "opacity-0 group-hover/clip:opacity-100 group-hover/clip:pointer-events-auto"
           }`}
           onPointerDown={(e) => e.stopPropagation()}
         >
-          <IconButton
-            icon={<Pencil className="h-3 w-3" />}
-            label="Rename"
-            size="sm"
-            onClick={() => {
-              setRenameValue(clip.name ?? label);
-              setRenaming(true);
-            }}
-          />
+          {canRename && (
+            <IconButton
+              icon={<Pencil className="h-3 w-3" />}
+              label="Rename"
+              size="sm"
+              onClick={() => {
+                setRenameValue(clip.name ?? label);
+                setRenaming(true);
+              }}
+            />
+          )}
           <IconButton icon={<Copy className="h-3 w-3" />} label="Duplicate" size="sm" onClick={duplicateThis} />
           <IconButton icon={<Trash2 className="h-3 w-3" />} label="Delete" size="sm" onClick={deleteThis} />
           <IconButton
@@ -206,17 +241,61 @@ export default function TimelineClip({
             label={clip.locked ? "Unlock" : "Lock"}
             size="sm"
             active={clip.locked}
-            onClick={() => updateClip(track, clip.id, { locked: !clip.locked }, true)}
+            onClick={toggleLock}
           />
-          <IconButton
-            icon={clip.hidden ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-            label={clip.hidden ? "Show" : "Hide"}
-            size="sm"
-            active={clip.hidden}
-            onClick={() => updateClip(track, clip.id, { hidden: !clip.hidden }, true)}
-          />
+          {canHide && (
+            <IconButton
+              icon={clip.hidden ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+              label={clip.hidden ? "Show" : "Hide"}
+              size="sm"
+              active={clip.hidden}
+              onClick={toggleHidden}
+            />
+          )}
         </div>
       )}
+      <ContextMenu open={menu.open} x={menu.x} y={menu.y} onClose={menu.close}>
+        {track === "video" && playheadInside && !clip.locked && (
+          <ContextMenuItem icon={<Scissors className="h-4 w-4" />} onClick={() => { menu.close(); splitThis(); }}>
+            Split at playhead
+          </ContextMenuItem>
+        )}
+        <ContextMenuItem icon={<ClipboardCopy className="h-4 w-4" />} onClick={() => { menu.close(); copyThis(); }}>
+          Copy
+        </ContextMenuItem>
+        <ContextMenuItem icon={<Copy className="h-4 w-4" />} onClick={() => { menu.close(); duplicateThis(); }}>
+          Duplicate
+        </ContextMenuItem>
+        {canRename && (
+          <ContextMenuItem
+            icon={<Pencil className="h-4 w-4" />}
+            onClick={() => {
+              menu.close();
+              setRenameValue(clip.name ?? label);
+              setRenaming(true);
+            }}
+          >
+            Rename
+          </ContextMenuItem>
+        )}
+        <ContextMenuItem
+          icon={clip.locked ? <LockOpen className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+          onClick={() => { menu.close(); toggleLock(); }}
+        >
+          {clip.locked ? "Unlock" : "Lock"}
+        </ContextMenuItem>
+        {canHide && (
+          <ContextMenuItem
+            icon={clip.hidden ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+            onClick={() => { menu.close(); toggleHidden(); }}
+          >
+            {clip.hidden ? "Show" : "Hide"}
+          </ContextMenuItem>
+        )}
+        <ContextMenuItem danger icon={<Trash2 className="h-4 w-4" />} onClick={() => { menu.close(); deleteThis(); }}>
+          Delete
+        </ContextMenuItem>
+      </ContextMenu>
       {/* Left trim handle */}
       {!clip.locked && (
         <span

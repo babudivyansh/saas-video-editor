@@ -11,7 +11,7 @@ import { motion } from "framer-motion";
 import { useEditorStore } from "../store/editorStore";
 import { usePlayback, type MediaRegistry } from "../hooks/usePlayback";
 import { recordSourceDuration } from "../store/sourceDurations";
-import { docDuration } from "@/lib/editor/doc-utils";
+import { docDuration, fadeOpacityAt } from "@/lib/editor/doc-utils";
 import { docDimensions } from "@/lib/editor/types";
 import { useAssets } from "./panels/shared/assetData";
 import { buildTextCss } from "./text/textStyle";
@@ -106,7 +106,7 @@ export default function PreviewStage() {
     (t) => !t.hidden && currentTime >= t.timelineStart && currentTime < t.timelineStart + t.duration,
   );
   const activeImages = doc.tracks.image.filter(
-    (im) => currentTime >= im.timelineStart && currentTime < im.timelineStart + im.duration,
+    (im) => !im.hidden && currentTime >= im.timelineStart && currentTime < im.timelineStart + im.duration,
   );
   // Cues with a caption template are drawn by the template renderer below;
   // only plain cues use the per-cue overlay.
@@ -209,7 +209,8 @@ export default function PreviewStage() {
                 left: `${im.x * 100}%`,
                 top: `${im.y * 100}%`,
                 width: `${im.scalePct * 100}%`,
-                opacity: im.opacity,
+                // Fades: the same ramp the export's alpha `fade` filters draw.
+                opacity: im.opacity * fadeOpacityAt(currentTime - im.timelineStart, im.duration, im.fadeIn, im.fadeOut),
               }}
             />
           ))}

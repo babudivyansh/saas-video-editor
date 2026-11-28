@@ -677,8 +677,15 @@ export function runFFmpegWithProgress(
 
 // ── Audio extraction ─────────────────────────────────────────────────────────
 
-export function extractAudio(videoPath: string, audioPath: string): Promise<void> {
-  return runFFmpegArgs(["-y", "-i", videoPath, "-vn", "-acodec", "libmp3lame", "-q:a", "3", audioPath]);
+/** Extracts the audio as MP3; with `range` (source seconds) only that span,
+ *  so the output starts at range.fromSec = 0. */
+export function extractAudio(
+  videoPath: string,
+  audioPath: string,
+  range?: { fromSec: number; toSec: number },
+): Promise<void> {
+  const seek = range ? ["-ss", range.fromSec.toFixed(3), "-to", range.toSec.toFixed(3)] : [];
+  return runFFmpegArgs(["-y", ...seek, "-i", videoPath, "-vn", "-acodec", "libmp3lame", "-q:a", "3", audioPath]);
 }
 
 // ── Audio analysis (for AutoClip's calibrated virality score) ──────────────

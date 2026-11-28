@@ -43,7 +43,8 @@ export default function CaptionClipProps({ clip, activeTab }: { clip: CaptionCli
   if (activeTab === "highlight") {
     return (
       <div className="flex flex-col gap-3 p-3">
-        <PropertyCard title="Highlight mode" trailing={<PreviewOnlyBadge />} collapsible={false}>
+        {/* Exported: caption-ass.ts karaokeBody turns the mode into \k/\kf tags. */}
+        <PropertyCard title="Highlight mode" collapsible={false}>
           <PillGroup
             layoutId="caption-highlight-pills"
             value={clip.highlightMode}

@@ -10,7 +10,7 @@
 import React, { useState } from "react";
 import { useAuth } from "@/app/components/AuthContext";
 import { useEditorStore } from "../../../store/editorStore";
-import { planCaptionGeneration, wordsToCaptionCues, type RawWordTiming } from "@/lib/editor/caption-generation";
+import { captionSourceRange, planCaptionGeneration, wordsToCaptionCues, type RawWordTiming } from "@/lib/editor/caption-generation";
 import type { CaptionClip } from "@/lib/editor/types";
 import { DUB_LANGUAGES } from "@/lib/languages";
 import { Button, SelectField, showPanelToast } from "../../ui";
@@ -58,7 +58,8 @@ export default function GenerateSection() {
         const res = await fetch("/api/editor/captions", {
           method: "POST",
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ assetId, languageCode }),
+          // Only the part of the file the timeline uses is transcribed and billed.
+          body: JSON.stringify({ assetId, languageCode, ...captionSourceRange(clips) }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error ?? "Transcription failed");

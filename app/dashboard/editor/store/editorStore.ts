@@ -39,7 +39,6 @@ export type PanelKind =
   | "effect"
   | "filter"
   | "transition"
-  | "keyboard"
   | "ai"
   | "aiCaptions"
   | "aiVideo";

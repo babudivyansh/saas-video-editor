@@ -30,6 +30,28 @@ export function planCaptionGeneration(doc: TimelineDoc): { assetId: string; clip
   return order.map((assetId) => ({ assetId, clips: byAsset.get(assetId)! }));
 }
 
+/** Seconds of padding around the used part of a source, so a word that
+ *  straddles a trim point is still heard whole by the transcriber. */
+export const CAPTION_RANGE_PAD_SEC = 0.5;
+
+/** The part of one source file the timeline actually uses: from the earliest
+ *  trim-in to the latest trim-out across `clips` (source seconds, speed
+ *  applied), padded by CAPTION_RANGE_PAD_SEC and clamped at 0. Only this range
+ *  is transcribed and billed (it used to be the whole file). */
+export function captionSourceRange(clips: VideoClip[]): { fromSec: number; toSec: number } {
+  let from = Infinity;
+  let to = 0;
+  for (const c of clips) {
+    from = Math.min(from, c.srcIn);
+    to = Math.max(to, c.srcIn + c.duration * (c.speed ?? 1));
+  }
+  if (!Number.isFinite(from)) return { fromSec: 0, toSec: 0 };
+  return {
+    fromSec: Math.max(0, from - CAPTION_RANGE_PAD_SEC),
+    toSec: to + CAPTION_RANGE_PAD_SEC,
+  };
+}
+
 const CAPTION_WORDS_PER_LINE = 4;
 
 const DEFAULT_CAPTION_STYLE: Partial<CaptionClip> = {

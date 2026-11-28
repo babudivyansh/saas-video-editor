@@ -19,15 +19,16 @@ import {
   TRANSCRIPTION_UNAVAILABLE_MESSAGE,
 } from "@/lib/transcription-runtime";
 
-// POST /api/editor/captions { assetId, languageCode? }
+// POST /api/editor/captions { assetId, languageCode?, fromSec?, toSec? }
 // Transcribes a video asset from the user's library and returns word-level
 // timings (source-time seconds). The client turns these into caption text
 // clips aligned to wherever the clip sits on the timeline.
 //
 // Costs Clip Minutes — 1 per minute of the asset, rounded up (2026-09-26
-// pricing model; it was a flat 1 credit). Speech-to-text is billed by length,
-// and the WHOLE asset is transcribed, not just the trimmed part on the
-// timeline. Charged after the length is known but before the paid provider
+// pricing model; it was a flat 1 credit). Speech-to-text is billed by length.
+// With fromSec/toSec (source seconds) only that range is extracted,
+// transcribed and billed, and word timings come back in whole-file time;
+// without them the whole asset is used (Caption Studio). Charged after the length is known but before the paid provider
 // call; refunded if transcription fails. languageCode is optional — omitted or
 // "auto" lets Scribe auto-detect the spoken language (the previous, only
 // behavior before the Caption panel's language selector existed).
@@ -39,6 +40,8 @@ async function handlePOST(req: NextRequest) {
   const assetId = body.assetId as string | undefined;
   const languageCode = body.languageCode as string | undefined;
   if (!assetId) return NextResponse.json({ error: "assetId required" }, { status: 400 });
+  const range = parseRange(body.fromSec, body.toSec);
+  if (range === "invalid") return NextResponse.json({ error: "fromSec/toSec must be numbers with 0 <= fromSec < toSec" }, { status: 400 });
 
   const asset = await prisma.asset.findFirst({ where: { id: assetId, userId: auth.userId } });
   if (!asset) return NextResponse.json({ error: "Asset not found" }, { status: 404 });
@@ -81,7 +84,10 @@ async function handlePOST(req: NextRequest) {
     // which a private bucket answers with 403.
     await downloadFile(await getAssetReadUrl(asset.s3Key, 600), mediaPath);
     // The asset row's stored length when there is one, else probe the file.
-    const durationSec = asset.duration ?? (await probeMediaDuration(mediaPath)).durationSec ?? 0;
+    const fileSec = asset.duration ?? (await probeMediaDuration(mediaPath)).durationSec ?? 0;
+    // A range past the end of the file is clamped to it.
+    const clipped = range && fileSec > 0 ? { fromSec: Math.min(range.fromSec, fileSec), toSec: Math.min(range.toSec, fileSec) } : range;
+    const durationSec = clipped ? Math.max(0, clipped.toSec - clipped.fromSec) : fileSec;
     const minutesNeeded = billableCaptionMinutes(durationSec);
     const spend = await spendMinutes({
       userId: auth.userId,
@@ -101,8 +107,11 @@ async function handlePOST(req: NextRequest) {
       );
     }
     charged = true;
-    await extractAudio(mediaPath, audioPath);
-    const words = await transcribe(fs.readFileSync(audioPath), "audio/mpeg", languageCode);
+    await extractAudio(mediaPath, audioPath, clipped ?? undefined);
+    const offsetMs = Math.round((clipped?.fromSec ?? 0) * 1000);
+    const words = (await transcribe(fs.readFileSync(audioPath), "audio/mpeg", languageCode)).map((w) =>
+      offsetMs ? { ...w, start: w.start + offsetMs, end: w.end + offsetMs } : w,
+    );
     if (words.length === 0) {
       throw new Error("No speech detected (or transcription unavailable)");
     }
@@ -126,6 +135,15 @@ async function handlePOST(req: NextRequest) {
       } catch {}
     }
   }
+}
+
+/** Optional source-time range: both absent → null (whole file); both finite
+ *  with 0 <= from < to → the range; anything else → "invalid". */
+function parseRange(from: unknown, to: unknown): { fromSec: number; toSec: number } | null | "invalid" {
+  if (from == null && to == null) return null;
+  if (typeof from !== "number" || typeof to !== "number") return "invalid";
+  if (!Number.isFinite(from) || !Number.isFinite(to) || from < 0 || to <= from) return "invalid";
+  return { fromSec: from, toSec: to };
 }
 
 // Paid (Clip Minutes) and runs a full-asset transcription — a burst of these
