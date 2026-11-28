@@ -48,7 +48,7 @@ describe("openEditor", () => {
   });
 
   it("lists each file once", () => {
-    expect(assetIdsOf({ version: 1, aspect: "9:16", fps: 30, tracks: { video: [video("v1", "a1") as never, video("v2", "a1", 10) as never], text: [], audio: [], image: [], caption: [] } })).toEqual(["a1"]);
+    expect(assetIdsOf({ version: 1, aspect: "9:16", fps: 30, tracks: { video: [video("v1", "a1") as never, video("v2", "a1", 10) as never], text: [], audio: [], image: [], caption: [], overlay: [] } })).toEqual(["a1"]);
   });
 });
 

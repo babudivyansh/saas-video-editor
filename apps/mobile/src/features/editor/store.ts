@@ -55,7 +55,7 @@ type State = {
   reset: () => void;
 };
 
-const EMPTY: TimelineDoc = { version: 1, aspect: "9:16", fps: 30, tracks: { video: [], text: [], audio: [], image: [], caption: [] } };
+const EMPTY: TimelineDoc = { version: 1, aspect: "9:16", fps: 30, tracks: { video: [], text: [], audio: [], image: [], caption: [], overlay: [] } };
 
 let timer: ReturnType<typeof setTimeout> | null = null;
 let inFlight: Promise<boolean> | null = null;

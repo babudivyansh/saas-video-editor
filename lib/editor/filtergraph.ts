@@ -22,7 +22,7 @@ import {
   TRANSITION_DURATION_SEC,
   TRANSITION_PRESETS,
 } from "./types";
-import { docDuration, videoSegments } from "./doc-utils";
+import { docDuration, exportView, videoSegments } from "./doc-utils";
 import { clipDuckSegments, musicVolumeFilter, speechRangesFromCaptions } from "./music-envelope";
 import { keyframeExpr } from "./keyframes";
 import { adjustFilters, needsWrapping, wrappedEffect } from "./video-look";
@@ -197,7 +197,10 @@ export function fitStatements(input: string, timing: string[], W: number, H: num
 }
 
 export function buildFilterGraph(input: FiltergraphInput): FiltergraphResult {
-  const { doc, assets, textFiles, captionAssPath, captionTemplateTracks, outputPath } = input;
+  const { assets, textFiles, captionAssPath, captionTemplateTracks, outputPath } = input;
+  // Track switches (hide/mute) and hidden clips, applied once (idempotent).
+  const doc = exportView(input.doc);
+  const F = doc.fps ?? 30;
   const base = docDimensions(doc);
   const scale = input.scale ?? 1;
   const W = base.w * scale;
@@ -214,7 +217,8 @@ export function buildFilterGraph(input: FiltergraphInput): FiltergraphResult {
   const uniqueVideoAssets = [...new Set(doc.tracks.video.map((c) => c.assetId))];
   const uniqueAudioAssets = [...new Set(doc.tracks.audio.map((c) => c.assetId))];
   const uniqueImageAssets = [...new Set(doc.tracks.image.map((c) => c.assetId))];
-  for (const assetId of [...uniqueVideoAssets, ...uniqueAudioAssets, ...uniqueImageAssets]) {
+  const uniqueOverlayAssets = [...new Set(doc.tracks.overlay.map((c) => c.assetId))];
+  for (const assetId of [...uniqueVideoAssets, ...uniqueOverlayAssets, ...uniqueAudioAssets, ...uniqueImageAssets]) {
     if (inputIndex.has(assetId)) continue;
     const asset = assets.get(assetId);
     if (!asset) throw new Error(`Missing downloaded asset ${assetId}`);
@@ -246,7 +250,7 @@ export function buildFilterGraph(input: FiltergraphInput): FiltergraphResult {
     const aLabel = `a${i}`;
     if (seg.kind === "gap") {
       filters.push(
-        `color=c=black:s=${W}x${H}:r=30:d=${num(seg.duration)}${
+        `color=c=black:s=${W}x${H}:r=${F}:d=${num(seg.duration)}${
           xfadeNormalize.length ? "," + xfadeNormalize.join(",") : ""
         }[${vLabel}]`,
       );
@@ -268,7 +272,7 @@ export function buildFilterGraph(input: FiltergraphInput): FiltergraphResult {
         `trim=start=${from}:end=${to}`,
         `setpts=PTS-STARTPTS`,
         ...(speed !== 1 ? [`setpts=PTS/${num(speed)}`] : []),
-        `fps=30`,
+        `fps=${F}`,
       ];
       const look = [`setsar=1`, ...(preset.ffmpeg ? [preset.ffmpeg] : []), ...adjustFilters(clip.adjust)];
       // "fit" needs a split (sharp copy over a blurred one), so it becomes its
@@ -282,20 +286,29 @@ export function buildFilterGraph(input: FiltergraphInput): FiltergraphResult {
       } else {
         preChain = [...timing, ...fillFilters(clip, W, H), ...look];
       }
+      // Position/size/rotation/flip/opacity (Phase 1): the clip is drawn onto
+      // a black frame, so its xfade normalization moves after that overlay.
+      const transformed = hasClipTransform(clip);
       const postChain = [
         ...(fadeIn > 0 ? [`fade=t=in:st=0:d=${num(fadeIn)}`] : []),
         ...(fadeOut > 0 ? [`fade=t=out:st=${num(clip.duration - fadeOut)}:d=${num(fadeOut)}`] : []),
-        ...xfadeNormalize,
+        // Some effects (zoompan) emit 30 fps whatever the input; pin the rate.
+        ...(F !== 30 && effect.ffmpeg ? [`fps=${F}`] : []),
+        ...(transformed ? [] : xfadeNormalize),
       ];
+      const outLabel = transformed ? `${vLabel}t` : vLabel;
       if (effect.ffmpeg && needsWrapping(clip)) {
         // Effect on part of the clip and/or below full strength: split, run the
         // effect on one copy, blend it back (lib/editor/video-look.ts).
         filters.push(`${src}${preChain.join(",")}[${vLabel}p]`);
         filters.push(wrappedEffect(effect.ffmpeg(W, H), clip, `[${vLabel}p]`, `[${vLabel}x]`, `${vLabel}fx`));
-        filters.push(`[${vLabel}x]${postChain.length ? postChain.join(",") : "null"}[${vLabel}]`);
+        filters.push(`[${vLabel}x]${postChain.length ? postChain.join(",") : "null"}[${outLabel}]`);
       } else {
         const vChain = [...preChain, ...(effect.ffmpeg ? [effect.ffmpeg(W, H)] : []), ...postChain];
-        filters.push(`${src}${vChain.join(",")}[${vLabel}]`);
+        filters.push(`${src}${vChain.join(",")}[${outLabel}]`);
+      }
+      if (transformed) {
+        filters.push(...transformStatements(clip, `[${outLabel}]`, W, H, F, `[${vLabel}]`, `${vLabel}tr`, xfadeNormalize));
       }
 
       if (asset.hasAudio && !clip.muted && clip.volume > 0) {
@@ -366,6 +379,54 @@ export function buildFilterGraph(input: FiltergraphInput): FiltergraphResult {
     videoOut = acc;
   }
 
+  // ── Overlay (picture-in-picture) videos, lowest lane first ──
+  // Above the main lane, below images, text and captions.
+  const overlayAudio: string[] = [];
+  [...doc.tracks.overlay]
+    .sort((a, b) => a.lane - b.lane || a.timelineStart - b.timelineStart)
+    .forEach((o, i) => {
+      const n = inputIndex.get(o.assetId)!;
+      const asset = assets.get(o.assetId)!;
+      const speed = o.speed ?? 1;
+      const from = num(o.srcIn);
+      const to = num(o.srcIn + o.duration * speed);
+      const fadeIn = Math.min(o.fadeIn ?? 0, o.duration);
+      const fadeOut = Math.min(o.fadeOut ?? 0, o.duration);
+      const targetW = Math.max(2, Math.round((o.scalePct * W) / 2) * 2);
+      const chain = [
+        `trim=start=${from}:end=${to}`,
+        `setpts=PTS-STARTPTS`,
+        ...(speed !== 1 ? [`setpts=PTS/${num(speed)}`] : []),
+        `fps=${F}`,
+        `scale=w=${targetW}:h=-2`,
+        `setsar=1`,
+        ...orientationFilters(o),
+        ...(o.opacity !== undefined && o.opacity < 1 ? [`colorchannelmixer=aa=${num(o.opacity)}`] : []),
+        ...(fadeIn > 0 ? [`fade=t=in:st=0:d=${num(fadeIn)}:alpha=1`] : []),
+        ...(fadeOut > 0 ? [`fade=t=out:st=${num(o.duration - fadeOut)}:d=${num(fadeOut)}:alpha=1`] : []),
+        `setpts=PTS+${num(o.timelineStart)}/TB`,
+      ];
+      filters.push(`[${n}:v]${chain.join(",")}[ovp${i}]`);
+      const out = `[ov${i}]`;
+      filters.push(
+        `${videoOut}[ovp${i}]overlay=x=(main_w*${num(o.x)})-(overlay_w/2):y=(main_h*${num(o.y)})-(overlay_h/2):` +
+          `enable='between(t,${num(o.timelineStart)},${num(o.timelineStart + o.duration)})':eof_action=pass${out}`,
+      );
+      videoOut = out;
+      if (asset.hasAudio && !o.muted && o.volume > 0) {
+        const delayMs = Math.round(o.timelineStart * 1000);
+        filters.push(
+          `[${n}:a]atrim=start=${from}:end=${to},asetpts=PTS-STARTPTS,` +
+            (speed !== 1 ? `${atempoChain(speed)},` : "") +
+            `aformat=sample_rates=44100:channel_layouts=stereo,volume=${num(o.volume)}` +
+            (fadeIn > 0 ? `,afade=t=in:st=0:d=${num(fadeIn)}` : "") +
+            (fadeOut > 0 ? `,afade=t=out:st=${num(o.duration - fadeOut)}:d=${num(fadeOut)}` : "") +
+            `,adelay=${delayMs}|${delayMs}[ova${i}]`,
+        );
+        overlayAudio.push(`[ova${i}]`);
+      }
+    });
+
   // ── Image/sticker overlays: chained `overlay` with enable windows ──
   // Renders below text so captions stay on top of any sticker/photo overlay.
   doc.tracks.image.forEach((im, i) => {
@@ -378,6 +439,7 @@ export function buildFilterGraph(input: FiltergraphInput): FiltergraphResult {
     const procChain = [
       `scale=w=${targetW}:h=-2`,
       `format=rgba`,
+      ...orientationFilters(im),
       `colorchannelmixer=aa=${num(im.opacity)}`,
       ...(fadeIn > 0 ? [`fade=t=in:st=${num(im.timelineStart)}:d=${num(fadeIn)}:alpha=1`] : []),
       ...(fadeOut > 0 ? [`fade=t=out:st=${num(im.timelineStart + im.duration - fadeOut)}:d=${num(fadeOut)}:alpha=1`] : []),
@@ -498,8 +560,8 @@ export function buildFilterGraph(input: FiltergraphInput): FiltergraphResult {
   let audioOut = baseAudio;
   // Hidden clips are left out, matching the preview (audioClipsAt).
   const audibleClips = doc.tracks.audio.filter((c) => !c.hidden);
-  if (audibleClips.length > 0) {
-    const musicLabels: string[] = [];
+  if (audibleClips.length > 0 || overlayAudio.length > 0) {
+    const musicLabels: string[] = [...overlayAudio];
     const speech = speechRangesFromCaptions(doc);
     audibleClips.forEach((m, i) => {
       const n = inputIndex.get(m.assetId)!;
@@ -603,4 +665,63 @@ export function writeTextFiles(doc: TimelineDoc, dir: string, prefix: string): M
     map.set(t.id, p);
   });
   return map;
+}
+
+/** Main-lane clip has a position/size/orientation/opacity change. */
+export function hasClipTransform(c: VideoClip): boolean {
+  return (
+    (c.scale !== undefined && c.scale !== 1) ||
+    !!c.offsetX ||
+    !!c.offsetY ||
+    !!c.rotationDeg ||
+    !!c.flipH ||
+    !!c.flipV ||
+    (c.opacity !== undefined && c.opacity < 1)
+  );
+}
+
+/** hflip/vflip and a transparent-cornered rotate, on an rgba stream. */
+function orientationFilters(c: { rotationDeg?: number; flipH?: boolean; flipV?: boolean }): string[] {
+  const out: string[] = [];
+  if (c.flipH) out.push("hflip");
+  if (c.flipV) out.push("vflip");
+  if (c.rotationDeg) {
+    const a = `${num((c.rotationDeg * Math.PI) / 180)}`;
+    out.push("format=rgba", `rotate=${a}:ow='rotw(${a})':oh='roth(${a})':c=none`);
+  }
+  return out;
+}
+
+/**
+ * Draws a framed main-lane clip (W×H, from `inLabel`) scaled, rotated,
+ * flipped and offset onto a black W×H frame of the clip's length, then
+ * restores the xfade normalization.
+ */
+function transformStatements(
+  c: VideoClip,
+  inLabel: string,
+  W: number,
+  H: number,
+  F: number,
+  outLabel: string,
+  prefix: string,
+  xfadeNormalize: string[],
+): string[] {
+  const k = c.scale ?? 1;
+  const w = Math.max(2, Math.round((W * k) / 2) * 2);
+  const h = Math.max(2, Math.round((H * k) / 2) * 2);
+  const fg = [
+    `scale=${w}:${h}`,
+    "format=rgba",
+    ...orientationFilters(c),
+    ...(c.opacity !== undefined && c.opacity < 1 ? [`colorchannelmixer=aa=${num(c.opacity)}`] : []),
+  ];
+  const x = `(main_w-overlay_w)/2+${num((c.offsetX ?? 0) * W)}`;
+  const y = `(main_h-overlay_h)/2+${num((c.offsetY ?? 0) * H)}`;
+  const tail = ["format=yuv420p", ...xfadeNormalize.filter((f) => f !== "format=yuv420p")];
+  return [
+    `${inLabel}${fg.join(",")}[${prefix}fg]`,
+    `color=c=black:s=${W}x${H}:r=${F}:d=${num(c.duration)}[${prefix}bg]`,
+    `[${prefix}bg][${prefix}fg]overlay=x=${x}:y=${y}:shortest=1,${tail.join(",")}${outLabel}`,
+  ];
 }

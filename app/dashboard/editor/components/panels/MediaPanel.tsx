@@ -7,7 +7,7 @@
 // Video/Audio tabs.
 
 import React, { useEffect, useRef, useState } from "react";
-import { Music2, UploadCloud } from "lucide-react";
+import { Music2, PictureInPicture2, UploadCloud } from "lucide-react";
 import { useEditorStore } from "../../store/editorStore";
 import {
   type AssetRow,
@@ -141,8 +141,28 @@ export default function MediaPanel({ kind }: { kind?: "audio" } = {}) {
       ) : (
         <div className="editor-stagger-grid grid grid-cols-2 gap-2">
           {shown.map((a) => (
+            <div key={a.id} className="group/media relative">
+            {a.kind === "video" && (
+              <button
+                type="button"
+                onClick={async () => {
+                  setAdding(a.id);
+                  try {
+                    await addAssetToTimeline(a, { asOverlay: true });
+                  } catch {
+                    // metadata probe failed — the asset stays in the library
+                  } finally {
+                    setAdding(null);
+                  }
+                }}
+                title="Add as an overlay (picture-in-picture) at the playhead"
+                aria-label={`Add ${a.name} as an overlay`}
+                className="absolute right-1 top-1 z-10 flex items-center gap-1 rounded-editor-sm bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold text-white opacity-0 transition-opacity hover:bg-editor-accent hover:text-editor-bg focus-visible:opacity-100 group-hover/media:opacity-100 cursor-pointer"
+              >
+                <PictureInPicture2 className="h-3 w-3" /> Overlay
+              </button>
+            )}
             <AssetCard
-              key={a.id}
               onClick={() => addToTimeline(a)}
               adding={adding === a.id}
               title={a.name}
@@ -160,6 +180,7 @@ export default function MediaPanel({ kind }: { kind?: "audio" } = {}) {
                 )
               }
             />
+            </div>
           ))}
         </div>
       )}

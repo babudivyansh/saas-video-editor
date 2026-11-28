@@ -10,7 +10,7 @@ function audio(over: Partial<AudioClip> & { id: string }): AudioClip {
 }
 
 function doc(audioClips: AudioClip[]): TimelineDoc {
-  return { version: 1, aspect: "9:16", fps: 30, tracks: { video: [], text: [], audio: audioClips, image: [], caption: [] } };
+  return { version: 1, aspect: "9:16", fps: 30, tracks: { video: [], text: [], audio: audioClips, image: [], caption: [], overlay: [] } };
 }
 
 function video(over: Partial<VideoClip>): VideoClip {

@@ -24,6 +24,7 @@ function fmtLength(sec: number) {
 }
 
 const TRACKS = [
+  { kind: "overlay" as const, label: "Overlay" },
   { kind: "video" as const, label: "Video" },
   { kind: "image" as const, label: "Image" },
   { kind: "text" as const, label: "Text" },
@@ -53,7 +54,7 @@ export default function Timeline() {
   }, []);
 
   const total = Math.max(docDuration(doc), 10);
-  const clipCount = doc.tracks.video.length + doc.tracks.text.length + doc.tracks.audio.length + doc.tracks.image.length;
+  const clipCount = doc.tracks.video.length + doc.tracks.text.length + doc.tracks.audio.length + doc.tracks.image.length + doc.tracks.overlay.length;
   const contentWidth = total * zoom + 240; // trailing space to drop clips into
 
   const scrub = useScrub(zoom, scrollRef);
@@ -130,7 +131,7 @@ export default function Timeline() {
       <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
       <div className="flex min-h-full">
         <div className="flex flex-shrink-0 flex-col border-r border-editor-border bg-editor-panel">
-          <div className="h-6 w-14 flex-shrink-0" />
+          <div className="h-6 w-[4.5rem] flex-shrink-0" />
           <div className="flex flex-col gap-1 py-1">
             {TRACKS.map((t) => (
               <TrackHeader key={t.kind} kind={t.kind} label={t.label} height={TRACK_HEIGHT[t.kind]} />

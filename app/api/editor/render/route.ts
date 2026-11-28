@@ -71,6 +71,7 @@ async function handlePOST(req: NextRequest) {
       ...doc.tracks.video.map((c) => c.assetId),
       ...doc.tracks.audio.map((c) => c.assetId),
       ...doc.tracks.image.map((c) => c.assetId),
+      ...doc.tracks.overlay.map((c) => c.assetId),
     ]),
   ];
   const assets = await prisma.asset.findMany({ where: { id: { in: assetIds }, userId: auth.userId } });

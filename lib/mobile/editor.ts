@@ -49,7 +49,7 @@ export async function createFromAsset(userId: string, assetId: string): Promise<
   if (a.status && a.status !== "ready") return "not-ready";
   const length = a.duration && a.duration > 0 ? a.duration : 5;
   const base = { id: randomUUID(), timelineStart: 0, duration: length };
-  const doc: TimelineDoc = { ...DEFAULT_DOC, aspect: aspectFor(a.width, a.height), tracks: { video: [], text: [], audio: [], image: [], caption: [] } };
+  const doc: TimelineDoc = { ...DEFAULT_DOC, aspect: aspectFor(a.width, a.height), tracks: { video: [], text: [], audio: [], image: [], caption: [], overlay: [] } };
   if (a.kind === "video") doc.tracks.video.push({ ...base, type: "video", assetId: a.id, srcIn: 0, volume: 1, muted: false } satisfies VideoClip);
   else if (a.kind === "audio") doc.tracks.audio.push({ ...base, type: "audio", assetId: a.id, srcIn: 0, volume: 1 } satisfies AudioClip);
   else doc.tracks.image.push({ ...base, type: "image", assetId: a.id, x: 0.5, y: 0.5, scalePct: 1, opacity: 1 } satisfies ImageClip);
@@ -62,7 +62,7 @@ export async function createFromAsset(userId: string, assetId: string): Promise<
 
 /** An empty edit in the chosen frame shape. */
 export async function createBlank(userId: string, aspect: EditorAspect, title?: string): Promise<{ projectId: string }> {
-  const doc: TimelineDoc = { ...DEFAULT_DOC, aspect, tracks: { video: [], text: [], audio: [], image: [], caption: [] } };
+  const doc: TimelineDoc = { ...DEFAULT_DOC, aspect, tracks: { video: [], text: [], audio: [], image: [], caption: [], overlay: [] } };
   const p = await prisma.project.create({
     data: { userId, title: title ?? "Untitled edit", productType: "editor", status: "draft", editorDoc: doc as unknown as object },
     select: { id: true },

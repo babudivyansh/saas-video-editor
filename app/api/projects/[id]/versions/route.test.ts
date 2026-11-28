@@ -24,7 +24,7 @@ vi.mock("@/lib/prisma", () => ({
 
 const { GET, POST } = await import("./route");
 const ctx = { params: Promise.resolve({ id: "p1" }) };
-const doc = { version: 1, aspect: "9:16", fps: 30, tracks: { video: [], text: [], audio: [], image: [], caption: [] } };
+const doc = { version: 1, aspect: "9:16", fps: 30, tracks: { video: [], text: [], audio: [], image: [], caption: [], overlay: [] } };
 const post = (body: unknown) =>
   new NextRequest("http://localhost/api/projects/p1/versions", { method: "POST", body: JSON.stringify(body), headers: { "Content-Type": "application/json" } });
 

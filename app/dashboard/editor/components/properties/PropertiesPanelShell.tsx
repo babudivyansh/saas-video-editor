@@ -7,16 +7,17 @@
 // AUDIO_TAB_ITEMS in tabConfig.tsx.
 
 import React, { useEffect } from "react";
-import type { AudioClip, CaptionClip, ImageClip, TextClip, VideoClip } from "@/lib/editor/types";
+import type { AudioClip, CaptionClip, ImageClip, OverlayClip, TextClip, VideoClip } from "@/lib/editor/types";
 import { useEditorStore } from "../../store/editorStore";
 import { Tabs, type TabItem } from "../ui";
-import { CAPTION_TAB_ITEMS, IMAGE_TAB_ITEMS, TEXT_TAB_ITEMS, VIDEO_TAB_ITEMS } from "./tabConfig";
+import { CAPTION_TAB_ITEMS, IMAGE_TAB_ITEMS, OVERLAY_TAB_ITEMS, TEXT_TAB_ITEMS, VIDEO_TAB_ITEMS } from "./tabConfig";
 import { useClipTab } from "./useClipTab";
 import VideoClipProps from "./VideoClipProps";
 import TextClipProps from "./TextClipProps";
 import AudioClipProps from "./AudioClipProps";
 import ImageClipProps from "./ImageClipProps";
 import CaptionClipProps from "./CaptionClipProps";
+import OverlayClipProps from "./OverlayClipProps";
 
 export function VideoProperties({ clip }: { clip: VideoClip }) {
   const [activeTab, setActiveTab] = useClipTab(clip.id, VIDEO_TAB_ITEMS);
@@ -53,6 +54,15 @@ export function ImageProperties({ clip }: { clip: ImageClip }) {
   return (
     <TabbedShell items={IMAGE_TAB_ITEMS} activeTab={activeTab} onChange={setActiveTab} layoutId="properties-tabs-image">
       <ImageClipProps clip={clip} activeTab={activeTab} />
+    </TabbedShell>
+  );
+}
+
+export function OverlayProperties({ clip }: { clip: OverlayClip }) {
+  const [activeTab, setActiveTab] = useClipTab(clip.id, OVERLAY_TAB_ITEMS);
+  return (
+    <TabbedShell items={OVERLAY_TAB_ITEMS} activeTab={activeTab} onChange={setActiveTab} layoutId="properties-tabs-overlay">
+      <OverlayClipProps clip={clip} activeTab={activeTab} />
     </TabbedShell>
   );
 }

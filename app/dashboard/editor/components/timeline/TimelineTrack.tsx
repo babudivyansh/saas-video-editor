@@ -14,6 +14,7 @@ export const TRACK_HEIGHT: Record<TrackKind, string> = {
   audio: "h-9",
   image: "h-9",
   caption: "h-9", // caption cues render via the separate CaptionTrack component, not this one
+  overlay: "h-11",
 };
 
 export default function TimelineTrack({ kind }: { kind: TrackKind }) {
@@ -24,9 +25,10 @@ export default function TimelineTrack({ kind }: { kind: TrackKind }) {
   // Fetched once per track (not per-clip) so N clips of the same asset don't
   // each trigger their own /api/assets request.
   const { assets } = useAssets(kind === "audio" ? "audio" : kind === "image" ? "image" : "video");
+  const hidden = useEditorStore((s) => !!s.doc.trackState?.[kind]?.hidden);
 
   return (
-    <div className={`relative ${TRACK_HEIGHT[kind]} rounded-editor-sm bg-editor-elevated`}>
+    <div className={`relative ${TRACK_HEIGHT[kind]} rounded-editor-sm bg-editor-elevated ${hidden ? "opacity-40" : ""}`}>
       {clips.map((clip) => {
         const assetId = "assetId" in clip ? clip.assetId : undefined;
         const asset = assetId ? assets.find((a) => a.id === assetId) : undefined;

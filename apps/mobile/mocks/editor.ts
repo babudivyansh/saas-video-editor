@@ -133,6 +133,7 @@ export function editFixture(): EditorOpen {
       text: [],
       audio: [],
       image: [],
+      overlay: [],
       caption: [caption("c1", 0, ["nobody", "tells", "you", "this", "part"]), caption("c2", 3, ["and", "it", "costs", "you"])],
     },
   };

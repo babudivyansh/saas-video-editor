@@ -70,7 +70,7 @@ describe("caption style override", () => {
     expect(validateCaptionStyle({ motion: "teleport" })).toBe("invalid caption style motion");
     expect(validateCaptionStyle({ motion: "spin" })).toBeNull();
     expect(validateCaptionStyle({ colour: "#FFFFFF" })).toBe("unknown caption style field colour");
-    const doc: TimelineDoc = { version: 1, aspect: "9:16", fps: 30, captionStyle: { size: 9 }, tracks: { video: [], text: [], audio: [], image: [], caption: [] } };
+    const doc: TimelineDoc = { version: 1, aspect: "9:16", fps: 30, captionStyle: { size: 9 }, tracks: { video: [], text: [], audio: [], image: [], caption: [], overlay: [] } };
     expect(validateDoc(doc)).toBe("invalid caption style size");
   });
 

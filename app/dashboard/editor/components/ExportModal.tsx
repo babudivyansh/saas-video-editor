@@ -20,6 +20,7 @@ import { clientAuthToken } from "@/lib/client-session";
 import { useUpgradePrompt } from "@/app/components/captions/useUpgradePrompt";
 import { effectivePlan } from "@/lib/plans/effective-plan";
 import { tierAtLeast, TIER_LABEL } from "@/lib/plans/tiers";
+import { FRAME_RATES } from "@/lib/editor/types";
 import { EXPORT_4K_MAX_SECONDS, EXPORT_4K_MIN_TIER, exportFrame, type ExportQuality } from "@/lib/editor/export-quality";
 import { downloadHref } from "@/lib/download-file";
 
@@ -38,6 +39,7 @@ export default function ExportModal() {
   const projectId = useEditorStore((s) => s.projectId);
   const doc = useEditorStore((s) => s.doc);
   const saveState = useEditorStore((s) => s.saveState);
+  const setFps = useEditorStore((s) => s.setFps);
   const select = useEditorStore((s) => s.select);
   const setCurrentTime = useEditorStore((s) => s.setCurrentTime);
 
@@ -217,6 +219,25 @@ export default function ExportModal() {
                 </div>
                 {can4k && tooLong4k && <p className="text-[12px] text-fg-subtle">4K takes videos up to {EXPORT_4K_MAX_SECONDS / 60} minutes.</p>}
                 {quality === "4k" && <p className="text-[12px] text-fg-subtle">4K renders take several times longer than 1080p.</p>}
+              </div>
+              {/* Frame rate is saved on the project (doc.fps) and read by the render. */}
+              <div className="flex flex-col gap-2">
+                <span className="text-[12px] font-semibold uppercase tracking-wide text-fg-subtle">Frame rate</span>
+                <div className="grid grid-cols-4 rounded-xl border border-line bg-surface-1 p-1 text-[13px] font-semibold" role="radiogroup" aria-label="Frame rate">
+                  {FRAME_RATES.map((f) => (
+                    <button
+                      key={f}
+                      type="button"
+                      role="radio"
+                      aria-checked={(doc.fps ?? 30) === f}
+                      onClick={() => setFps(f)}
+                      className={`rounded-lg py-2 ${(doc.fps ?? 30) === f ? "bg-fg text-bg" : "text-fg-muted hover:text-fg"}`}
+                    >
+                      {f}
+                    </button>
+                  ))}
+                </div>
+                {(doc.fps ?? 30) === 60 && <p className="text-[12px] text-fg-subtle">60 fps renders take about twice as long.</p>}
               </div>
               <div className="flex items-center justify-between rounded-xl border border-line bg-surface-1 px-3.5 py-2.5 text-[13px] text-fg-muted">
                 <span><b className="text-fg">{CREDIT_COST} credit</b> · refunded if the render fails</span>

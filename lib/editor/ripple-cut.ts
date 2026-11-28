@@ -40,11 +40,11 @@ function cutOne(clip: AnyClip, a: number, b: number, newId: () => string): AnyCl
   if (s >= b) return [{ ...clip, timelineStart: s - len }];
   if (s >= a && e <= b) return [];
 
-  const speed = clip.type === "video" ? clip.speed ?? 1 : 1;
+  const speed = clip.type === "video" || clip.type === "overlay" ? clip.speed ?? 1 : 1;
 
   if (s < a && e > b) {
     // The cut is inside the clip.
-    if (clip.type === "video" || clip.type === "audio") {
+    if (clip.type === "video" || clip.type === "audio" || clip.type === "overlay") {
       const left = { ...clip, duration: a - s };
       const right = { ...clip, id: newId(), timelineStart: a, duration: e - b, srcIn: clip.srcIn + (b - s) * speed };
       return [left, right] as AnyClip[];
@@ -65,7 +65,7 @@ function cutOne(clip: AnyClip, a: number, b: number, newId: () => string): AnyCl
 
   // The cut takes the clip's head (a <= s < b < e).
   const lost = b - s;
-  if (clip.type === "video" || clip.type === "audio") {
+  if (clip.type === "video" || clip.type === "audio" || clip.type === "overlay") {
     return [{ ...clip, timelineStart: a, duration: e - b, srcIn: clip.srcIn + lost * speed } as AnyClip];
   }
   if (clip.type === "caption") {
@@ -75,14 +75,14 @@ function cutOne(clip: AnyClip, a: number, b: number, newId: () => string): AnyCl
   return [{ ...clip, timelineStart: a, duration: e - b }];
 }
 
-const TRACKS: TrackKind[] = ["video", "text", "audio", "image", "caption"];
+const TRACKS: TrackKind[] = ["video", "text", "audio", "image", "caption", "overlay"];
 
 /** Removes `ranges` (timeline seconds) from every track and closes the gaps. */
 export function rippleCut(doc: TimelineDoc, ranges: TimeRange[], newId: () => string): TimelineDoc {
   const cuts = normalizeRanges(ranges).reverse(); // latest first, so earlier cuts' positions stay valid
   const tracks = { ...doc.tracks };
   for (const k of TRACKS) {
-    let list = tracks[k] as AnyClip[];
+    let list = (tracks[k] ?? []) as AnyClip[];
     for (const { start, end } of cuts) list = list.flatMap((c) => cutOne(c, start, end, newId));
     list = list.filter((c) => c.duration >= MIN_CLIP_DURATION).sort((x, y) => x.timelineStart - y.timelineStart);
     (tracks as Record<TrackKind, AnyClip[]>)[k] = list;

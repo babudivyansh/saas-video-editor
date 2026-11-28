@@ -1,5 +1,6 @@
 "use client";
 
+import { OrientationCard } from "./TransformControls";
 import React from "react";
 import { useEditorStore } from "../../store/editorStore";
 import type { ImageClip } from "@/lib/editor/types";
@@ -25,6 +26,7 @@ export default function ImageClipProps({ clip, activeTab }: { clip: ImageClip; a
           <Slider label="Opacity" value={clip.opacity} min={0} max={1} step={0.05} onChange={(v) => patch({ opacity: v })} />
           <p className="text-[10px] leading-snug text-editor-text-faint">Drag directly on the preview to reposition.</p>
         </PropertyCard>
+        <OrientationCard value={clip} onChange={(p) => patch(p)} showOpacity={false} />
       </div>
     );
   }

@@ -1,16 +1,41 @@
 // Pure helpers over TimelineDoc — no React, no DOM, no server imports.
 // Used by the client store/preview and the server filtergraph builder.
 
-import type { AudioClip, CaptionClip, CaptionWord, TimelineDoc, VideoClip } from "./timeline";
+import type { AnyClip, AudioClip, CaptionClip, CaptionWord, ImageClip, OverlayClip, TextClip, TimelineDoc, TrackKind, VideoClip } from "./timeline";
 import { MIN_CLIP_DURATION } from "./timeline";
 
 /** Total duration of the timeline: end of the last clip across all tracks. */
 export function docDuration(doc: TimelineDoc): number {
   let end = 0;
-  for (const track of [doc.tracks.video, doc.tracks.text, doc.tracks.audio, doc.tracks.image, doc.tracks.caption] as const) {
+  for (const track of allTracks(doc)) {
     for (const c of track) end = Math.max(end, c.timelineStart + c.duration);
   }
   return end;
+}
+
+/** Every track's clip list, overlay included (older docs may lack it). */
+export function allTracks(doc: TimelineDoc): AnyClip[][] {
+  const t = doc.tracks;
+  return [t.video, t.text, t.audio, t.image, t.caption, t.overlay ?? []];
+}
+
+/** Whether a whole track is switched off in the track header. */
+export function trackHidden(doc: TimelineDoc, kind: TrackKind): boolean {
+  return doc.trackState?.[kind]?.hidden === true;
+}
+export function trackMuted(doc: TimelineDoc, kind: TrackKind): boolean {
+  return doc.trackState?.[kind]?.muted === true;
+}
+export function trackLocked(doc: TimelineDoc, kind: TrackKind): boolean {
+  return doc.trackState?.[kind]?.locked === true;
+}
+
+/** Overlay clips under the playhead, lowest lane first (draw order). */
+export function overlayClipsAt(doc: TimelineDoc, t: number): OverlayClip[] {
+  if (trackHidden(doc, "overlay")) return [];
+  return (doc.tracks.overlay ?? [])
+    .filter((c) => !c.hidden && t >= c.timelineStart && t < c.timelineStart + c.duration)
+    .sort((a, b) => a.lane - b.lane || a.timelineStart - b.timelineStart);
 }
 
 /** The video clip active at timeline time t, or null (gap / past end). */
@@ -40,6 +65,7 @@ export function audioClipAt(doc: TimelineDoc, t: number): AudioClip | null {
 
 /** Every audio clip active at timeline time t (the export mixes them all with amix). */
 export function audioClipsAt(doc: TimelineDoc, t: number): AudioClip[] {
+  if (trackHidden(doc, "audio") || trackMuted(doc, "audio")) return [];
   return doc.tracks.audio.filter((c) => !c.hidden && t >= c.timelineStart && t < c.timelineStart + c.duration);
 }
 
@@ -105,12 +131,13 @@ export function snapTime(t: number, candidates: number[], toleranceSec: number):
 /** All snap candidate times in the doc (clip edges on every track). */
 export function snapCandidates(doc: TimelineDoc, excludeClipId?: string): number[] {
   const out: number[] = [0];
-  for (const track of [doc.tracks.video, doc.tracks.text, doc.tracks.audio, doc.tracks.image, doc.tracks.caption] as const) {
+  for (const track of allTracks(doc)) {
     for (const c of track) {
       if (c.id === excludeClipId) continue;
       out.push(c.timelineStart, c.timelineStart + c.duration);
     }
   }
+  for (const m of doc.markers ?? []) out.push(m.t);
   return out;
 }
 
@@ -186,4 +213,112 @@ export function splitCaptionClip(clip: CaptionClip, t: number, newId: string): [
   const left: CaptionClip = { ...clip, duration: offset };
   const right: CaptionClip = { ...clip, id: newId, timelineStart: t, duration: clip.duration - offset, text: "" };
   return [left, right];
+}
+
+/**
+ * Splits a text, image, audio or overlay clip at timeline time t (Phase 1;
+ * only video and captions could be split before). Source-backed clips advance
+ * srcIn by the left part's length (times speed); text keyframes are shared
+ * out by time, the right half's re-based to its own start.
+ */
+export function splitFreeClip<T extends TextClip | ImageClip | AudioClip | OverlayClip>(clip: T, t: number, newId: string): [T, T] | null {
+  const offset = t - clip.timelineStart;
+  if (offset < MIN_CLIP_DURATION || clip.duration - offset < MIN_CLIP_DURATION) return null;
+  const left = { ...clip, duration: offset } as T;
+  const right = { ...clip, id: newId, timelineStart: t, duration: clip.duration - offset } as T;
+  if (clip.type === "audio" || clip.type === "overlay") {
+    const speed = clip.type === "overlay" ? clip.speed ?? 1 : 1;
+    (right as AudioClip | OverlayClip).srcIn = clip.srcIn + offset * speed;
+    // A fade belongs to the outer edge it was set on.
+    (left as AudioClip | OverlayClip).fadeOut = undefined;
+    (right as AudioClip | OverlayClip).fadeIn = undefined;
+  }
+  if (clip.type === "image") {
+    (left as ImageClip).fadeOut = undefined;
+    (right as ImageClip).fadeIn = undefined;
+  }
+  if (clip.type === "text" && clip.keyframes?.length) {
+    (left as TextClip).keyframes = clip.keyframes.filter((k) => k.t < offset);
+    (right as TextClip).keyframes = clip.keyframes.filter((k) => k.t >= offset).map((k) => ({ ...k, t: k.t - offset }));
+  }
+  return [left, right];
+}
+
+/**
+ * Closes the gap a removed main-lane span leaves (magnet on): every video
+ * clip starting at or after `from` moves left by `length`.
+ */
+export function closeVideoGap(track: VideoClip[], from: number, length: number): VideoClip[] {
+  if (length <= 0) return track;
+  return track
+    .map((c) => (c.timelineStart >= from - 0.001 ? { ...c, timelineStart: Math.max(0, c.timelineStart - length) } : c))
+    .sort((a, b) => a.timelineStart - b.timelineStart);
+}
+
+/**
+ * Trims `clip` so it keeps only the part before (side "right" removed) or
+ * after (side "left" removed) timeline time t — the Q/W edits. Returns the
+ * patched clip, or null when t is not inside it.
+ */
+export function trimAtPlayhead<T extends AnyClip>(clip: T, t: number, removeSide: "left" | "right"): T | null {
+  const offset = t - clip.timelineStart;
+  if (offset < MIN_CLIP_DURATION || clip.duration - offset < MIN_CLIP_DURATION) return null;
+  if (removeSide === "right") {
+    const kept = { ...clip, duration: offset } as T;
+    if (clip.type === "caption" && clip.words?.length) {
+      const ms = offset * 1000;
+      (kept as CaptionClip).words = clip.words.filter((w) => w.startMs < ms).map((w) => ({ ...w, endMs: Math.min(w.endMs, ms) }));
+      (kept as CaptionClip).text = ((kept as CaptionClip).words ?? []).map((w) => w.word).join(" ");
+    }
+    if (clip.type === "text" && clip.keyframes?.length) {
+      (kept as TextClip).keyframes = clip.keyframes.filter((k) => k.t < offset);
+    }
+    return kept;
+  }
+  const next = { ...clip, timelineStart: t, duration: clip.duration - offset } as T;
+  if ("srcIn" in clip) {
+    const speed = "speed" in clip && clip.speed ? clip.speed : 1;
+    (next as T & { srcIn: number }).srcIn = clip.srcIn + offset * speed;
+  }
+  if (clip.type === "text" && clip.keyframes?.length) {
+    (next as TextClip).keyframes = clip.keyframes.filter((k) => k.t >= offset).map((k) => ({ ...k, t: k.t - offset }));
+  }
+  if (clip.type === "caption" && clip.words?.length) {
+    const ms = offset * 1000;
+    (next as CaptionClip).words = clip.words
+      .filter((w) => w.endMs > ms)
+      .map((w) => ({ ...w, startMs: Math.max(0, w.startMs - ms), endMs: w.endMs - ms }));
+    (next as CaptionClip).text = ((next as CaptionClip).words ?? []).map((w) => w.word).join(" ");
+  }
+  return next;
+}
+
+/**
+ * The document as the export should see it: hidden clips (on overlay tracks)
+ * and hidden tracks are dropped, muted tracks are silenced. A hidden main
+ * video track keeps its timing (the frame goes black) so nothing else shifts.
+ * Idempotent; the preview applies the same rules directly.
+ */
+export function exportView(doc: TimelineDoc): TimelineDoc {
+  const t = doc.tracks;
+  const hide = (k: TrackKind) => trackHidden(doc, k);
+  const mute = (k: TrackKind) => trackMuted(doc, k);
+  const video = t.video.map((c) => {
+    if (!hide("video") && !mute("video")) return c;
+    return { ...c, ...(hide("video") ? { opacity: 0 } : {}), ...(mute("video") ? { muted: true } : {}) };
+  });
+  return {
+    ...doc,
+    trackState: undefined,
+    tracks: {
+      video,
+      text: hide("text") ? [] : t.text.filter((c) => !c.hidden),
+      image: hide("image") ? [] : t.image.filter((c) => !c.hidden),
+      caption: hide("caption") ? [] : t.caption.filter((c) => !c.hidden),
+      audio: hide("audio") || mute("audio") ? [] : t.audio.filter((c) => !c.hidden),
+      overlay: hide("overlay")
+        ? []
+        : (t.overlay ?? []).filter((c) => !c.hidden).map((c) => (mute("overlay") ? { ...c, muted: true } : c)),
+    },
+  };
 }

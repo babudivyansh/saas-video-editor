@@ -7,7 +7,8 @@
 
 import { useEffect, useRef } from "react";
 import { useEditorStore } from "../store/editorStore";
-import { audioClipsAt, docDuration, videoClipAt } from "@/lib/editor/doc-utils";
+import { audioClipsAt, docDuration, fadeOpacityAt, overlayClipsAt, trackHidden, trackMuted, videoClipAt } from "@/lib/editor/doc-utils";
+import type { VideoClip } from "@/lib/editor/types";
 import { clipDuckSegments, musicGainAt, speechRangesFromCaptions } from "@/lib/editor/music-envelope";
 import { adjustCss, effectActiveAt } from "@/lib/editor/video-look";
 import {
@@ -24,6 +25,8 @@ export interface MediaRegistry {
   /** assetId → media element rendered by PreviewStage */
   videos: Map<string, HTMLVideoElement>;
   audios: Map<string, HTMLAudioElement>;
+  /** overlay clip id → its <video> (one element per clip, Phase 1) */
+  overlays?: Map<string, HTMLVideoElement>;
   /** Blurred backdrop behind a "fit" clip (filtergraph.ts fitStatements). */
   backdrop?: HTMLCanvasElement | null;
 }
@@ -38,6 +41,17 @@ function drawCover(canvas: HTMLCanvasElement, video: HTMLVideoElement) {
   const { width: cw, height: ch } = canvas;
   const s = Math.max(cw / vw, ch / vh);
   ctx.drawImage(video, (cw - vw * s) / 2, (ch - vh * s) / 2, vw * s, vh * s);
+}
+
+/** CSS transform for a main-lane clip's position/size/rotation/flip — the
+ *  same placement filtergraph.ts transformStatements draws. */
+export function videoTransformCss(c: VideoClip): string {
+  const parts: string[] = [];
+  if (c.offsetX || c.offsetY) parts.push(`translate(${(c.offsetX ?? 0) * 100}%, ${(c.offsetY ?? 0) * 100}%)`);
+  if (c.scale !== undefined && c.scale !== 1) parts.push(`scale(${c.scale})`);
+  if (c.rotationDeg) parts.push(`rotate(${c.rotationDeg}deg)`);
+  if (c.flipH || c.flipV) parts.push(`scale(${c.flipH ? -1 : 1}, ${c.flipV ? -1 : 1})`);
+  return parts.join(" ");
 }
 
 export function usePlayback(registry: React.RefObject<MediaRegistry>) {
@@ -98,7 +112,7 @@ export function usePlayback(registry: React.RefObject<MediaRegistry>) {
             el.currentTime = target;
           }
           if (el.playbackRate !== speed) el.playbackRate = speed;
-          el.muted = active.muted;
+          el.muted = active.muted || trackMuted(s.doc, "video");
           el.volume = active.volume;
           // Fade preview: approximate the export's fade-to-black with opacity.
           const local = t - active.timelineStart;
@@ -117,7 +131,12 @@ export function usePlayback(registry: React.RefObject<MediaRegistry>) {
             if (local > active.duration - transDur)
               opacity = Math.min(opacity, (active.duration - local) / transDur);
           }
+          // Clip opacity, and a hidden track shows black (as the export does).
+          opacity *= active.opacity ?? 1;
+          if (trackHidden(s.doc, "video")) opacity = 0;
           el.style.opacity = String(Math.max(0, Math.min(1, opacity)));
+          const transform = videoTransformCss(active);
+          if (el.style.transform !== transform) el.style.transform = transform;
           // Framing: the same choice the export's fill/fit filters make.
           // object-position on a cover-fitted element offsets the overflow
           // exactly like crop's x=(in_w-out_w)*focusX.
@@ -158,6 +177,32 @@ export function usePlayback(registry: React.RefObject<MediaRegistry>) {
           if (backdrop.style.filter !== blur) backdrop.style.filter = blur;
         } else if (backdrop.style.opacity !== "0") {
           backdrop.style.opacity = "0";
+        }
+      }
+
+      // Overlay videos: each clip has its own element.
+      if (reg.overlays) {
+        const activeOverlays = overlayClipsAt(s.doc, t);
+        const overlayMuted = trackMuted(s.doc, "overlay");
+        for (const [clipId, el] of reg.overlays) {
+          const clip = activeOverlays.find((c) => c.id === clipId);
+          if (clip) {
+            const speed = clip.speed ?? 1;
+            const target = clip.srcIn + (t - clip.timelineStart) * speed;
+            if (Math.abs(el.currentTime - target) > DRIFT_TOLERANCE * Math.max(speed, 1)) el.currentTime = target;
+            if (el.playbackRate !== speed) el.playbackRate = speed;
+            el.muted = clip.muted || overlayMuted;
+            el.volume = clip.volume;
+            const o = (clip.opacity ?? 1) * fadeOpacityAt(t - clip.timelineStart, clip.duration, clip.fadeIn, clip.fadeOut);
+            el.style.opacity = String(o);
+            el.style.pointerEvents = "auto";
+            if (s.playing && el.paused) el.play().catch(() => {});
+            if (!s.playing && !el.paused) el.pause();
+          } else {
+            el.style.opacity = "0";
+            el.style.pointerEvents = "none";
+            if (!el.paused) el.pause();
+          }
         }
       }
 

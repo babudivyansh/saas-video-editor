@@ -73,7 +73,7 @@ vi.mock("@/lib/project-versions", () => ({
 const { PATCH, DELETE } = await import("./route");
 
 function makeDoc(marker: string) {
-  return { version: 1, aspect: "9:16", fps: 30, tracks: { video: [], text: [], audio: [], image: [], caption: [] }, marker };
+  return { version: 1, aspect: "9:16", fps: 30, tracks: { video: [], text: [], audio: [], image: [], caption: [], overlay: [] }, marker };
 }
 
 function patchRequest(body: unknown) {

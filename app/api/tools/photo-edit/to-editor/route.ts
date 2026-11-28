@@ -37,6 +37,7 @@ async function handlePOST(req: NextRequest) {
       audio: [],
       image: [{ type: "image", id: randomUUID(), assetId: asset.id, timelineStart: 0, duration: IMAGE_SECONDS, x: 0.5, y: 0.5, scalePct: 1, opacity: 1 }],
       caption: [],
+      overlay: [],
     },
   };
 

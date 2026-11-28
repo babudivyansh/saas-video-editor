@@ -5,7 +5,7 @@
 // Undo/redo live in the editor header (redesign A).
 
 import React from "react";
-import { Copy, CopyPlus, Magnet, Scissors, Sparkles, Trash2, ClipboardPaste } from "lucide-react";
+import { ArrowLeftToLine, Bookmark, Copy, CopyPlus, Magnet, Scissors, Sparkles, Trash2, ClipboardPaste } from "lucide-react";
 import { useEditorStore } from "../store/editorStore";
 import { IconButton } from "./ui";
 
@@ -19,6 +19,9 @@ export default function EditToolbar() {
   const toggleSnap = useEditorStore((s) => s.toggleSnap);
   const selection = useEditorStore((s) => s.selection);
   const setActivePanel = useEditorStore((s) => s.setActivePanel);
+  const magnet = useEditorStore((s) => !!s.doc.magnet);
+  const setMagnet = useEditorStore((s) => s.setMagnet);
+  const toggleMarker = useEditorStore((s) => s.toggleMarker);
 
   return (
     <div className="flex flex-shrink-0 items-center gap-0.5">
@@ -70,6 +73,22 @@ export default function EditToolbar() {
       >
         <Magnet className="h-3.5 w-3.5" /> Snap
       </button>
+      <button
+        type="button"
+        onClick={() => setMagnet(!magnet)}
+        aria-pressed={magnet}
+        title={magnet ? "Main track magnet on: deleting a video clip closes the gap" : "Main track magnet off: deleting a video clip leaves a gap"}
+        className={`flex h-7 items-center gap-1.5 rounded-editor-sm px-2 text-[11.5px] font-semibold transition-colors ${magnet ? "bg-editor-accent/15 text-editor-accent" : "text-editor-text-muted hover:bg-editor-card hover:text-editor-text"}`}
+      >
+        <ArrowLeftToLine className="h-3.5 w-3.5" /> <span className="max-md:hidden">Magnet</span>
+      </button>
+      <IconButton
+        icon={<Bookmark className="h-4 w-4" />}
+        label="Marker at playhead (M)"
+        onClick={() => toggleMarker()}
+        size="sm"
+        tooltipSide="bottom"
+      />
       <IconButton
         icon={<Sparkles className="h-4 w-4" />}
         label="Effects"

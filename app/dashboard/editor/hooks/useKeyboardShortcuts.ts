@@ -46,9 +46,25 @@ export function useKeyboardShortcuts() {
       if (e.code === "Space") {
         e.preventDefault();
         s.setPlaying(!s.playing);
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "g") {
+        e.preventDefault();
+        if (e.shiftKey) s.ungroupSelected();
+        else s.groupSelected();
       } else if (e.key === "s" || e.key === "S") {
         e.preventDefault();
         s.splitAtPlayhead();
+      } else if (!e.ctrlKey && !e.metaKey && !e.altKey && (e.key === "q" || e.key === "Q")) {
+        e.preventDefault();
+        s.trimSelectedAtPlayhead("left");
+      } else if (!e.ctrlKey && !e.metaKey && !e.altKey && (e.key === "w" || e.key === "W")) {
+        e.preventDefault();
+        s.trimSelectedAtPlayhead("right");
+      } else if (!e.ctrlKey && !e.metaKey && !e.altKey && (e.key === "m" || e.key === "M")) {
+        e.preventDefault();
+        s.toggleMarker();
+      } else if ((e.key === "Delete" || e.key === "Backspace") && e.shiftKey) {
+        e.preventDefault();
+        s.rippleDeleteSelected();
       } else if (e.key === "Delete" || e.key === "Backspace") {
         e.preventDefault();
         s.deleteSelected();

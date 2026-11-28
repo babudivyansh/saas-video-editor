@@ -20,7 +20,8 @@ function items(ids: string[]): TabItem[] {
   return ids.map((id) => ({ id, ...TAB_DEFS[id] }));
 }
 
-export const VIDEO_TAB_ITEMS = items(["basic", "animation", "adjust", "audio", "effects"]);
+export const VIDEO_TAB_ITEMS = items(["basic", "transform", "animation", "adjust", "audio", "effects"]);
+export const OVERLAY_TAB_ITEMS = items(["basic", "transform", "animation", "audio"]);
 export const TEXT_TAB_ITEMS = items(["basic", "adjust", "transform", "animation", "ai"]);
 export const IMAGE_TAB_ITEMS = items(["basic", "transform", "animation"]);
 // No "ai" tab here — all 8 caption AI actions (fix grammar, remove filler

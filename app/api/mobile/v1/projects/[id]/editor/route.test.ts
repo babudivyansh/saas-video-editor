@@ -18,7 +18,7 @@ const ctx = { params: Promise.resolve({ id: "p1" }) };
 const req = (method: string, body?: unknown) =>
   new NextRequest("http://localhost/api/mobile/v1/projects/p1/editor", { method, headers: { authorization: "Bearer acc", "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
 const clip = { id: "v1", type: "video", assetId: "a1", timelineStart: 0, duration: 10, srcIn: 0, volume: 1, muted: false };
-const doc = { version: 1, aspect: "9:16", fps: 30, tracks: { video: [clip], text: [], audio: [], image: [], caption: [] } };
+const doc = { version: 1, aspect: "9:16", fps: 30, tracks: { video: [clip], text: [], audio: [], image: [], caption: [], overlay: [] } };
 
 beforeEach(() => vi.clearAllMocks());
 

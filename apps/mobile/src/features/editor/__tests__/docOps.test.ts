@@ -14,6 +14,7 @@ const doc = (): TimelineDoc => ({
     text: [],
     audio: [],
     image: [],
+    overlay: [],
     caption: [
       { id: "c1", type: "caption", timelineStart: 0, duration: 2, text: "nobody tells you", words: [{ word: "nobody", startMs: 0, endMs: 600 }, { word: "tells", startMs: 600, endMs: 1200 }, { word: "you", startMs: 1200, endMs: 2000 }], fontFamily: "Poppins", fontSizePct: 0.05, color: "#ffffff", bold: true, bgColor: null, x: 0.5, y: 0.8, highlightMode: "word" },
       { id: "c2", type: "caption", timelineStart: 2, duration: 2, text: "typed by hand", fontFamily: "Poppins", fontSizePct: 0.05, color: "#ffffff", bold: true, bgColor: null, x: 0.5, y: 0.8, highlightMode: "none" },

@@ -11,7 +11,7 @@ import { motion } from "framer-motion";
 import { useEditorStore } from "../store/editorStore";
 import { usePlayback, type MediaRegistry } from "../hooks/usePlayback";
 import { recordSourceDuration } from "../store/sourceDurations";
-import { docDuration, fadeOpacityAt } from "@/lib/editor/doc-utils";
+import { docDuration, fadeOpacityAt, trackHidden } from "@/lib/editor/doc-utils";
 import { docDimensions } from "@/lib/editor/types";
 import { useAssets } from "./panels/shared/assetData";
 import { buildTextCss } from "./text/textStyle";
@@ -39,7 +39,7 @@ export default function PreviewStage() {
   const { assets: imageAssets } = useAssets("image");
 
   const stageRef = useRef<HTMLDivElement>(null);
-  const registry = useRef<MediaRegistry>({ videos: new Map(), audios: new Map() });
+  const registry = useRef<MediaRegistry>({ videos: new Map(), audios: new Map(), overlays: new Map() });
   usePlayback(registry);
 
   const [stageH, setStageH] = useState(360);
@@ -66,9 +66,9 @@ export default function PreviewStage() {
     "";
 
   // Text/image/caption drag-positioning (shared — all three are normalized x/y overlays)
-  const dragState = useRef<{ clipId: string; track: "text" | "image" | "caption"; before: ReturnType<typeof structuredClone<typeof doc>> } | null>(null);
+  const dragState = useRef<{ clipId: string; track: "text" | "image" | "caption" | "overlay"; before: ReturnType<typeof structuredClone<typeof doc>> } | null>(null);
 
-  const onOverlayPointerDown = (e: React.PointerEvent, clipId: string, track: "text" | "image" | "caption") => {
+  const onOverlayPointerDown = (e: React.PointerEvent, clipId: string, track: "text" | "image" | "caption" | "overlay") => {
     e.stopPropagation();
     select({ clipId, track });
     dragState.current = { clipId, track, before: structuredClone(useEditorStore.getState().doc) };
@@ -103,19 +103,19 @@ export default function PreviewStage() {
   };
 
   const activeTexts = doc.tracks.text.filter(
-    (t) => !t.hidden && currentTime >= t.timelineStart && currentTime < t.timelineStart + t.duration,
+    (t) => !t.hidden && !trackHidden(doc, "text") && currentTime >= t.timelineStart && currentTime < t.timelineStart + t.duration,
   );
   const activeImages = doc.tracks.image.filter(
-    (im) => !im.hidden && currentTime >= im.timelineStart && currentTime < im.timelineStart + im.duration,
+    (im) => !im.hidden && !trackHidden(doc, "image") && currentTime >= im.timelineStart && currentTime < im.timelineStart + im.duration,
   );
   // Cues with a caption template are drawn by the template renderer below;
   // only plain cues use the per-cue overlay.
   const activeCaptions = doc.tracks.caption.filter(
-    (c) => !c.hidden && !c.templateId && currentTime >= c.timelineStart && currentTime < c.timelineStart + c.duration,
+    (c) => !c.hidden && !trackHidden(doc, "caption") && !c.templateId && currentTime >= c.timelineStart && currentTime < c.timelineStart + c.duration,
   );
   const templateLayers = useMemo(
     () =>
-      templateCaptionGroups(doc.tracks.caption).map((g) => {
+      templateCaptionGroups(trackHidden(doc, "caption") ? [] : doc.tracks.caption).map((g) => {
         const { template, positionY, positionX } = effectiveCaptionTemplate(g.templateId, doc.captionStyle, dims);
         const emoji = planEmoji(g.words, template.emoji !== "none");
         const speakers = new Map<string, number>();
@@ -178,6 +178,34 @@ export default function PreviewStage() {
             />
           ))}
 
+          {/* Overlay (picture-in-picture) videos: one element per clip, placed
+              like an image; usePlayback shows, seeks and plays them. */}
+          {doc.tracks.overlay.filter((o) => assetUrl(o.assetId)).map((o) => (
+            <video
+              key={o.id}
+              ref={(el) => {
+                if (el) registry.current.overlays?.set(o.id, el);
+                else registry.current.overlays?.delete(o.id);
+              }}
+              src={assetUrl(o.assetId)}
+              onLoadedMetadata={(e) => recordSourceDuration(o.assetId, e.currentTarget.duration)}
+              onPointerDown={(e) => onOverlayPointerDown(e, o.id, "overlay")}
+              onPointerMove={onOverlayPointerMove}
+              onPointerUp={onOverlayPointerUp}
+              preload="auto"
+              playsInline
+              className={`absolute cursor-move select-none ${selection?.clipId === o.id ? "ring-2 ring-editor-accent" : ""}`}
+              style={{
+                left: `${o.x * 100}%`,
+                top: `${o.y * 100}%`,
+                width: `${o.scalePct * 100}%`,
+                transform: `translate(-50%, -50%) rotate(${o.rotationDeg ?? 0}deg) scale(${o.flipH ? -1 : 1}, ${o.flipV ? -1 : 1})`,
+                zIndex: 1 + o.lane,
+                opacity: 0,
+              }}
+            />
+          ))}
+
           {/* Audio layers (hidden) — same not-yet-resolved guard as above. */}
           {usedAudioAssetIds.filter((id) => assetUrl(id)).map((assetId) => (
             <audio
@@ -211,6 +239,7 @@ export default function PreviewStage() {
                 width: `${im.scalePct * 100}%`,
                 // Fades: the same ramp the export's alpha `fade` filters draw.
                 opacity: im.opacity * fadeOpacityAt(currentTime - im.timelineStart, im.duration, im.fadeIn, im.fadeOut),
+                transform: `rotate(${im.rotationDeg ?? 0}deg) scale(${im.flipH ? -1 : 1}, ${im.flipV ? -1 : 1})`,
               }}
             />
           ))}

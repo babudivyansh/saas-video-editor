@@ -8,7 +8,7 @@ import { useEditorStore } from "../store/editorStore";
 import { useIsCompactEditor } from "../hooks/useIsCompactEditor";
 import { useIsPhoneEditor } from "../hooks/useIsPhoneEditor";
 import { EmptyState } from "./ui";
-import { AudioProperties, CaptionProperties, ImageProperties, TextProperties, VideoProperties } from "./properties/PropertiesPanelShell";
+import { AudioProperties, CaptionProperties, ImageProperties, OverlayProperties, TextProperties, VideoProperties } from "./properties/PropertiesPanelShell";
 
 export default function PropertiesPanel() {
   const selection = useEditorStore((s) => s.selection);
@@ -41,6 +41,9 @@ export default function PropertiesPanel() {
     } else if (selection.track === "caption") {
       const clip = doc.tracks.caption.find((c) => c.id === selection.clipId);
       if (clip) content = <CaptionProperties clip={clip} />;
+    } else if (selection.track === "overlay") {
+      const clip = doc.tracks.overlay.find((c) => c.id === selection.clipId);
+      if (clip) content = <OverlayProperties clip={clip} />;
     } else if (selection.track === "audio") {
       const clip = doc.tracks.audio.find((c) => c.id === selection.clipId);
       if (clip) content = <AudioProperties clip={clip} />;
