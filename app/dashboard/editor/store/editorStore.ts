@@ -6,10 +6,21 @@
 // call the *Transient variants per-frame and commit once on pointer-up.
 
 import { create } from "zustand";
-import type { AnyClip, Aspect, AudioClip, CaptionClip, ImageClip, TextClip, TimelineDoc, TrackKind, VideoClip } from "@/lib/editor/types";
-import { DEFAULT_DOC, MAX_CAPTION_CLIPS_PER_TRACK, MAX_CLIPS_PER_TRACK, normalizeDoc } from "@/lib/editor/types";
+import type { AnyClip, Aspect, AudioClip, CaptionClip, FrameRate, ImageClip, Marker, OverlayClip, TextClip, TimelineDoc, TrackKind, TrackState, VideoClip } from "@/lib/editor/types";
+import { DEFAULT_DOC, MAX_CAPTION_CLIPS_PER_TRACK, MAX_CLIPS_PER_TRACK, MAX_MARKERS, normalizeDoc } from "@/lib/editor/types";
 import { showPanelToast } from "../components/ui/PanelToast";
-import { docDuration, placeCaptionClip, placeVideoClip, splitCaptionClip, splitVideoClip, videoClipAt } from "@/lib/editor/doc-utils";
+import {
+  closeVideoGap,
+  docDuration,
+  placeCaptionClip,
+  placeVideoClip,
+  splitCaptionClip,
+  splitFreeClip,
+  splitVideoClip,
+  trackLocked,
+  trimAtPlayhead,
+  videoClipAt,
+} from "@/lib/editor/doc-utils";
 import { emptyHistory, pushHistory, redo, undo, type HistoryState } from "./history";
 import { realignWords } from "@/lib/editor/caption-words";
 import { rippleCut, type TimeRange } from "@/lib/editor/ripple-cut";
@@ -62,6 +73,37 @@ export interface Selection {
   track: TrackKind;
 }
 
+const FREE_TRACKS = ["text", "audio", "image", "overlay"] as const;
+type FreeTrack = (typeof FREE_TRACKS)[number];
+const isFreeTrack = (t: TrackKind): t is FreeTrack => (FREE_TRACKS as readonly string[]).includes(t);
+
+/** Every clip the selection covers: the primary pick, Shift/Ctrl picks, and
+ *  the rest of any group one of them belongs to. */
+export function selectedClips(doc: TimelineDoc, primary: Selection | null, extra: Selection[]): Selection[] {
+  const picks = [...(primary ? [primary] : []), ...extra];
+  const groupIds = new Set<string>();
+  const out = new Map<string, Selection>();
+  for (const p of picks) {
+    const clip = (doc.tracks[p.track] as AnyClip[] | undefined)?.find((c) => c.id === p.clipId);
+    if (!clip) continue;
+    out.set(clip.id, p);
+    if (clip.groupId) groupIds.add(clip.groupId);
+  }
+  if (groupIds.size) {
+    for (const track of Object.keys(doc.tracks) as TrackKind[]) {
+      for (const c of doc.tracks[track] as AnyClip[]) {
+        if (c.groupId && groupIds.has(c.groupId) && !out.has(c.id)) out.set(c.id, { clipId: c.id, track });
+      }
+    }
+  }
+  return [...out.values()];
+}
+
+/** A clip, or its whole track, is locked against edits. */
+function isLocked(doc: TimelineDoc, track: TrackKind, clip: AnyClip): boolean {
+  return !!clip.locked || trackLocked(doc, track);
+}
+
 interface EditorState {
   // Persisted document
   projectId: string | null;
@@ -72,6 +114,8 @@ interface EditorState {
 
   // Transient state
   selection: Selection | null;
+  /** Shift/Ctrl-clicked clips besides `selection` (Phase 1 multi-select). */
+  extraSelection: Selection[];
   clipboard: AnyClip | null;
   playing: boolean;
   currentTime: number; // throttled mirror of the rAF clock (UI text etc.)
@@ -110,6 +154,8 @@ interface EditorState {
 
   // Selection / UI
   select: (sel: Selection | null) => void;
+  /** Shift/Ctrl-click: adds the clip to the selection, or removes it. */
+  toggleSelect: (sel: Selection) => void;
   setActivePanel: (p: PanelKind) => void;
   setZoom: (z: number) => void;
   toggleSnap: () => void;
@@ -151,11 +197,24 @@ interface EditorState {
   updateClip: (track: TrackKind, clipId: string, patch: Record<string, unknown>, undoable?: boolean) => void;
   commitDrag: (before: TimelineDoc) => void;
   moveVideoClipTransient: (clipId: string, newStart: number) => void;
-  moveOverlayClipTransient: (track: "text" | "audio" | "image", clipId: string, newStart: number) => void;
+  moveOverlayClipTransient: (track: "text" | "audio" | "image" | "overlay", clipId: string, newStart: number) => void;
   /** `origin` = the clip as it was at pointer-down (see trimPatch). */
   trimClipTransient: (track: TrackKind, clipId: string, edge: "left" | "right", newTime: number, origin?: AnyClip) => void;
   splitAtPlayhead: () => void;
   deleteSelected: () => void;
+  /** Deletes the selected clips and closes the gap on every track (Shift+Delete). */
+  rippleDeleteSelected: () => void;
+  /** Q / W: removes the part of the selected clip before / after the playhead. */
+  trimSelectedAtPlayhead: (removeSide: "left" | "right") => void;
+  addOverlayClip: (clip: OverlayClip) => void;
+  /** Adds a marker at `t` (default the playhead); toggles it off if one is already there. */
+  toggleMarker: (t?: number) => void;
+  removeMarker: (id: string) => void;
+  setTrackState: (kind: TrackKind, patch: TrackState) => void;
+  setFps: (fps: FrameRate) => void;
+  setMagnet: (on: boolean) => void;
+  groupSelected: () => void;
+  ungroupSelected: () => void;
   copySelected: () => void;
   duplicateSelected: () => void;
   pasteAtPlayhead: () => void;
@@ -170,6 +229,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   editorVersion: 1,
 
   selection: null,
+  extraSelection: [],
   clipboard: null,
   playing: false,
   currentTime: 0,
@@ -196,6 +256,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       history: emptyHistory(),
       editorVersion: editorVersion ?? 1,
       selection: null,
+      extraSelection: [],
       playing: false,
       currentTime: 0,
       saveState: "saved",
@@ -211,6 +272,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       history: emptyHistory(),
       editorVersion: 1,
       selection: null,
+      extraSelection: [],
       playing: false,
       currentTime: 0,
       saveState: "saved",
@@ -220,7 +282,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   markSaved: (state) => set({ saveState: state }),
   setEditorVersion: (v) => set({ editorVersion: v }),
 
-  select: (sel) => set({ selection: sel }),
+  select: (sel) => set({ selection: sel, extraSelection: [] }),
+  toggleSelect: (sel) =>
+    set((s) => {
+      if (!s.selection) return { selection: sel, extraSelection: [] };
+      if (s.selection.clipId === sel.clipId) {
+        // Removing the primary promotes the next pick.
+        const [next, ...rest] = s.extraSelection;
+        return { selection: next ?? null, extraSelection: rest };
+      }
+      const has = s.extraSelection.some((e) => e.clipId === sel.clipId);
+      return { extraSelection: has ? s.extraSelection.filter((e) => e.clipId !== sel.clipId) : [...s.extraSelection, sel] };
+    }),
   setActivePanel: (p) => set({ activePanel: p }),
   setZoom: (z) => set({ zoom: Math.min(300, Math.max(10, z)) }),
   toggleSnap: () => set((s) => ({ snapEnabled: !s.snapEnabled })),
@@ -296,6 +369,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       history: pushHistory(s.history, s.doc),
       doc: { ...s.doc, tracks: { ...s.doc.tracks, image: [...s.doc.tracks.image, clip] } },
       selection: { clipId: clip.id, track: "image" },
+      saveState: "dirty",
+    })),
+
+  addOverlayClip: (clip) =>
+    set((s) => trackFull(s.doc, "overlay") ? s : ({
+      history: pushHistory(s.history, s.doc),
+      doc: { ...s.doc, tracks: { ...s.doc.tracks, overlay: [...s.doc.tracks.overlay, clip] } },
+      selection: { clipId: clip.id, track: "overlay" },
+      extraSelection: [],
       saveState: "dirty",
     })),
 
@@ -428,6 +510,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       history: pushHistory(s.history, s.doc),
       doc: rippleCut(s.doc, ranges, () => crypto.randomUUID()),
       selection: null,
+      extraSelection: [],
       saveState: "dirty",
     });
   },
@@ -500,6 +583,26 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       get().splitCaptionClip(s0.currentTime);
       return;
     }
+    // Text, image, audio and overlay clips split too (Phase 1).
+    const freeSel = s0.selection;
+    if (freeSel && isFreeTrack(freeSel.track)) {
+      const track = freeSel.track;
+      set((s) => {
+        const list = s.doc.tracks[track] as (TextClip | ImageClip | AudioClip | OverlayClip)[];
+        const clip = list.find((c) => c.id === freeSel.clipId);
+        if (!clip || isLocked(s.doc, track, clip) || trackFull(s.doc, track)) return s;
+        const parts = splitFreeClip(clip, s.currentTime, crypto.randomUUID());
+        if (!parts) return s;
+        return {
+          history: pushHistory(s.history, s.doc),
+          doc: { ...s.doc, tracks: { ...s.doc.tracks, [track]: list.flatMap((c) => (c.id === clip.id ? parts : [c])) } },
+          selection: { clipId: parts[1].id, track },
+          extraSelection: [],
+          saveState: "dirty",
+        };
+      });
+      return;
+    }
     set((s) => {
       const t = s.currentTime;
       const clip = videoClipAt(s.doc, t);
@@ -520,19 +623,150 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   deleteSelected: () =>
     set((s) => {
+      const picks = selectedClips(s.doc, s.selection, s.extraSelection);
+      if (picks.length === 0) return s;
+      const tracks = { ...s.doc.tracks } as Record<TrackKind, AnyClip[]>;
+      let removed = 0;
+      // Main-lane spans removed, latest first, for the magnet.
+      const videoGaps: { start: number; length: number }[] = [];
+      for (const { clipId, track } of picks) {
+        const list = tracks[track];
+        const target = list.find((c) => c.id === clipId);
+        // Locked = protected from edits; Delete/Backspace used to remove it anyway.
+        if (!target || isLocked(s.doc, track, target)) continue;
+        tracks[track] = list.filter((c) => c.id !== clipId);
+        removed++;
+        if (track === "video") videoGaps.push({ start: target.timelineStart, length: target.duration });
+      }
+      if (removed === 0) return s;
+      if (s.doc.magnet) {
+        let video = tracks.video as VideoClip[];
+        for (const g of videoGaps.sort((a, b) => b.start - a.start)) video = closeVideoGap(video, g.start, g.length);
+        tracks.video = video;
+      }
+      return {
+        history: pushHistory(s.history, s.doc),
+        doc: { ...s.doc, tracks: tracks as TimelineDoc["tracks"] },
+        selection: null,
+        extraSelection: [],
+        saveState: "dirty",
+      };
+    }),
+
+  rippleDeleteSelected: () => {
+    const s = get();
+    const picks = selectedClips(s.doc, s.selection, s.extraSelection);
+    const ranges: TimeRange[] = [];
+    for (const { clipId, track } of picks) {
+      const clip = (s.doc.tracks[track] as AnyClip[]).find((c) => c.id === clipId);
+      if (!clip || isLocked(s.doc, track, clip)) continue;
+      ranges.push({ start: clip.timelineStart, end: clip.timelineStart + clip.duration });
+    }
+    if (ranges.length === 0) return;
+    // A ripple cut removes the span from every track and closes it.
+    get().rippleCutRanges(ranges);
+    set({ selection: null, extraSelection: [] });
+  },
+
+  trimSelectedAtPlayhead: (removeSide) =>
+    set((s) => {
       if (!s.selection) return s;
       const { clipId, track } = s.selection;
       const list = s.doc.tracks[track] as AnyClip[];
-      const target = list.find((c) => c.id === clipId);
-      // Locked = protected from edits; Delete/Backspace used to remove it anyway.
-      if (!target || target.locked) return s;
-      const nextTrack = list.filter((c) => c.id !== clipId);
+      const clip = list.find((c) => c.id === clipId);
+      if (!clip || isLocked(s.doc, track, clip)) return s;
+      const next = trimAtPlayhead(clip, s.currentTime, removeSide);
+      if (!next) return s;
+      let nextTrack = list.map((c) => (c.id === clipId ? next : c));
+      // With the magnet on, the main lane closes what Q opened up.
+      if (track === "video" && s.doc.magnet) {
+        const removed = clip.duration - next.duration;
+        if (removeSide === "left") {
+          nextTrack = (nextTrack as VideoClip[]).map((c) =>
+            c.id === clipId ? { ...c, timelineStart: clip.timelineStart } : c.timelineStart > clip.timelineStart ? { ...c, timelineStart: Math.max(0, c.timelineStart - removed) } : c,
+          );
+        } else {
+          nextTrack = closeVideoGap(nextTrack as VideoClip[], clip.timelineStart + clip.duration, removed);
+        }
+      }
       return {
         history: pushHistory(s.history, s.doc),
         doc: { ...s.doc, tracks: { ...s.doc.tracks, [track]: nextTrack } },
-        selection: null,
         saveState: "dirty",
       };
+    }),
+
+  toggleMarker: (t) =>
+    set((s) => {
+      const at = t ?? s.currentTime;
+      const markers = s.doc.markers ?? [];
+      // Within a frame of an existing marker = remove it (M toggles).
+      const hit = markers.find((m) => Math.abs(m.t - at) < 1 / 30);
+      let next: Marker[];
+      if (hit) next = markers.filter((m) => m.id !== hit.id);
+      else if (markers.length >= MAX_MARKERS) {
+        showPanelToast(`Up to ${MAX_MARKERS} markers.`);
+        return s;
+      } else next = [...markers, { id: crypto.randomUUID(), t: at }].sort((a, b) => a.t - b.t);
+      return { history: pushHistory(s.history, s.doc), doc: { ...s.doc, markers: next }, saveState: "dirty" };
+    }),
+
+  removeMarker: (id) =>
+    set((s) => ({
+      history: pushHistory(s.history, s.doc),
+      doc: { ...s.doc, markers: (s.doc.markers ?? []).filter((m) => m.id !== id) },
+      saveState: "dirty",
+    })),
+
+  setTrackState: (kind, patch) =>
+    set((s) => {
+      const prev = s.doc.trackState?.[kind] ?? {};
+      const merged = { ...prev, ...patch };
+      // Off is the default: drop false flags so docs stay small.
+      const clean = Object.fromEntries(Object.entries(merged).filter(([, v]) => v)) as TrackState;
+      const trackState = { ...(s.doc.trackState ?? {}), [kind]: clean };
+      if (Object.keys(clean).length === 0) delete trackState[kind];
+      return { history: pushHistory(s.history, s.doc), doc: { ...s.doc, trackState }, saveState: "dirty" };
+    }),
+
+  setFps: (fps) =>
+    set((s) => (s.doc.fps === fps ? s : { history: pushHistory(s.history, s.doc), doc: { ...s.doc, fps }, saveState: "dirty" })),
+
+  setMagnet: (on) =>
+    set((s) => ({ history: pushHistory(s.history, s.doc), doc: { ...s.doc, magnet: on }, saveState: "dirty" })),
+
+  groupSelected: () =>
+    set((s) => {
+      const picks = selectedClips(s.doc, s.selection, s.extraSelection);
+      if (picks.length < 2) {
+        showPanelToast("Shift-click two or more clips to group them.");
+        return s;
+      }
+      const groupId = crypto.randomUUID();
+      const ids = new Set(picks.map((p) => p.clipId));
+      const tracks = Object.fromEntries(
+        Object.entries(s.doc.tracks).map(([k, list]) => [k, (list as AnyClip[]).map((c) => (ids.has(c.id) ? { ...c, groupId } : c))]),
+      ) as TimelineDoc["tracks"];
+      return { history: pushHistory(s.history, s.doc), doc: { ...s.doc, tracks }, saveState: "dirty" };
+    }),
+
+  ungroupSelected: () =>
+    set((s) => {
+      const picks = selectedClips(s.doc, s.selection, s.extraSelection);
+      const ids = new Set(picks.map((p) => p.clipId));
+      let changed = false;
+      const tracks = Object.fromEntries(
+        Object.entries(s.doc.tracks).map(([k, list]) => [
+          k,
+          (list as AnyClip[]).map((c) => {
+            if (!ids.has(c.id) || !c.groupId) return c;
+            changed = true;
+            const { groupId: _g, ...rest } = c;
+            return rest as AnyClip;
+          }),
+        ]),
+      ) as TimelineDoc["tracks"];
+      return changed ? { history: pushHistory(s.history, s.doc), doc: { ...s.doc, tracks }, saveState: "dirty" } : s;
     }),
 
   copySelected: () =>
@@ -584,7 +818,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         s.clipboard.type === "video" ? "video" :
         s.clipboard.type === "text" ? "text" :
         s.clipboard.type === "image" ? "image" :
-        s.clipboard.type === "caption" ? "caption" : "audio";
+        s.clipboard.type === "caption" ? "caption" :
+        s.clipboard.type === "overlay" ? "overlay" : "audio";
       if (trackFull(s.doc, track)) return s;
       const copy = { ...structuredClone(s.clipboard), id: crypto.randomUUID(), timelineStart: s.currentTime };
       if (track === "video") {
@@ -617,12 +852,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   undoAction: () => {
     const s = get();
     const result = undo(s.history, s.doc);
-    if (result) set({ history: result.history, doc: result.doc, selection: null, saveState: "dirty" });
+    if (result) set({ history: result.history, doc: result.doc, selection: null, extraSelection: [], saveState: "dirty" });
   },
 
   redoAction: () => {
     const s = get();
     const result = redo(s.history, s.doc);
-    if (result) set({ history: result.history, doc: result.doc, selection: null, saveState: "dirty" });
+    if (result) set({ history: result.history, doc: result.doc, selection: null, extraSelection: [], saveState: "dirty" });
   },
 }));

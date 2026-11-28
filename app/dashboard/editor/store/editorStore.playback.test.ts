@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { useEditorStore } from "./editorStore";
-import { DEFAULT_DOC, type TimelineDoc, type VideoClip } from "@/lib/editor/types";
+import { DEFAULT_DOC, MAX_CLIPS_PER_TRACK, type TimelineDoc, type VideoClip } from "@/lib/editor/types";
 
 const clip = (id: string, timelineStart: number, duration: number, extra: Partial<VideoClip> = {}): VideoClip => ({
   type: "video", id, assetId: "a1", timelineStart, duration, srcIn: 0, volume: 1, muted: false, ...extra,
@@ -73,10 +73,10 @@ describe("edits", () => {
   });
 
   it("duplicate stops at the per-track clip cap", () => {
-    load(Array.from({ length: 50 }, (_, i) => clip(`c${i}`, i, 1)));
+    load(Array.from({ length: MAX_CLIPS_PER_TRACK }, (_, i) => clip(`c${i}`, i, 1)));
     const s = useEditorStore.getState();
     s.select({ track: "video", clipId: "c0" });
     s.duplicateSelected();
-    expect(useEditorStore.getState().doc.tracks.video).toHaveLength(50);
+    expect(useEditorStore.getState().doc.tracks.video).toHaveLength(MAX_CLIPS_PER_TRACK);
   });
 });

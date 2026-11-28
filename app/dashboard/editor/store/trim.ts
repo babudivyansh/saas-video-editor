@@ -25,8 +25,8 @@ export function trimPatch(
   const start = clip.timelineStart;
   const end = start + clip.duration;
   const exclusive = track === "video" || track === "caption";
-  const hasSource = clip.type === "video" || clip.type === "audio";
-  const speed = clip.type === "video" ? (clip.speed ?? 1) : 1;
+  const hasSource = clip.type === "video" || clip.type === "audio" || clip.type === "overlay";
+  const speed = clip.type === "video" || clip.type === "overlay" ? (clip.speed ?? 1) : 1;
   const srcIn = hasSource ? (clip as VideoClip).srcIn : 0;
 
   if (edge === "left") {
@@ -121,10 +121,10 @@ export function constrainTiming(
 ): AnyClip {
   const out = { ...next } as AnyClip;
   out.timelineStart = Math.max(0, out.timelineStart);
-  const hasSource = out.type === "video" || out.type === "audio";
+  const hasSource = out.type === "video" || out.type === "audio" || out.type === "overlay";
   if (hasSource) {
     const c = out as VideoClip;
-    const speed = out.type === "video" ? (c.speed ?? 1) : 1;
+    const speed = out.type === "video" || out.type === "overlay" ? (c.speed ?? 1) : 1;
     c.srcIn = Math.max(0, c.srcIn);
     if (sourceLength) {
       c.srcIn = Math.min(c.srcIn, Math.max(0, sourceLength - MIN_CLIP_DURATION * speed));

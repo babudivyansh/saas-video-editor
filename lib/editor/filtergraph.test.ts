@@ -29,7 +29,7 @@ function doc(video: VideoClip[]): TimelineDoc {
     version: 1,
     aspect: "9:16",
     fps: 30,
-    tracks: { video, text: [], audio: [], image: [], caption: [] },
+    tracks: { video, text: [], audio: [], image: [], caption: [], overlay: [] },
   };
 }
 

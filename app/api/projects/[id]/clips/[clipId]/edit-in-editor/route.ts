@@ -86,7 +86,7 @@ async function handlePOST(req: NextRequest, { params }: { params: Promise<{ id: 
     version: 1,
     aspect,
     fps: 30,
-    tracks: { video: [videoClip], text: [], audio: [], image: [], caption: captionCues },
+    tracks: { video: [videoClip], text: [], audio: [], image: [], caption: captionCues, overlay: [] },
   };
 
   const editorProject = await prisma.project.create({

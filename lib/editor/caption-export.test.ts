@@ -64,7 +64,7 @@ describe("settleBatchIfDone", () => {
 });
 
 describe("docForAspect", () => {
-  const doc = { version: 1, aspect: "9:16", fps: 30, tracks: { video: [], text: [], audio: [], image: [], caption: [] } } as const;
+  const doc = { version: 1, aspect: "9:16", fps: 30, tracks: { video: [], text: [], audio: [], image: [], caption: [], overlay: [] } } as const;
   it("swaps the frame and leaves the rest", () => {
     expect(docForAspect(doc as never, "16:9")).toEqual({ ...doc, aspect: "16:9" });
     expect(docForAspect(doc as never, "original", { w: 1920, h: 1080 })).toEqual({ ...doc, aspect: "original", size: { w: 1920, h: 1080 } });

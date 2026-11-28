@@ -177,7 +177,7 @@ describe("Panels", () => {
   });
 
   it("captions: an edit without captions offers to generate them", () => {
-    useEditor.getState().edit((d) => ({ ...d, tracks: { ...d.tracks, caption: [] } }));
+    useEditor.getState().edit((d) => ({ ...d, tracks: { ...d.tracks, caption: [], overlay: [] } }));
     open("/editor/captions");
     expect(screen.getByText("No captions yet")).toBeOnTheScreen();
   });
@@ -211,7 +211,7 @@ describe("Panels", () => {
   });
 
   it("captions: made from the speech, laid over the clips cut from it", async () => {
-    useEditor.getState().edit((d) => ({ ...d, tracks: { ...d.tracks, caption: [] } }));
+    useEditor.getState().edit((d) => ({ ...d, tracks: { ...d.tracks, caption: [], overlay: [] } }));
     open("/editor/captions");
     press("Generate captions");
     // 1 Clip Minute per started minute of each file: the podcast (58:12) and the b-roll (0:41).

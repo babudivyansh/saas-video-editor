@@ -14,6 +14,7 @@ import { EFFECT_PRESETS, FILTER_PRESETS, MAX_FADE_SEC, NEUTRAL_ADJUST, SPEED_OPT
 import { Button, FieldRow, NumberField, PillGroup, PropertyCard, Slider, Switch } from "../ui";
 import { isNeutral, withAdjust } from "@/lib/editor/video-look";
 import MatchColoursCard from "./MatchColoursCard";
+import { OrientationCard, PlacementCard } from "./TransformControls";
 
 export default function VideoClipProps({ clip, activeTab }: { clip: VideoClip; activeTab: string }) {
   const updateClip = useEditorStore((s) => s.updateClip);
@@ -45,6 +46,16 @@ export default function VideoClipProps({ clip, activeTab }: { clip: VideoClip; a
             </>
           )}
         </PropertyCard>
+      </div>
+    );
+  }
+
+  if (activeTab === "transform") {
+    // Exported by filtergraph.ts transformStatements; previewed by usePlayback.
+    return (
+      <div className="flex flex-col gap-3 p-3">
+        <PlacementCard value={clip} onChange={(p) => patch(p)} />
+        <OrientationCard value={clip} onChange={(p) => patch(p)} />
       </div>
     );
   }

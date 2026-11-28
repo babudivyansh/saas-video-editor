@@ -14,7 +14,7 @@ import { clock, durationOf, useEditor } from "./store";
 // to select it, drag the selected video clip's handles to trim it. Clips are
 // absolutely placed by time, so a long project costs only what's on screen.
 
-const LANE_H: Record<TrackKind, number> = { video: 52, caption: 24, text: 24, audio: 24, image: 24 };
+const LANE_H: Record<TrackKind, number> = { video: 52, caption: 24, text: 24, audio: 24, image: 24, overlay: 24 };
 const LANES: TrackKind[] = ["video", "caption", "text", "image", "audio"];
 const MIN_PPS = 8;
 const MAX_PPS = 160;
@@ -114,7 +114,7 @@ export function Timeline() {
   );
 }
 
-const LABEL: Record<TrackKind, string> = { video: "Video", caption: "Caption", text: "Text", audio: "Audio", image: "Image" };
+const LABEL: Record<TrackKind, string> = { video: "Video", caption: "Caption", text: "Text", audio: "Audio", image: "Image", overlay: "Overlay" };
 
 const ClipBlock = memo(function ClipBlock({
   clip,

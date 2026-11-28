@@ -94,7 +94,31 @@ export interface ClipBase {
   locked?: boolean; // when true, timeline drag/trim is disabled (still selectable)
   hidden?: boolean; // when true, excluded from live preview AND export
   name?: string; // user-set label; falls back to clip content when unset
+  /** Clips sharing a groupId select, move and delete together (Ctrl+G). */
+  groupId?: string;
 }
+
+/**
+ * Position, size and orientation of a clip in the frame (Phase 1). Every
+ * field is optional and defaults to "untouched", so older docs are unchanged.
+ * Used by the main video lane; overlay and image clips keep their own
+ * x/y/scalePct placement and share only rotation/flip/opacity.
+ */
+export interface ClipTransform {
+  /** 0.1..4, 1 = the clip fills the frame as framed by fit/fill. */
+  scale?: number;
+  /** Centre offset as a fraction of the frame, -1..1 (0 = centred). */
+  offsetX?: number;
+  offsetY?: number;
+  /** Clockwise degrees, -180..180. */
+  rotationDeg?: number;
+  flipH?: boolean;
+  flipV?: boolean;
+  /** 0..1 (1 = opaque). Below 1, black shows through. */
+  opacity?: number;
+}
+
+export const TRANSFORM_LIMITS = { scale: [0.1, 4], offset: [-1, 1], rotation: [-180, 180] } as const;
 
 // Structural stand-in for Lexical's SerializedEditorState. Deliberately not
 // importing from `lexical` here — this file must stay dependency-free (see
@@ -123,7 +147,7 @@ export type FilterPreset = keyof typeof FILTER_PRESETS;
 export const SPEED_OPTIONS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 4] as const;
 export const MAX_FADE_SEC = 3;
 
-export interface VideoClip extends ClipBase {
+export interface VideoClip extends ClipBase, ClipTransform {
   type: "video";
   assetId: string; // Asset.id — server re-resolves the S3 key, never trusts URLs
   srcIn: number; // trim-in inside the source file, seconds
@@ -239,7 +263,60 @@ export interface ImageClip extends ClipBase {
   opacity: number; // 0..1
   fadeIn?: number;
   fadeOut?: number;
+  rotationDeg?: number; // -180..180, clockwise
+  flipH?: boolean;
+  flipV?: boolean;
 }
+
+/** How many overlay (picture-in-picture) video lanes a doc may use. */
+export const MAX_OVERLAY_LANES = 4;
+
+/**
+ * A video layered above the main lane: picture-in-picture, a reaction cam,
+ * a B-roll cutaway (Phase 1). Placed like an image (centre x/y, width as a
+ * fraction of the frame); `lane` orders overlays, 0 lowest. Its audio is
+ * mixed in unless muted.
+ */
+export interface OverlayClip extends ClipBase {
+  type: "overlay";
+  assetId: string;
+  srcIn: number;
+  volume: number; // 0..1
+  muted: boolean;
+  speed?: number; // 0.25..4
+  x: number; // 0..1 centre
+  y: number; // 0..1 centre
+  scalePct: number; // width as a fraction of the frame width, 0..3
+  opacity?: number; // 0..1
+  rotationDeg?: number;
+  flipH?: boolean;
+  flipV?: boolean;
+  fadeIn?: number;
+  fadeOut?: number;
+  lane: number; // 0..MAX_OVERLAY_LANES-1
+}
+
+/** A named point on the timeline (M). */
+export interface Marker {
+  id: string;
+  t: number; // seconds
+  label?: string;
+  color?: string; // #rrggbb
+}
+export const MAX_MARKERS = 200;
+
+/** Per-track switches in the track header. */
+export interface TrackState {
+  /** Audio from this track is left out of preview and export. */
+  muted?: boolean;
+  /** Clips on this track can't be moved, trimmed or deleted. */
+  locked?: boolean;
+  /** Clips on this track are left out of preview and export. */
+  hidden?: boolean;
+}
+
+export const FRAME_RATES = [24, 25, 30, 60] as const;
+export type FrameRate = (typeof FRAME_RATES)[number];
 
 // Effect presets — applied for real at export. `ffmpeg` builds the filter
 // string for the render pipeline (a function because several effects need the
@@ -436,8 +513,9 @@ export interface CaptionClip extends ClipBase {
   exit?: { type: TextExitPreset; duration: number; delay: number } | null;
 }
 
-export type AnyClip = VideoClip | TextClip | AudioClip | ImageClip | CaptionClip;
-export type TrackKind = "video" | "text" | "audio" | "image" | "caption";
+export type AnyClip = VideoClip | TextClip | AudioClip | ImageClip | CaptionClip | OverlayClip;
+export type TrackKind = "video" | "text" | "audio" | "image" | "caption" | "overlay";
+export const TRACK_KINDS: readonly TrackKind[] = ["video", "overlay", "image", "text", "caption", "audio"];
 
 export interface TimelineDoc {
   version: 1;
@@ -446,13 +524,19 @@ export interface TimelineDoc {
   size?: { w: number; h: number };
   /** The project's caption look over every template cue (captions/style.ts). */
   captionStyle?: CaptionStyleOverride;
-  fps: 30;
+  /** Export frame rate (Phase 1); older docs are 30. */
+  fps: FrameRate;
+  /** Main-track magnet: deleting a main-lane clip closes the gap. */
+  magnet?: boolean;
+  markers?: Marker[];
+  trackState?: Partial<Record<TrackKind, TrackState>>;
   tracks: {
     video: VideoClip[]; // sorted by timelineStart, non-overlapping
     text: TextClip[];
     audio: AudioClip[];
     image: ImageClip[]; // free-form overlay track, like text
     caption: CaptionClip[]; // sorted by timelineStart, non-overlapping — like video, real subtitle cues don't overlap
+    overlay: OverlayClip[]; // picture-in-picture video lanes above the main lane, free-form by lane
   };
 }
 
@@ -460,11 +544,11 @@ export const DEFAULT_DOC: TimelineDoc = {
   version: 1,
   aspect: "9:16",
   fps: 30,
-  tracks: { video: [], text: [], audio: [], image: [], caption: [] },
+  tracks: { video: [], text: [], audio: [], image: [], caption: [], overlay: [] },
 };
 
 export const MIN_CLIP_DURATION = 0.05; // seconds
-export const MAX_CLIPS_PER_TRACK = 50;
+export const MAX_CLIPS_PER_TRACK = 200; // was 50 until editor Phase 1
 // Cues (grouped lines), not words — a video generates roughly one cue per
 // 2-4s of speech, so even a very long video stays well under this.
 export const MAX_CAPTION_CLIPS_PER_TRACK = 1000;
@@ -481,7 +565,7 @@ export const MAX_DOC_BYTES = 1_000_000;
  *  violates at runtime, which is the whole reason this function exists. */
 export function normalizeDoc(doc: TimelineDoc): TimelineDoc {
   const tracks = doc.tracks as Partial<TimelineDoc["tracks"]> | undefined;
-  return { ...doc, tracks: { video: [], text: [], audio: [], image: [], caption: [], ...tracks } };
+  return { ...doc, tracks: { video: [], text: [], audio: [], image: [], caption: [], overlay: [], ...tracks } };
 }
 
 // ── Validation (shared client/server; server calls this before rendering) ──
@@ -503,6 +587,16 @@ function validateBase(c: ClipBase): string | null {
   if (c.locked !== undefined && typeof c.locked !== "boolean") return "invalid locked";
   if (c.hidden !== undefined && typeof c.hidden !== "boolean") return "invalid hidden";
   if (c.name !== undefined && (typeof c.name !== "string" || c.name.length > 200)) return "invalid name";
+  if (c.groupId !== undefined && (typeof c.groupId !== "string" || !CLIP_ID.test(c.groupId))) return "invalid groupId";
+  return null;
+}
+
+/** Rotation/flip/opacity shared by video, overlay and image clips. */
+function validateOrientation(c: { rotationDeg?: number; flipH?: boolean; flipV?: boolean; opacity?: number }): string | null {
+  if (c.rotationDeg !== undefined && !isFiniteInRange(c.rotationDeg, -180, 180)) return "invalid rotationDeg";
+  if (c.flipH !== undefined && typeof c.flipH !== "boolean") return "invalid flipH";
+  if (c.flipV !== undefined && typeof c.flipV !== "boolean") return "invalid flipV";
+  if (c.opacity !== undefined && !isFiniteInRange(c.opacity, 0, 1)) return "invalid opacity";
   return null;
 }
 
@@ -515,6 +609,8 @@ function isFiniteInRange(n: unknown, min: number, max: number): n is number {
 export function validateDoc(doc: unknown): string | null {
   if (!doc || typeof doc !== "object") return "doc is not an object";
   if ((doc as TimelineDoc).version !== 1) return "unsupported version";
+  const fps = (doc as TimelineDoc).fps;
+  if (fps !== undefined && !FRAME_RATES.includes(fps)) return "invalid fps";
   const d = normalizeDoc(doc as TimelineDoc); // backfills missing track arrays (e.g. pre-caption-track saved docs)
   if (d.aspect === "original") {
     if (!isValidOriginalSize(d.size)) return "invalid size";
@@ -523,7 +619,27 @@ export function validateDoc(doc: unknown): string | null {
   const captionStyleErr = validateCaptionStyle(d.captionStyle);
   if (captionStyleErr) return captionStyleErr;
 
-  for (const kind of ["video", "text", "audio", "image", "caption"] as const) {
+  if (d.magnet !== undefined && typeof d.magnet !== "boolean") return "invalid magnet";
+  if (d.markers !== undefined) {
+    if (!Array.isArray(d.markers) || d.markers.length > MAX_MARKERS) return "invalid markers";
+    for (const m of d.markers) {
+      if (typeof m !== "object" || m === null || typeof m.id !== "string" || !CLIP_ID.test(m.id) || !isFiniteNonNeg(m.t)) return "invalid marker";
+      if (m.label !== undefined && (typeof m.label !== "string" || m.label.length > 80)) return "invalid marker label";
+      if (m.color !== undefined && !HEX_COLOR.test(m.color)) return "invalid marker color";
+    }
+  }
+  if (d.trackState !== undefined) {
+    if (typeof d.trackState !== "object" || d.trackState === null) return "invalid trackState";
+    for (const [k, v] of Object.entries(d.trackState)) {
+      if (!TRACK_KINDS.includes(k as TrackKind)) return "invalid trackState track";
+      if (typeof v !== "object" || v === null) return "invalid trackState";
+      for (const f of ["muted", "locked", "hidden"] as const) {
+        if (v[f] !== undefined && typeof v[f] !== "boolean") return `invalid trackState ${f}`;
+      }
+    }
+  }
+
+  for (const kind of ["video", "text", "audio", "image", "caption", "overlay"] as const) {
     const track = d.tracks[kind];
     if (!Array.isArray(track)) return `track ${kind} is not an array`;
     const cap = kind === "caption" ? MAX_CAPTION_CLIPS_PER_TRACK : MAX_CLIPS_PER_TRACK;
@@ -566,6 +682,11 @@ export function validateDoc(doc: unknown): string | null {
     if (v.fit !== undefined && v.fit !== "fill" && v.fit !== "fit") return "video clip invalid fit";
     if (v.focusX !== undefined && !isFiniteInRange(v.focusX, 0, 1)) return "video clip invalid focusX";
     if (v.focusY !== undefined && !isFiniteInRange(v.focusY, 0, 1)) return "video clip invalid focusY";
+    if (v.scale !== undefined && !isFiniteInRange(v.scale, TRANSFORM_LIMITS.scale[0], TRANSFORM_LIMITS.scale[1])) return "video clip invalid scale";
+    if (v.offsetX !== undefined && !isFiniteInRange(v.offsetX, -1, 1)) return "video clip invalid offsetX";
+    if (v.offsetY !== undefined && !isFiniteInRange(v.offsetY, -1, 1)) return "video clip invalid offsetY";
+    const videoOrientErr = validateOrientation(v);
+    if (videoOrientErr) return `video clip ${videoOrientErr}`;
     if (v.adjust !== undefined) {
       const a = v.adjust;
       if (typeof a !== "object" || a === null || !isFiniteInRange(a.brightness, -0.3, 0.3) || !isFiniteInRange(a.contrast, 0.5, 1.5) || !isFiniteInRange(a.saturation, 0, 2) || !isFiniteInRange(a.warmth, -1, 1))
@@ -656,6 +777,22 @@ export function validateDoc(doc: unknown): string | null {
     if (typeof im.opacity !== "number" || im.opacity < 0 || im.opacity > 1) return "image clip invalid opacity";
     if (im.fadeIn !== undefined && (!isFiniteNonNeg(im.fadeIn) || im.fadeIn > MAX_FADE_SEC)) return "image clip invalid fadeIn";
     if (im.fadeOut !== undefined && (!isFiniteNonNeg(im.fadeOut) || im.fadeOut > MAX_FADE_SEC)) return "image clip invalid fadeOut";
+    const imageOrientErr = validateOrientation(im);
+    if (imageOrientErr) return `image clip ${imageOrientErr}`;
+  }
+  for (const o of d.tracks.overlay) {
+    if (typeof o.assetId !== "string" || !o.assetId) return "overlay clip missing assetId";
+    if (!isFiniteNonNeg(o.srcIn)) return "overlay clip invalid srcIn";
+    if (!isFiniteInRange(o.volume, 0, 1)) return "overlay clip invalid volume";
+    if (typeof o.muted !== "boolean") return "overlay clip invalid muted";
+    if (o.speed !== undefined && !isFiniteInRange(o.speed, 0.25, 4)) return "overlay clip invalid speed";
+    if (!isFiniteInRange(o.x, 0, 1) || !isFiniteInRange(o.y, 0, 1)) return "overlay clip invalid position";
+    if (typeof o.scalePct !== "number" || o.scalePct <= 0 || o.scalePct > 3) return "overlay clip invalid scalePct";
+    if (!Number.isInteger(o.lane) || o.lane < 0 || o.lane >= MAX_OVERLAY_LANES) return "overlay clip invalid lane";
+    if (o.fadeIn !== undefined && (!isFiniteNonNeg(o.fadeIn) || o.fadeIn > MAX_FADE_SEC)) return "overlay clip invalid fadeIn";
+    if (o.fadeOut !== undefined && (!isFiniteNonNeg(o.fadeOut) || o.fadeOut > MAX_FADE_SEC)) return "overlay clip invalid fadeOut";
+    const overlayOrientErr = validateOrientation(o);
+    if (overlayOrientErr) return `overlay clip ${overlayOrientErr}`;
   }
   for (const c of d.tracks.caption) {
     if (typeof c.text !== "string") return "caption clip missing text";

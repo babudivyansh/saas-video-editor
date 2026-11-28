@@ -23,6 +23,7 @@ const TRACK_COLORS: Record<TrackKind, { bg: string; border: string; text: string
   // Unused by this component (caption cues render via the lightweight
   // CaptionTimelineClip instead) — present only to satisfy Record<TrackKind,...>.
   caption: { bg: "bg-editor-track-caption/80", border: "border-editor-track-caption", text: "text-editor-bg" },
+  overlay: { bg: "bg-editor-track-overlay/70", border: "border-editor-track-overlay", text: "text-white" },
 };
 
 const SNAP_PX = 8;
@@ -42,12 +43,17 @@ export default function TimelineClip({
   assetName?: string;
 }) {
   const zoom = useEditorStore((s) => s.zoom);
-  const selected = useEditorStore((s) => s.selection?.clipId === clip.id);
+  const selected = useEditorStore(
+    (s) => s.selection?.clipId === clip.id || s.extraSelection.some((e) => e.clipId === clip.id),
+  );
+  // A locked track locks every clip on it (track header switch).
+  const trackLock = useEditorStore((s) => !!s.doc.trackState?.[track]?.locked);
+  const locked = !!clip.locked || trackLock;
   const select = useEditorStore((s) => s.select);
   const updateClip = useEditorStore((s) => s.updateClip);
   const duplicateSelected = useEditorStore((s) => s.duplicateSelected);
   const deleteSelected = useEditorStore((s) => s.deleteSelected);
-  const thumbnails = useVideoThumbnails(track === "video" ? assetUrl ?? null : null);
+  const thumbnails = useVideoThumbnails(track === "video" || track === "overlay" ? assetUrl ?? null : null);
 
   const menu = useContextMenu();
   const [renaming, setRenaming] = useState(false);
@@ -67,6 +73,7 @@ export default function TimelineClip({
   const label =
     clip.type === "text" ? clip.name || clip.text || "Text" :
     clip.type === "video" ? "Video" :
+    clip.type === "overlay" ? clip.name || (assetName ?? "Overlay") :
     clip.type === "image" ? clip.name || (assetName ?? "Image") : clip.name || (assetName ?? "Audio");
 
   const beginDrag = (e: React.PointerEvent, mode: DragMode) => {
@@ -80,8 +87,13 @@ export default function TimelineClip({
     }
     e.stopPropagation();
     e.preventDefault();
+    // Shift/Ctrl/Cmd-click adds to (or removes from) the selection, no drag.
+    if (e.shiftKey || e.ctrlKey || e.metaKey) {
+      useEditorStore.getState().toggleSelect({ clipId: clip.id, track });
+      return;
+    }
     select({ clipId: clip.id, track });
-    if (clip.locked) return; // still selectable, just no drag/trim
+    if (locked) return; // still selectable, just no drag/trim
     drag.current = {
       mode,
       startX: e.clientX,
@@ -154,7 +166,7 @@ export default function TimelineClip({
         else if (snappedEnd !== newStart + d.origDuration) newStart = snappedEnd - d.origDuration;
       }
       if (track === "video") s.moveVideoClipTransient(clip.id, newStart);
-      else s.moveOverlayClipTransient(track as "text" | "audio" | "image", clip.id, newStart);
+      else s.moveOverlayClipTransient(track as "text" | "audio" | "image" | "overlay", clip.id, newStart);
     } else if (d.mode === "trim-left") {
       let t = d.origStart + deltaSec;
       if (tolerance) t = snapTime(t, candidates, tolerance);
@@ -178,10 +190,10 @@ export default function TimelineClip({
   // trimmed to the first 10 s used to cycle through frames from the whole
   // video). Before the source length is known, fall back to cycling.
   const tiles = Math.max(Math.ceil((clip.duration * zoom) / 44), 1);
-  const srcLen = clip.type === "video" ? sourceDuration(clip.assetId) : undefined;
+  const srcLen = clip.type === "video" || clip.type === "overlay" ? sourceDuration(clip.assetId) : undefined;
   const frameFor = (i: number) => {
     const n = thumbnails.length;
-    if (clip.type !== "video" || !srcLen) return i % n;
+    if ((clip.type !== "video" && clip.type !== "overlay") || !srcLen) return i % n;
     const srcT = clip.srcIn + ((i + 0.5) / tiles) * clip.duration * (clip.speed ?? 1);
     return Math.min(n - 1, Math.max(0, Math.floor((srcT / srcLen) * n)));
   };
@@ -194,14 +206,14 @@ export default function TimelineClip({
       onPointerCancel={onPointerUp}
       onContextMenu={(e) => menu.show(e)}
       className={`group/clip absolute bottom-0.5 top-0.5 flex touch-none items-center overflow-hidden rounded-editor-sm border transition-shadow ${
-        clip.locked ? "cursor-default" : "cursor-grab"
+        locked ? "cursor-default" : "cursor-grab"
       } ${colors.bg} ${colors.border} ${clip.hidden ? "opacity-40" : ""} ${
         selected ? "ring-2 ring-editor-accent shadow-editor-glow" : ""
       }`}
       style={{ left: clip.timelineStart * zoom, width: Math.max(clip.duration * zoom, 8) }}
     >
-      {/* Filmstrip thumbnails (video clips only) */}
-      {track === "video" && thumbnails.length > 0 && (
+      {/* Filmstrip thumbnails (video and overlay clips) */}
+      {(track === "video" || track === "overlay") && thumbnails.length > 0 && (
         <div className="pointer-events-none absolute inset-0 flex">
           {Array.from({ length: tiles }).map((_, i) => (
             <div
@@ -252,7 +264,7 @@ export default function TimelineClip({
         </div>
       )}
       <ContextMenu open={menu.open} x={menu.x} y={menu.y} onClose={menu.close}>
-        {track === "video" && playheadInside && !clip.locked && (
+        {(track !== "caption") && playheadInside && !locked && (
           <ContextMenuItem icon={<Scissors className="h-4 w-4" />} onClick={() => { menu.close(); splitThis(); }}>
             Split at playhead
           </ContextMenuItem>
@@ -294,7 +306,7 @@ export default function TimelineClip({
         </ContextMenuItem>
       </ContextMenu>
       {/* Left trim handle */}
-      {!clip.locked && (
+      {!locked && (
         <span
           onPointerDown={(e) => beginDrag(e, "trim-left")}
           onPointerMove={onPointerMove}
@@ -306,7 +318,7 @@ export default function TimelineClip({
           <span className="h-1/2 w-1 rounded-full bg-white/60 opacity-40 transition-opacity group-hover:opacity-100" />
         </span>
       )}
-      {track === "video" ? (
+      {track === "video" || (track === "overlay" && thumbnails.length > 0 && !renaming) ? (
         <span className="pointer-events-none absolute left-1.5 top-1 max-w-[85%] truncate rounded bg-editor-bg/80 px-1.5 py-0.5 text-[9px] font-medium text-white">
           {assetName ?? label}
         </span>
@@ -327,7 +339,7 @@ export default function TimelineClip({
         <span className={`pointer-events-none truncate px-2.5 text-[10px] font-semibold ${colors.text}`}>{label}</span>
       )}
       {/* Right trim handle */}
-      {!clip.locked && (
+      {!locked && (
         <span
           onPointerDown={(e) => beginDrag(e, "trim-right")}
           onPointerMove={onPointerMove}

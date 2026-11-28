@@ -74,7 +74,7 @@ export function buildStudioDoc(opts: {
     aspect: opts.aspect === "original" && !original ? "9:16" : opts.aspect,
     ...(original ? { size: original } : {}),
     ...(opts.captionStyle && Object.keys(opts.captionStyle).length ? { captionStyle: opts.captionStyle } : {}),
-    tracks: { video: [video], text: [], audio: [], image: [], caption: [] },
+    tracks: { video: [video], text: [], audio: [], image: [], caption: [], overlay: [] },
   };
 }
 

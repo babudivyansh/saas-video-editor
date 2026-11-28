@@ -18,6 +18,7 @@ import { markQuestComplete } from "@/lib/quests";
 import { notify } from "@/lib/notify";
 import type { TimelineDoc } from "./types";
 import { normalizeDoc, validateDoc } from "./types";
+import { exportView } from "./doc-utils";
 import { buildFilterGraph, maybeUseFilterScript, writeTextFiles, type ClipInput } from "./filtergraph";
 import { generateCaptionASS } from "./caption-ass";
 import { docDimensions } from "./types";
@@ -144,7 +145,9 @@ export interface RenderTimelineInput {
  * frame, and run ffmpeg into outPath. Status, upload and refunds stay with the
  * caller.
  */
-export async function renderTimeline({ doc, userId, assetUrls, tag, outPath, tempFiles, onProgress, quality = "1080p" }: RenderTimelineInput): Promise<void> {
+export async function renderTimeline({ doc: rawDoc, userId, assetUrls, tag, outPath, tempFiles, onProgress, quality = "1080p" }: RenderTimelineInput): Promise<void> {
+  // Hidden/muted tracks and hidden clips are left out (track header switches).
+  const doc = exportView(rawDoc);
   const tmp = os.tmpdir();
   // ── Download unique assets ──
   await onProgress("downloading", 5);

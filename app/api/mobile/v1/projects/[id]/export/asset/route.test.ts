@@ -23,7 +23,7 @@ const { POST } = await import("./route");
 
 const call = (id = "p1") =>
   POST(new NextRequest(`http://localhost/api/mobile/v1/projects/${id}/export/asset`, { method: "POST", headers: { authorization: "Bearer acc" } }), { params: Promise.resolve({ id }) });
-const doc = { version: 1, aspect: "9:16", fps: 30, tracks: { video: [{ id: "v1", type: "video", assetId: "a1", timelineStart: 0, duration: 12.5, srcIn: 0, volume: 1, muted: false }], text: [], audio: [], image: [], caption: [] } };
+const doc = { version: 1, aspect: "9:16", fps: 30, tracks: { video: [{ id: "v1", type: "video", assetId: "a1", timelineStart: 0, duration: 12.5, srcIn: 0, volume: 1, muted: false }], text: [], audio: [], image: [], caption: [], overlay: [] } };
 
 beforeEach(() => vi.clearAllMocks());
 
