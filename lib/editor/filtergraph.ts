@@ -369,6 +369,7 @@ export function buildFilterGraph(input: FiltergraphInput): FiltergraphResult {
   // ── Image/sticker overlays: chained `overlay` with enable windows ──
   // Renders below text so captions stay on top of any sticker/photo overlay.
   doc.tracks.image.forEach((im, i) => {
+    if (im.hidden) return; // excluded from export, matching PreviewStage's activeImages filter
     const n = inputIndex.get(im.assetId)!;
     const fadeIn = Math.min(im.fadeIn ?? 0, im.duration);
     const fadeOut = Math.min(im.fadeOut ?? 0, im.duration);
@@ -495,10 +496,12 @@ export function buildFilterGraph(input: FiltergraphInput): FiltergraphResult {
 
   // ── Music/audio track: adelay + amix over the base audio ──
   let audioOut = baseAudio;
-  if (doc.tracks.audio.length > 0) {
+  // Hidden clips are left out, matching the preview (audioClipsAt).
+  const audibleClips = doc.tracks.audio.filter((c) => !c.hidden);
+  if (audibleClips.length > 0) {
     const musicLabels: string[] = [];
     const speech = speechRangesFromCaptions(doc);
-    doc.tracks.audio.forEach((m, i) => {
+    audibleClips.forEach((m, i) => {
       const n = inputIndex.get(m.assetId)!;
       const from = num(m.srcIn);
       const to = num(m.srcIn + m.duration);

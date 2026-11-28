@@ -7,7 +7,7 @@
 
 import { useEffect, useRef } from "react";
 import { useEditorStore } from "../store/editorStore";
-import { audioClipAt, docDuration, videoClipAt } from "@/lib/editor/doc-utils";
+import { audioClipsAt, docDuration, videoClipAt } from "@/lib/editor/doc-utils";
 import { clipDuckSegments, musicGainAt, speechRangesFromCaptions } from "@/lib/editor/music-envelope";
 import { adjustCss, effectActiveAt } from "@/lib/editor/video-look";
 import {
@@ -161,18 +161,21 @@ export function usePlayback(registry: React.RefObject<MediaRegistry>) {
         }
       }
 
-      // Audio track (music): same treatment.
-      const activeAudio = audioClipAt(s.doc, t);
-      // Fades and the dip under speech, same envelope the export renders.
-      const duckSegs = activeAudio?.duck ? clipDuckSegments(activeAudio, speechRangesFromCaptions(s.doc)) : [];
+      // Audio track: every clip under the playhead plays, like the export's
+      // amix. Elements are per asset, so one asset used twice at the same
+      // instant plays the first clip only.
+      const activeAudios = audioClipsAt(s.doc, t);
+      const speech = activeAudios.some((c) => c.duck) ? speechRangesFromCaptions(s.doc) : [];
       for (const [assetId, el] of reg.audios) {
-        const isActive = activeAudio?.assetId === assetId;
-        if (isActive && activeAudio) {
-          const target = activeAudio.srcIn + (t - activeAudio.timelineStart);
+        const clip = activeAudios.find((c) => c.assetId === assetId);
+        if (clip) {
+          const target = clip.srcIn + (t - clip.timelineStart);
           if (Math.abs(el.currentTime - target) > DRIFT_TOLERANCE) {
             el.currentTime = target;
           }
-          el.volume = musicGainAt(activeAudio, t, duckSegs);
+          // Fades and the dip under speech, same envelope the export renders.
+          const duckSegs = clip.duck ? clipDuckSegments(clip, speech) : [];
+          el.volume = Math.max(0, Math.min(1, musicGainAt(clip, t, duckSegs)));
           if (s.playing && el.paused) el.play().catch(() => {});
           if (!s.playing && !el.paused) el.pause();
         } else if (!el.paused) {

@@ -38,6 +38,20 @@ export function audioClipAt(doc: TimelineDoc, t: number): AudioClip | null {
   return null;
 }
 
+/** Every audio clip active at timeline time t (the export mixes them all with amix). */
+export function audioClipsAt(doc: TimelineDoc, t: number): AudioClip[] {
+  return doc.tracks.audio.filter((c) => !c.hidden && t >= c.timelineStart && t < c.timelineStart + c.duration);
+}
+
+/** Opacity multiplier from a clip's fade in/out at local time `local` —
+ *  the same ramps the export's `fade` filters draw. */
+export function fadeOpacityAt(local: number, duration: number, fadeIn = 0, fadeOut = 0): number {
+  let o = 1;
+  if (fadeIn > 0 && local < fadeIn) o = Math.min(o, local / fadeIn);
+  if (fadeOut > 0 && local > duration - fadeOut) o = Math.min(o, (duration - local) / fadeOut);
+  return Math.max(0, Math.min(1, o));
+}
+
 /** Segments (clips + black gaps) covering [0, docDuration] of the video track. */
 export type VideoSegment = { kind: "clip"; clip: VideoClip } | { kind: "gap"; duration: number };
 

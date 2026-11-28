@@ -6,40 +6,9 @@ import { prisma } from "@/lib/prisma";
 import { parseS3Url } from "@/lib/s3-url";
 import { adoptExistingS3Object } from "@/lib/asset-service";
 import { serializeOneAsset } from "@/lib/asset-serialize";
-import type { TimelineDoc, VideoClip, TextClip, Aspect } from "@/lib/editor/types";
+import type { TimelineDoc, VideoClip, Aspect } from "@/lib/editor/types";
+import { wordsToCaptionCues } from "@/lib/editor/caption-generation";
 import type { WordTiming } from "@/utils/elevenlabs";
-
-// Mirrors app/dashboard/editor/components/properties/VideoClipProps.tsx's
-// wordsToCaptionClips exactly (same grouping/styling convention) so a clip
-// handed off here looks identical to running the editor's own "Auto
-// captions" — except it reuses the transcript AutoClip already has instead
-// of re-transcribing (which is what VideoClipProps does when there's no
-// pre-existing transcript to hand off).
-const CAPTION_WORDS_PER_LINE = 4;
-function wordsToCaptionClips(words: WordTiming[]): TextClip[] {
-  const clips: TextClip[] = [];
-  for (let i = 0; i < words.length; i += CAPTION_WORDS_PER_LINE) {
-    const group = words.slice(i, i + CAPTION_WORDS_PER_LINE);
-    const startSec = group[0].start / 1000;
-    const endSec = group[group.length - 1].end / 1000;
-    clips.push({
-      type: "text",
-      id: randomUUID(),
-      timelineStart: startSec,
-      duration: Math.max(endSec - startSec, 0.2),
-      text: group.map((w) => w.word).join(" "),
-      fontFamily: "Arial",
-      fontSizePct: 0.04,
-      color: "#ffffff",
-      bold: true,
-      align: "center",
-      x: 0.5,
-      y: 0.85,
-      bgColor: "#000000",
-    });
-  }
-  return clips;
-}
 
 // POST /api/projects/[id]/clips/[clipId]/edit-in-editor
 // Bridges a rendered AutoClip clip into the full manual timeline editor
@@ -99,18 +68,25 @@ async function handlePOST(req: NextRequest, { params }: { params: Promise<{ id: 
   };
   // The stored transcript is on the clip's source window; the editor lays
   // captions over the RENDERED file, which trimming may have shortened.
-  const textClips = clip.hasCaptions && clip.transcriptJson
-    ? wordsToCaptionClips(
+  //
+  // The transcript arrives as caption cues (not text clips, as it used to),
+  // so the Captions panel, transcript editing and filler-word cuts work on it.
+  // They arrive HIDDEN: when the AutoClip render has captions, they are
+  // already burned into the video's pixels, and visible cues on top showed
+  // every line twice. Unhiding them is the user's choice.
+  const captionCues = clip.transcriptJson
+    ? wordsToCaptionCues(
         (await import("@/lib/autoclip-pipeline")).wordsOnRenderedTimeline(
           clip.transcriptJson as unknown as WordTiming[], clip.endSec - clip.startSec, clip.silenceSettings,
         ),
-      )
+        videoClip,
+      ).map((cue) => ({ ...cue, hidden: true }))
     : [];
   const editorDoc: TimelineDoc = {
     version: 1,
     aspect,
     fps: 30,
-    tracks: { video: [videoClip], text: textClips, audio: [], image: [], caption: [] },
+    tracks: { video: [videoClip], text: [], audio: [], image: [], caption: captionCues },
   };
 
   const editorProject = await prisma.project.create({
