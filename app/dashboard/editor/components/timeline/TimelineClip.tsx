@@ -70,12 +70,12 @@ export default function TimelineClip({
     clip.type === "image" ? clip.name || (assetName ?? "Image") : clip.name || (assetName ?? "Audio");
 
   const beginDrag = (e: React.PointerEvent, mode: DragMode) => {
-    // Only the primary button drags. A right-click's preventDefault +
-    // pointer capture here swallowed the contextmenu event, so the clip
-    // menu never opened.
+    // Only the primary button drags or selects. A right-click that selected
+    // here opened the properties overlay (below xl) under the pointer, and
+    // its backdrop then took the contextmenu event, so the clip menu never
+    // showed. Menu actions select the clip themselves when they run.
     if (e.button !== 0) {
       e.stopPropagation();
-      select({ clipId: clip.id, track });
       return;
     }
     e.stopPropagation();
@@ -192,10 +192,7 @@ export default function TimelineClip({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
-      onContextMenu={(e) => {
-        select({ clipId: clip.id, track });
-        menu.show(e);
-      }}
+      onContextMenu={(e) => menu.show(e)}
       className={`group/clip absolute bottom-0.5 top-0.5 flex touch-none items-center overflow-hidden rounded-editor-sm border transition-shadow ${
         clip.locked ? "cursor-default" : "cursor-grab"
       } ${colors.bg} ${colors.border} ${clip.hidden ? "opacity-40" : ""} ${
